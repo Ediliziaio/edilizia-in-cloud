@@ -15,6 +15,7 @@ import {
   caricaFotoCantiere,
   caricaFotoCantiereDef,
 } from "./operaio/carica_foto_cantiere.ts";
+import { caricaRilievo, caricaRilievoDef } from "./operaio/carica_rilievo.ts";
 import {
   registraPresenza,
   registraPresenzaDef,
@@ -87,6 +88,7 @@ export const TOOLS_REGISTRY: ToolDef[] = [
     return await caricaDDT(ctx, { ...args, numero_ddt: args.numero_ddt, fornitore: args.fornitore });
   } },
   { ...caricaFotoCantiereDef, handler: caricaFotoCantiere as ToolDef["handler"] },
+  { ...caricaRilievoDef, handler: caricaRilievo as ToolDef["handler"] },
   { ...registraPresenzaDef, handler: async (ctx, args) => {
     const tipo = args.tipo;
     if (tipo !== "entrata" && tipo !== "uscita" && tipo !== "inizio_pausa" && tipo !== "fine_pausa") return errResult("invalid_args", "Indica entrata, uscita o pausa.");

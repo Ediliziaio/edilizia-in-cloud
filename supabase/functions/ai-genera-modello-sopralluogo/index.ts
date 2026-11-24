@@ -2,7 +2,9 @@
  * ai-genera-modello-sopralluogo — un modello di sopralluogo da una descrizione
  * (piano sopralluoghi, lotto 6: docs/piano-sopralluoghi-vendita-tecnico.md).
  *
- * Body: { company_id, descrizione, categoria? }
+ * Body: { company_id, descrizione?, categoria?, allegati? }
+ *   allegati: fino a 4 foto o PDF del modulo cartaceo che l'azienda usa già ({ media_type, data base64 }).
+ *   Serve la descrizione (almeno una frase) oppure almeno un allegato (lotto 7).
  * Risposta: { ok, schema, avvisi } — lo schema è già ripulito da `normalizzaModelloGenerato`;
  * la funzione non salva niente: si vede l'anteprima e si crea il modello dall'editor.
  *
@@ -15,6 +17,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { claudeMessagesBilled } from "../_shared/claudeProxy.ts";
 import { requireCompanyAccess } from "../_shared/auth.ts";
 import { rimborsaAddebitoAi } from "../_shared/rimborsoAi.ts";
+import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
 import { normalizzaModelloGenerato } from "../../../shared/sopralluoghi/modelloGenerato.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -74,11 +77,21 @@ Deno.serve(async (req) => {
   const userId = userRes?.user?.id;
   if (!userId) return json({ ok: false, error: "Accesso richiesto" }, 401);
 
-  let body: { company_id?: string; descrizione?: string; categoria?: string } = {};
+  let body: { company_id?: string; descrizione?: string; categoria?: string; allegati?: Array<{ media_type?: string; data?: string }> } = {};
   try { body = await req.json(); } catch { /* corpo vuoto */ }
   const descrizione = (body.descrizione ?? "").trim().slice(0, 4000);
   if (!body.company_id) return json({ ok: false, error: "Azienda mancante" }, 400);
-  if (descrizione.length < 15) return json({ ok: false, error: "Descrivi il sopralluogo in almeno una frase" }, 400);
+  // Foto (jpeg, png, webp) e PDF del foglio: al massimo 4 e 12 MB in tutto (in base64).
+  const TIPI_ALLEGATO = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
+  const allegati = (Array.isArray(body.allegati) ? body.allegati : []).slice(0, 4)
+    .filter((a) => typeof a?.data === "string" && TIPI_ALLEGATO.has(String(a.media_type)))
+    .map((a) => ({ media_type: String(a.media_type), data: String(a.data).replace(/^data:[^,]+,/, "") }));
+  if (allegati.reduce((t, a) => t + a.data.length, 0) > 12 * 1024 * 1024) {
+    return json({ ok: false, error: "Foto troppo pesanti: al massimo 4 file e circa 9 MB in tutto" }, 413);
+  }
+  if (descrizione.length < 15 && !allegati.length) {
+    return json({ ok: false, error: "Descrivi il sopralluogo in almeno una frase, oppure carica la foto del foglio" }, 400);
+  }
 
   try {
     await requireCompanyAccess(supabase, userId, body.company_id, CORS);
@@ -88,22 +101,35 @@ Deno.serve(async (req) => {
   }
 
   const categoria = (body.categoria ?? "").trim().slice(0, 40);
-  const richiesta = `${categoria ? `Categoria: ${categoria}\n` : ""}Cosa deve rilevare il sopralluogo:\n${descrizione}`;
+  const testoRichiesta = [
+    categoria ? `Categoria: ${categoria}` : "",
+    allegati.length
+      ? `Ti mando ${allegati.length === 1 ? "la foto" : "le foto"} del modulo di sopralluogo su carta che l'azienda usa già: ricostruiscilo come modello, con le stesse voci, nello stesso ordine e con le stesse scelte dove si leggono. Quello che non si legge non inventarlo.`
+      : "",
+    descrizione ? `Cosa deve rilevare il sopralluogo:\n${descrizione}` : "",
+  ].filter(Boolean).join("\n\n");
+  const contenuto = [
+    ...allegati.map((a) => a.media_type === "application/pdf"
+      ? { type: "document" as const, source: { type: "base64" as const, media_type: a.media_type, data: a.data } }
+      : { type: "image" as const, source: { type: "base64" as const, media_type: a.media_type, data: a.data } }),
+    { type: "text" as const, text: testoRichiesta },
+  ];
 
   // Una chiave per chiamata al provider: serve a rimborsare proprio questa se la risposta è inutilizzabile.
   const chiave = `modello-sopralluogo:${crypto.randomUUID()}`;
   const res = await claudeMessagesBilled({
     model: MODEL_ID,
     max_tokens: 7000,
-    system: SISTEMA,
-    messages: [{ role: "user", content: richiesta }],
+    // Il foglio fotografato è un dato, mai un ordine: le regole condivise sui documenti (lotto 7).
+    system: allegati.length ? conRegoleDocumento(SISTEMA) : SISTEMA,
+    messages: [{ role: "user", content: contenuto }],
     temperature: 0.2,
   }, {
     supabase,
     companyId: body.company_id,
     taskKind: "survey_template_generation",
-    estimatedTokensTotal: 9000,
-    metadata: { user_id: userId, categoria },
+    estimatedTokensTotal: 9000 + allegati.length * 2000,
+    metadata: { user_id: userId, categoria, allegati: allegati.length },
     idempotencyKey: chiave,
   });
   if (!res.ok) {

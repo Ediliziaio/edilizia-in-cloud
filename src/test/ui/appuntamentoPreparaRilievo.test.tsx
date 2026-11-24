@@ -44,6 +44,9 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   },
 } }));
 
+// La tendina di Radix in jsdom vuole questi due metodi.
+Element.prototype.scrollIntoView ??= vi.fn();
+Element.prototype.hasPointerCapture ??= vi.fn(() => false);
 beforeEach(() => { state.rpc.mockClear(); state.rpcErrore = null; state.esistente = null; toast.mockClear(); });
 afterEach(cleanup);
 
@@ -61,7 +64,7 @@ it("rilievo tecnico: spunta accesa, propone l'ultimo modello usato, salvando pre
   expect(screen.getByRole("combobox", { name: "Modello del rilievo" }).textContent).toContain("Rilievo Infissi");
   fireEvent.click(screen.getByRole("button", { name: "Crea appuntamento" }));
   await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
-  expect(state.rpc).toHaveBeenCalledWith("sopralluogo_da_appuntamento", { p_appointment: "app-1", p_template: "m2", p_tipo: "tecnico", p_app_operai: true });
+  expect(state.rpc).toHaveBeenCalledWith("sopralluogo_da_appuntamento", { p_appointment: "app-1", p_template: "m2", p_tipo: "tecnico", p_app_operai: true, p_su_carta: false });
   expect(toast).toHaveBeenCalledWith({ title: "Rilievo pronto per il tecnico" });
 });
 
@@ -92,4 +95,14 @@ it("se il rilievo non si prepara, l'appuntamento resta salvato e lo si dice", as
 it("un appuntamento qualunque non mostra il riquadro", () => {
   apri("generico");
   expect(screen.queryByRole("checkbox", { name: /Prepara il rilievo/ })).toBeNull();
+});
+
+it("su carta: si sceglie nella tendina e il rilievo nasce senza modulo", async () => {
+  const onSaved = apri("rilievo_tecnico");
+  fireEvent.click(screen.getByRole("combobox", { name: "Modello del rilievo" }));
+  fireEvent.click(await screen.findByRole("option", { name: "Su carta: foto e PDF del foglio" }));
+  expect(screen.getByText(/il tecnico fotografa il foglio dall'app/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Crea appuntamento" }));
+  await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+  expect(state.rpc).toHaveBeenCalledWith("sopralluogo_da_appuntamento", { p_appointment: "app-1", p_template: null, p_tipo: "tecnico", p_app_operai: true, p_su_carta: true });
 });

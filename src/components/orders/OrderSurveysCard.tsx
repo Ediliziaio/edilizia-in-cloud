@@ -4,12 +4,13 @@ import { lazy, Suspense, useState } from "react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { agganciaSopralluogo, listSurveysByOrder, sopralluoghiDaAgganciare, updateSurvey } from "@/lib/api/surveys";
+import { agganciaSopralluogo, createSurvey, listSurveysByOrder, sopralluoghiDaAgganciare, updateSurvey } from "@/lib/api/surveys";
+import { MODELLO_SU_CARTA, eSuCarta } from "@/lib/surveys/suCarta";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { supabase } from "@/integrations/supabase/client";
-import { ClipboardCheck, Plus, CalendarDays, Loader2, ArrowRightLeft, Link2, Search } from "lucide-react";
+import { ClipboardCheck, Plus, CalendarDays, Loader2, ArrowRightLeft, Link2, Search, Paperclip } from "lucide-react";
 import { OfficeSelect } from "./OfficeSelect";
 import { RiquadroCommessa, StatoPill, TabellaCommessa, type ColonnaTabella, type TonoStato } from "./TabellaCommessa";
 import { orderVisits, VISIT_GROUPS, type OrderVisit, type VisitGroup, type OrderSurveyContext } from "@/lib/surveys/orderVisits";
@@ -69,6 +70,15 @@ export function OrderSurveysCard({orderId, orderCode, clientId, clientName, addr
     for (const key of [["order-surveys",orderId],["order-surveys-da-agganciare",orderId],["order-appointments",orderId],["sopralluoghi-bacheca"]]) void qc.invalidateQueries({queryKey:key});
   };
   const aggancia = useMutation({mutationFn:(id:string)=>agganciaSopralluogo(id,orderId),onSuccess:()=>{aggiorna();toast.success(t("Sopralluogo collegato alla commessa"));},onError:(e:Error)=>toast.error(e.message || t("Sopralluogo non collegato"))});
+  // Rilievo su carta (lotto 8): nasce vuoto, si caricano subito le foto o i PDF del foglio.
+  const suCarta = useMutation({
+    mutationFn: () => createSurvey({
+      template_id: MODELLO_SU_CARTA, mode: "express", tipo: "tecnico", ruolo_misure: "definitivo",
+      order_id: orderId, client_id: clientId ?? null, address: address ?? null,
+    }, companyId),
+    onSuccess: (s) => { aggiorna(); setSelected({ id: s.id, edit: false }); },
+    onError: (e: Error) => toast.error(t("Rilievo su carta non creato"), { description: e.message }),
+  });
   const ruolo = useMutation({mutationFn:(p:{id:string;ruolo:"preliminare"|"definitivo"|null})=>updateSurvey(p.id,{ruolo_misure:p.ruolo}),onSuccess:aggiorna,onError:()=>toast.error(t("Tipo di misure non aggiornato"))});
   const visits = orderVisits(surveys.data??[],agenda.data??[]);
   const counts = Object.fromEntries(VISIT_GROUPS.map(([key])=>[key,key==="tutti" ? visits.length : visits.filter(v=>v.group===key).length]));
@@ -76,21 +86,21 @@ export function OrderSurveysCard({orderId, orderCode, clientId, clientName, addr
   if(sort==="prossimi") visible.sort((a,b)=>String(a.when||"9999").localeCompare(String(b.when||"9999")));
   const openVisit = (v:OrderVisit) => v.survey ? setSelected({id:v.survey.id,edit:false}) : setCalendar({appointment:v.appointment!});
   const columns:ColonnaTabella<OrderVisit>[] = [
-    {titolo:t("Sopralluogo"),principale:true,cella:v=><div><button type="button" aria-haspopup="dialog" className="text-left font-medium text-primary hover:underline" onClick={()=>openVisit(v)}>{v.code}</button><p className="mt-1 text-xs text-muted-foreground">{v.survey ? (v.survey.tipo === "commerciale" ? t("Sopralluogo commerciale") : t("Rilievo tecnico")) : t("Appuntamento · rilievo da compilare")}</p></div>},
+    {titolo:t("Sopralluogo"),principale:true,cella:v=><div><button type="button" aria-haspopup="dialog" className="text-left font-medium text-primary hover:underline" onClick={()=>openVisit(v)}>{v.code}</button><p className="mt-1 text-xs text-muted-foreground">{v.survey ? (eSuCarta(v.survey) ? t("Rilievo su carta") : v.survey.tipo === "commerciale" ? t("Sopralluogo commerciale") : t("Rilievo tecnico")) : t("Appuntamento · rilievo da compilare")}</p></div>},
     {titolo:t("Stato"),cella:v=><div><StatoPill tono={TONES[v.group]}>{t(LABELS[v.group])}</StatoPill>{v.survey?.status==="signed" && <p className="mt-1 text-xs text-muted-foreground">{t("Firmato")}</p>}</div>},
     {titolo:t("Data e tecnico"),cella:v=><div className="space-y-1"><p>{giorno(v.when,v.appointment ? !!v.appointment.appointment_time : !!v.survey?.scheduled_at,t)}</p>{v.survey?.completed_at && <p className="text-xs text-muted-foreground">{t("Effettuato il {data}", { data: giorno(v.survey.completed_at,false,t) })}</p>}<p className="text-xs text-muted-foreground">{v.technicianId ? people.get(v.technicianId)||t("Tecnico assegnato") : t("Tecnico da assegnare")}</p></div>},
     {titolo:t("Cantiere"),cella:v=><span className="text-xs text-muted-foreground">{v.address || address || t("Indirizzo da completare")}</span>},
     {titolo:t("Misure"),cella:v=>v.survey ? <OfficeSelect label={t("Tipo di misure del sopralluogo {codice}", { codice: v.code })} className="h-9 w-[118px] min-w-[118px] px-2 text-xs" disabled={!writable || ruolo.isPending} value={v.survey.ruolo_misure??""} onValueChange={value=>ruolo.mutate({id:v.survey!.id,ruolo:(value||null) as "preliminare"|"definitivo"|null})} options={[{value:"",label:t("Non indicate")},{value:"preliminare",label:t("Preliminari")},{value:"definitivo",label:t("Definitive")}]} /> : <span className="text-xs text-muted-foreground">{t("Da rilevare")}</span>},
     {titolo:t("Azioni"),destra:true,cella:v=><div className="flex flex-wrap justify-end gap-1.5">
       <Button size="sm" variant="outline" onClick={()=>openVisit(v)}>{v.survey ? t("Apri") : writable && canEditOrders ? t("Appuntamento") : t("Dettagli")}</Button>
-      {writable && v.group!=="annullati" && v.group!=="archiviati" && <Button size="sm" variant="outline" onClick={()=>v.survey ? setSelected({id:v.survey.id,edit:true}) : setCreation({...context,appointment:v.appointment})}>{v.survey ? t("Compila") : t("Compila rilievo")}</Button>}
+      {writable && v.group!=="annullati" && v.group!=="archiviati" && <Button size="sm" variant="outline" onClick={()=>v.survey ? setSelected({id:v.survey.id,edit:!eSuCarta(v.survey)}) : setCreation({...context,appointment:v.appointment})}>{v.survey ? (eSuCarta(v.survey) ? t("Carica fogli") : t("Compila")) : t("Compila rilievo")}</Button>}
       {writable && canEditOrders && v.survey && ["da_fissare","fissati"].includes(v.group) && <Button size="sm" variant="ghost" onClick={()=>setDaPianificare(v.survey!)}>{v.when ? t("Sposta") : t("Pianifica")}</Button>}
       {writable && canEditOrders && v.survey && <Button size="sm" variant="ghost" title={t("Porta le misure in commessa")} aria-label={t("Porta le misure di {codice} in commessa", { codice: v.code })} onClick={()=>setDaPortare(v.survey!.id)}><ArrowRightLeft className="h-4 w-4" /></Button>}
     </div>},
   ];
   if(!canViewSopralluoghi) return <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">{t("Per consultare i rilievi serve il permesso «Sopralluoghi».")}</p>;
   return <RiquadroCommessa icona={<ClipboardCheck className="h-4 w-4 text-orange-500" />} titolo={t("Rilievi e sopralluoghi")} conteggio={visits.length}
-    azioni={<><Button size="sm" variant="outline" disabled={!writable || !canEditOrders} onClick={()=>setCalendar({appointment:null})}><CalendarDays className="mr-1.5 h-4 w-4" />{t("Fissa sopralluogo")}</Button><Button size="sm" disabled={!writable} onClick={()=>setCreation(context)}><Plus className="mr-1.5 h-4 w-4" />{t("Nuovo sopralluogo")}</Button></>}>
+    azioni={<><Button size="sm" variant="outline" disabled={!writable || !canEditOrders} onClick={()=>setCalendar({appointment:null})}><CalendarDays className="mr-1.5 h-4 w-4" />{t("Fissa sopralluogo")}</Button><Button size="sm" variant="outline" disabled={!writable || suCarta.isPending} onClick={()=>suCarta.mutate()} title={t("Foto o PDF del foglio, senza compilare il modulo")}>{suCarta.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Paperclip className="mr-1.5 h-4 w-4" />}{t("Rilievo su carta")}</Button><Button size="sm" disabled={!writable} onClick={()=>setCreation(context)}><Plus className="mr-1.5 h-4 w-4" />{t("Nuovo sopralluogo")}</Button></>}>
     <div className="space-y-4">
       <div className="flex flex-wrap gap-1" role="group" aria-label={t("Stato dei sopralluoghi")}>{VISIT_GROUPS.map(([key,label])=><Button key={key} size="sm" variant={filter===key ? "default" : "ghost"} aria-pressed={filter===key} aria-label={t(counts[key] === 1 ? "{stato}: {n} sopralluogo" : "{stato}: {n} sopralluoghi", { stato: t(label), n: counts[key] })} onClick={()=>setFilter(key)}>{t(label)}<span className="ml-2 text-xs opacity-70">{counts[key]}</span></Button>)}</div>
       <div className="flex flex-wrap gap-2"><div className="relative min-w-48 flex-1"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input aria-label={t("Cerca sopralluoghi della commessa")} placeholder={t("Cerca codice, cantiere o tecnico…")} className="pl-9" value={search} onChange={e=>setSearch(e.target.value)} /></div><OfficeSelect label={t("Ordina sopralluoghi")} className="w-full shrink-0 sm:w-48" value={sort} onValueChange={setSort} options={[{value:"recenti",label:t("Più recenti")},{value:"prossimi",label:t("Prima i meno recenti")}]} /></div>

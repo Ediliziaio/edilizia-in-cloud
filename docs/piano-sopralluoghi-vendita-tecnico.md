@@ -256,3 +256,45 @@ l'AI vera (solo con risposte finte nei test).
 ## 4. Cosa resta fuori
 - Rilievo compilato dal commerciale senza rete: va provato col lotto 2 sul telefono vero.
 - Rilievi vecchi senza tipo: diventano tecnici, tranne i preliminari (2), che diventano commerciali.
+
+## 5. Seconda parte (24/11/2026): il rilievo su carta, dalla foto e da WhatsApp
+
+Richiesta di Florin: non tutte le aziende compilano il modulo. Molte fanno il sopralluogo su carta;
+devono poterlo fotografare o caricare in PDF, e quei file vanno nella commessa come rilievo. Lo stesso
+dall'app dell'operaio e da WhatsApp.
+
+### Lotto 7 — Il modello da una foto del foglio *(fatto 24/11/2026)*
+- «Descrivilo all'AI» accetta anche foto o PDF del modulo cartaceo che l'azienda usa già: l'AI ne
+  ricava sezioni, campi e righe di preventivo. Stessa funzione, stessa pulizia, stesso addebito.
+
+### Lotto 8 — Il sopralluogo su carta *(fatto 24/11/2026)*
+- Un rilievo può essere «su carta»: niente modulo da compilare, solo foto e PDF (più pagine).
+  Usa il modello di sistema della registrazione rapida (`feca0825…`, già usato dal Campo) e
+  `surveys.mode = 'express'`, previsto dal vincolo e finora mai usato.
+- Dall'ufficio: «Rilievo su carta» in commessa e dall'appuntamento; carica più foto o PDF.
+- Dall'app operai: il tecnico assegnato scatta le foto del foglio e consegna anche senza elementi
+  compilati (oggi la consegna vuole almeno un elemento).
+- Si vede nella commessa con i suoi file, e funziona anche per chi non compila i modelli.
+
+### Lotto 9 — Il rilievo da WhatsApp *(fatto 24/11/2026)*
+- Chi manda su WhatsApp la foto del foglio e dice che è un sopralluogo la vede finire nel rilievo
+  della commessa (quello da eseguire, se c'è; altrimenti uno nuovo su carta), come fa già
+  `carica_foto_cantiere` per le foto del cantiere.
+
+Fatto (lotti 7-9):
+- Lotto 7: in «Descrivilo all'AI» si fotografa o si carica il modulo su carta (fino a 4 foto o PDF,
+  ridotti prima dell'invio); la descrizione diventa facoltativa. Con allegati il messaggio di sistema
+  porta le regole condivise sui documenti non fidati.
+- Lotto 8 (migrazione 20290530100400): «Rilievo su carta» in commessa (nasce vuoto e si caricano
+  subito i fogli) e «Su carta: foto e PDF del foglio» tra i modelli dell'appuntamento, anche per chi
+  non ha attivato il modulo dei modelli. Il rilievo su carta mostra «Fotografa il foglio» e «Carica
+  foto o PDF» (ufficio e app operai), nasconde «Compila». La consegna dall'app vale con i soli file
+  (prima chiedeva almeno un elemento). Provato in transazione annullata: a mani vuote la consegna è
+  rifiutata, con il PDF passa.
+- Lotto 9: strumento WhatsApp `carica_rilievo` (permesso foto.write: operai, ufficio, titolare). La
+  foto o il PDF va nel rilievo da eseguire della commessa (prima quello di cui chi scrive è il
+  tecnico, poi quello su carta); se non c'è, nasce un rilievo su carta. Le pagine successive vanno
+  nello stesso rilievo. Provato con database e archivio finti.
+
+Resta: nessuna prova con l'AI vera né con un messaggio WhatsApp vero; i fogli caricati stanno nel
+rilievo (e da lì nella commessa), non sono copiati anche tra i documenti della commessa.

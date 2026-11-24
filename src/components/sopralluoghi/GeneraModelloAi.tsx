@@ -5,7 +5,8 @@
  * rifinisce nell'editor come gli altri.
  */
 import { useState } from "react";
-import { Loader2, Sparkles } from "lucide-react";
+import { Camera, Loader2, Sparkles, X } from "lucide-react";
+import { riduciFile } from "@/lib/commesse/riduciFoto";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,17 @@ import { Textarea } from "@/components/ui/textarea";
 import type { TemplateSchema } from "@/types/surveys";
 
 interface Esito { schema: TemplateSchema; avvisi: string[] }
+
+/** Le foto del foglio che si mandano all'AI: al massimo 4, immagini o PDF (lotto 7). */
+const TIPI_FOGLIO = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+const MAX_FOGLI = 4;
+
+async function inBase64(file: File): Promise<string> {
+  const buffer = new Uint8Array(await file.arrayBuffer());
+  let binario = "";
+  for (let i = 0; i < buffer.length; i += 0x8000) binario += String.fromCharCode(...buffer.subarray(i, i + 0x8000));
+  return btoa(binario);
+}
 
 export function GeneraModelloAi({ categoria, esito, onEsito }: {
   categoria: string;
@@ -24,6 +36,16 @@ export function GeneraModelloAi({ categoria, esito, onEsito }: {
   const [descrizione, setDescrizione] = useState("");
   const [inCorso, setInCorso] = useState(false);
   const [errore, setErrore] = useState("");
+  const [fogli, setFogli] = useState<File[]>([]);
+
+  const aggiungiFogli = async (lista: FileList | null) => {
+    const scelti = Array.from(lista ?? []);
+    const validi = scelti.filter((f) => TIPI_FOGLIO.includes(f.type));
+    if (validi.length < scelti.length) setErrore("Solo foto (JPG, PNG, WebP) o PDF del foglio.");
+    // Le foto del telefono pesano 3-6 MB: si riducono prima di mandarle (restano leggibili).
+    const ridotti = await Promise.all(validi.map(async (f) => (await riduciFile(f)).file));
+    setFogli((prima) => [...prima, ...ridotti].slice(0, MAX_FOGLI));
+  };
 
   const genera = async () => {
     if (inCorso || !companyId) return;
@@ -31,8 +53,9 @@ export function GeneraModelloAi({ categoria, esito, onEsito }: {
     setErrore("");
     onEsito(null);
     try {
+      const allegati = await Promise.all(fogli.map(async (f) => ({ media_type: f.type, data: await inBase64(f) })));
       const { data, error } = await supabase.functions.invoke("ai-genera-modello-sopralluogo", {
-        body: { company_id: companyId, descrizione, categoria },
+        body: { company_id: companyId, descrizione, categoria, ...(allegati.length ? { allegati } : {}) },
       });
       const risposta = data as { ok?: boolean; error?: string; schema?: TemplateSchema; avvisi?: string[] } | null;
       if (error || !risposta?.ok || !risposta.schema) {
@@ -59,10 +82,29 @@ export function GeneraModelloAi({ categoria, esito, onEsito }: {
           value={descrizione}
           maxLength={4000}
           onChange={(e) => setDescrizione(e.target.value)}
-          placeholder="Es. Rifacimento bagno: misure della stanza, sanitari da togliere e da mettere, piatto doccia, rivestimenti a mq, posizione degli scarichi, stato dell'impianto elettrico."
+          placeholder="Facoltativa se carichi il foglio. Es. Rifacimento bagno: misure della stanza, sanitari da togliere e da mettere, piatto doccia, rivestimenti a mq, posizione degli scarichi, stato dell'impianto elettrico."
         />
       </div>
-      <Button type="button" variant="outline" className="w-full gap-2" disabled={inCorso || descrizione.trim().length < 15} onClick={genera}>
+      <div className="space-y-1.5">
+        <label className="flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed px-3 text-sm hover:bg-muted/40">
+          <Camera className="h-4 w-4" />
+          {fogli.length ? "Aggiungi altre foto del foglio" : "Oppure: foto o PDF del vostro modulo su carta"}
+          <input type="file" className="sr-only" accept={TIPI_FOGLIO.join(",")} multiple capture="environment"
+            aria-label="Foto o PDF del modulo su carta" disabled={inCorso || fogli.length >= MAX_FOGLI}
+            onChange={(e) => { void aggiungiFogli(e.target.files); e.target.value = ""; }} />
+        </label>
+        {fogli.length > 0 && (
+          <ul className="flex flex-wrap gap-1.5" aria-label="Fogli da leggere">
+            {fogli.map((f, i) => (
+              <li key={`${f.name}-${i}`} className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px]">
+                <span className="max-w-40 truncate">{f.name}</span>
+                <button type="button" aria-label={`Togli ${f.name}`} onClick={() => setFogli((x) => x.filter((_, j) => j !== i))}><X className="h-3 w-3" /></button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <Button type="button" variant="outline" className="w-full gap-2" disabled={inCorso || (descrizione.trim().length < 15 && !fogli.length)} onClick={genera}>
         {inCorso ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
         {inCorso ? "Scrivo il modello… (fino a un minuto)" : esito ? "Rigenera" : "Genera l'anteprima"}
       </Button>

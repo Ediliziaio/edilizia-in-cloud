@@ -333,7 +333,7 @@ export async function listSurveysByOrder(orderId: string, companyId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from("surveys")
-    .select("id, code, status, scheduled_at, completed_at, address, city, client_id, contact_id, opportunity_id, order_id, estimate_id, technician_id, template_id, created_at, updated_at, ruolo_misure, appointment_id, tipo")
+    .select("id, code, status, scheduled_at, completed_at, address, city, client_id, contact_id, opportunity_id, order_id, estimate_id, technician_id, template_id, created_at, updated_at, ruolo_misure, appointment_id, tipo, mode")
     .eq("order_id", orderId)
     .eq("company_id", companyId)
     .is("deleted_at", null)
@@ -951,10 +951,12 @@ export async function rilievoDaAppuntamento(
   templateId: string,
   tipo: TipoSopralluogo | null = null,
   appOperai = true,
+  /** Su carta (lotto 8): niente modulo, si caricano foto e PDF del foglio. */
+  suCarta = false,
 ): Promise<string> {
   const { data, error } = await supabase.rpc(
     "sopralluogo_da_appuntamento" as never,
-    { p_appointment: appointmentId, p_template: templateId, p_tipo: tipo, p_app_operai: appOperai } as never,
+    { p_appointment: appointmentId, p_template: suCarta ? null : templateId, p_tipo: tipo, p_app_operai: appOperai, p_su_carta: suCarta } as never,
   );
   if (error || !data) throw new Error(error?.message || "Rilievo non preparato");
   return data as unknown as string;

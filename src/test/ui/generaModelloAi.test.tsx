@@ -40,3 +40,16 @@ it("l'errore della funzione arriva a chi la usa", async () => {
   fireEvent.click(screen.getByRole("button", { name: /Genera l'anteprima/ }));
   await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("Credito AI esaurito: ricarica per generare il modello."));
 });
+
+it("dal foglio di carta: la foto parte in base64 anche senza descrizione", async () => {
+  s.risposta = { data: { ok: true, avvisi: [], schema: { area_definition: { label_plural: "Stanze" }, element_types: [{ key: "f", label: "Finestra", sections: [{ key: "m", label: "M", fields: [{ key: "l", label: "L", type: "dimension" }] }] }], output_mapping: { estimate_lines: {} } } }, error: null };
+  render(<Prova />);
+  const foglio = new File([new Uint8Array([1, 2, 3])], "modulo.pdf", { type: "application/pdf" });
+  fireEvent.change(screen.getByLabelText("Foto o PDF del modulo su carta"), { target: { files: [foglio] } });
+  await screen.findByText("modulo.pdf");
+  fireEvent.click(screen.getByRole("button", { name: /Genera l'anteprima/ }));
+  await screen.findByText("Finestra");
+  const corpo = (s.invoke.mock.calls[0] as unknown as [string, { body: { allegati: Array<{ media_type: string; data: string }>; descrizione: string } }])[1].body;
+  expect(corpo.descrizione).toBe("");
+  expect(corpo.allegati).toEqual([{ media_type: "application/pdf", data: "AQID" }]);
+});

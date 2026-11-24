@@ -47,6 +47,8 @@ import { SurveyPdfTools } from "./SurveyPdfTools";
 import { DocumentoDalRilievo } from "./DocumentoDalRilievo";
 import { TipoSopralluogoBadge } from "./TipoSopralluogoBadge";
 import { TecnicoDalCommerciale } from "./TecnicoDalCommerciale";
+import { RilievoSuCarta } from "./RilievoSuCarta";
+import { eSuCarta } from "@/lib/surveys/suCarta";
 import { SurveyMediaGallery } from "./SurveyMediaGallery";
 import { WindowSurveyVisual } from "./WindowSurveyVisual";
 import { isWindowSurvey } from "@/lib/surveys/windowSurvey";
@@ -449,7 +451,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
               </Heading>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {access.field && !solaLettura && !embedded && onEdit && <Button variant="outline" className="min-h-11 rounded-xl" onClick={()=>navigate(onEdit)}>{tr("Compila")}</Button>}
+              {access.field && !solaLettura && !embedded && onEdit && !eSuCarta(survey) && <Button variant="outline" className="min-h-11 rounded-xl" onClick={()=>navigate(onEdit)}>{tr("Compila")}</Button>}
               <SurveyPdfTools
                 detail={detail}
                 companyName={effectiveCompany?.name || "Azienda"}
@@ -467,7 +469,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
               {!access.field && !solaLettura && ["fotovoltaico", "climatizzazione"].includes(detail.template.category) && <Button variant="outline" className="min-h-11 rounded-xl" disabled={editState.dirty || editState.saving} onClick={()=>navigate(()=>routeTo(energyQuoteHref(detail)))}>{tr("Prepara preventivo dal rilievo")}</Button>}
               {!access.field && !solaLettura && <DocumentoDalRilievo detail={detail} disabled={editState.dirty || editState.saving} />}
               {!access.field && <TecnicoDalCommerciale survey={survey} disabled={editState.dirty || editState.saving} />}
-              {!access.field && !solaLettura && onEdit && (
+              {!access.field && !solaLettura && onEdit && !eSuCarta(survey) && (
                 <Button
                   variant="outline"
                   className="min-h-10 rounded-xl gap-2"
@@ -655,6 +657,8 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
               )}
               <TabsContent value="rilievo" className="mt-0 space-y-4">
                 <SurveyOfficeReview detail={detail}/>
+                {/* Su carta (lotto 8): le foto e i PDF del foglio sono il rilievo. */}
+                {eSuCarta(survey) && <RilievoSuCarta detail={detail} canEdit={!solaLettura && !survey.client_signature_at && (!access.field || ["draft", "in_progress"].includes(survey.status))} />}
                 {!access.field && <RigheDelRilievo surveyId={survey.id} orderId={survey.order_id} />}
                 {survey.order_id && (
                   <PosizioniCommessaPanel

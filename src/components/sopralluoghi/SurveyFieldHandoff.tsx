@@ -47,7 +47,8 @@ export function SurveyFieldHandoff({
       <Button
         className="min-h-11 rounded-xl px-3"
         aria-label={t("Consegna all’ufficio")}
-        disabled={disabled || mutation.isPending || !detail.elements.length}
+        // Su carta bastano le foto o il PDF del foglio (lotto 8 del piano sopralluoghi).
+        disabled={disabled || mutation.isPending || (!detail.elements.length && !detail.media.some((m) => m.type === "photo" || m.type === "annotated_photo" || m.type === "document"))}
         onClick={() => setOpen(true)}
       >
         {compact ? t("Consegna") : t("Consegna all’ufficio")}

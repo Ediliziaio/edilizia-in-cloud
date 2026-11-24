@@ -15,6 +15,9 @@ import {
   type ModelloRilievo,
 } from "@/lib/surveys/rilievoAppuntamento";
 
+/** Scelta «Su carta» nella tendina dei modelli (lotto 8): foto e PDF, senza modulo. */
+export const SU_CARTA = "__su_carta__";
+
 export interface RilievoEsistente { id: string; code: string | null }
 
 export interface RilievoAppuntamentoStato {
@@ -42,8 +45,10 @@ export function useRilievoAppuntamento({
 }): RilievoAppuntamentoStato {
   const { isFeatureEnabled } = useFeatureFlags();
   const { canViewSopralluoghi } = usePermissions();
-  const visibile = !!companyId && !spento && canViewSopralluoghi
-    && isFeatureEnabled("surveys_module") && appuntamentoConRilievo(appointmentType);
+  // Senza il modulo dei modelli resta il rilievo su carta: le aziende che fanno il sopralluogo
+  // sul foglio lo fotografano e basta (lotto 8).
+  const moduloAttivo = isFeatureEnabled("surveys_module");
+  const visibile = !!companyId && !spento && canViewSopralluoghi && appuntamentoConRilievo(appointmentType);
 
   const esistente = useQuery({
     queryKey: ["rilievo-appuntamento", appointmentId],
@@ -58,7 +63,7 @@ export function useRilievoAppuntamento({
 
   const modelli = useQuery({
     queryKey: ["rilievo-appuntamento-modelli", companyId],
-    enabled: visibile && !esistente.data,
+    enabled: visibile && moduloAttivo && !esistente.data,
     staleTime: 10 * 60 * 1000,
     queryFn: async () => {
       const [lista, ultimo] = await Promise.all([
@@ -84,12 +89,13 @@ export function useRilievoAppuntamento({
   const setAttivo = (v: boolean) => { toccato.current = true; setAttivoStato(v); };
 
   const [modelloScelto, setModelloId] = useState<string | null>(null);
-  const modelloId = modelloScelto ?? modelloDiPartenza(modelli.data?.righe ?? [], modelli.data?.ultimo);
+  const modelloId = modelloScelto ?? (moduloAttivo ? modelloDiPartenza(modelli.data?.righe ?? [], modelli.data?.ultimo) : SU_CARTA) ?? SU_CARTA;
   const tipo = tipoRilievoDaAppuntamento(appointmentType);
 
   const prepara = async (id: string) => {
     if (!visibile || !attivo || esistente.data || !modelloId) return null;
-    return rilievoDaAppuntamento(id, modelloId, tipo, true);
+    // «Su carta» è una scelta della tendina dei modelli (lotto 8).
+    return rilievoDaAppuntamento(id, modelloId, tipo, true, modelloId === SU_CARTA);
   };
 
   return {
