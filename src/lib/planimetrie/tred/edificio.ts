@@ -102,11 +102,7 @@ export function scenaEdificio(piani: PianoPer3D[], opzioni: OpzioniEdificio = {}
     // l'ultimo piano mostrato resta senza soffitto se lo si guarda dall'alto: lo decide `soffitto`
     const dy = piano.quota / 100 + i * (opzioni.esploso ?? 0);
     if (Math.abs(dy) < .05) scaviPiscine.push(...(s.scaviPiscine ?? []));
-    // I soffitti fanno da tetto piano dove il piano sopra non arriva (l'ultimo piano, o un piano
-    // più piccolo sopra): si devono vedere anche da sopra. Erano disegnati solo verso il basso e
-    // da fuori l'edificio restava scoperchiato (Callimaco, 24/11/2026).
-    for (const m0 of s.mesh) {
-      const m = m0.genere === "soffitto" ? { ...m0, doppioLato: true } : m0;
+    for (const m of s.mesh) {
       const posizioni = m.posizioni.slice();
       for (let k = 1; k < posizioni.length; k += 3) posizioni[k] += dy;
       mesh.push({ ...m, id: `${piano.id}/${m.id}`, nome: `${piano.nome} · ${m.nome}`, posizioni,
@@ -127,6 +123,12 @@ export function scenaEdificio(piani: PianoPer3D[], opzioni: OpzioniEdificio = {}
       else impiantiTot.set(im.linea, { ...gia, metri: Math.round((gia.metri + im.metri) * 10) / 10 });
     }
   });
+  // I soffitti fanno da tetto piano dove il piano sopra non arriva (l'ultimo piano, o un piano più
+  // piccolo sopra): si devono vedere anche da sopra. Il lato si decide sul materiale: erano disegnati
+  // solo verso il basso e da fuori l'edificio restava scoperchiato (Callimaco, 24/11/2026).
+  for (const chiave of new Set(mesh.filter((m) => m.genere === "soffitto").map((m) => m.materiale))) {
+    if (materiali[chiave]) materiali[chiave] = { ...materiali[chiave], doppioLato: true };
+  }
   const limiti = limitiDi(mesh);
   const margineTerreno = opzioni.terreno ?? (scaviPiscine.length ? 2 : 0);
   if (margineTerreno > 0 && mesh.length) {

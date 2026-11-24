@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { Ricalco } from "../../../../shared/planimetrie/modello.ts";
+import { segmentiDaTracciato } from "./stanzaDaMuri";
+import type { Punto } from "../../../../shared/planimetrie/modello.ts";
 import { LIMITE_TRACCIATO_DWG_DECOMPRESSO, tracciatoSvgDwg, type TavolaDwg } from "../../../../shared/planimetrie/tavolaDwg.ts";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
@@ -30,6 +32,25 @@ export function decodificaTracciatoDwg(dato: string): string {
     const d = strFromU8(gunzipSync(bytes, { out: new Uint8Array(dimensione) }));
     return tracciatoSvgDwg(d) ? d : "";
   } catch { return ""; }
+}
+
+/** Layer della tavola che non fanno da bordo a una stanza: quote, testi, arredi, campiture. */
+const NON_BORDI = /quot|dim|test|scritt|arred|mobil|hatch|campit|retin|tratteg|simbol|sanitar|alber|verde|assi|axis/i;
+
+/**
+ * I tratti della tavola DWG nel sistema dell'editor (stessa trasformazione di DisegnoLayerDwg),
+ * per chiudere le stanze con «Stanza dai muri» dove il convertitore non ha ricavato le pareti.
+ */
+export function segmentiTavolaDwg(tavola: TavolaDwg, ricalco: Ricalco | null): Array<[Punto, Punto]> {
+  const r = tavola.riquadro;
+  const s = ricalco ? ricalco.larghezzaCm / r.larghezza : 1;
+  const x = ricalco ? ricalco.x - r.x * s : 0;
+  const y = ricalco ? -ricalco.y + (r.y + r.altezza) * s : 0;
+  const inEditor = (p: Punto): Punto => ({ x: x + p.x * s, y: y - p.y * s });
+  return tavola.layer.filter((l) => !NON_BORDI.test(l.nome) && l.linee)
+    .flatMap((l) => segmentiDaTracciato(decodificaTracciatoDwg(l.linee)))
+    .filter(([a, b]) => Math.hypot(b.x - a.x, b.y - a.y) >= 5)
+    .map(([a, b]) => [inEditor(a), inEditor(b)]);
 }
 
 export function LayerDwg({ tavola, vista, bloccata, onVista, onBlocca }: {

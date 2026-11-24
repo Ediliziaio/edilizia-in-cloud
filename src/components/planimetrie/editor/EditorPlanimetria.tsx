@@ -23,7 +23,7 @@ import { eAmbienteInterno, funzionePareteDaVerificare, NOMI_AREA, TIPI_AREA, typ
 import { baricentro, STILE_AREA } from "./disegno";
 import { useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type Ref } from "react";
 import { flushSync } from "react-dom";
-import { AppWindow, Armchair, Ellipsis, Eraser, Grid3x3, Hexagon, ImageIcon, Layers, Trees, DoorOpen, Magnet, Maximize2, MessageSquare, Minus, Mountain, MousePointer2, MoveHorizontal, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, PenLine, Play, Plus, Redo2, Ruler, Scissors, SlidersHorizontal, Square, StretchHorizontal, Type, Undo2 } from "lucide-react";
+import { AppWindow, Armchair, Ellipsis, PaintBucket, Eraser, Grid3x3, Hexagon, ImageIcon, Layers, Trees, DoorOpen, Magnet, Maximize2, MessageSquare, Minus, Mountain, MousePointer2, MoveHorizontal, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, PenLine, Play, Plus, Redo2, Ruler, Scissors, SlidersHorizontal, Square, StretchHorizontal, Type, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -70,6 +70,7 @@ import { arredaStanza, climaStanza, impiantoElettrico, magliaPilastri, riscaldam
 import { attraversamentiImpianto, btuConsigliati, chiaveTratto, metriConSfrido, percorsoConVertici, percorsiImpianti } from "../../../../shared/planimetrie/impianti.ts";
 import { COLORE_RADIANTE, zoneRadianti } from "../../../../shared/planimetrie/pavimentoRadiante.ts";
 import { puntoNelPoligono } from "../../../../shared/planimetrie/geometria.ts";
+import { stanzaDaMuri } from "./stanzaDaMuri";
 import { COLORI_LINEE } from "./TelaPlanimetria";
 import { annulla, esegui, nuovaStoria, ripeti, type Storia } from "./storia";
 import { TelaPlanimetria, type AnimazioneChatTela, type Camera, type Selezione, type SfondoRicalco, type Sovrapposizioni } from "./TelaPlanimetria";
@@ -83,7 +84,8 @@ import type { PassoChatDisegno, VistaChatDisegno } from "./comandiChat";
 import { muriSottoPennello, segnaDemolizioniDalPennello } from "./pennelloDemolizioni";
 import { NOMI_LINEE, TracciatiImpianti } from "./TracciatiImpianti";
 import { AccessoAbachiPianta } from "../AccessoAbachiPianta";
-import { DisegnoLayerDwg, LayerDwg, vistaLayerDwgIniziale } from "./LayerDwg";
+import { DisegnoLayerDwg, LayerDwg, segmentiTavolaDwg, vistaLayerDwgIniziale } from "./LayerDwg";
+import type { TavolaDwg } from "../../../../shared/planimetrie/tavolaDwg.ts";
 import { CoordinateDisegno } from "./CoordinateDisegno";
 import { creaAlternativaInterventi, piantaDaApplicare, propostaChatApplicabile } from "./interventiChat";
 import { studioVariante } from "@/lib/planimetrie/studioImmobiliare";
@@ -97,7 +99,7 @@ import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 const NESSUN_LATO_MODIFICABILE: ReadonlySet<string> = new Set();
 const VISTE_CONFRONTO_CHAT = [["prima", "Prima"], ["differenze", "Differenze"], ["dopo", "Dopo"]] as const;
 
-export type Strumento = "seleziona" | "stanza" | "poligono" | "area" | "parete" | "demolizioni" | "porta" | "finestra" | "arredo" | "quota" | "testo" | ComandoCad;
+export type Strumento = "seleziona" | "stanza" | "riempi" | "poligono" | "area" | "parete" | "demolizioni" | "porta" | "finestra" | "arredo" | "quota" | "testo" | ComandoCad;
 
 const eComandoCad = (s: Strumento): s is ComandoCad => s === "taglia" || s === "estendi" || s === "offset";
 const ICONE_COMANDI_CAD = { taglia: Scissors, estendi: MoveHorizontal, offset: StretchHorizontal };
@@ -595,6 +597,8 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
   const dimensioniRef = useRef(dimensioni);
   useLayoutEffect(() => { dimensioniRef.current = dimensioni; }, [dimensioni]);
   const ricalcoRef = useRef(ricalco);
+  /** La tavola DWG del piano aperto: «Stanza dai muri» usa anche le sue linee come bordi. */
+  const tavolaDwgRef = useRef<TavolaDwg | undefined>(undefined);
   useLayoutEffect(() => { ricalcoRef.current = ricalco; }, [ricalco]);
   const inquadra = useCallback((piantaDaInquadrare: Pianta) => {
     const ps = angoliEsistenti(piantaDaInquadrare);
@@ -1040,6 +1044,21 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
     if (str === "demolizioni" && v === "progetto") {
       gesto.current = { tipo: "demolizioni", ultimo: p, prima: sovrapposizioniRef.current.demolizioni };
       tracciaDemolizioni(p, p, true);
+      return;
+    }
+    if (str === "riempi") {
+      // Un clic dentro le pareti: la stanza si chiude lungo il loro filo interno (stanzaDaMuri.ts).
+      if (pi.locali.some((l) => C.visibile(l.stato, v) && l.stato !== "da_demolire" && puntoNelPoligono(p, l.contorno))) {
+        setAvviso(tr("Qui c'è già una stanza: selezionala per cambiarla."));
+        return;
+      }
+      const tavola = tavolaDwgRef.current;
+      const esito = stanzaDaMuri(pi.muri.filter((m) => C.visibile(m.stato, v) && m.stato !== "da_demolire"), p,
+        tavola ? segmentiTavolaDwg(tavola, ricalcoRef.current) : []);
+      if ("errore" in esito) { setAvviso(tr(esito.errore)); return; }
+      chiudiPoligono(esito.punti);
+      setStrumento("riempi");
+      setAvviso(esito.varcoChiusoCm ? tr("Stanza chiusa ({mq} m²): ho chiuso un varco nelle pareti fino a {cm} cm. Controlla il contorno.", { mq: String(esito.areaMq).replace(".", ","), cm: esito.varcoChiusoCm }) : null);
       return;
     }
     if (str === "stanza") {
@@ -1870,6 +1889,7 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
   // ─── alternative di progetto ──────────────────────────────────────────────
   const livelloCorrente = documento.livelli.find((l) => l.id === livelloId) ?? documento.livelli[0];
   const tavolaDwg = livelloCorrente?.tavolaDwg;
+  useLayoutEffect(() => { tavolaDwgRef.current = tavolaDwg; }, [tavolaDwg]);
   const apriRiscontroScala = () => {
     const muri = livelloCorrente?.fatto.muri ?? [];
     const precedente = livelloCorrente?.riscontroScala;
@@ -1926,6 +1946,7 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
     ? tr("Clicca la parte di parete da rimuovere.") : tr("Clicca l’estremità della parete da estendere.");
   const cursore =
     posaCollettore || calibra || verticiTracciato || comandoCad || strumento === "stanza" || strumento === "poligono" || strumento === "area" || strumento === "parete" || strumento === "demolizioni" || strumento === "quota" ? "crosshair"
+      : strumento === "riempi" ? "cell"
       : strumento === "porta" || strumento === "finestra" || strumento === "arredo" ? "copy"
       : strumento === "testo" ? "text" : "default";
 
@@ -2072,6 +2093,8 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
                   }}
                 />
                 <BottoneStrumento attivo={strumento === "poligono"} onClick={() => setStrumento("poligono")} icona={<Hexagon />} etichetta={tr("Stanza libera")} titolo={tr("Una stanza di qualunque forma: clic su ogni angolo")} />
+                {!!pianta.muri.length && <BottoneStrumento attivo={strumento === "riempi"} onClick={() => setStrumento("riempi")} icona={<PaintBucket />}
+                  etichetta={tr("Stanza dai muri")} titolo={tr("Clic dentro le pareti: la stanza si chiude da sola lungo il filo interno")} />}
                 <BottoneStrumento attivo={strumento === "parete"} onClick={() => setStrumento("parete")} icona={<PenLine />} etichetta={tr("Parete")} />
                 {!!pianta.muri.length && <BottoneStrumento attivo={strumento === "demolizioni"} icona={<Eraser />}
                   etichetta={tr("Segna demolizioni")} titolo={tr("Passa sui tramezzi e conferma nella variante")}
@@ -2817,7 +2840,9 @@ function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli
             <Layers /> <span className="hidden lg:inline">{livelli.length > 1 ? tr("Piani") : attuale?.nome ?? tr("Piano")}</span>
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-80 space-y-4" align="end">
+        {/* Alto quanto lo schermo, con lo scorrimento suo: su uno schermo basso la parte con
+            nome, quota e tetto del piano usciva sopra il bordo e non si poteva raggiungere (24/11/2026). */}
+        <PopoverContent className="max-h-[min(36rem,var(--radix-popover-content-available-height))] w-80 space-y-4 overflow-y-auto" align="end" collisionPadding={8}>
           {attuale && (
             <div className="space-y-2">
               <p className="text-sm font-semibold">{tr("Questo piano")}</p>
@@ -2832,7 +2857,7 @@ function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli
                   <Label className="text-xs">{tr("Tetto sopra questo piano")}</Label>
                   <Select value={attuale.tetto?.tipo ?? "nessuno"} onValueChange={(v) => onModifica({ tetto: v === "nessuno" ? null : { tipo: v as Tetto["tipo"], pendenza: attuale.tetto?.pendenza ?? 30, sporto: attuale.tetto?.sporto ?? 50, ...(attuale.tetto?.finitura ? { finitura: attuale.tetto.finitura } : {}) } })}>
                     <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="z-[60]">
                       <SelectItem value="nessuno">{tr("Nessuno (c'è un piano sopra)")}</SelectItem>
                       <SelectItem value="due_falde">{tr("A due falde (capanna)")}</SelectItem>
                       <SelectItem value="padiglione">{tr("A padiglione (quattro falde)")}</SelectItem>
@@ -2860,7 +2885,7 @@ function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli
                     }}
                   >
                     <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="z-[60]">
                       <SelectItem value="predefinita">{attuale.tetto.tipo === "piano" ? tr("Predefinita (cemento)") : tr("Predefinita (tegole)")}</SelectItem>
                       {FINITURE_TETTO.map((f) => <SelectItem key={f} value={f}>{NOMI_FINITURA_TETTO[f]}</SelectItem>)}
                     </SelectContent>
