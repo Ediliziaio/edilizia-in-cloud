@@ -3,6 +3,7 @@ import { StatoVerificaDocumento } from "@/components/planimetrie/ControlloPrimaD
 import { useControlloPrimaDellUso } from "@/hooks/useVerificaPlanimetria";
 import { MaterialiProgetto } from "@/components/planimetrie/MaterialiProgetto";
 import { NuovaCostruzione } from "@/components/planimetrie/NuovaCostruzione";
+import { parametriGuida, type DestinazioneGuida } from "@/lib/planimetrie/guidaProgetto";
 import { RiepilogoProgetto } from "@/components/planimetrie/RiepilogoProgetto";
 import { AssociazioniPiantaPanel, CollegamentiProgetto } from "@/components/planimetrie/CollegamentiPianta";
 import { accessiCollegamenti, useCollegamentiPiante, type TipoCollegamento } from "@/lib/planimetrie/collegamenti";
@@ -107,7 +108,7 @@ export default function RenderPlanimetriaScheda() {
   const { primaDi, dialogo: controlloUso } = useControlloPrimaDellUso(documento, percorsoEditor);
   const setLivelloId = (v: string) => setParams((p) => { const n = new URLSearchParams(p); n.set("livello", v); n.delete("locale"); n.delete("muro"); n.delete("apertura"); return n; }, { replace: true });
   const setAmbito = (v: string) => setParams((p) => { const n = new URLSearchParams(p); n.set("ambito", v); n.delete("muro"); n.delete("apertura"); return n; }, { replace: true });
-  const dettaglioDaAncora = ["#materiali-progetto","#prima-e-dopo","#stanze","#verifiche","#unita","#abachi","#render-fatti"].includes(hash);
+  const dettaglioDaAncora = ["#nuova-costruzione","#materiali-progetto","#prima-e-dopo","#stanze","#verifiche","#unita","#abachi","#render-fatti"].includes(hash);
   const sezioneRichiesta=params.get("sezione");
   const tavolaHvac = documento?.letturaDocumento?.verifiche?.some((v) => v.id === "hvac-rete") === true;
   const scheda = params.get("studio")==="1" ? "studio"
@@ -145,6 +146,12 @@ export default function RenderPlanimetriaScheda() {
     return n;
   },{replace:true});
   const chiudiSilvio = () => setParams(p=>{const n=new URLSearchParams(p);n.delete("silvio");n.delete("analisi");return n;},{replace:true});
+  // La guida di Silvio dopo il DWG porta dove la cosa si fa (24/11/2026).
+  const vaiDallaGuida = (verso: DestinazioneGuida) => {
+    const { params: nuovi, ancora } = parametriGuida(params, verso);
+    setParams(nuovi, { replace: false });
+    if (ancora) setTimeout(() => document.getElementById(ancora)?.scrollIntoView({ block: "start", behavior: "smooth" }), 250);
+  };
   const sezioneFascicolo = params.get("fascicolo");
   const riscontro = sezioneFascicolo === "verifiche" ? params.get("riscontro") : null;
   const [apriUrbanistica, setApriUrbanistica] = useState(!!sezioneFascicolo && ["urbanistica","pratiche","verifiche","tavole","esodo"].includes(sezioneFascicolo));
@@ -369,7 +376,8 @@ export default function RenderPlanimetriaScheda() {
         } : undefined}
         onVerifica={()=>setParams(p=>{const n=new URLSearchParams(p);n.set("sezione","verifica");return n;},{replace:true})}
         onSalvato3D={localeId=>setParams(p=>{const n=new URLSearchParams(p);n.delete("versione");n.set("vista","3d");if(localeId)n.set("locale",localeId);return n;},{replace:true})}
-        onSalvata={v=>setParams(p=>{const n=new URLSearchParams(p);n.delete("versione");n.set("ambito",v.ambito);n.set("livello",v.livelloId);n.set("locale",v.localeId);return n;},{replace:true})} />}
+        onSalvata={v=>setParams(p=>{const n=new URLSearchParams(p);n.delete("versione");n.set("ambito",v.ambito);n.set("livello",v.livelloId);n.set("locale",v.localeId);return n;},{replace:true})}
+        onGuida={storico ? undefined : vaiDallaGuida} />}
 
       {scheda==="studio" && <StudioImmobiliare key={data.versione.numero+":"+ambito} documento={documento} companyId={data.riga.company_id} planimetriaId={id}
         versione={data.versione.numero} orderId={data.riga.order_id} livelloId={livello.id} varianteIniziale={ambito.startsWith("progetto:") ? ambito.slice(9) : undefined}
@@ -461,7 +469,7 @@ export default function RenderPlanimetriaScheda() {
         {/* Prima i numeri del progetto, poi le scelte, poi prima e dopo e render (24/11/2026). */}
         <RiepilogoProgetto documento={documento} ambito={ambito} companyId={data.riga.company_id} onStudio={() => vaiAllaScheda("studio")} />
         <div className="grid gap-4 lg:grid-cols-2">
-          <NuovaCostruzione key={"costruzione:"+data.versione.numero} documento={documento} planimetriaId={id} versione={data.versione.numero} solaLettura={!!sola} />
+          <div id="nuova-costruzione" className="scroll-mt-4"><NuovaCostruzione key={"costruzione:"+data.versione.numero} documento={documento} planimetriaId={id} versione={data.versione.numero} solaLettura={!!sola} /></div>
           <MaterialiProgetto key={ambito+":"+data.versione.numero} documento={documento} ambito={ambito} planimetriaId={id} versione={data.versione.numero} solaLettura={!!sola} />
         </div>
         {!storico && <CollegamentiProgetto riga={data.riga} mappa={collegamenti.data} onAssocia={tipo=>setGestisciCollegamenti({tipo})} />}
