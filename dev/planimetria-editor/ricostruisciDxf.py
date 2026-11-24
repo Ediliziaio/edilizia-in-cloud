@@ -2012,7 +2012,9 @@ def leggi_scale(letti, altezza):
             relative = [tuple((p[0] - ox, p[1] - oy) for p in a) for a in alzate]
             if any(sovrapposizione_scale(relative, a) >= 4 for a in (precedenti if in_griglia else [])):
                 continue
-            scale.append(("Scala rettilinea (verso da verificare)", relative, interpiano or altezza))
+            # Senza freccia non si sa se la rampa sale al piano sopra: sale quanto i suoi gradini
+            # (17,5 cm l'uno), al massimo l'interpiano. Gli scalini d'ingresso restano scalini.
+            scale.append(("Scala rettilinea (verso da verificare)", relative, min(interpiano or altezza, round((len(alzate) + 1) * 17.5))))
         riconosciute[n] = scale
         if in_griglia:
             precedenti = [a for _, a, _ in scale]
