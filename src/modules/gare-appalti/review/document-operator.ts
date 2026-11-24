@@ -1,0 +1,3 @@
+import type{GareDocument}from'../types';
+export function documentOperator(d:GareDocument){const s=d.generation_snapshot?.subject_snapshot as {name?:unknown;tax_id?:unknown}|undefined;const identity=d.generation_snapshot?.identity as {name?:unknown;tax_id?:unknown}|undefined;const name=s?.name||identity?.name,tax=s?.tax_id||identity?.tax_id;return typeof name==='string'?`${name}${typeof tax==='string'&&tax?` · ${tax}`:''}`:'';}
+export function reviewDownloadName(d:GareDocument){if(!/\.xml$/i.test(d.name)||!documentOperator(d))return d.name;const slug=documentOperator(d).normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,90);return d.name.replace(/\.xml$/i,`_${slug}_${d.id.slice(0,8)}.xml`);}

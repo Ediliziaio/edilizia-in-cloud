@@ -14,6 +14,7 @@ import { useMemo, useEffect, useState, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { X, Search, Clock, Settings as SettingsIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useGarePilot } from "@/modules/gare-appalti/useGarePilot";
 import { macroAreas, type NavItem } from "@/lib/sidebarConfig";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
@@ -294,10 +295,12 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
     if (open) setRecents(loadRecents());
   }, [open]);
 
+  const showGarePilot = !!useGarePilot().role;
   const filterNavItems = useMemo(() => {
     return (items: NavItem[]) => {
       if (permissions.isLoading) {
         return items.filter((item) => {
+        if (item.garePilotOnly && !showGarePilot) return false;
           if (!isCompanyPathAvailable(effectiveCompany?.management_mode, item.url)) return false;
           if (MOBILE_HIDDEN_URLS.has(item.url) && !(effectiveCompany?.management_mode === "accounting" && item.url === "/azienda/prima-nota")) return false;
           if (item.url === "/azienda/contenuti-multimediali") return true;
@@ -309,6 +312,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
         });
       }
       return items.filter((item) => {
+        if (item.garePilotOnly && !showGarePilot) return false;
         if (!isCompanyPathAvailable(effectiveCompany?.management_mode, item.url)) return false;
           if (MOBILE_HIDDEN_URLS.has(item.url) && !(effectiveCompany?.management_mode === "accounting" && item.url === "/azienda/prima-nota")) return false;
         if (item.url === "/azienda/contenuti-multimediali" && !canAccessMediaLibrary(permissions)) return false;
@@ -327,7 +331,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
         return true;
       });
     };
-  }, [permissions, isModuleEnabled, billingMode, isFeatureEnabled, isDemoBaseline, effectiveCompany?.management_mode]);
+  }, [showGarePilot, permissions, isModuleEnabled, billingMode, isFeatureEnabled, isDemoBaseline, effectiveCompany?.management_mode]);
 
   const filteredAreas = useMemo(() => {
     const aree = macroAreas

@@ -1,0 +1,1 @@
+export function currentDocuments<T extends {id:string;previous_id?:string|null;archived?:boolean;sha256?:string;source_parent_id?:string|null;source_parent_sha256?:string|null}>(rows:T[],options?:{includeArchived?:boolean}):T[];

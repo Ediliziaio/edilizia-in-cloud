@@ -12,6 +12,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useGlobalSearch, type SearchResult } from "@/hooks/useGlobalSearch";
 import { useAuth } from "@/contexts/AuthContext";
+import { useGarePilot } from "@/modules/gare-appalti/useGarePilot";
 import { macroAreas } from "@/lib/sidebarConfig";
 import { isDemoCompanyId } from "@/lib/constants/demoCompany";
 import { useVociImpostazioni } from "@/hooks/useVociImpostazioni";
@@ -95,6 +96,7 @@ const navGroups = macroAreas.map(area => ({
     url: item.url,
     icon: item.icon,
     demoCompanyOnly: item.demoCompanyOnly,
+    garePilotOnly: item.garePilotOnly,
   })),
 }));
 
@@ -215,11 +217,12 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     return acc;
   }, {} as Record<string, SearchResult[]>);
 
+  const showGarePilot = !!useGarePilot().role;
   const filteredNavGroups = useMemo(() => {
     const visibleGroups = navGroups
       .map(group => ({
         ...group,
-        items: group.items.filter(item => (!item.demoCompanyOnly || isDemoBaseline)),
+        items: group.items.filter(item => (!item.demoCompanyOnly || isDemoBaseline) && (!item.garePilotOnly || showGarePilot)),
       }))
       .filter(group => group.items.length > 0);
     if (query.length < 2) return visibleGroups;
@@ -232,7 +235,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         ),
       }))
       .filter(group => group.items.length > 0);
-  }, [query, isDemoBaseline]);
+  }, [query, isDemoBaseline, showGarePilot]);
 
   const filteredSettingsItems = useMemo(() => {
     if (query.length < 2) return [];

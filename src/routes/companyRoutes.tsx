@@ -164,6 +164,7 @@ import { SoloTabletDesktop } from "@/components/layouts/SoloTabletDesktop";
 
 // Company pages
 const SettingsLayout = lazy(() => import("@/components/layouts/SettingsLayout"));
+const GareAppalti = lazy(() => import("@/pages/azienda/GareAppalti"));
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
 const UpgradePage = lazy(() => import("@/pages/azienda/UpgradePage"));
 const DemoPreviewShowcase = lazy(() => import("@/pages/azienda/DemoPreviewShowcase"));
@@ -696,6 +697,7 @@ export default function CompanyRoutesContainer() {
         <Route path="dashboards/nuova" element={withCompanyPermission("canViewCruscotto", <FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary></FeatureRoute>)} />
         <Route path="dashboards/:id" element={withCompanyPermission("canViewCruscotto", <FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore dashboard"><DashboardView /></ErrorBoundary></FeatureRoute>)} />
         <Route path="dashboards/:id/modifica" element={withCompanyPermission("canViewCruscotto", <FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary></FeatureRoute>)} />
+        <Route path="gare/*" element={<ErrorBoundary title="Errore Gare e appalti"><GareAppalti /></ErrorBoundary>} />
         <Route path="commesse" element={<Navigate to="/azienda/ordini" replace />} />
         <Route path="commesse/:id" element={<LegacyCommessaRedirect />} />
         <Route path="commesse/:id/diario" element={<LegacyCommessaDiaryRedirect />} />

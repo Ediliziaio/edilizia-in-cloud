@@ -1,0 +1,925 @@
+/* A local, scoped typography layer. Originals and document previews keep their own fonts. */
+@font-face {
+  font-family: 'Manrope Gare';
+  src: url('./fonts/manrope-variable.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+}
+.gare-app {
+  --ga-ui-font: 'Manrope Gare', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--ga-ui-font);
+  font-size: 14px;
+  font-weight: 450;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  color: #24344d;
+  background-color: #f5f7fa;
+}
+.gare-app :where(button,input,select,textarea,.font-sans) { font-family: var(--ga-ui-font); }
+.gare-app :where(.text-xs) { font-size: 13px; line-height: 1.6; }
+.gare-app :where([class~='text-[10px]'],[class~='text-[11px]']) { font-size: 12px; line-height: 1.55; }
+.gare-app :where([class~='text-[9px]']) { font-size: 11px; line-height: 1.5; }
+.gare-app :where(h1,h2,h3,h4) { text-wrap: pretty; }
+.gare-app :where(input:not([type=checkbox]):not([type=radio]),select,textarea) { font-size: 14px; color: #293d58; }
+.gare-app :where(button,a[role=button]) { font-weight: 600; }
+.gare-app :where(button:disabled) { cursor: not-allowed; }
+.gare-app :where(button,summary,a) { text-underline-offset: 3px; }
+.gare-app .ga-workspace-heading h1 { font-weight: 750; letter-spacing: -.035em; }
+.gare-app .ga-workspace nav a { font-size: 13px; font-weight: 600; }
+.gare-app .ga-workspace nav a>span { font-size: 11px; }
+.gare-app .ga-topbar { font-size: 13px; }
+.gare-app .ga-tender-header--compact h2 { font-size: 19px; font-weight: 720; letter-spacing: -.025em; }
+.gare-app .ga-tender-header--compact .ga-tender-authority { font-size: 13px; }
+.gare-app .ga-tender-code { letter-spacing: .015em; }
+.gare-app .ga-tender-extra-summary { font-size: 12px; }
+.gare-app .ga-tender-tabs [role=tab] { font-size: 13px; font-weight: 600; }
+.gare-app .ga-panel { border-color: #dfe6ef; box-shadow: 0 1px 3px #243d5710; }
+.gare-app .ga-panel-heading { padding: 14px 17px 12px; }
+.gare-app .ga-panel-heading h2 { font-size: 15px; font-weight: 730; letter-spacing: -.015em; }
+.gare-app .ga-panel-heading p { font-size: 12.5px; line-height: 1.6; color: #64748b; }
+.gare-app .ga-status { font-size: 11px; font-weight: 650; line-height: 1.45; padding: 3px 8px; border-radius: 5px; }
+.gare-app .ga-title h2,.gare-app .ga-review-heading h2,.gare-app .ga-office-heading>h2 { font-size: 23px; font-weight: 750; letter-spacing: -.035em; }
+.gare-app .ga-review-heading>div>p:last-child { font-size: 13px; color: #617189; }
+.gare-app .ga-review-eyebrow,.gare-app .ga-eyebrow,.gare-app .ga-hub-eyebrow { font-size: 10px; letter-spacing: .11em; font-weight: 700; }
+.gare-app .ga-review-document-title h4 { font-size: 14px; font-weight: 720; letter-spacing: -.01em; }
+.gare-app .ga-review-file-name { font-size: 12px; color: #64748b; }
+.gare-app .ga-review-document-meta,.gare-app .ga-review-group-heading p,.gare-app .ga-review-group-count { font-size: 12px; }
+.gare-app .ga-review-group-heading h3 { font-size: 13.5px; font-weight: 720; }
+.gare-app .ga-review-row { gap: 14px; padding-top: 15px; padding-bottom: 15px; }
+.gare-app .ga-review-summary { font-size: 13px; }
+.gare-app .ga-review-summary strong { font-weight: 750; }
+.gare-app .ga-review-note>summary,.gare-app .ga-details-help>summary { font-size: 12px; color: #4f6682; }
+.gare-app .ga-metric-value { letter-spacing: -.03em; font-weight: 750; }
+.gare-app .ga-metric-label { font-size: 12px; font-weight: 650; }
+.gare-app .ga-metric-note { font-size: 11px; }
+.gare-app :is(.ga-hub-metrics,.ga-tender-metrics) .ga-metric-label { font-size: 11.5px; }
+.gare-app :is(.ga-hub-metrics,.ga-tender-metrics) .ga-metric-note { font-size: 11.5px; }
+.gare-app th { font-size: 10.5px; letter-spacing: .065em; }
+.gare-app .ga-chart-note { font-size: 11px; line-height: 1.55; }
+.gare-app .ga-legend button,.gare-app .ga-text-action { font-size: 12px; }
+.gare-app .ga-ring-center span { font-size: 10px; }
+.gare-app .ga-workflow-toggle { font-size: 12px; }
+.gare-app .ga-details-section>summary,.gare-app .ga-review-tools>summary { font-size: 13px; }
+.gare-app .ga-section-nav button { font-size: 13px; font-weight: 650; }
+.gare-app .ga-next-action h2 { font-size: 21px; font-weight: 750; }
+.gare-app .ga-next-action-meta { font-size: 12.5px; }
+.gare-app.ga-dialog { border-color: #dbe4ef; border-radius: 16px; box-shadow: 0 24px 80px #0b1f392b; }
+.gare-app.ga-review-dialog { padding: 24px; gap: 14px; }
+.gare-app.ga-review-dialog:focus { outline: none; }
+.gare-app.ga-review-dialog h2 { font-size: 23px; font-weight: 750; letter-spacing: -.035em; }
+.gare-app.ga-review-dialog>div:first-of-type>p { font-size: 13px; color: #61758d; line-height: 1.6; }
+.gare-app .ga-review-dialog-top { padding-bottom: 15px; }
+.gare-app .ga-review-progress { gap: 9px 16px; }
+.gare-app .ga-review-progress li { font-size: 12px; font-weight: 550; color: #718096; }
+.gare-app .ga-review-progress li[data-done=true] { color: #247263; }
+.gare-app .ga-review-progress svg { width: 14px; height: 14px; }
+.gare-app .ga-review-split { gap: 22px; grid-template-columns: minmax(0,1.12fr) minmax(350px,1fr); }
+.gare-app .ga-review-preview-pane { border-radius: 10px; background: #eef2f6; border-color: #dce5ee; }
+.gare-app .ga-review-pane-label { font-size: 12px; gap: 7px 11px; line-height: 1.5; }
+.gare-app .ga-review-pane-label strong { font-weight: 750; }
+.gare-app .ga-review-pane-label span { color: #6c7e95; }
+.gare-app .ga-review-control-pane { gap: 12px; padding-right: 8px; scrollbar-width: thin; scrollbar-color: #c5d1e0 transparent; }
+.gare-app .ga-review-control-pane>* { flex-shrink: 0; }
+.gare-app .ga-review-control-toolbar h3 { font-size: 16px; font-weight: 750; letter-spacing: -.02em; }
+.gare-app .ga-review-control-toolbar>button { font-size: 13px; }
+.gare-app .ga-review-control-pane>.ga-review-no-report { font-size: 13px; }
+.gare-app .ga-validation-status>button { font-size: 12px; color: #526d8a; }
+.gare-app .ga-validation-fields { font-size: 13px; line-height: 1.6; color: #586f8a; }
+.gare-app .ga-validation-blocker,.gare-app .ga-validation-warnings { font-size: 13px; }
+.gare-app .ga-validation-metrics strong { font-size: 13px; }
+.gare-app .ga-validation-metrics p { font-size: 11.5px; }
+.gare-app .ga-validation-portal { font-size: 12.5px; }
+.gare-app .ga-review-handoff-box>summary { font-size: 13px; }
+.gare-app .ga-review-handoff>label { font-size: 13px; line-height: 1.65; }
+.gare-app .ga-review-scope { font-size: 12px; }
+.gare-app .ga-review-provenance { border-color: #dfe7f0; border-radius: 9px; font-size: 13px; padding: 12px 14px; background: #fbfcfe; }
+.gare-app .ga-review-provenance>summary { font-size: 13px; font-weight: 650; color: #3b5879; }
+.gare-app .ga-review-provenance>.ga-origin-source { display: flex; align-items: center; gap: 10px; width: 100%; border: 1px solid #e0e7f0; border-radius: 7px; background: #fff; margin-top: 10px; padding: 9px 10px; line-height: 1.45; text-decoration: none !important; }
+.gare-app .ga-origin-source>svg { flex-shrink: 0; width: 16px; height: 16px; margin-top: 2px; color: #627e9e; }
+.gare-app .ga-origin-source>span { min-width: 0; text-align: left; }
+.gare-app .ga-origin-source strong { display: block; font-size: 12px; font-weight: 650; }
+.gare-app .ga-origin-source small { display: block; margin-top: 2px; font-size: 12px; font-weight: 450; color: #64748b; overflow-wrap: anywhere; }
+.gare-app .ga-origin-group { padding-top: 10px; margin-top: 0 !important; }
+.gare-app .ga-origin-group>h4 { margin-bottom: 5px; font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: #73849c; font-weight: 750; }
+.gare-app .ga-origin-values { display: grid; font-size: 12.5px; }
+.gare-app .ga-origin-values>div { display: grid; grid-template-columns: minmax(105px,.8fr) minmax(0,1.7fr); gap: 11px; padding: 6px 0; border-bottom: 1px solid #e9eef5; }
+.gare-app .ga-origin-values>div:last-child { border-bottom: 0; }
+.gare-app .ga-origin-values dt { font-weight: 550; color: #586b83; }
+.gare-app .ga-origin-values dd { color: #334d6c; min-width: 0; overflow-wrap: anywhere; font-weight: 550; }
+.gare-app .ga-origin-revision { font-size: 11px; color: #65778e; margin-left: 6px; white-space: nowrap; font-weight: 500; }
+.gare-app .ga-origin-group details { margin-top: 5px; }
+.gare-app .ga-origin-group details summary { font-size: 12px; color: #57708d; cursor: pointer; }
+.gare-app .ga-origin-group blockquote { font-size: 12px; line-height: 1.75; color: #60758f; }
+.gare-app .ga-origin-asset { display: flex; gap: 8px; align-items: flex-start; color: #536d89; font-size: 12.5px; }
+.gare-app .ga-origin-asset svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 3px; color: #608175; }
+.gare-app .ga-origin-history { font-size: 12px; color: #64748b; border-top: 1px solid #e5ebf3; padding-top: 9px; margin-top: 12px; }
+.gare-app .ga-origin-diff { display: grid; gap: 5px; padding: 10px; margin-top: 8px; border-radius: 7px; border: 1px solid #dfe7f1; background: white; }
+.gare-app .ga-origin-diff strong { color: #3d597b; }
+.gare-app .ga-origin-diff p { font-size: 12px; overflow-wrap: anywhere; color: #657c98; }
+@media (max-width:900px) {
+  .gare-app.ga-review-dialog { padding: 18px; border-radius: 13px; }
+  .gare-app.ga-review-dialog h2 { font-size: 21px; }
+  .gare-app .ga-review-split { display: flex; }
+  .gare-app .ga-review-progress { gap: 7px 11px; }
+  .gare-app .ga-review-progress li { font-size: 11px; }
+  .gare-app .ga-review-control-pane { padding-right: 4px; }
+  .gare-app .ga-review-provenance { padding: 11px; }
+  .gare-app .ga-origin-values>div { grid-template-columns: minmax(85px,.85fr) minmax(0,1.7fr); gap: 9px; }
+}
+@media (max-width:600px) {
+  .gare-app :where(input:not([type=checkbox]):not([type=radio]),select,textarea) { font-size: 16px; }
+  .gare-app .ga-tender-header--compact h2 { font-size: 18px; }
+  .gare-app .ga-next-action h2 { font-size: 19px; }
+  .gare-app .ga-review-heading h2 { font-size: 22px; }
+}
+
+/* Compact operational layouts, scoped to the local Gare shell. */
+.gare-app .ga-workspace-heading { padding-top: 13px; padding-bottom: 13px; }
+.gare-app .ga-panel-heading { padding: 12px 15px 10px; gap: 10px; }
+.gare-app .ga-panel-body { padding: 13px 15px; }
+.gare-app .ga-panel-heading p { margin-top: 3px; }
+.gare-app .ga-empty { padding: 20px 16px; }
+.gare-app .ga-empty h2 { font-size: 14px; }
+.gare-app .ga-empty>div { max-width: 520px; }
+.gare-app .ga-hub-summary { margin-bottom: 12px; border-radius: 12px; }
+.gare-app .ga-hub-summary-heading { padding: 12px 15px 0; gap: 12px; }
+.gare-app .ga-hub-summary h2 { font-size: 20px; line-height: 1.35; letter-spacing: -.025em; }
+.gare-app .ga-hub-eyebrow { margin-bottom: 3px; font-size: 9px; }
+.gare-app .ga-hub-description { margin-top: 3px; font-size: 12px; line-height: 1.5; }
+.gare-app :is(.ga-hub-metrics,.ga-tender-metrics) { padding: 10px 15px 13px; gap: 8px; }
+.gare-app :is(.ga-hub-metrics,.ga-tender-metrics) .ga-metric { gap: 4px; padding: 10px 12px; border-radius: 8px; }
+.gare-app :is(.ga-hub-metrics,.ga-tender-metrics) .ga-metric-value { font-size: 25px; line-height: 1.15; }
+.gare-app :is(.ga-hub-metrics,.ga-tender-metrics) .ga-metric-icon { padding: 4px; }
+.gare-app :is(.ga-hub-metrics,.ga-tender-metrics) .ga-metric-label { align-items: center; }
+.gare-app .ga-fold-panel { margin-top: 10px; border: 1px solid #dfe6ef; border-radius: 10px; background: #fff; min-width: 0; }
+.gare-app .ga-fold-panel>summary { display: flex; align-items: center; gap: 8px 12px; padding: 11px 14px; cursor: pointer; list-style: none; color: #3b5270; font-size: 13px; font-weight: 650; min-height: 44px; }
+.gare-app .ga-fold-panel>summary::-webkit-details-marker { display: none; }
+.gare-app .ga-fold-panel>summary::before { content: '›'; font-size: 19px; line-height: 1; color: #7a8da7; transition: transform .15s; }
+.gare-app .ga-fold-panel[open]>summary::before { transform: rotate(90deg); }
+.gare-app .ga-fold-panel>summary small { margin-left: auto; color: #718198; font-size: 12px; font-weight: 500; text-align: right; }
+.gare-app .ga-fold-panel[open]>summary { border-bottom: 1px solid #e6ecf3; }
+.gare-app .ga-fold-content { padding: 12px; min-width: 0; }
+.gare-app .ga-fold-content>.ga-panel { border: 0; box-shadow: none; border-radius: 0; }
+.gare-app .ga-fold-content>.ga-panel>.ga-panel-heading { padding: 0 0 10px; }
+.gare-app .ga-fold-content>.ga-panel>.ga-panel-body { padding: 12px 0 0; }
+.gare-app .ga-opportunity-tools { margin-top: 12px; display: grid; gap: 8px; }
+.gare-app .ga-opportunity-tools>* { margin: 0; }
+.gare-app .ga-board-empty-toggle { font-size: 12px; color: #5a7492; text-decoration: underline; min-height: 32px; margin-bottom: 5px; }
+.gare-app .ga-board-columns--compact { grid-template-columns: repeat(auto-fit,minmax(min(100%,230px),1fr)); }
+.gare-app .ga-board-column-heading h3 { font-size: 12px; }
+.gare-app .ga-pipeline-card { padding: 12px; }
+.gare-app .ga-pipeline-card h3 { font-size: 14px; line-height: 1.55; }
+.gare-app .ga-board-empty { font-size: 12px; }
+.gare-app .ga-board-concluded summary { min-height: 36px; font-size: 13px; }
+.gare-app .ga-agenda { gap: 14px; }
+.gare-app .ga-agenda-row { padding: 10px 12px; }
+.gare-app .ga-agenda-row p { font-size: 12px; }
+.gare-app .ga-charts { align-items: start; }
+.gare-app .ga-chart-empty { min-height: 0; padding: 16px 8px; gap: 6px; }
+.gare-app .ga-dossier>button { padding: 6px; }
+.gare-app .ga-requirement-card>details { margin-top: 10px; padding-top: 7px; padding-bottom: 7px; }
+.gare-app .ga-requirement-card h3 { line-height: 1.6; }
+.gare-app .ga-offer-columns { grid-template-columns: minmax(0,1fr); }
+.gare-app .ga-envelope-switch button { min-height: 48px; }
+.gare-app .ga-document-requests .ga-details-help { margin-top: 8px; }
+.gare-app .ga-document-requests .ga-panel-body>div>div { padding: 12px; }
+.gare-app .ga-task-row { padding: 10px 12px; }
+.gare-app .ga-task-panel .ga-empty,.gare-app .ga-communications-panel .ga-empty { border-style: solid; border-color: #e6ecf3; padding: 16px; text-align: left; }
+.gare-app .ga-task-panel .ga-empty p,.gare-app .ga-communications-panel .ga-empty p { margin-left: 0; }
+.gare-app .ga-ai-composer { margin-top: 0; }
+.gare-app .ga-ai-workspace>div:first-child { padding: 12px 14px; }
+.gare-app .ga-source-card .ga-fold-panel { border: 0; border-top: 1px solid #e8edf4; border-radius: 0; background: transparent; }
+.gare-app .ga-source-card .ga-fold-panel>summary { padding: 10px 0 0; }
+.gare-app .ga-source-card .ga-fold-content { padding: 8px 0 0; }
+.gare-app .ga-source-sample .ga-panel-body form { display: flex; align-items: center; gap: 15px; }
+.gare-app .ga-source-sample form>fieldset { flex: 1; min-width: 0; }
+.gare-app .ga-source-sample form>div:last-child { border: 0; padding: 0; flex-shrink: 0; }
+.gare-app .ga-source-sample .ga-notice { margin: 0; padding: 10px 12px; font-size: 12px; }
+.gare-app .ga-internal-simulation { font-size: 12px; color: #6b7587; padding: 8px 11px; border-left: 3px solid #d99a39; background: #fffaf0; border-radius: 4px; }
+@media(min-width:1100px) {
+ .gare-app .ga-offer-columns { grid-template-columns: minmax(0,1fr) 330px; }
+ .gare-app .ga-priorities-compact>div:has(>a) { grid-template-columns: repeat(3,minmax(0,1fr)); }
+ .gare-app .ga-priorities-compact a { display: block; padding: 11px 14px; border-bottom: 0; border-right: 1px solid #e9edf4; }
+ .gare-app .ga-priorities-compact a:last-child { border-right: 0; }
+ .gare-app .ga-priorities-compact a>span:last-child { display: inline-flex; margin-top: 7px; }
+ .gare-app .ga-priorities-compact a h3 { margin-top: 7px; }
+ .gare-app .ga-priorities-compact a p { margin-top: 4px; }
+}
+@media(max-width:760px) {
+ .gare-app .ga-hub-summary-heading { padding: 12px 12px 0; }
+ .gare-app .ga-hub-summary h2 { font-size: 18px; }
+ .gare-app :is(.ga-hub-metrics,.ga-tender-metrics) { padding: 10px 12px 12px; }
+ .gare-app :is(.ga-hub-metrics,.ga-tender-metrics) .ga-metric { padding: 9px; }
+ .gare-app :is(.ga-hub-metrics,.ga-tender-metrics) .ga-metric-value { font-size: 22px; }
+ .gare-app .ga-panel-body { padding: 12px; }
+ .gare-app .ga-fold-panel>summary { flex-wrap: wrap; padding: 10px 12px; }
+ .gare-app .ga-fold-panel>summary small { font-size: 11px; }
+ .gare-app .ga-board-columns--compact { grid-template-columns: minmax(0,1fr); }
+ .gare-app .ga-source-sample .ga-panel-body form { display: block; }
+ .gare-app .ga-source-sample form>div:last-child { margin-top: 10px; justify-content: flex-start; }
+}
+
+.gare-app .ga-next-action { padding: 14px 17px; gap: 15px; }
+.gare-app .ga-next-action h2 { margin-top: 3px; font-size: 20px; }
+.gare-app .ga-next-action-meta { margin-top: 7px; }
+.gare-app .ga-chart-empty { display: grid; grid-template-columns: 32px minmax(0,1fr); justify-content: start; text-align: left; padding: 10px 4px; gap: 3px 10px; font-size: 12px; }
+.gare-app .ga-chart-empty svg { grid-row: 1 / 3; }
+.gare-app .ga-dossier-heading { margin-bottom: 4px; font-size: 12px; }
+.gare-app .ga-dossier-meta { font-size: 11px; }
+.gare-app .ga-file-record { padding: 11px 12px; gap: 11px; }
+.gare-app .ga-file-record h3 { font-size: 14px; line-height: 1.5; }
+.gare-app .ga-file-operator { margin-top: 3px; font-size: 12px; line-height: 1.5; color: #506985; }
+.gare-app .ga-file-operator span { color: #718098; }
+.gare-app .ga-file-record>div:last-child { align-items: flex-start; }
+.gare-app .ga-file-record>div:last-child>details { font-size: 12px; }
+@media(max-width:600px) {
+ .gare-app .ga-next-action { padding: 13px; }
+ .gare-app .ga-file-record>div:last-child { width: 100%; padding-left: 0; }
+}
+
+.gare-app .ga-task-panel .ga-empty>div,.gare-app .ga-communications-panel .ga-empty>div { margin-left: 0; margin-right: 0; }
+@media(max-width:600px) {
+ .gare-app .ga-envelope-switch { gap: 6px; }
+ .gare-app .ga-envelope-switch button { padding: 8px 6px; }
+ .gare-app .ga-envelope-switch .truncate { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; font-size: 12px; }
+}
+
+/* One operational workspace; specialist tools remain available. */
+.gare-app .ga-expert-tools { margin: 0 0 13px; border: 1px solid #dfe6ef; border-radius: 9px; background: #fff; }
+.gare-app .ga-expert-tools>summary { display: flex; align-items: center; gap: 9px; min-height: 40px; padding: 9px 13px; cursor: pointer; font-size: 12px; font-weight: 650; color: #506781; }
+.gare-app .ga-expert-tools>summary::before { content: '›'; font-size: 17px; color: #7c8fa5; }
+.gare-app .ga-expert-tools>summary small { margin-left: auto; font-size: 11px; font-weight: 450; color: #73839a; }
+.gare-app .ga-expert-tools .ga-tender-tabs { border: 0; border-top: 1px solid #e5ebf3; border-radius: 0 0 9px 9px; box-shadow: none; margin-bottom: 0; position: static; }
+.gare-app .ga-return-desk { display: block; padding: 10px 14px; font-size: 13px; color: #35567c; }
+.gare-app .ga-work-desk { min-width: 0; }
+.gare-app .ga-desk-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 1px 0 11px; }
+.gare-app .ga-desk-title h2 { font-size: 23px; font-weight: 750; letter-spacing: -.035em; line-height: 1.3; color: #203b5b; }
+.gare-app .ga-desk-title .ga-eyebrow { margin-bottom: 3px; font-size: 9px; }
+.gare-app .ga-desk-phases { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); background: #fff; border: 1px solid #dce5ef; border-radius: 10px; padding: 5px; gap: 4px; }
+.gare-app .ga-desk-phases button { display: flex; align-items: center; gap: 8px; padding: 10px 8px; min-height: 60px; text-align: left; border-radius: 7px; color: #718098; min-width: 0; border: 1px solid transparent; }
+.gare-app .ga-desk-phases button:hover { background: #f4f7fb; }
+.gare-app .ga-desk-phases button[aria-current] { border-color: #cfdbec; background: #edf3fa; color: #244b75; }
+.gare-app .ga-desk-phase-number { width: 24px; height: 24px; border: 1px solid #dbe4ef; background: #f5f8fc; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 11px; }
+.gare-app [aria-current]>.ga-desk-phase-number { color: #fff; background: #284e79; border-color: #284e79; }
+.gare-app .ga-desk-phases strong { display: block; font-size: 13px; font-weight: 750; }
+.gare-app .ga-desk-phases small { display: block; margin-top: 3px; font-size: 10.5px; font-weight: 450; line-height: 1.4; }
+.gare-app .ga-desk-phase-count { margin-left: auto; font-size: 10px; color: #886326; background: #fff5df; border-radius: 4px; min-width: 18px; padding: 2px 4px; text-align: center; }
+.gare-app .ga-desk-delivery { display: flex; flex-wrap: wrap; gap: 6px 21px; padding: 11px 3px; font-size: 12px; color: #718199; }
+.gare-app .ga-desk-delivery>span { display: inline-flex; align-items: center; gap: 5px; }
+.gare-app .ga-desk-delivery strong { color: #3c5879; font-weight: 750; }
+.gare-app .ga-desk-next { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 16px; background: #fff; border: 1px solid #dce5ef; border-left: 3px solid #fa8423; border-radius: 10px; margin-bottom: 13px; }
+.gare-app .ga-desk-next>div { min-width: 0; }
+.gare-app .ga-desk-next p { font-size: 9px; letter-spacing: .08em; font-weight: 700; color: #74849a; }
+.gare-app .ga-desk-next p span { letter-spacing: 0; font-weight: 600; }
+.gare-app .ga-desk-next h3 { margin: 4px 0; font-size: 16px; font-weight: 750; color: #2c4669; line-height: 1.5; }
+.gare-app .ga-desk-next small { font-size: 11.5px; color: #6d8099; line-height: 1.5; }
+.gare-app .ga-desk-next>button { flex-shrink: 0; max-width: 100%; }
+.gare-app .ga-desk-layout { display: grid; grid-template-columns: minmax(0,1fr) 310px; align-items: start; gap: 14px; }
+.gare-app .ga-desk-work,.gare-app .ga-desk-sidebar { min-width: 0; }
+.gare-app .ga-desk-work>.ga-panel { margin-bottom: 12px; }
+.gare-app .ga-desk-work .ga-review-heading h2,.gare-app .ga-desk-work .ga-office-heading>h2 { font-size: 19px; }
+.gare-app .ga-desk-work .ga-review-heading { padding-top: 3px; }
+.gare-app .ga-desk-work .ga-revision-workspace { grid-template-columns: minmax(0,1fr); }
+.gare-app .ga-desk-work .ga-revision-workspace>div { grid-column: auto; }
+.gare-app .ga-desk-work .ga-offer-columns { grid-template-columns: minmax(0,1fr); }
+.gare-app .ga-feasibility-facts { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0 18px; }
+.gare-app .ga-feasibility-facts>div { padding: 10px 0; border-bottom: 1px solid #eef2f7; }
+.gare-app .ga-feasibility-facts span { display: block; color: #71839b; font-size: 12px; }
+.gare-app .ga-feasibility-facts strong { display: block; margin-top: 3px; font-size: 16px; color: #355575; font-weight: 730; }
+.gare-app .ga-desk-scope { font-size: 11px; color: #71839b; margin: 11px 0; line-height: 1.7; }
+.gare-app .ga-desk-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 11px; }
+.gare-app .ga-desk-prepare-nav { display: flex; flex-wrap: wrap; gap: 5px; padding: 5px; margin-bottom: 12px; border: 1px solid #dfe7f1; border-radius: 9px; background: #fff; }
+.gare-app .ga-desk-prepare-nav button { display: inline-flex; align-items: center; gap: 5px; padding: 9px 10px; font-size: 12px; border-radius: 6px; color: #627892; min-height: 38px; }
+.gare-app .ga-desk-prepare-nav button[aria-pressed=true] { background: #294b73; color: #fff; }
+.gare-app .ga-desk-outcome { font-size: 14px; color: #465f7d; padding: 10px 0; }
+.gare-app .ga-desk-error { padding: 10px 13px; margin-bottom: 10px; color: #a53d3d; background: #fff1f1; font-size: 13px; border: 1px solid #f0d6d6; border-radius: 7px; }
+.gare-app .ga-work-list { background: #fff; border: 1px solid #dce5ef; border-radius: 10px; overflow: hidden; }
+.gare-app .ga-work-list>header { padding: 12px 13px 8px; }
+.gare-app .ga-work-list h3 { font-size: 14px; font-weight: 750; color: #334f70; }
+.gare-app .ga-work-list header p { margin-top: 3px; color: #7b889c; font-size: 10.5px; }
+.gare-app .ga-work-list-filter { display: flex; align-items: center; gap: 7px; padding: 4px 13px 12px; font-size: 11px; color: #6d8099; }
+.gare-app .ga-work-list-filter input { accent-color: #294e77; width: 14px; height: 14px; }
+.gare-app .ga-work-list article { padding: 12px 13px; border-top: 1px solid #e9eff5; }
+.gare-app .ga-work-area { display: flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 650; color: #ab762f; }
+.gare-app .ga-work-list h4 { font-size: 12.5px; line-height: 1.55; font-weight: 700; color: #3c5677; margin: 5px 0; overflow-wrap: anywhere; }
+.gare-app .ga-work-list article>p { font-size: 11px; line-height: 1.7; color: #75869c; }
+.gare-app .ga-work-list article>small { display: block; margin-top: 5px; font-size: 10.5px; color: #7a899b; }
+.gare-app .ga-work-list article>button { display: inline-flex; align-items: center; justify-content: space-between; gap: 9px; width: 100%; padding-top: 10px; font-size: 12px; color: #34577e; text-align: left; }
+.gare-app .ga-work-list article details { font-size: 11px; margin-top: 8px; color: #687e97; }
+.gare-app .ga-work-list article details summary { cursor: pointer; }
+.gare-app .ga-work-list article details p { padding-top: 7px; line-height: 1.65; overflow-wrap: anywhere; }
+.gare-app .ga-work-list-more { width: 100%; border-top: 1px solid #e3eaf3; padding: 11px; text-align: center; font-size: 12px; background: #f7f9fc; color: #4c6685; }
+.gare-app .ga-work-list-empty { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; padding: 12px; color: #65826f; font-size: 12px; }
+.gare-app .ga-work-list-empty small { color: #7b899a; font-size: 11px; }
+.gare-app .ga-desk-operator { padding: 7px 0; border-bottom: 1px solid #e8eef5; }
+.gare-app .ga-desk-operator strong { display: block; font-size: 12px; color: #536e8b; }
+.gare-app .ga-desk-operator small { font-size: 11px; color: #7a899c; }
+.gare-app .ga-reusable-values { padding: 12px; border: 1px solid #cddfe5; border-radius: 8px; background: #f3f9f8; display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+.gare-app .ga-reusable-values>div { flex: 1; min-width: 160px; }
+.gare-app .ga-reusable-values strong { font-size: 12px; color: #3d6a65; }
+.gare-app .ga-reusable-values p { font-size: 11px; color: #68867e; }
+.gare-app .ga-reusable-values details { width: 100%; font-size: 12px; color: #5c7b75; }
+.gare-app .ga-reusable-values summary { cursor: pointer; }
+.gare-app .ga-reusable-values details p { margin-top: 6px; }
+@media(max-width:1150px) {
+ .gare-app .ga-desk-layout { grid-template-columns: minmax(0,1fr); }
+ .gare-app .ga-desk-phases small { display: none; }
+ .gare-app .ga-desk-phases button { min-height: 45px; padding: 8px; }
+}
+@media(max-width:600px) {
+ .gare-app .ga-expert-tools>summary small { display: none; }
+ .gare-app .ga-desk-title h2 { font-size: 21px; }
+ .gare-app .ga-desk-title>a { font-size: 11px; }
+ .gare-app .ga-desk-phases { grid-template-columns: repeat(5,minmax(0,1fr)); gap: 2px; padding: 4px; }
+ .gare-app .ga-desk-phases button { flex-direction: column; gap: 5px; padding: 7px 2px; min-height: 62px; position: relative; text-align: center; }
+ .gare-app .ga-desk-phases strong { font-size: 10px; line-height: 1.4; }
+ .gare-app .ga-desk-phase-count { position: absolute; top: 3px; right: 0; min-width: 14px; padding: 0 3px; font-size: 9px; }
+ .gare-app .ga-desk-phase-number { width: 20px; height: 20px; font-size: 10px; }
+ .gare-app .ga-desk-delivery { gap: 6px 12px; font-size: 11px; }
+ .gare-app .ga-desk-next { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px; }
+ .gare-app .ga-desk-next h3 { font-size: 15px; }
+ .gare-app .ga-desk-next button { align-self: flex-start; }
+ .gare-app .ga-desk-prepare-nav button { font-size: 11px; padding: 8px; min-height: 44px; }
+ .gare-app .ga-desk-work .ga-review-summary { gap: 9px; }
+ .gare-app .ga-desk-work .ga-review-heading { flex-wrap: wrap; }
+ .gare-app .ga-desk-work .ga-review-heading h2 { font-size: 18px; }
+ .gare-app .ga-desk-work .ga-review-group-heading { flex-wrap: wrap; }
+ .gare-app .ga-desk-work .ga-review-group-count { margin-left: 0; }
+ .gare-app .ga-work-list article>button { min-height: 44px; }
+}
+
+.gare-app :is(.ga-lot-assessment,.ga-source-updates,.ga-open-documents) { min-width: 0; }
+.gare-app .ga-lot-options { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,175px),1fr)); gap: 7px; margin-bottom: 12px; }
+.gare-app .ga-lot-options button { display: grid; align-content: start; gap: 3px; min-width: 0; padding: 10px 11px; border: 1px solid #dce5ef; border-radius: 8px; background: #f8fafc; text-align: left; color: #244462; overflow-wrap: anywhere; }
+.gare-app .ga-lot-options button:hover { border-color: #8ba5c0; }
+.gare-app .ga-lot-options button[aria-pressed=true] { background: #eaf2fa; border-color: #7c9ab9; box-shadow: inset 0 -2px #356591; }
+.gare-app .ga-lot-options strong { font-size: 13px; }
+.gare-app .ga-lot-options :is(small,span) { color: #526982; font-size: 11px; line-height: 1.35; }
+.gare-app .ga-assessment-rows { display: grid; gap: 8px; }
+.gare-app :is(.ga-assessment-rows article,.ga-source-impact) { border: 1px solid #dce5ef; border-radius: 8px; padding: 11px; min-width: 0; overflow-wrap: anywhere; }
+.gare-app .ga-assessment-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 6px 12px; }
+.gare-app .ga-assessment-head>div { flex: 1; min-width: min(100%,13rem); }
+.gare-app :is(.ga-assessment-head h3,.ga-source-impact h3,.ga-doc-items-group h3) { font-weight: 710; color: #244462; font-size: 14px; line-height: 1.4; }
+.gare-app :is(.ga-assessment-head p,.ga-source-impact>p) { font-size: 12px; color: #516782; margin-bottom: 3px; }
+.gare-app .ga-assessment-pair { display: grid; gap: 6px; grid-template-columns: repeat(2,minmax(0,1fr)); margin-block: 8px; }
+.gare-app .ga-assessment-pair>div { display: grid; align-content: start; gap: 3px; padding: 7px 9px; background: #f5f8fc; border-radius: 6px; min-width: 0; font-size: 12px; }
+.gare-app .ga-assessment-pair :is(dt,span,small) { font-size: 11px; color: #526982; }
+.gare-app :is(.ga-assessment-pair,.ga-comparison-candidate) button { display: inline-flex; gap: 5px; align-items: flex-start; justify-self: start; text-align: left; color: #285884; text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.gare-app .ga-assessment-pair button svg { flex: none; }
+.gare-app :is(.ga-assessment-rows,.ga-source-impact) details { font-size: 12px; margin-block: 7px; color: #435e79; }
+.gare-app :is(.ga-assessment-rows,.ga-source-impact,.ga-match-explanation) summary { cursor: pointer; color: #234e78; }
+.gare-app .ga-assessment-rows blockquote { margin: 7px 0; padding-left: 9px; border-left: 2px solid #8ea9c4; }
+.gare-app .ga-assessment-rows article>button { margin-top: 3px; }
+.gare-app .ga-comparison-empty { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; font-size: 13px; color: #526982; }
+.gare-app .ga-comparison-candidate { padding: 6px 0; border-bottom: 1px solid #e6edf5; }
+.gare-app .ga-comparison-proof>div { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,2fr); gap: 8px; padding: 6px 0; border-bottom: 1px solid #e6edf5; font-size: 13px; overflow-wrap: anywhere; }
+.gare-app .ga-source-impact + .ga-source-impact { margin-top: 7px; }
+.gare-app :is(.ga-source-impact,.ga-doc-item) a { color: #285884; font-size: 12px; font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
+.gare-app .ga-source-impact ul { margin-top: 7px; }
+.gare-app .ga-source-impact li { display: flex; flex-wrap: wrap; gap: 4px 8px; padding: 5px 0; border-bottom: 1px solid #e6edf5; }
+.gare-app .ga-source-impact li span { color: #556c85; }
+.gare-app .ga-doc-items-group + .ga-doc-items-group { margin-top: 13px; }
+.gare-app .ga-doc-items-group h3 { padding: 7px 9px; background: #f3f7fb; border-radius: 6px; }
+.gare-app .ga-doc-item { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px 10px; justify-content: space-between; padding: 8px; border-bottom: 1px solid #e7edf4; font-size: 12px; overflow-wrap: anywhere; }
+.gare-app .ga-doc-item>div { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.gare-app .ga-match-explanation { margin-top: 5px; color: #526982; font-size: 12px; line-height: 1.55; }
+.gare-app .ga-match-explanation p { margin-top: 4px; }
+.gare-app .ga-notice-results { display: grid; gap: 9px; }
+.gare-app .ga-notice-results .ga-source-impact { margin-top: 0; }
+.gare-app .ga-notice-results .ga-desk-actions { align-items: center; }
+@media(max-width:600px) {
+ .gare-app .ga-assessment-pair { grid-template-columns: minmax(0,1fr); }
+ .gare-app .ga-lot-options button { min-height: 44px; }
+}
+
+.gare-app .ga-dossier-return {
+ display: flex;
+ align-items: center;
+ flex-wrap: wrap;
+ gap: 6px 12px;
+ background: #eef5fb;
+ border: 1px solid #cbddec;
+ border-radius: 9px;
+ margin-bottom: 12px;
+ padding: 8px 11px;
+ color: #284b6e;
+ font-size: 12px;
+}
+.gare-app .ga-dossier-return span { overflow-wrap: anywhere; }
+.gare-app .ga-form-operator { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 6px 10px; }
+.gare-app .ga-form-operator label { flex: 1; min-width: min(100%,14rem); }
+.gare-app .ga-form-operator a { min-height: 40px; }
+.gare-app .ga-prep-stale {
+ display: grid;
+ gap: 5px;
+ margin-block: 10px;
+ padding: 11px 12px;
+ border: 1px solid #ead7b5;
+ border-radius: 8px;
+ background: #fff7e9;
+ color: #644921;
+ font-size: 12px;
+}
+.gare-app .ga-prep-stale summary { cursor: pointer; font-weight: 650; }
+.gare-app .ga-prep-stale details p { margin-top: 4px; overflow-wrap: anywhere; }
+
+.gare-app .ga-office-model-row {
+ display: flex;
+ flex-wrap: wrap;
+ align-items: center;
+ gap: 6px 10px;
+ padding: 9px 10px;
+ border: 1px solid #dce5ef;
+ border-radius: 8px;
+}
+.gare-app .ga-office-model-row label { flex: 1; display: flex; gap: 8px; align-items: flex-start; min-width: min(100%, 15rem); }
+.gare-app .ga-office-model-row input { margin-top: 3px; accent-color: #265884; }
+.gare-app .ga-office-model-row strong { display: block; font-size: 13px; overflow-wrap: anywhere; color: #244462; }
+.gare-app .ga-office-model-row small { display: block; margin-top: 2px; font-size: 11px; color: #526982; }
+.gare-app .ga-office-model-row>div { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.gare-app .ga-discovery-sources {
+ display: grid;
+ grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+ gap: 10px;
+}
+.gare-app .ga-discovery-sources article {
+ display: flex;
+ flex-direction: column;
+ gap: 6px;
+ min-width: 0;
+ padding: 13px;
+ border: 1px solid #dde6f0;
+ border-radius: 9px;
+ background: #f7f9fc;
+}
+.gare-app .ga-discovery-sources h3,
+.gare-app .ga-catalog-row h3 { color: #203b5b; font-size: 14px; font-weight: 700; }
+.gare-app .ga-discovery-sources p,
+.gare-app .ga-catalog-row p,
+.gare-app .ga-catalog-caption { color: #4c6079; font-size: 12px; }
+.gare-app .ga-discovery-sources article > div {
+ display: flex;
+ flex-wrap: wrap;
+ gap: 5px 12px;
+ margin-top: auto;
+ padding-top: 5px;
+}
+.gare-app .ga-discovery-sources a,
+.gare-app .ga-dossier-steps a,
+.gare-app .ga-delivery-file-actions a {
+ display: inline-flex;
+ align-items: center;
+ gap: 5px;
+ color: #184679;
+ font-size: 12px;
+ font-weight: 650;
+ text-decoration: underline;
+ text-underline-offset: 3px;
+}
+.gare-app .ga-catalog-inputs {
+ display: grid;
+ grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+ gap: 12px;
+}
+.gare-app .ga-catalog-inputs label,
+.gare-app .ga-tender-actor,
+.gare-app .ga-delivery-lot-select {
+ display: grid;
+ gap: 6px;
+ min-width: 0;
+ color: #244362;
+ font-size: 12px;
+ font-weight: 650;
+}
+.gare-app .ga-catalog-inputs label > span,
+.gare-app .ga-tender-actor > span { display: flex; align-items: center; gap: 6px; }
+.gare-app .ga-catalog-caption { margin: 12px 0 4px; }
+.gare-app .ga-catalog-row {
+ display: flex;
+ flex-wrap: wrap;
+ justify-content: space-between;
+ align-items: center;
+ gap: 8px 12px;
+ padding: 10px 0;
+ border-bottom: 1px solid #e1e8f0;
+}
+.gare-app .ga-catalog-row h3 { margin: 4px 0 0; overflow-wrap: anywhere; }
+
+.gare-app .ga-tender-actor select,
+.gare-app .ga-delivery-lot-select select {
+ width: 100%;
+ min-width: 0;
+ min-height: 38px;
+ padding: 6px 9px;
+ border: 1px solid #cad6e3;
+ border-radius: 7px;
+ color: #203b5b;
+ background: #fff;
+ font-size: 13px;
+}
+.gare-app .ga-dossier-steps { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+.gare-app .ga-dossier-steps li {
+ display: grid;
+ grid-template-columns: 24px minmax(0,1fr);
+ align-items: start;
+ gap: 8px;
+ padding: 11px 12px;
+ border: 1px solid #dde6f0;
+ border-radius: 8px;
+ background: #f7f9fc;
+}
+.gare-app .ga-dossier-steps li > svg { margin-top: 2px; color: #34638d; }
+.gare-app .ga-dossier-steps h3 { font-size: 14px; font-weight: 700; color: #203b5b; }
+.gare-app .ga-dossier-steps p { margin: 3px 0 4px; font-size: 12px; color: #4c6079; }
+.gare-app .ga-dossier-steps .ga-dossier-missing { color: #894614; }
+.gare-app .ga-dossier-steps details { margin-top: 7px; font-size: 12px; color: #324f70; }
+.gare-app .ga-dossier-steps summary { cursor: pointer; font-weight: 600; }
+.gare-app .ga-dossier-steps dl div {
+ display: grid;
+ grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+ gap: 8px;
+ padding: 4px 0;
+ border-bottom: 1px solid #e0e8f0;
+ overflow-wrap: anywhere;
+}
+.gare-app .ga-dossier-steps li > div > a { margin: 5px 0 0 8px; }
+.gare-app .ga-dossier-destinations { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 7px; }
+
+.gare-app .ga-lot-delivery .ga-notice { margin-bottom: 10px; }
+.gare-app .ga-delivery-portal {
+ display: flex;
+ flex-wrap: wrap;
+ align-items: center;
+ gap: 5px 9px;
+ margin-top: 9px;
+ padding: 8px 10px;
+ color: #274868;
+ background: #f1f6fc;
+ border-radius: 7px;
+ font-size: 12px;
+}
+.gare-app .ga-delivery-portal > div { flex: 1 1 180px; min-width: 0; overflow-wrap: anywhere; }
+.gare-app .ga-delivery-portal p { color: #4c6079; }
+.gare-app .ga-delivery-note { margin: 8px 0; font-size: 12px; color: #576981; }
+.gare-app .ga-delivery-envelope { margin-top: 12px; border: 1px solid #dce5ef; border-radius: 8px; overflow: hidden; }
+.gare-app .ga-delivery-envelope h3 {
+ display: flex;
+ align-items: center;
+ gap: 7px;
+ padding: 8px 10px;
+ background: #eef3f9;
+ color: #244362;
+ font-size: 13px;
+ font-weight: 700;
+}
+.gare-app .ga-delivery-envelope h3 span { margin-left: auto; font-size: 12px; }
+.gare-app .ga-delivery-file {
+ display: grid;
+ grid-template-columns: minmax(150px, 1fr) minmax(255px, 1.3fr);
+ gap: 6px 10px;
+ align-items: start;
+ padding: 9px 10px;
+ border-top: 1px solid #dce5ef;
+}
+.gare-app .ga-delivery-doc { min-width: 0; overflow-wrap: anywhere; color: #203b5b; font-size: 13px; }
+.gare-app .ga-delivery-doc p { font-size: 11px; color: #4c6079; }
+.gare-app .ga-delivery-status { display: flex; flex-wrap: wrap; gap: 5px 9px; align-items: start; }
+.gare-app .ga-delivery-status dt { margin-bottom: 3px; color: #4c6079; font-size: 10px; font-weight: 700; }
+.gare-app .ga-delivery-status dd { margin: 0; }
+.gare-app .ga-delivery-file-actions { grid-column: 1/-1; display: flex; flex-wrap: wrap; gap: 5px 11px; }
+.gare-app .ga-delivery-file-actions button { padding: 0; min-height: 24px; }
+.gare-app .ga-request-focus { outline: 2px solid #376aa0; outline-offset: 2px; }
+@media (max-width: 700px) {
+ .gare-app .ga-delivery-file { grid-template-columns: minmax(0,1fr); }
+}
+
+.gare-app .ga-opportunity-layout {
+ display: grid;
+ gap: 10px;
+}
+.gare-app .ga-opportunity-layout > :is(.ga-today-fold, .ga-opportunity-tools) { margin: 0; }
+.gare-app .ga-today-fold summary { min-height: 42px; }
+.gare-app .ga-today-actions {
+ display: grid;
+ grid-template-columns: repeat(auto-fit, minmax(min(100%, 245px), 1fr));
+ gap: 8px;
+}
+.gare-app .ga-today-action {
+ display: grid;
+ grid-template-columns: 17px minmax(0, 1fr) 14px;
+ align-items: start;
+ gap: 8px;
+ height: 100%;
+ padding: 9px;
+ border: 1px solid #e4eaf2;
+ border-radius: 8px;
+}
+.gare-app .ga-today-action:hover { background: #f2f6fb; }
+.gare-app .ga-today-action strong,
+.gare-app .ga-today-action small { display: block; }
+.gare-app .ga-today-action strong { color: #253e5e; font-size: 13px; }
+.gare-app .ga-today-action small {
+ margin-top: 3px;
+ color: #566983;
+ font-size: 11px;
+ overflow-wrap: anywhere;
+}
+
+.gare-app :is(.ga-opportunity-filters, .ga-participation-filters) {
+ display: grid;
+ grid-template-columns: minmax(0, 1fr) minmax(130px, 170px) minmax(150px, 196px);
+ gap: 8px;
+}
+.gare-app :is(.ga-opportunity-filters, .ga-participation-filters) select,
+.gare-app .ga-opportunity-more select {
+ width: 100%;
+ min-width: 0;
+ min-height: 40px;
+ padding: 5px 8px;
+ border: 1px solid #d6e0ec;
+ border-radius: 7px;
+ background: white;
+ font-size: 13px;
+ color: #304866;
+}
+.gare-app .ga-opportunity-search { position: relative; min-width: 0; }
+.gare-app .ga-opportunity-search > svg {
+ position: absolute;
+ top: 50%;
+ left: 12px;
+ transform: translateY(-50%);
+ color: #596d87;
+ pointer-events: none;
+}
+.gare-app .ga-opportunity-search input { padding-left: 35px; }
+.gare-app .ga-opportunity-toolbar,
+.gare-app .ga-opportunity-utilities,
+.gare-app .ga-opportunity-count,
+.gare-app .ga-opportunity-filter-chips {
+ display: flex;
+ flex-wrap: wrap;
+ align-items: center;
+ gap: 6px 8px;
+}
+.gare-app .ga-opportunity-toolbar { justify-content: space-between; align-items: start; margin: 10px 0; }
+.gare-app .ga-opportunity-utilities { flex: 1 1 280px; min-width: 0; align-items: start; }
+.gare-app .ga-opportunity-count { min-height: 34px; color: #536881; font-size: 12px; }
+.gare-app .ga-opportunity-count button,
+.gare-app .ga-opportunity-filter-chips button {
+ color: #2d5379;
+ font-size: 12px;
+}
+.gare-app .ga-opportunity-count button { text-decoration: underline; text-underline-offset: 3px; }
+.gare-app .ga-opportunity-more { min-width: 0; }
+.gare-app .ga-opportunity-utilities > details[open] { flex-basis: 100%; }
+.gare-app .ga-opportunity-utilities > button,
+.gare-app .ga-opportunity-utilities summary {
+ min-height: 36px;
+}
+.gare-app .ga-opportunity-utilities summary { width: fit-content; }
+.gare-app .ga-opportunity-more summary {
+ display: flex;
+ align-items: center;
+ gap: 6px;
+ padding: 5px 9px;
+ border: 1px solid #d9e3ef;
+ border-radius: 6px;
+ list-style: none;
+ color: #294868;
+ font-size: 12px;
+ cursor: pointer;
+}
+.gare-app .ga-opportunity-more summary:hover,
+.gare-app .ga-opportunity-more[open] summary { background: #f0f5fb; }
+.gare-app .ga-opportunity-more > div {
+ display: grid;
+ grid-template-columns: repeat(auto-fit, minmax(min(100%, 142px), 1fr));
+ gap: 8px;
+ margin-top: 7px;
+ padding: 10px;
+ border: 1px solid #e0e8f1;
+ border-radius: 7px;
+ background: #f7f9fc;
+}
+.gare-app .ga-opportunity-more label { display: grid; min-width: 0; gap: 4px; color: #455c78; font-size: 12px; }
+.gare-app .ga-opportunity-filter-chips { margin: 0 0 10px; }
+.gare-app .ga-opportunity-filter-chips button {
+ display: inline-flex;
+ align-items: center;
+ gap: 5px;
+ max-width: 100%;
+ padding: 4px 8px;
+ border: 1px solid #dce5ef;
+ border-radius: 6px;
+ background: #f2f6fb;
+}
+.gare-app .ga-opportunity-filter-chips button span { overflow-wrap: anywhere; }
+
+.gare-app :is(.ga-opportunity-columns, .ga-opportunity-item) {
+ display: grid;
+ grid-template-columns: minmax(0, 1fr) minmax(95px, .24fr) minmax(118px, .24fr) 200px;
+ align-items: center;
+ gap: 8px 16px;
+ padding-inline: 12px;
+}
+.gare-app .ga-opportunity-columns {
+ padding-block: 8px;
+ border-radius: 6px;
+ background: #f0f4fa;
+ color: #526783;
+ font-size: 11px;
+ font-weight: 650;
+}
+.gare-app .ga-opportunity-item { padding-block: 10px; border-bottom: 1px solid #e7edf4; }
+.gare-app .ga-opportunity-item:last-child { border-bottom: 0; padding-bottom: 2px; }
+.gare-app .ga-opportunity-name { min-width: 0; }
+.gare-app .ga-opportunity-name > a {
+ color: #213b5c;
+ font-size: 14px;
+ font-weight: 700;
+ line-height: 1.45;
+ overflow-wrap: anywhere;
+}
+.gare-app .ga-opportunity-name > a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.gare-app .ga-opportunity-name > p { margin-top: 2px; color: #556d87; font-size: 12px; overflow-wrap: anywhere; }
+.gare-app .ga-opportunity-status {
+ display: flex;
+ flex-wrap: wrap;
+ align-items: center;
+ gap: 4px 8px;
+ margin-top: 5px;
+}
+.gare-app .ga-opportunity-status > span:not(.ga-status) { color: #8c4d15; font-size: 11px; }
+.gare-app .ga-opportunity-value { display: grid; gap: 3px; color: #556e87; font-size: 11px; }
+.gare-app .ga-opportunity-value strong { color: #233e60; font-size: 13px; font-variant-numeric: tabular-nums; }
+.gare-app .ga-opportunity-value .ga-opportunity-expired { color: #875018; }
+.gare-app .ga-opportunity-field-label {
+ position: absolute;
+ width: 1px;
+ height: 1px;
+ overflow: hidden;
+ clip-path: inset(50%);
+}
+.gare-app .ga-opportunity-row-actions,
+.gare-app .ga-opportunity-preferences {
+ display: flex;
+ align-items: center;
+ gap: 2px;
+}
+.gare-app .ga-opportunity-row-actions { min-width: 0; }
+.gare-app .ga-opportunity-row-actions > a {
+ min-width: 88px;
+ padding: 5px 4px;
+ border-radius: 5px;
+ color: #254f79;
+ font-weight: 650;
+}
+.gare-app .ga-opportunity-row-actions button { width: 32px; height: 34px; color: #4d6684; }
+.gare-app .ga-opportunity-row-actions button:is([aria-pressed='true'],[aria-expanded='true']) {
+ color: #174e85;
+ background: #e8f1fa;
+}
+.gare-app .ga-opportunity-extra {
+ grid-column: 1 / -1;
+ padding: 10px 12px;
+ border: 1px solid #e0e8f1;
+ border-radius: 7px;
+ background: #f7f9fc;
+}
+.gare-app .ga-opportunity-extra dl {
+ display: grid;
+ grid-template-columns: repeat(auto-fit, minmax(min(100%, 135px), 1fr));
+ gap: 8px 12px;
+}
+.gare-app .ga-opportunity-extra dt { color: #56708a; font-size: 11px; }
+.gare-app .ga-opportunity-extra dd { margin: 2px 0 0; color: #294364; font-size: 12px; overflow-wrap: anywhere; }
+.gare-app .ga-opportunity-extra .ga-match-explanation { margin-top: 7px; }
+
+@media (max-width: 760px) {
+ .gare-app :is(.ga-opportunity-filters, .ga-participation-filters) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+ .gare-app .ga-opportunity-search { grid-column: 1 / -1; }
+ .gare-app .ga-opportunity-columns { display: none; }
+ .gare-app .ga-opportunity-item {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  padding: 11px 2px;
+ }
+ .gare-app .ga-opportunity-name,
+ .gare-app .ga-opportunity-row-actions { grid-column: 1 / -1; }
+ .gare-app .ga-opportunity-row-actions { justify-content: flex-start; min-width: 0; }
+ .gare-app .ga-opportunity-row-actions button { width: 36px; height: 36px; }
+ .gare-app .ga-opportunity-field-label { position: static; width: auto; height: auto; clip-path: none; }
+ .gare-app .ga-opportunity-value { align-self: start; }
+ .gare-app .ga-opportunity-utilities > button,
+ .gare-app .ga-opportunity-utilities summary { min-height: 40px; }
+ .gare-app .ga-opportunity-count { min-height: 28px; }
+}
+
+.gare-app .ga-participation-layout { display: grid; gap: 10px; }
+.gare-app .ga-participation-layout > .ga-fold-panel { margin: 0; }
+.gare-app .ga-participation-count {
+ display: flex;
+ justify-content: flex-end;
+ align-items: center;
+ gap: 10px;
+ min-height: 29px;
+ color: #536881;
+ font-size: 12px;
+}
+.gare-app .ga-participation-count button,
+.gare-app .ga-agenda-reset {
+ color: #2d5379;
+ font-size: 12px;
+ text-decoration: underline;
+ text-underline-offset: 3px;
+}
+.gare-app .ga-board-column-heading h3 button {
+ color: inherit;
+ text-align: left;
+ border-radius: 4px;
+ padding: 3px 0;
+ font-size: inherit;
+ font-weight: inherit;
+}
+.gare-app .ga-board-column-heading h3 button:hover { text-decoration: underline; }
+.gare-app .ga-participation-name { min-width: 0; overflow-wrap: anywhere; }
+.gare-app .ga-participation-name h3 { color: #223c5e; font-size: 14px; line-height: 1.45; font-weight: 700; }
+.gare-app .ga-participation-name p { margin-top: 2px; color: #546c85; font-size: 12px; }
+.gare-app .ga-participation-meta {
+ display: flex;
+ flex-wrap: wrap;
+ gap: 4px 11px;
+ color: #536b85;
+ font-size: 12px;
+}
+.gare-app .ga-participation-meta span { overflow-wrap: anywhere; }
+.gare-app .ga-participation-expired { color: #915017; }
+.gare-app .ga-participation-next {
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ gap: 6px;
+ color: #234c76;
+ font-size: 12px;
+ font-weight: 650;
+}
+.gare-app .ga-participation-next svg { flex-shrink: 0; }
+.gare-app .ga-pipeline-card .ga-participation-next {
+ padding: 6px 8px;
+ border-radius: 6px;
+ background: #edf4fb;
+}
+.gare-app .ga-participation-record {
+ display: grid;
+ grid-template-columns: minmax(0,1fr) minmax(95px,.25fr) minmax(100px,.36fr) minmax(125px,.35fr);
+ align-items: center;
+ gap: 8px 14px;
+ padding: 9px 10px;
+ border-top: 1px solid #e4ebf3;
+}
+.gare-app .ga-participation-record:hover { background: #f5f8fc; }
+.gare-app .ga-participation-record .ga-participation-meta { flex-direction: column; }
+
+.gare-app .ga-agenda-zone { font-size: 12px; color: #536881; }
+.gare-app .ga-deadlines-page .ga-filter-pills { margin-bottom: 10px; }
+.gare-app .ga-deadlines-page .ga-filter-pills button {
+ display: inline-flex;
+ align-items: center;
+ gap: 6px;
+ min-height: 36px;
+ padding: 5px 8px;
+ font-size: 12px;
+}
+.gare-app .ga-deadlines-page .ga-filter-pills strong {
+ padding: 2px 5px;
+ border-radius: 4px;
+ min-width: 20px;
+ background: #e4ecf6;
+ text-align: center;
+ font-variant-numeric: tabular-nums;
+}
+.gare-app .ga-agenda-filters { align-items: center; margin-bottom: 10px; gap: 8px; }
+.gare-app .ga-agenda-filters select { max-width: 100%; }
+.gare-app .ga-agenda-day-heading {
+ padding: 6px 9px;
+ background: #f0f4fa;
+ border: 0;
+ border-radius: 6px;
+}
+.gare-app .ga-agenda-entry strong { color: #253f60; font-size: 13.5px; overflow-wrap: anywhere; }
+.gare-app .ga-agenda-entry p { margin-top: 2px; overflow-wrap: anywhere; }
+.gare-app .ga-agenda-action { display: flex; align-items: center; justify-content: end; gap: 6px; color: #506985; }
+@media (max-width:760px) {
+ .gare-app .ga-participation-record { grid-template-columns: minmax(0,1fr) auto; gap: 5px 9px; padding-inline: 3px; }
+ .gare-app .ga-participation-record .ga-participation-name { grid-column: 1/-1; }
+ .gare-app .ga-participation-record .ga-participation-stage { grid-row: 2; grid-column: 2; }
+ .gare-app .ga-participation-record .ga-participation-next { grid-column: 1/-1; }
+ .gare-app .ga-agenda-row { grid-template-columns: minmax(0,1fr) auto; gap: 4px 9px; padding-inline: 4px; }
+ .gare-app .ga-agenda-entry { grid-row: 1; grid-column: 1/-1; }
+ .gare-app .ga-agenda-filters select { width: 100%; }
+ .gare-app .ga-agenda-filters .ga-completed-toggle { grid-column: auto; }
+ .gare-app .ga-agenda-reset { justify-self: end; }
+}

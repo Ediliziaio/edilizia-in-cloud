@@ -1,0 +1,3 @@
+import{execFile,python}from'../gare-ai/runtime.mjs';import{fileURLToPath}from'node:url';
+export const VALIDATOR_REVISION=1;
+export function validateXml(source,requestSource){return new Promise((resolve,reject)=>{const child=execFile(python,[fileURLToPath(new URL('./validate_xml.py',import.meta.url))],{timeout:60000,maxBuffer:12_000_000},(error,out,err)=>{if(error)return reject(Error((err.split('\n').filter(Boolean).at(-1)||error.message).slice(0,1000)));try{resolve(JSON.parse(out));}catch{reject(Error('Rapporto del validatore non valido'));}});child.stdin.end(JSON.stringify({source,request_source:requestSource}));});}

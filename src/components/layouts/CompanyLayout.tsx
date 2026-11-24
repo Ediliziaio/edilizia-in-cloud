@@ -92,6 +92,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useGarePilot } from "@/modules/gare-appalti/useGarePilot";
 import { macroAreas, type NavItem, type MacroArea } from "@/lib/sidebarConfig";
 import { getSmartCruscottoPath } from "@/lib/dashboardRouting";
 import { canAccessMediaLibrary } from "@/lib/mediaLibrary";
@@ -1069,7 +1070,9 @@ const CompanySidebar = memo(function CompanySidebar({ badgePronti }: { badgePron
   }, [isImpersonating, exitImpersonation, navigate, signOut]);
 
   // La partita doppia si vede solo con «Contabilità generale in casa» accesa.
+  const showGarePilot = !!useGarePilot().role;
   const filterNavItems = useCallback((items: NavItem[]) => {
+    const visible = items.filter(item => !item.garePilotOnly || showGarePilot);
     // v8.6.83 — Demo Mode policy:
     //   - featureKey con access_level=preview → visibile con badge DEMO
     //   - featureKey con access_level=disabled → nascosta
@@ -1103,7 +1106,7 @@ const CompanySidebar = memo(function CompanySidebar({ badgePronti }: { badgePron
     };
 
     if (permissions.isLoading || gatingLoading) {
-      return applyCommercialistaScope(items.filter((item) => {
+      return applyCommercialistaScope(visible.filter((item) => {
         if (item.url === "/azienda/contenuti-multimediali") return true;
         if (item.demoCompanyOnly && !isDemoBaseline) return false;
         if (item.multiCompanyOnly && !hasMultipleCompanies) return false;
@@ -1114,7 +1117,7 @@ const CompanySidebar = memo(function CompanySidebar({ badgePronti }: { badgePron
         return true;
       }));
     }
-    return applyCommercialistaScope(items.filter((item) => {
+    return applyCommercialistaScope(visible.filter((item) => {
       if (item.url === "/azienda/contenuti-multimediali" && !canAccessMediaLibrary(permissions)) {
         return false;
       }
@@ -1184,7 +1187,7 @@ const CompanySidebar = memo(function CompanySidebar({ badgePronti }: { badgePron
       }
       return true;
     }));
-  }, [permissions, gatingLoading, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, isDemoBaseline, limitsLoading, currentPlan, isCommercialistaMode, hasMultipleCompanies, schedeManodopera, effectiveCompany?.management_mode]);
+  }, [showGarePilot, permissions, gatingLoading, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, isDemoBaseline, limitsLoading, currentPlan, isCommercialistaMode, hasMultipleCompanies, schedeManodopera, effectiveCompany?.management_mode]);
 
   const { state: sidebarState, toggleSidebar, isMobile: sidebarAPannello } = useSidebar();
   const isCollapsed = sidebarState === "collapsed" && !sidebarAPannello;
