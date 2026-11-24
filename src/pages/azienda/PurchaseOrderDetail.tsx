@@ -956,9 +956,10 @@ function ContenutoPurchaseOrderDetail() {
 
           {/* La prova dell'ordine quando non e' partito da qui: conferma del
               sito, modulo firmato, scontrino del banco. */}
-          {order.attachment_url && (
+          {(order.attachment_url || infoOrigine.vuoleDocumento) && (
             <OdaDocumentoCard
               odaId={order.id}
+              commessaId={order.order_id ?? null}
               label={infoOrigine.documentoLabel ?? "Conferma originale del fornitore"}
               attachmentUrl={(order as { attachment_url?: string | null }).attachment_url}
               riferimento={(order as { supplier_reference?: string | null }).supplier_reference}

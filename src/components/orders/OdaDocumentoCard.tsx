@@ -12,12 +12,14 @@ import { Button } from "@/components/ui/button";
 import { FileText, Upload, Loader2, ExternalLink, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-
-const BUCKET = "order-attachments";
-const MAX_MB = 15;
+import { useAuth } from "@/contexts/AuthContext";
+import { ACCEPT_DOCUMENTI_DDT, erroreDocumento } from "@/lib/ddt/preparaDocumento";
+import { BUCKET_DOCUMENTO_ODA as BUCKET, caricaDocumentoOda, eliminaDocumentoOda, registraDocumentoOda } from "@/lib/orders/documentoOda";
 
 interface Props {
   odaId: string;
+  /** La commessa dell'ordine: il documento si salva tra i suoi (24/11/2026). Senza, non si carica. */
+  commessaId: string | null;
   /** Come si chiama il documento per questa origine (conferma, scontrino…). */
   label: string;
   /** Path nel bucket, gia' salvato su purchase_orders.attachment_url. */
@@ -29,7 +31,7 @@ interface Props {
 }
 
 export function OdaDocumentoCard({
-  odaId,
+  commessaId,
   label,
   attachmentUrl,
   riferimento,
@@ -37,6 +39,7 @@ export function OdaDocumentoCard({
   onChange,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const { user } = useAuth();
   const [busy, setBusy] = useState(false);
 
   const nomeFile = attachmentUrl ? attachmentUrl.split("/").pop() : null;
@@ -65,42 +68,25 @@ export function OdaDocumentoCard({
   const carica = async (file: File) => {
     if (busy) return;
     if (inputRef.current) inputRef.current.value = "";
-    if (!file.size) {
-      toast.error("Il file è vuoto");
+    const problema = erroreDocumento(file);
+    if (problema) {
+      toast.error(problema);
       return;
     }
-    if (
-      file.type &&
-      file.type !== "application/pdf" &&
-      !file.type.startsWith("image/")
-    ) {
-      toast.error("Carica un PDF o un’immagine");
-      return;
-    }
-    if (file.size > MAX_MB * 1024 * 1024) {
-      toast.error(`Il file supera ${MAX_MB} MB`);
-      return;
-    }
+    if (!commessaId || !user?.id) return;
     setBusy(true);
-    let uploaded: string | null = null;
+    let caricato: string | null = null;
     try {
-      const nome = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-      const path = `oda/${odaId}/${crypto.randomUUID()}-${nome}`;
-      const { error } = await supabase.storage.from(BUCKET).upload(path, file);
-      if (error) throw error;
-      uploaded = path;
-      await onChange(path);
-      uploaded = null;
+      caricato = await caricaDocumentoOda(commessaId, file);
+      // Senza la riga tra i documenti della commessa lo storage non lo fa rileggere.
+      const errRiga = await registraDocumentoOda({ commessaId, percorso: caricato, file, userId: user.id });
+      if (errRiga) throw new Error(errRiga);
+      await onChange(caricato);
+      caricato = null;
       toast.success(`${label} caricato`);
     } catch (e) {
-      // Se il riferimento non è salvato, eliminiamo soltanto il nuovo upload.
-      if (uploaded) {
-        try {
-          await supabase.storage.from(BUCKET).remove([uploaded]);
-        } catch {
-          /* errore principale resta quello del salvataggio */
-        }
-      }
+      // Se il riferimento non è salvato, si toglie soltanto il nuovo upload.
+      if (caricato) await eliminaDocumentoOda(caricato);
       toast.error("Caricamento non riuscito", {
         description: e instanceof Error ? e.message : String(e),
       });
@@ -117,12 +103,10 @@ export function OdaDocumentoCard({
       // la cancellazione fallisce resta un file orfano, non una riga che punta
       // a un documento che non c'e' piu'.
       await onChange(null);
-      const { error } = await supabase.storage
-        .from(BUCKET)
-        .remove([attachmentUrl]);
-      if (error)
+      const errore = await eliminaDocumentoOda(attachmentUrl);
+      if (errore)
         toast.error("Riferimento rimosso; eliminazione del file non riuscita", {
-          description: error.message,
+          description: errore,
         });
     } catch (e) {
       toast.error("Il documento non è stato rimosso", {
@@ -168,6 +152,11 @@ export function OdaDocumentoCard({
               <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
             </Button>
           </div>
+        ) : !commessaId ? (
+          <p className="text-xs text-slate-500">
+            Per allegare il documento collega prima l’ordine a una commessa: il file si
+            conserva tra i documenti della commessa, visibile a chi vede i costi.
+          </p>
         ) : (
           <>
             <p className="text-xs text-slate-500">
@@ -196,7 +185,8 @@ export function OdaDocumentoCard({
         <input
           ref={inputRef}
           type="file"
-          accept="application/pdf,image/*"
+          accept={ACCEPT_DOCUMENTI_DDT}
+          aria-label={`File: ${label.toLowerCase()}`}
           className="hidden"
           onChange={(e) => {
             const f = e.target.files?.[0];

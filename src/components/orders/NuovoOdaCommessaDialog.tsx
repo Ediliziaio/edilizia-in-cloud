@@ -38,9 +38,8 @@ import { caricaArticoliCatalogo } from "@/lib/listino/catalogoArticoli";
 import { caricaVociListino } from "@/lib/listino/vociListino";
 import { valoriArticoloAcquisto } from "@/lib/orders/articoloAcquisto";
 import { leggiDocumentoOda, propostaDaLettura } from "@/lib/orders/letturaOdaDocumento";
-import { ACCEPT_DOCUMENTI_DDT, erroreDocumento, mimeDocumento } from "@/lib/ddt/preparaDocumento";
-import { percorsoDocumento } from "@/lib/commesse/documentiCommessa";
-import { ATTACHMENTS_BUCKET } from "./filePreviewUtils";
+import { ACCEPT_DOCUMENTI_DDT, erroreDocumento } from "@/lib/ddt/preparaDocumento";
+import { caricaDocumentoOda, eliminaDocumentoOda, registraDocumentoOda } from "@/lib/orders/documentoOda";
 
 interface Props {
   open: boolean;
@@ -192,12 +191,9 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
     try {
       // Prima il file, così il percorso entra nell'ordine già alla creazione.
       if (documento) {
-        const percorso = percorsoDocumento(orderId, documento.name, undefined, crypto.randomUUID());
-        const { error: errFile } = await supabase.storage.from(ATTACHMENTS_BUCKET)
-          .upload(percorso, documento, { contentType: mimeDocumento(documento), upsert: false });
-        // Un file che non sale non ferma l'ordine: si dice, e si allega poi dalla commessa.
-        if (errFile) toast.warning("Il documento non è stato caricato: l'ordine nasce senza allegato", { description: errFile.message });
-        else caricato = percorso;
+        // Un file che non sale non ferma l'ordine: si dice, e si allega poi dalla pagina dell'ordine.
+        try { caricato = await caricaDocumentoOda(orderId, documento); }
+        catch (e) { toast.warning("Il documento non è stato caricato: l'ordine nasce senza allegato", { description: e instanceof Error ? e.message : String(e) }); }
       }
       const datiFornitore = suppliers.find(s => s.id === fornitore);
       const condizioni = condizioniPagamentoFornitore(datiFornitore || {});
@@ -218,7 +214,7 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
         created_by: user?.id,
       } as never).select("id, oda_number").single();
       if (error) {
-        if (caricato) await supabase.storage.from(ATTACHMENTS_BUCKET).remove([caricato]).catch((): null => null);
+        if (caricato) await eliminaDocumentoOda(caricato);
         throw error;
       }
       const nuovo = po as unknown as { id: string; oda_number: string };
@@ -238,16 +234,8 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
       }
       if (caricato && documento && user?.id) {
         // Tra i documenti della commessa, visibile a chi vede i costi: ha i prezzi d'acquisto.
-        // È anche ciò che permette di riaprirlo: lo storage legge solo i file registrati qui.
-        const { error: errAllegato } = await supabase.from("order_attachments").insert({
-          order_id: orderId, access_scope: "costi", file_name: documento.name, file_url: caricato,
-          file_type: mimeDocumento(documento) || "application/octet-stream", file_size: documento.size,
-          uploaded_by: user.id, visible_to_customer: false,
-        } as never);
-        if (errAllegato) {
-          logger.error("[NuovoOdaCommessaDialog] allegato non registrato", errAllegato);
-          toast.warning("Ordine creato, ma il documento non è registrato tra quelli della commessa", { description: errAllegato.message });
-        }
+        const errAllegato = await registraDocumentoOda({ commessaId: orderId, percorso: caricato, file: documento, userId: user.id });
+        if (errAllegato) toast.warning("Ordine creato, ma il documento non è registrato tra quelli della commessa", { description: errAllegato });
       }
       try {
         const { error: diario } = await supabase.from("order_events" as never).insert({

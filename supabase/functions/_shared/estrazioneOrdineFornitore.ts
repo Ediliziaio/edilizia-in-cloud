@@ -69,15 +69,20 @@ export function numeroLetto(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-const data = (v: unknown): string | null => {
+/** Una data vera in YYYY-MM-DD, o null: «31/02/2026» letta male non entra nel campo. */
+export function dataLetta(v: unknown): string | null {
   const s = testo(v, 40);
   if (!s) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const m = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
-  if (!m) return null;
-  const anno = m[3].length === 2 ? `20${m[3]}` : m[3];
-  return `${anno}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
-};
+  let iso: string | null = null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) iso = s;
+  else {
+    const m = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2}|\d{4})$/);
+    if (m) iso = `${m[3].length === 2 ? `20${m[3]}` : m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  }
+  if (!iso) return null;
+  const d = new Date(`${iso}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === iso ? iso : null;
+}
 
 const tondo = (n: number, cifre = 4) => Math.round(n * 10 ** cifre) / 10 ** cifre;
 
@@ -121,8 +126,8 @@ export function normalizzaOrdineFornitore(v: unknown): OrdineFornitoreLetto {
   return {
     fornitore: { nome: testo(f.ragione_sociale, 200), partita_iva: testo(f.partita_iva, 30), codice_fiscale: testo(f.codice_fiscale, 30) },
     numero: testo(r.numero_documento, 80),
-    data: data(r.data_documento),
-    consegna: data(r.data_consegna),
+    data: dataLetta(r.data_documento),
+    consegna: dataLetta(r.data_consegna),
     pagamento: testo(r.pagamento, 200),
     righe,
     imponibile: numeroLetto(r.imponibile),

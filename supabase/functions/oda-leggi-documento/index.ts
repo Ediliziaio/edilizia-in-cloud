@@ -90,3 +90,5 @@ Deno.serve(async (req) => {
     return errorResponse(err instanceof Error ? err.message : String(err), 500, getCorsHeaders(req));
   }
 });
+
+// 24/11/2026: ripubblicata per _shared/estrazioneOrdineFornitore.ts (date impossibili come «31/02» lette come null).

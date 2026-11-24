@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizzaOrdineFornitore, numeroLetto } from "../../../supabase/functions/_shared/estrazioneOrdineFornitore";
+import { dataLetta, normalizzaOrdineFornitore, numeroLetto } from "../../../supabase/functions/_shared/estrazioneOrdineFornitore";
 import { propostaDaLettura } from "@/lib/orders/letturaOdaDocumento";
 import { righeDagliArticoli } from "@/lib/orders/nuovoOdaCommessa";
 
@@ -22,6 +22,9 @@ describe("lettura di un ordine d'acquisto su carta", () => {
   it("normalizza numeri italiani, date, importi di riga e sconti", () => {
     expect(numeroLetto("1.234,50")).toBe(1234.5);
     expect(numeroLetto("1.000")).toBe(1000);
+    expect(dataLetta("31/02/2026")).toBeNull();
+    expect(dataLetta("2026-13-01")).toBeNull();
+    expect(dataLetta("3.12.26")).toBe("2026-12-03");
     const o = normalizzaOrdineFornitore(RISPOSTA);
     expect(o.numero).toBe("ORD 2026/145");
     expect(o.data).toBe("2026-11-20");
