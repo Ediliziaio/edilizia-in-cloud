@@ -40,6 +40,9 @@ import { AvvisoScadenzePersonali } from "@/components/campo/AvvisoScadenzePerson
 import { dateFnsCampo, intlCampo, useLinguaCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { useCampoWorkDay } from "@/hooks/campo/useCampoWorkDay";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
+import { CHIP, PILLOLA_PICCOLA, TITOLO_RIQUADRO } from "@/lib/campo/stileCampo";
+import { useDaFareOggi } from "@/hooks/campo/useDaFareOggi";
 
 // ── Priority config ──
 const PRIORITY_CONFIG: Record<string, { label: string; dotClass: string; badgeClass: string }> = {
@@ -121,6 +124,7 @@ export default function CampoHome() {
   const giornata = useMiaGiornata(14);
   const dayTime = useCampoDayTime(user?.id, profile?.company_id ?? null);
   const giorni = giornata.data?.giorni ?? [];
+  const isCaposquadra = giorni.some(g => g.cantieri.some(c => c.squadra?.sono_caposquadra));
   const oggiVisibile = giornata.isLoading
     || (!giornata.isError && !!giorni[0] && (giorni[0].cantieri.length > 0 || giorni.slice(1).some(g => g.cantieri.length > 0)));
 
@@ -139,12 +143,15 @@ export default function CampoHome() {
                   : new Intl.DateTimeFormat(intlCampo(), { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date())}
               </p>
               {isOperaio && isCapocantiere && (
-                <span className="rounded-md bg-primary/10 px-1.5 text-[11px] font-semibold text-primary md:hidden">{t("Capocantiere")}</span>
+                <span className={cn(CHIP, "bg-primary/10 text-primary md:hidden")}>{t("Capocantiere")}</span>
+              )}
+              {isOperaio && isCaposquadra && (
+                <span className={cn(CHIP, "bg-orange-100 text-orange-800 md:hidden")}>{t("Caposquadra")}</span>
               )}
             </div>
-            <h1 className="truncate text-xl font-bold tracking-tight md:text-2xl">{saluto}, {profile?.first_name ?? ""}</h1>
+            <h1 className="truncate text-[17px] font-bold tracking-tight md:text-2xl">{saluto}, {profile?.first_name ?? ""}</h1>
           </div>
-          <Link to="/campo/invii" aria-label={t("Invii e bozze")} className="flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border px-2 text-xs font-semibold sm:px-3">
+          <Link to="/campo/invii" aria-label={t("Invii e bozze")} className={cn(PILLOLA_PICCOLA, "min-h-11 min-w-11 shrink-0 px-3")}>
             <CloudUpload className="size-4" aria-hidden="true" /><span className="max-[355px]:sr-only">{t("Invii")}</span>
           </Link>
         </div>
@@ -411,95 +418,82 @@ function CantieriAssegnati() {
   const t = useT();
   const { data: lavori = [], isLoading, isError, refetch, isFetching } = useCampoAssignments();
   const oggiCampo = useCampoWorkDay();
+  // Cosa c'è da fare oggi su ogni cantiere (collaudo 23/11): le fasi in corso o già partite.
+  const daFare = useDaFareOggi(lavori.map(a => a.order?.id));
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">{t("Cantieri assegnati")}</CardTitle>
-          {lavori.length > 0 && (
-            <Badge variant="secondary" className="text-xs">
-              {lavori.length}
-            </Badge>
-          )}
+    <section aria-labelledby="cantieri-assegnati" className="rounded-2xl border bg-background p-3 shadow-sm md:p-4">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h2 id="cantieri-assegnati" className={TITOLO_RIQUADRO}>{t("I tuoi cantieri")}</h2>
+        {lavori.length > 0 && <span className={cn(CHIP, "bg-muted text-muted-foreground")}>{lavori.length}</span>}
+      </div>
+      {isLoading ? (
+        <div className="space-y-2">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
         </div>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
-          </div>
-        ) : isError ? (
-          <div role="alert" className="space-y-2 py-4 text-center">
-            <p className="text-sm">{t("Non riesco a caricare i cantieri assegnati.")}</p>
-            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>{t("Riprova")}</Button>
-          </div>
-        ) : lavori.length === 0 ? (
-          <div className="flex flex-col items-center py-6 text-center">
-            <CheckCircle className="w-8 h-8 text-muted-foreground/50 mb-2" />
-            <p className="text-sm text-muted-foreground">{t("Nessun cantiere assegnato")}</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {lavori.map(a => (
-              <button
-                key={a.id}
-                onClick={() => navigate(`/campo/lavoro/${a.order?.id}`)}
-                className="w-full bg-muted/50 border rounded-xl p-3.5 text-left hover:bg-muted transition-all active:scale-[0.98]"
-              >
-                <div className="flex items-start justify-between mb-1.5">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-sm text-foreground">{a.order?.order_code}</p>
-                      {a.is_capocantiere && (
-                        <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-primary/30 text-primary">
-                          {t("Capocantiere")}
-                        </Badge>
-                      )}
-                    </div>
-                    <p dir="auto" className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{a.order?.description}</p>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
-                </div>
-                {a.order?.indirizzo_lavori && (
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
-                    <MapPin className="w-3 h-3 shrink-0" />
-                    <span dir="auto" className="truncate">{a.order.indirizzo_lavori}</span>
-                  </div>
-                )}
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-muted rounded-full h-1.5">
-                    <div
-                      className="bg-primary h-1.5 rounded-full transition-all"
-                      style={{ width: `${a.order?.percentuale_avanzamento ?? 0}%` }}
-                    />
-                  </div>
-                  <span className="text-[10px] text-muted-foreground tabular-nums">
-                    {a.order?.percentuale_avanzamento ?? 0}%
+      ) : isError ? (
+        <div role="alert" className="space-y-2 py-4 text-center">
+          <p className="text-sm">{t("Non riesco a caricare i cantieri assegnati.")}</p>
+          <Button variant="outline" size="sm" className="rounded-full" onClick={() => refetch()} disabled={isFetching}>{t("Riprova")}</Button>
+        </div>
+      ) : lavori.length === 0 ? (
+        <div className="flex flex-col items-center py-6 text-center">
+          <CheckCircle className="mb-2 h-8 w-8 text-muted-foreground/50" />
+          <p className="text-sm text-muted-foreground">{t("Nessun cantiere assegnato")}</p>
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {lavori.map(a => {
+            const giorni = giorniRitardoCantiere(a.order?.work_end_date, oggiCampo, a.order?.status);
+            const perc = a.order?.percentuale_avanzamento ?? 0;
+            const fasi = daFare.get(a.order?.id ?? "")?.fasi ?? [];
+            return (
+              <li key={a.id} className="rounded-2xl border bg-muted/30">
+                <button type="button" onClick={() => navigate(`/campo/lavoro/${a.order?.id}`)}
+                  className="flex w-full items-start gap-2 p-3 text-left active:bg-muted">
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs font-semibold text-muted-foreground">{a.order?.order_code}</span>
+                      {a.is_capocantiere && <span className={cn(CHIP, "bg-primary/10 text-primary")}>{t("Capocantiere")}</span>}
+                    </span>
+                    <span dir="auto" className="mt-0.5 line-clamp-2 block text-[15px] font-bold leading-snug">{a.order?.description}</span>
+                    {a.order?.indirizzo_lavori && (
+                      <span className="mt-0.5 flex items-center gap-1 text-[13px] text-muted-foreground">
+                        <MapPin className="size-3.5 shrink-0" aria-hidden="true" /><span dir="auto" className="truncate">{a.order.indirizzo_lavori}</span>
+                      </span>
+                    )}
+                    {fasi.length > 0 && (
+                      <span className="mt-1.5 block text-[13px]">
+                        <span className="text-muted-foreground">{t("Da fare oggi")}: </span>
+                        <span dir="auto" className="font-semibold">{fasi.join(", ")}</span>
+                      </span>
+                    )}
+                    <span className="mt-2 flex items-center gap-2">
+                      <span className="h-1.5 flex-1 rounded-full bg-muted">
+                        <span className="block h-1.5 rounded-full bg-primary" style={{ width: `${perc}%` }} />
+                      </span>
+                      <span className="text-xs font-semibold tabular-nums text-muted-foreground">{perc}%</span>
+                    </span>
+                    {giorni != null && <span className="mt-1 block text-xs font-semibold text-red-700 dark:text-red-400">{t(testoRitardoCantiere(giorni).replace(/\d+/, "{n}"), { n: giorni })}</span>}
                   </span>
-                </div>
-                {(() => {
-                  // Ritardo del cantiere sempre visibile (collaudo 23/11).
-                  const giorni = giorniRitardoCantiere(a.order?.work_end_date, oggiCampo, a.order?.status);
-                  return giorni != null && <p className="mt-1 text-xs font-semibold text-red-700 dark:text-red-400">{t(testoRitardoCantiere(giorni).replace(/\d+/, "{n}"), { n: giorni })}</p>;
-                })()}
+                  <ChevronRight className="mt-1 size-5 shrink-0 text-muted-foreground rtl:rotate-180" aria-hidden="true" />
+                </button>
                 {a.is_capocantiere && (
-                  <span
-                    role="link"
-                    tabIndex={0}
-                    onClick={(e) => { e.stopPropagation(); navigate(`/campo/squadra/${a.order?.id}`); }}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); navigate(`/campo/squadra/${a.order?.id}`); } }}
-                    className="mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/5 px-3 text-[13px] font-semibold text-primary"
-                  >
-                    <Users className="h-3.5 w-3.5" /> {t("Squadra di oggi")}
-                  </span>
+                  <div className="px-3 pb-3">
+                    <Link to={`/campo/squadra/${a.order?.id}`}
+                      className="flex min-h-11 items-center gap-2 rounded-full bg-orange-50 px-4 text-sm font-semibold text-orange-800 active:bg-orange-100">
+                      <Users className="size-4 shrink-0" aria-hidden="true" />
+                      <span className="min-w-0 flex-1">{t("Chi c'è oggi")}</span>
+                      <ChevronRight className="size-4 shrink-0 rtl:rotate-180" aria-hidden="true" />
+                    </Link>
+                  </div>
                 )}
-              </button>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }
 

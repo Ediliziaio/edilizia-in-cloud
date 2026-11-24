@@ -30,7 +30,7 @@ import { apriDocumentoDopoAttesa } from "@/lib/campo/apriDocumento";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle2, Circle, Camera, Loader2, RefreshCcw, MapPin,
-  ImageIcon, X, Clock,
+  ImageIcon, X, Clock, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -107,6 +107,13 @@ export default function CampoAvanzamento() {
   const queryClient = useQueryClient();
   const oggi = useCampoWorkDay();
   const [uploadingFaseId, setUploadingFaseId] = useState<string | null>(null);
+  // Fasi finite chiuse su una riga (collaudo 23/11): si riaprono toccandole.
+  const [finiteAperte, setFiniteAperte] = useState<Set<string>>(() => new Set());
+  const alternaFinita = (id: string) => setFiniteAperte(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
   const cantieriTecnici = useCantieriTecnici(role === "employee");
   const schedeAccessibili = new Set(cantieriTecnici.isError ? [] : (cantieriTecnici.data ?? []).map(c => c.id));
 
@@ -332,25 +339,25 @@ export default function CampoAvanzamento() {
   const fatte = (fasiQuery.data ?? []).filter((f) => f.status === "completata").length;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-3 md:space-y-4 md:p-4">
-      <header>
+    <div className="mx-auto w-full min-w-0 max-w-3xl space-y-3 md:space-y-4 md:p-4">
+      <header className="min-w-0">
         {orderFilter && <Link className="mb-3 inline-flex min-h-11 items-center text-sm font-medium text-primary" to={`/campo/lavoro/${encodeURIComponent(orderFilter)}`}>{t("← Torna al cantiere")}</Link>}
-        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{t("Avanzamento lavori")}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-[17px] font-bold tracking-tight md:text-2xl">{t("Avanzamento lavori")}</h1>
+        <p className="mt-0.5 break-words text-[13px] text-muted-foreground">
           {orderFilter ? t("Spunta le fasi finite e aggiungi le foto.") : t("I tuoi cantieri: spunta le fasi finite e aggiungi le foto.")}
+          {" "}{t("Serve all’ufficio per sapere a che punto siete. Non conta per i pagamenti.")}
         </p>
-        <p className="mt-2 text-xs text-muted-foreground">{t("Serve all’ufficio per sapere a che punto siete. Non conta per i pagamenti.")}</p>
+        {/* Stato in evidenza (collaudo 23/11): la percentuale grande, poi la barra. Niente larghezze fisse:
+            sul telefono del founder barra e testo uscivano a destra. */}
         {!isLoading && totali > 0 && (
-          <div className="mt-3 flex items-center gap-3">
-            <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-emerald-500 transition-all"
-                style={{ width: `${Math.round((fatte / totali) * 100)}%` }}
-              />
+          <div className="mt-2 rounded-2xl border bg-background p-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+              <p className="text-2xl font-black tabular-nums">{Math.round((fatte / totali) * 100)}%</p>
+              <p className="text-[13px] font-semibold text-muted-foreground">{t("{fatte} di {totali} fasi finite", { fatte, totali })}</p>
             </div>
-            <span className="text-xs font-medium tabular-nums text-muted-foreground">
-              {t("{fatte}/{totali} fasi", { fatte, totali })}
-            </span>
+            <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${Math.round((fatte / totali) * 100)}%` }} />
+            </div>
           </div>
         )}
       </header>
@@ -383,14 +390,19 @@ export default function CampoAvanzamento() {
           <section key={g.orderId} className="overflow-hidden rounded-xl border border-border bg-card">
             <div className="border-b border-border bg-muted/40 px-3 py-2.5">
               <div className="flex flex-wrap items-center justify-between gap-x-2">
-                <p className="text-sm font-semibold">{g.cantiere?.order_code ?? t("Cantiere")}</p>
+                <p className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+                  <span className="truncate">{g.cantiere?.order_code ?? t("Cantiere")}</span>
+                  <span className="inline-flex shrink-0 items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-emerald-800">
+                    {g.fasi.filter(f => f.status === "completata").length}/{g.fasi.length}
+                  </span>
+                </p>
                 {schedeAccessibili.has(g.orderId) && <Link to={percorsoCantiereTecnico(g.orderId)}
                   className="inline-flex min-h-11 items-center text-xs font-semibold text-primary hover:underline">
                   {t("Scheda cantiere")}
                 </Link>}
               </div>
               {g.cantiere?.description && (
-                <p className="line-clamp-1 text-xs text-muted-foreground">{g.cantiere.description}</p>
+                <p dir="auto" className="line-clamp-1 break-all text-xs text-muted-foreground">{g.cantiere.description}</p>
               )}
               {g.cantiere?.indirizzo_lavori && (
                 <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
@@ -409,8 +421,35 @@ export default function CampoAvanzamento() {
                 const derivata = faseHaSottofasi(sotto);
                 const spunta = !sottofasiQuery.isError && !sottofasiQuery.isLoading && puoSpuntare(fase);
                 return (
-                  <li key={fase.id} className="p-3">
-                    <div className="flex items-start gap-3">
+                  done && !finiteAperte.has(fase.id) ? (
+                  <li key={fase.id} className="bg-muted/20">
+                    <button type="button" onClick={() => alternaFinita(fase.id)} aria-expanded={false}
+                      aria-label={t("{fase}: completata, mostra i dettagli", { fase: fase.name })}
+                      className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-left active:bg-muted">
+                      <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" aria-hidden="true" />
+                      <span dir="auto" className="min-w-0 flex-1 truncate text-sm font-medium text-muted-foreground">{fase.name}</span>
+                      {fase.completata_il && (
+                        <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                          {new Date(fase.completata_il).toLocaleDateString(intlCampo(), { day: "2-digit", month: "2-digit" })}
+                        </span>
+                      )}
+                      {foto.length > 0 && (
+                        <span className="flex shrink-0 items-center gap-0.5 text-[11px] text-muted-foreground">
+                          <ImageIcon className="h-3 w-3" aria-hidden="true" />{foto.length}
+                        </span>
+                      )}
+                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    </button>
+                  </li>
+                  ) : (
+                  <li key={fase.id} className={cn("px-3 py-2.5", done && "bg-muted/20")}>
+                    {done && (
+                      <button type="button" onClick={() => alternaFinita(fase.id)} aria-expanded={true}
+                        className="-mt-1 mb-1 flex min-h-9 w-full items-center justify-end gap-1 text-[12px] font-semibold text-muted-foreground">
+                        {t("Chiudi")}<ChevronUp className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    )}
+                    <div className="flex items-start gap-2.5">
                       <button
                         type="button"
                         onClick={() => toggleFase.mutate(fase)}
@@ -431,16 +470,16 @@ export default function CampoAvanzamento() {
                       </button>
 
                       <div className="min-w-0 flex-1">
-                        <p className={cn("text-sm font-medium", done && "text-muted-foreground line-through")}>
+                        <p dir="auto" className={cn("break-words text-sm font-semibold leading-snug", done && "font-medium text-muted-foreground")}>
                           {fase.name}
                         </p>
                         {fase.notes && (
                           <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{fase.notes}</p>
                         )}
-                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                           <span
                             className={cn(
-                              "rounded-full px-2 py-0.5 text-[10px] font-medium",
+                              "rounded-full px-2 py-0.5 text-[11px] font-semibold",
                               done
                                 ? "bg-emerald-100 text-emerald-700"
                                 : fase.status === "in_corso"
@@ -451,7 +490,7 @@ export default function CampoAvanzamento() {
                             {done ? t("Completata") : fase.status === "in_corso" ? t("In corso") : t("Da iniziare")}
                           </span>
                           {!done && fase.percentuale > 0 && (
-                            <span className="text-[10px] tabular-nums text-muted-foreground">
+                            <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">
                               {fase.percentuale}%
                             </span>
                           )}
@@ -462,11 +501,26 @@ export default function CampoAvanzamento() {
                             </span>
                           )}
                           {done && fase.completata_il && (
-                            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                              <Clock className="h-3 w-3" />
+                            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                              <Clock className="h-3 w-3" aria-hidden="true" />
                               {new Date(fase.completata_il).toLocaleDateString(intlCampo())}
                             </span>
                           )}
+                          <label className="ms-auto inline-flex min-h-9 cursor-pointer items-center gap-1 rounded-full border bg-background px-3 text-[12px] font-semibold text-primary active:bg-muted">
+                            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+                            {busy ? t("Carico…") : t("Aggiungi foto")}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              className="hidden"
+                              disabled={busy}
+                              onChange={(e) => {
+                                void handlePhoto(fase, e.target.files);
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
                         </div>
 
                         {!spunta && (
@@ -476,18 +530,41 @@ export default function CampoAvanzamento() {
                               : t("La segna il capocantiere.")}
                           </p>
                         )}
-                        {derivata && (
-                          <ul className="mt-2 space-y-0.5" aria-label={t("Sottofasi di {fase}", { fase: fase.name })}>
+                        {derivata && done && (
+                          // Fase finita: le sottofasi (tutte fatte) si chiudono in una riga; si riaprono per correggere.
+                          <details className="mt-1 text-[13px]">
+                            <summary className="flex min-h-9 cursor-pointer list-none items-center text-muted-foreground [&::-webkit-details-marker]:hidden">
+                              {t("{n} sottofasi fatte · mostra", { n: sotto.length })}
+                            </summary>
+                            <ul className="space-y-0" aria-label={t("Sottofasi di {fase}", { fase: fase.name })}>
+                              {sotto.map((s) => (
+                                <li key={s.id}>
+                                  <label className="flex min-h-10 items-center gap-2.5 text-sm">
+                                    <Checkbox
+                                      checked={s.fatta}
+                                      disabled={segnaSottofase.isPending || !spunta}
+                                      onCheckedChange={(v) => segnaSottofase.mutate({ id: s.id, fatta: v === true })}
+                                      aria-label={s.fatta ? t("{nome}: fatta", { nome: s.name }) : t("{nome}: da fare", { nome: s.name })}
+                                    />
+                                    <span dir="auto" className={cn("min-w-0 break-words", s.fatta && "text-muted-foreground line-through")}>{s.name}</span>
+                                  </label>
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        )}
+                        {derivata && !done && (
+                          <ul className="mt-1 space-y-0" aria-label={t("Sottofasi di {fase}", { fase: fase.name })}>
                             {sotto.map((s) => (
                               <li key={s.id}>
-                                <label className="flex min-h-11 items-center gap-2.5 text-sm">
+                                <label className="flex min-h-10 items-center gap-2.5 text-sm">
                                   <Checkbox
                                     checked={s.fatta}
                                     disabled={segnaSottofase.isPending || !spunta}
                                     onCheckedChange={(v) => segnaSottofase.mutate({ id: s.id, fatta: v === true })}
                                     aria-label={s.fatta ? t("{nome}: fatta", { nome: s.name }) : t("{nome}: da fare", { nome: s.name })}
                                   />
-                                  <span className={cn(s.fatta && "text-muted-foreground line-through")}>{s.name}</span>
+                                  <span dir="auto" className={cn("min-w-0 break-words", s.fatta && "text-muted-foreground line-through")}>{s.name}</span>
                                 </label>
                               </li>
                             ))}
@@ -531,21 +608,7 @@ export default function CampoAvanzamento() {
                           </div>
                         )}
 
-                        <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-primary hover:underline">
-                          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
-                          {busy ? t("Carico…") : foto.length > 0 ? t("Aggiungi foto") : t("Aggiungi foto")}
-                          <input
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            className="hidden"
-                            disabled={busy}
-                            onChange={(e) => {
-                              void handlePhoto(fase, e.target.files);
-                              e.target.value = "";
-                            }}
-                          />
-                        </label>
+
                       </div>
 
                       {foto.length > 0 && (
@@ -556,6 +619,7 @@ export default function CampoAvanzamento() {
                       )}
                     </div>
                   </li>
+                  )
                 );
               })}
             </ul>

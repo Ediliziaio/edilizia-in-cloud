@@ -212,7 +212,7 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
   return (
     <section aria-label={t("Timbratura")} className="space-y-3 rounded-2xl border bg-background p-4 shadow-sm">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-base font-bold"><Clock className="h-4 w-4" aria-hidden="true" />{t("Timbratura")}</h2>
+        <h2 className="flex items-center gap-2 text-[15px] font-bold"><Clock className="h-4 w-4" aria-hidden="true" />{t("Timbratura")}</h2>
         {(inServizio || inPausa) && (!dayTime.isError || dayTime.pronto) && (
           <span className="text-sm font-semibold text-amber-600">{t("{ore} h oggi", { ore: campoReportHours(summary.workMinutes) })}</span>
         )}
@@ -258,7 +258,7 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
             value={partenzaKey ?? ""}
             onChange={e => setScelta(e.target.value)}
             disabled={timbra.isPending}
-            className="h-12 w-full min-w-0 rounded-xl border bg-background px-3 text-sm"
+            className="h-12 w-full min-w-0 rounded-full border bg-background px-4 text-sm font-semibold"
           >
             {!partenzaKey && <option value="" disabled>{t("Scegli da dove parti")}</option>}
             {sediLuoghi.length > 0 && <optgroup label={t("In sede")}>{sediLuoghi.map(opzione)}</optgroup>}
@@ -292,7 +292,7 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
                     type="button"
                     disabled={occupato}
                     onClick={() => cambiaUnaVolta(l)}
-                    className="flex min-h-11 max-w-full items-center gap-2 rounded-xl border bg-background px-3 py-2 text-left text-sm font-semibold active:bg-muted disabled:opacity-50"
+                    className="flex min-h-11 max-w-full items-center gap-2 rounded-full border bg-background px-4 py-2 text-left text-sm font-semibold active:bg-muted disabled:opacity-50"
                   >
                     {inCorso ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" /> : <IconaLuogo luogo={l} className="h-4 w-4 shrink-0 text-muted-foreground" />}
                     <span className="min-w-0 truncate">{nomeLuogo(l)}</span>
@@ -307,7 +307,7 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
               value=""
               disabled={occupato}
               onChange={e => { const l = trovaLuogo(luoghi, e.target.value); if (l) cambiaUnaVolta(l); }}
-              className="h-11 w-full min-w-0 rounded-xl border bg-background px-3 text-sm"
+              className="h-11 w-full min-w-0 rounded-full border bg-background px-4 text-sm"
             >
               <option value="">{t("Altro cantiere…")}</option>
               {altriCantieri.map(opzione)}
@@ -326,10 +326,10 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
             type="button"
             disabled={occupato || !partenza}
             onClick={() => timbraUnaVolta("entrata")}
-            className="flex min-h-14 w-full items-center justify-center gap-3 rounded-2xl bg-green-600 px-3 py-4 text-base font-bold text-white disabled:opacity-50"
+            className="flex min-h-14 w-full items-center justify-center gap-3 rounded-full bg-green-600 px-4 py-4 text-[15px] font-bold text-white disabled:opacity-50"
           >
             {timbra.isPending ? <Loader2 className="h-5 w-5 shrink-0 animate-spin" aria-hidden="true" /> : <LogIn className="h-5 w-5 shrink-0" aria-hidden="true" />}
-            {t("INIZIA LA GIORNATA")}
+            <span className="inline-block lowercase first-letter:uppercase">{t("INIZIA LA GIORNATA")}</span>
           </button>
         ) : (
           // In pausa l'azione di adesso è «Fine pausa»: prima il pulsante grande e rosso era «Fine giornata», a un
@@ -340,22 +340,22 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
               disabled={occupato}
               onClick={() => timbraUnaVolta("uscita")}
               className={cn("flex w-full items-center justify-center gap-3 px-3 font-bold disabled:opacity-50",
-                inPausa ? "min-h-12 rounded-xl border border-red-300 bg-background py-3 text-sm text-red-700"
-                  : "min-h-14 rounded-2xl bg-red-600 py-4 text-base text-white")}
+                inPausa ? "min-h-12 rounded-full border border-red-300 bg-background py-3 text-sm text-red-700"
+                  : "min-h-14 rounded-full bg-red-600 py-4 text-[15px] text-white")}
             >
               {timbra.isPending ? <Loader2 className="h-5 w-5 shrink-0 animate-spin" aria-hidden="true" /> : <LogOut className="h-5 w-5 shrink-0" aria-hidden="true" />}
-              {t("FINE GIORNATA")}
+              <span className="inline-block lowercase first-letter:uppercase">{t("FINE GIORNATA")}</span>
             </button>
             <button
               type="button"
               disabled={occupato}
               onClick={() => timbraUnaVolta(inPausa ? "pausa_fine" : "pausa_inizio")}
               className={cn("flex w-full items-center justify-center gap-2 px-3 font-semibold disabled:opacity-50",
-                inPausa ? "min-h-14 rounded-2xl bg-amber-500 py-4 text-base font-bold text-amber-950"
-                  : "min-h-12 rounded-xl border bg-background py-3 text-sm")}
+                inPausa ? "min-h-14 rounded-full bg-amber-500 py-4 text-[15px] font-bold text-amber-950"
+                  : "min-h-12 rounded-full border bg-background py-3 text-sm")}
             >
               {inPausa ? <PauseCircle className="h-4 w-4" aria-hidden="true" /> : <Coffee className="h-4 w-4" aria-hidden="true" />}
-              {t(inPausa ? "FINE PAUSA" : "INIZIA PAUSA")}
+              <span className="inline-block lowercase first-letter:uppercase">{t(inPausa ? "FINE PAUSA" : "INIZIA PAUSA")}</span>
             </button>
           </div>
         )}

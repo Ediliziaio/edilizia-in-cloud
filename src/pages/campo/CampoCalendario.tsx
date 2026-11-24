@@ -26,6 +26,7 @@ import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
 import { CampoCrewAgenda } from "@/components/campo/CampoCrewAgenda";
 import { campoCrewAgendaEnabled } from "@/hooks/campo/useCampoCrewAgenda";
 import { cn } from "@/lib/utils";
+import { useDaFareOggi } from "@/hooks/campo/useDaFareOggi";
 import { haversineMeters } from "@/lib/tsp";
 import { useCompanyBase } from "@/hooks/useCompanyBase";
 import { dataCalendarioOggi, useDataMappaCalendario, useMappaCalendario } from "@/components/calendar/mappa/useMappaCalendario";
@@ -906,6 +907,8 @@ function CantiereCard({
 }) {
   const t = useT();
   const order = item.order;
+  // Cosa c'è da fare oggi (collaudo 23/11): le fasi in corso o già partite del cantiere.
+  const daFare = useDaFareOggi([order?.id]).get(order?.id ?? "");
   if (!order) return null;
 
   const badge = statusBadge(order.status, t);
@@ -939,7 +942,7 @@ function CantiereCard({
               {badge.label}
             </span>
           </div>
-          <p className="text-sm text-muted-foreground line-clamp-2">{order.description}</p>
+          <p dir="auto" className="text-sm text-muted-foreground line-clamp-2">{order.description}</p>
         </div>
         <ChevronRight className="w-5 h-5 text-muted-foreground shrink-0 mt-1" />
       </div>
@@ -966,26 +969,18 @@ function CantiereCard({
         </div>
       )}
 
-      {(order.indirizzo_lavori || distanceFromSede != null) && (
-        <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-          {order.indirizzo_lavori && (
-            <div className="rounded-xl bg-muted/60 px-3 py-2">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{t("Dove andare")}</p>
-              <p className="mt-0.5 truncate text-xs font-semibold text-foreground">{order.indirizzo_lavori}</p>
-            </div>
-          )}
-          {distanceFromSede != null && (
-            <>
-              <div className="rounded-xl bg-blue-50 px-3 py-2 text-blue-700">
-                <p className="text-[10px] font-bold uppercase tracking-wide opacity-75">{t("Distanza")}</p>
-                <p className="mt-0.5 text-xs font-black">{formatKm(distanceFromSede)}</p>
-              </div>
-              <div className="rounded-xl bg-emerald-50 px-3 py-2 text-emerald-700">
-                <p className="text-[10px] font-bold uppercase tracking-wide opacity-75">{t("Tempo stimato")}</p>
-                <p className="mt-0.5 text-xs font-black">{formatDriveTime(distanceFromSede)}</p>
-              </div>
-            </>
-          )}
+      {/* L'indirizzo è già sopra: qui solo distanza e tempo, su una riga (prima tre riquadri e l'indirizzo ripetuto). */}
+      {distanceFromSede != null && (
+        <div className="mb-3 flex flex-wrap gap-1.5 text-xs font-semibold">
+          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-700">{t("Distanza")}: {formatKm(distanceFromSede)}</span>
+          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">{t("Tempo stimato")}: {formatDriveTime(distanceFromSede)}</span>
+        </div>
+      )}
+
+      {daFare && daFare.fasi.length > 0 && (
+        <div className="mb-3 rounded-xl bg-muted/50 px-3 py-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("Da fare oggi")}</p>
+          <p dir="auto" className="text-sm font-semibold leading-snug">{daFare.fasi.join(", ")}</p>
         </div>
       )}
 

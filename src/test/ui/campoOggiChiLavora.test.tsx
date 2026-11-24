@@ -1,11 +1,22 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render as renderBase, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CampoOggi } from "@/components/campo/CampoOggi";
 import { ChiLavoraCampo } from "@/components/campo/ChiLavoraCampo";
 import { changeFormControl } from "@/test/helpers/changeFormControl";
 
-const state = vi.hoisted(() => ({ giornata: null as unknown, chi: null as unknown }));
+const state = vi.hoisted(() => ({ giornata: null as unknown, chi: null as unknown, daFare: new Map<string, unknown>(), squadra: [] as unknown[] }));
+
+vi.mock("@/hooks/campo/useDaFareOggi", () => ({ useDaFareOggi: () => state.daFare }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1" }, profile: { company_id: "c1" }, effectiveCompany: null as { id: string } | null }) }));
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: { rpc: async () => ({ data: state.squadra, error: null as unknown }) },
+}));
+
+const render = (ui: ReactElement) => renderBase(
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>);
 
 vi.mock("@/components/campo/ScattaFoto", () => ({ ScattaFoto: () => <span>Foto</span> }));
 vi.mock("@/hooks/campo/useCampoGiornata", async (importOriginal) => {
@@ -26,7 +37,7 @@ const cantiere = (extra: Record<string, unknown> = {}) => ({
 });
 
 afterEach(cleanup);
-beforeEach(() => { state.giornata = null; state.chi = null; });
+beforeEach(() => { state.giornata = null; state.chi = null; state.daFare = new Map(); state.squadra = []; });
 
 describe("App di cantiere: Oggi", () => {
   it("dice dove andare, cosa fare, con chi e chi chiamare", () => {
@@ -45,14 +56,38 @@ describe("App di cantiere: Oggi", () => {
     expect(screen.queryByRole("link", { name: /Chi c'è oggi/ })).not.toBeInTheDocument();
   });
 
-  it("al caposquadra e al capocantiere apre «Chi c'è oggi»", () => {
+  it("al caposquadra e al capocantiere apre «Chi c'è oggi»", async () => {
     state.giornata = { giorni: [{ giorno: "2026-10-15", cantieri: [cantiere({
       sono_capocantiere: true, capocantiere: null,
       squadra: { nome: "Squadra Muratori", colore: null, sono_caposquadra: true, caposquadra: null } })] }], senza_date: [] };
+    state.squadra = [{ in_cantiere: true }, { in_cantiere: false }, { in_cantiere: false }];
     render(<MemoryRouter><CampoOggi /></MemoryRouter>);
-    expect(screen.getByText("Il capocantiere sei tu")).toBeInTheDocument();
-    expect(screen.getByText("· sei il caposquadra")).toBeInTheDocument();
+    expect(screen.getByText("Capocantiere")).toBeInTheDocument();
+    expect(screen.getByText("Caposquadra")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Chi c'è oggi/ })).toHaveAttribute("href", "/campo/squadra/o1");
+    // quanti della squadra sono già in cantiere, senza aprire la pagina
+    expect(await screen.findByText("· 1 di 3 in cantiere")).toBeInTheDocument();
+  });
+
+  it("senza fasi assegnate per oggi dice cosa c'è da fare sul cantiere", () => {
+    state.giornata = { giorni: [{ giorno: "2026-10-15", cantieri: [cantiere({ fasi: [] })] }], senza_date: [] };
+    state.daFare = new Map([["o1", { fasi: ["Massetti", "Impianto elettrico"], aperte: 4, totali: 6, fatte: 2 }]]);
+    render(<MemoryRouter><CampoOggi /></MemoryRouter>);
+    expect(screen.getByText("Da fare oggi")).toBeInTheDocument();
+    expect(screen.getByText("Massetti")).toBeInTheDocument();
+    expect(screen.getByText("Impianto elettrico")).toBeInTheDocument();
+    expect(screen.getByText("2 di 6 fasi finite")).toBeInTheDocument();
+  });
+
+  it("domani nello stesso cantiere: una riga, senza ripetere la scheda", () => {
+    state.giornata = { giorni: [
+      { giorno: "2026-10-15", cantieri: [cantiere()] },
+      { giorno: "2026-10-16", cantieri: [cantiere()] },
+    ], senza_date: [] };
+    render(<MemoryRouter><CampoOggi /></MemoryRouter>);
+    expect(screen.getByText("Domani")).toBeInTheDocument();
+    expect(screen.getByText("Stesso cantiere di oggi")).toBeInTheDocument();
+    expect(screen.getAllByText("Pavimentazione Caputo")).toHaveLength(1);
   });
 
   it("porta a rapportino, bolla e prelievo dello stesso cantiere e ricorda la scelta", () => {

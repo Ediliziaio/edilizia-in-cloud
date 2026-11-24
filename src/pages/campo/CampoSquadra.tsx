@@ -191,7 +191,8 @@ export default function CampoSquadra() {
             <p className="py-6 text-center text-sm text-muted-foreground">{soloDaControllare ? t("Le ore della squadra risultano complete.") : t("Oggi qui non è previsto nessuno.")}</p>
           ) : (
             righeVisibili.map((r, i) => {
-              const tel = linkTelefono(r.telefono ?? null);
+              // Il proprio numero non serve: niente «Chiama» su sé stessi (collaudo 23/11, caposquadra).
+              const tel = r.user_id && r.user_id === user?.id ? null : linkTelefono(r.telefono ?? null);
               const uid = r.user_id;
               const puoSollecitare = !!uid && uid !== user?.id && !r.rapportino_inviato && !!regole && regole.chiCompila !== "capo";
               const sollecitato = !!uid && sollecitati.has(uid);
@@ -203,7 +204,7 @@ export default function CampoSquadra() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <p className="min-w-0 truncate text-sm font-semibold">{r.nome || t("Senza nome")}</p>
+                    <p className="min-w-0 truncate text-sm font-semibold">{r.user_id && r.user_id === user?.id ? t("{nome} (tu)", { nome: r.nome }) : r.nome || t("Senza nome")}</p>
                     {r.is_capocantiere && <Badge variant="outline" className="h-4 px-1.5 text-[10px] border-primary/30 text-primary">{t("Capo")}</Badge>}
                     {r.ruolo === "sub" && <Badge variant="outline" className="h-4 px-1.5 text-[10px]">{t("Sub")}</Badge>}
                     {r.squadra && <span className="text-[11px] text-muted-foreground">{r.squadra}</span>}
