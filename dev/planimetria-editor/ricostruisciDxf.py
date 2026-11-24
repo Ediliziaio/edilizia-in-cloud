@@ -678,10 +678,12 @@ def unita_dei_locali(locali, muri, aperture, sigle, sottile=16, distanza=600):
 ESTERNO_UNITA = re.compile(r"balcon|terrazz|loggia|portico|giardin|cortile", re.IGNORECASE)
 
 
-def completa_unita_con_legenda(locali, unita, legenda, vicino=40, tolleranza=0.12):
+def completa_unita_con_legenda(locali, unita, legenda, vicino=60, tolleranza=0.12):
     """Le stanze rimaste senza unità vanno all'unità confinante solo se la legenda lo consente:
     la superficie utile misurata non deve superare quella dichiarata («S.U. 44,00») oltre il 12%.
 
+    Vicine = entro 60 cm: i muri portanti del prefabbricato di Callimaco sono più spessi di 40 cm
+    (con 40 le unità che tornavano erano 3 su 7, con 60 sono 6).
     Senza questo vincolo la stanza finiva al vicino sbagliato (la camera dell'int. 04 nell'int. 06);
     col vincolo l'int. 06, già pieno, la rifiuta. Fra più unità possibili vince quella a cui manca
     la superficie più vicina all'area della stanza; si ripete finché qualcosa cambia.
