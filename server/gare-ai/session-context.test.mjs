@@ -1,0 +1,6 @@
+import test from'node:test';import assert from'node:assert/strict';import{sessionContexts}from'./session-context.mjs';
+const token=exp=>'header.'+Buffer.from(JSON.stringify({exp})).toString('base64url')+'.test';
+const ctx=(userId,companyId,exp,role='editor')=>({userId,companyId,token:token(exp),client:{label:exp},role,company:{revision:exp}});
+test('un lavoro mantiene il riferimento e riceve le credenziali rinnovate verificate',()=>{const store=sessionContexts(),original=store.accept(ctx('u','a',100)),fresh=store.accept(ctx('u','a',200));assert.equal(original,fresh);assert.equal(original.client.label,200);assert.equal(original.token,token(200));});
+test('una richiesta concorrente più vecchia non sostituisce la sessione fresca, ma conserva i permessi correnti',()=>{const store=sessionContexts(),original=store.accept(ctx('u','a',200));store.accept(ctx('u','a',100,'viewer'));assert.equal(original.client.label,200);assert.equal(original.role,'viewer');});
+test('utenti e aziende hanno contesti distinti',()=>{const store=sessionContexts(),a=store.accept(ctx('u','a',100)),b=store.accept(ctx('v','a',200,'admin')),c=store.accept(ctx('u','b',300));assert.notEqual(a,b);assert.notEqual(a,c);assert.equal(a.role,'editor');assert.equal(a.client.label,100);});

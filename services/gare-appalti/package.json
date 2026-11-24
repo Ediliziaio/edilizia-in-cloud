@@ -1,0 +1,12 @@
+{
+  "name": "edilizia-in-cloud-gare-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@supabase/supabase-js": "2.106.2",
+    "jspdf": "4.2.1",
+    "jszip": "3.10.1",
+    "zod": "4.6.6"
+  }
+}

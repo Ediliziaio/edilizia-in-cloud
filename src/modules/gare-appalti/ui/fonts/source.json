@@ -1,0 +1,13 @@
+{
+  "family": "Manrope",
+  "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/manrope/Manrope%5Bwght%5D.ttf",
+  "license": "https://raw.githubusercontent.com/google/fonts/main/ofl/manrope/OFL.txt",
+  "sha256": "3ae11c49db0455a3cc33e37d380f20fdb8c7f8b41dc07625c177e3d87a9d6ae6",
+  "size_bytes": 164700,
+  "downloaded_on": "2026-11-12",
+  "weight_axis": [
+    200,
+    800
+  ],
+  "served_from": "Local Vite asset, no runtime request to Google Fonts"
+}

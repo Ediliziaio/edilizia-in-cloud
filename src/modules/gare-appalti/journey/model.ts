@@ -1,0 +1,54 @@
+import { activeTenderDocuments,requirementOpen,requestComplete } from '../tender-ux';
+import { evidenceValidAt } from '../domain';
+import type { Category,GuidedJourney,JourneyConfig,JourneyExtra,JourneyConfirmation,Participation,Tender,Workspace } from '../types';
+
+export type JourneyStage='valutazione'|'preparazione'|'portale'|'esito';
+export interface JourneyItem {id:string;title:string;stage:JourneyStage;status:'todo'|'waiting'|'done'|'na';mandatory:boolean;detail:string;tab:string;sourceId?:string|null;lotId?:string|null;partyId?:string|null;dependencies?:string[];action?:string;manual?:boolean;documentId?:string|null}
+export const stageNames:Record<JourneyStage,string>={valutazione:'Valuta e pianifica',preparazione:'Prepara i documenti',portale:'Completa sul portale',esito:'Comunicazioni ed esito'};
+export const platformNames={da_verificare:'Da verificare',acquistinrete:'Acquisti in rete / ASP',sintel:'Sintel',sater:'SATER',altro:'Altro portale'};
+export function phaseForKind(kind: Tender['kind']): JourneyConfig['phase'] {
+ return kind==='manifestazione'?'interesse':kind==='albo'?'iscrizione':'offerta';
+}
+export function defaultConfig(t:Tender,profile:Record<string,string>,_p:Participation):JourneyConfig{
+ const kind=t.kind==='manifestazione'?'manifestazione':t.kind==='albo'?'albo':t.kind==='invito'?'invito':'gara_aperta';
+ return {kind,phase:phaseForKind(kind),platform:'da_verificare',portal_url:t.official_url||'',form:'singola',rolling:false,expected_categories:kind==='manifestazione'||kind==='albo'?['amministrativa']:['amministrativa','tecnica','economica'],parties:[{id:'impresa',name:profile.ragione_sociale||'Impresa corrente',tax_id:profile.partita_iva||'',role:'Operatore singolo',signer:profile.rappresentante||'',power_source:'',lot_ids:[],confirmed:false}],lot_data:{},plan_confirmed:false,review_note:'',source_snapshot:[],started_at:new Date().toISOString(),analysis_job_ids:[]};
+}
+export function currentSources(data:Workspace,tenderId:string){return activeTenderDocuments(data.documents.filter(d=>d.tender_id===tenderId&&d.category==='fonte'));}
+export function sourceSnapshot(data:Workspace,tenderId:string){return currentSources(data,tenderId).map(d=>({id:d.id,sha256:d.sha256}));}
+export function sourcePlanCurrent(j:GuidedJourney,data:Workspace,tenderId:string){const current=sourceSnapshot(data,tenderId);return current.length===j.configuration.source_snapshot.length&&current.every(d=>j.configuration.source_snapshot.some(s=>s.id===d.id&&s.sha256===d.sha256));}
+export function confirmedFacts(data:Workspace,today:string){return(data.companyFacts||[]).filter(f=>f.status==='confermato'&&f.verified_on<=today&&(!f.expires_on||f.expires_on>=today));}
+export function initialPortalExtras(config:JourneyConfig):JourneyExtra[]{return config.platform==='da_verificare'?[]:[{id:'portal_generated',title:config.platform==='sintel'?'Genera sul portale il Documento d’offerta, firmalo e ricaricalo':config.platform==='acquistinrete'?'Completa le schede del portale e i documenti d’offerta da generare':'Completa i documenti e le schede richiesti dal portale',stage:'portale' as const,mandatory:true,lot_id:null,party_id:null,source_document_id:null,source_locator:'Istruzioni del portale e della gara da confermare',depends_on:['portal_access'],kind:'document' as const}];}
+export function journeyItems(data:Workspace,t:Tender,p:Participation,j:GuidedJourney):JourneyItem[]{
+ const config=j.configuration;const sources=currentSources(data,t.id);const chosen=data.documents.filter(d=>j.selected_document_ids.includes(d.id));const active=activeTenderDocuments(data.documents.filter(d=>d.participation_id===p.id));
+ const items:JourneyItem[]=[
+  {id:'outcome',title:'Registra l’esito e chiudi la partecipazione',stage:'esito',status:['esito','ritirata','non_partecipare'].includes(p.stage)&&p.outcome?.trim().length>=5?'done':'todo',mandatory:true,detail:p.outcome||'Acquisisci la comunicazione ufficiale e completa eventuali adempimenti successivi prima della chiusura.',tab:'revisioni',action:'outcome'},
+  {id:'sources',title:'Acquisisci e controlla gli originali',stage:'valutazione',status:sources.length?'done':'todo',mandatory:true,detail:`${sources.length} originali correnti; verifica che l’inventario copra gli allegati richiesti.`,tab:'documenti'},
+  {id:'decision',title:'Conferma la decisione di partecipare',stage:'valutazione',status:p.decision==='partecipa'?'done':'todo',mandatory:true,detail:p.decision_reason||'Scegli se approfondire o partecipare e registra il motivo.',tab:'panoramica',action:'decision'},
+  {id:'plan',title:'Rivedi e conferma il piano',stage:'valutazione',status:config.plan_confirmed&&sourcePlanCurrent(j,data,t.id)?'done':'todo',mandatory:true,detail:sourcePlanCurrent(j,data,t.id)?config.review_note||'Conferma istruzioni, lotti e documenti richiesti.':'Piano da riconfermare sulle versioni correnti delle fonti.',tab:'panoramica'},
+  {id:'delivery',title:'Scegli i documenti definitivi da consegnare',stage:'preparazione',status:chosen.length&&chosen.every(d=>active.some(a=>a.id===d.id)&&d.status==='approvato'&&!d.unresolved_fields&&(!d.signature_required||d.signature_declared))?'done':'todo',mandatory:true,detail:`${chosen.length} documenti scelti; le altre bozze restano nell’archivio di lavoro.`,tab:'documenti'},
+  {id:'portal_access',title:'Conferma accesso, abilitazioni e istruzioni del portale',stage:'portale',status:config.platform!=='da_verificare'?j.confirmations.portal_access?.status||'todo':'todo',mandatory:true,detail:`${platformNames[config.platform]} · firma e poteri del dichiarante vanno confermati sulle istruzioni applicabili.`,tab:'panoramica',manual:true},
+ ];
+ for(const party of config.parties)items.push({id:`party:${party.id}`,title:`Verifica soggetto e firmatario: ${party.name}`,stage:'valutazione',status:party.confirmed&&!!party.name&&!!party.tax_id&&!!party.role&&!!party.signer&&!!party.power_source?'done':'todo',mandatory:true,detail:`${party.role} · ${party.signer||'Firmatario da indicare'} · ${party.power_source||'Poteri da riscontrare'}`,tab:'panoramica',partyId:party.id});
+ for(const r of data.requirements.filter(r=>r.participation_id===p.id)){
+  const e=data.evidence.find(e=>e.id===r.evidence_id);const done=!requirementOpen(r)&&(r.status==='non_applicabile'||!!e&&evidenceValidAt(e.status,e.expires_on,e.verified_on,t.deadline_date||new Date().toISOString().slice(0,10)));
+  items.push({id:`requirement:${r.id}`,title:r.description,stage:'valutazione',status:done?'done':'todo',mandatory:r.mandatory,detail:r.note||r.source_section||'Verifica fonte, applicazione e prova aziendale.',tab:'requisiti',sourceId:r.source_document_id,lotId:r.lot_id});
+ }
+ for(const r of data.documentRequests.filter(r=>r.participation_id===p.id))items.push({id:`request:${r.id}`,title:r.title,stage:'preparazione',status:requestComplete(r,active)&&!!r.fulfilled_by&&j.selected_document_ids.includes(r.fulfilled_by)?'done':'todo',mandatory:r.mandatory,detail:`${r.category} · ${r.source_section||'Rivedi le istruzioni della fonte'}`,tab:'documenti:checklist',sourceId:r.source_document_id,lotId:r.lot_id,documentId:r.fulfilled_by});
+ for(const task of data.tasks.filter(task=>task.participation_id===p.id))items.push({id:`task:${task.id}`,title:task.title,stage:'preparazione',status:task.completed?'done':'todo',mandatory:task.mandatory,detail:`${task.responsible} · ${task.due_date}${task.due_time?` ${task.due_time.slice(0,5)}`:''}`,tab:'attivita',lotId:task.lot_id});
+ for(const extra of j.extras){const confirmation=j.confirmations[extra.id];let status=confirmation?.status||'todo';if(status==='done'&&extra.kind==='document'&&(!confirmation?.document_id||!chosen.some(d=>d.id===confirmation.document_id&&d.status==='approvato'&&!d.archived)))status='todo';items.push({id:extra.id,title:extra.title,stage:extra.stage,status,mandatory:extra.mandatory,detail:confirmation?.note||extra.source_locator||'Rivedi le istruzioni e registra la prova del completamento.',tab:'panoramica',manual:true,dependencies:extra.depends_on,sourceId:extra.source_document_id,lotId:extra.lot_id,partyId:extra.party_id,documentId:confirmation?.document_id});}
+ for(const c of(data.communications||[]).filter(c=>c.participation_id===p.id))items.push({id:`communication:${c.id}`,title:c.title,stage:'esito',status:c.status==='chiusa'?'done':c.status==='in_attesa'?'waiting':'todo',mandatory:c.blocking,detail:`${c.responsible}${c.due_date?` · ${c.due_date}`:''} · ${c.reply||c.body}`,tab:'revisioni',sourceId:c.source_document_id,lotId:c.lot_id});
+ return items.sort((a,b)=>Object.keys(stageNames).indexOf(a.stage)-Object.keys(stageNames).indexOf(b.stage)||(a.id==='outcome'?1:b.id==='outcome'?-1:0));
+}
+export function nextJourneyItem(items:JourneyItem[]){return items.find(i=>i.mandatory&&i.status==='todo'&&(!i.dependencies?.length||i.dependencies.every(id=>items.some(d=>d.id===id&&['done','na'].includes(d.status)))))||items.find(i=>!['done','na'].includes(i.status));}
+export function validateConfirmation(item:JourneyItem,answer:JourneyConfirmation,items:JourneyItem[]){
+ if(['done','na'].includes(answer.status)&&answer.note.trim().length<5)throw Error('Indica una motivazione o il riferimento alla verifica (almeno 5 caratteri).');
+ if(answer.status==='done'&&item.dependencies?.some(id=>!items.some(i=>i.id===id&&['done','na'].includes(i.status))))throw Error('Completa prima i passaggi collegati.');
+ if(answer.status==='done'&&item.documentId===null)throw Error('Collega il documento richiesto.');
+ return answer;
+}
+export function expectedCategories(kind:JourneyConfig['kind']):Category[]{return['manifestazione','albo'].includes(kind)?['amministrativa']:['amministrativa','tecnica','economica'];}
+export function participationFormExtras(config:JourneyConfig):JourneyExtra[]{
+ const titles:Record<string,string>={rti:'Riscontra mandataria, mandanti, quote, impegni e costituzione del raggruppamento',consorzio:'Riscontra consorzio, eventuali esecutrici designate e dichiarazioni richieste',avvalimento:'Riscontra ausiliaria, contratto, risorse messe a disposizione e dichiarazioni',subappalto:'Riscontra lavorazioni, limiti e indicazioni di subappalto richieste dalla procedura'};
+ const title=titles[config.form];if(!title)return[];
+ return[{id:`form_${config.form}_review`,title,stage:'valutazione',kind:'manual',mandatory:true,source_document_id:null,source_locator:'Confrontare la forma di partecipazione con le istruzioni effettive della gara',lot_id:null,party_id:null,depends_on:[]},...config.parties.map<JourneyExtra>(p=>({id:`party_docs_${p.id}`,title:`Riscontra documenti e dichiarazioni richiesti a ${p.name}`,stage:'preparazione' as const,kind:'manual' as const,mandatory:true,source_document_id:null,source_locator:'Associare le richieste documentali e aggiungere i passaggi specifici per questo soggetto',lot_id:null,party_id:p.id,depends_on:[`party:${p.id}`]}))];
+}

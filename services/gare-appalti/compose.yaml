@@ -1,0 +1,44 @@
+services:
+  worker:
+    build:
+      context: ../..
+      dockerfile: services/gare-appalti/Dockerfile
+    init: true
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    pids_limit: 192
+    mem_limit: 4g
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=1073741824,mode=1777
+    environment:
+      GARE_SUPABASE_URL: ${GARE_SUPABASE_URL:?}
+      GARE_SUPABASE_PUBLISHABLE_KEY: ${GARE_SUPABASE_PUBLISHABLE_KEY:?}
+      GARE_SUPABASE_SERVICE_KEY: ${GARE_SUPABASE_SERVICE_KEY:?}
+      GARE_PROXY_SECRET: ${GARE_PROXY_SECRET:?}
+      GARE_AI_ORIGIN: http://ollama:11434
+      GARE_AI_MODEL: ${GARE_AI_MODEL:-qwen3.5:4b}
+    ports:
+      - "127.0.0.1:9081:8081"
+    networks: [egress, model]
+    depends_on: [ollama]
+  ollama:
+    image: ollama/ollama:0.17.7
+    restart: unless-stopped
+    pids_limit: 192
+    environment:
+      OLLAMA_NO_CLOUD: "1"
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+    volumes:
+      - weights:/root/.ollama
+    networks: [model]
+networks:
+  egress:
+  model:
+    internal: true
+volumes:
+  weights:
+    name: eic-gare-ollama

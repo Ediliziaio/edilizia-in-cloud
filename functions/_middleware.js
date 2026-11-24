@@ -3037,6 +3037,9 @@ async function homePrerender(env, url) {
 export async function onRequest({ request, next, env, waitUntil }) {
   const ua = request.headers.get("user-agent") || "";
   const url = new URL(request.url);
+  // API POSTs stay on their exact path and keep their body.
+  if (url.pathname.startsWith("/api/gare/")) return next();
+
 
   // ── Canonical URL normalization (root cause GSC "Pagina duplicata") ──────
   // Le regole `_redirects` di Cloudflare Pages NON scattano per Googlebot

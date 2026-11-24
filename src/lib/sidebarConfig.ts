@@ -1,5 +1,6 @@
 import {
   LayoutDashboard,
+  Gavel,
   ClipboardList,
   Users,
   HeadphonesIcon,
@@ -74,6 +75,7 @@ export interface NavItem {
   featureKey?: string;
   isBeta?: boolean;
   demoCompanyOnly?: boolean;
+  garePilotOnly?: boolean;
   /** Visibile solo se l'utente ha accesso a più aziende (console agenzia). */
   multiCompanyOnly?: boolean;
   category?: "internal" | "marketing";
@@ -166,6 +168,13 @@ export const macroAreas: MacroArea[] = [
       // commessa; la voce resta finché quel travaso non è completo (fase 3).
       { title: "Sicurezza Cantiere", url: "/azienda/sicurezza-cantiere", icon: ShieldAlert, permissionKey: "canViewSicurezzaCantiere", featureKey: "cantieri_avanzati" },
     ],
+  },
+
+  {
+    id: "area_pratiche",
+    title: "Pratiche e Progettazione",
+    icon: Gavel,
+    items: [{ title: "Gare e appalti", url: "/azienda/gare", icon: Gavel, garePilotOnly: true }],
   },
 
   // 3. Finanza
