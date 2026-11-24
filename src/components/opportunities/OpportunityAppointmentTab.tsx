@@ -26,6 +26,8 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useIsPlatformCrm } from "@/hooks/useIsPlatformCrm";
 import { aggiornaAgendaSchede } from "@/lib/opportunitaAgenda";
 import { forwardGeocode } from "@/lib/geocoding";
+import { RilievoAppuntamentoCampo } from "@/components/sopralluoghi/RilievoAppuntamento";
+import { useRilievoAppuntamento } from "@/hooks/useRilievoAppuntamento";
 import {
   distanzaLineaAria, linkWhatsApp, scorciatoieData, testoKm, sovrapposizioni, testoConferma, titoloSuggerito,
 } from "@/lib/opportunita/appuntamentoPrecompilato";
@@ -138,6 +140,9 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
   const [manualEndTime, setManualEndTime] = useState("");
   const [manualDuration, setManualDuration] = useState<string>("60");
   const [appointmentType, setAppointmentType] = useState<string>(tipoPredefinito);
+  // Il rilievo che nasce con l'appuntamento di sopralluogo, come nel dialogo del calendario
+  // (piano sopralluoghi, lotti 1 e 3). Qui di partenza è commerciale.
+  const rilievo = useRilievoAppuntamento({ companyId, appointmentId: null, appointmentType, spento: isPlatformCrm });
   const [assignedTo, setAssignedTo] = useState<string>("");
   const [status, setStatus] = useState<string>("confermato");
   const [reminderMinutes, setReminderMinutes] = useState<string>(promemoriaPredefinito);
@@ -565,6 +570,18 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       }).select("id").single();
       if (error) throw error;
       if (created?.id) void syncCreatedAppointment(created.id);
+      // L'appuntamento è salvato comunque: se il rilievo non si prepara, lo si dice e basta.
+      if (created?.id) {
+        try {
+          const rilievoId = await rilievo.prepara(created.id);
+          if (rilievoId) {
+            toast.success(rilievo.tipo === "commerciale" ? "Rilievo commerciale pronto" : "Rilievo pronto per il tecnico");
+            void queryClient.invalidateQueries({ queryKey: ["sopralluoghi-vendita"] });
+          }
+        } catch (e) {
+          toast.warning("Appuntamento prenotato, rilievo non preparato", { description: e instanceof Error ? e.message : String(e) });
+        }
+      }
 
       // Sync address to contact (non-blocking: log error + toast warning).
       // 2026-05-27 (audit error handling): prima solo console.error → l'utente
@@ -758,6 +775,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       {/* Mobile: senza riquadro intorno, i campi stanno in fila con gli altri. */}
       <div className="rounded-lg border bg-muted/30 p-3 space-y-3 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
         <AddressAutocomplete value={addressData} onChange={setAddressData} />
+        <RilievoAppuntamentoCampo stato={rilievo} />
         {(addressData.formatted_address || addressData.address_line) && (addressData.lat == null || addressData.lng == null) && (
           <p className="text-xs text-muted-foreground">
             Indirizzo senza posizione sulla mappa: tocca la X e cercalo di nuovo scegliendolo dai suggerimenti, così si calcolano i km.

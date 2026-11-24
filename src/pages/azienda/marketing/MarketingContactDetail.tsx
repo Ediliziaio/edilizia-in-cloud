@@ -57,6 +57,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/useTagSync";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { LinkedRendersList } from "@/components/render/LinkedRendersList";
+import { SopralluoghiVendita } from "@/components/sopralluoghi/SopralluoghiVendita";
 import { PlanimetrieAssociate } from "@/components/planimetrie/PlanimetrieAssociate";
 import { ContactTrackingPanel } from "@/components/marketing/contacts/ContactTrackingPanel";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
@@ -1871,6 +1872,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               {rightTab === "activities" && id && companyId && (
                 <div className="space-y-3">
                   <PlanimetrieAssociate companyId={companyId} tipo="contatto" schedaId={id} nascondiSeVuoto />
+                  {/* Sopralluoghi del contatto (piano sopralluoghi, lotto 3). */}
+                  <SopralluoghiVendita companyId={companyId} contactId={id} />
                   <LinkedTasks
                     contactId={id}
                     category="contatti"

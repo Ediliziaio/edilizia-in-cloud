@@ -167,11 +167,26 @@ Resta: le foto del commerciale non passano al tecnico (si vedono aprendo il comm
 sezioni aggiunte a runtime dai pannelli infissi/porte che non sono fatte solo di campi `rv_` restano
 visibili anche al commerciale.
 
-### Lotto 3 — Il sopralluogo nelle Vendite
+### Lotto 3 — Il sopralluogo nelle Vendite *(fatto 24/11/2026)*
 - Riquadro «Sopralluoghi» in opportunità e scheda contatto (stessa tabella della commessa).
 - «Nuovo sopralluogo» e «Fissa sopralluogo» dall'opportunità, commerciale di partenza.
 - Bacheca anche sotto Vendite, filtrata sui commerciali.
 - Quando l'opportunità diventa commessa, i suoi rilievi si collegano da soli.
+
+Fatto:
+- Scheda «Sopralluoghi» nell'opportunità (anche da telefono) e riquadro nella scheda contatto
+  (`SopralluoghiVendita`): prima quelli della trattativa, poi gli altri del contatto; pulsanti
+  «Sopralluogo commerciale» e «Rilievo tecnico» che aprono «Nuovo sopralluogo» già legato a
+  contatto e opportunità (`?contact=&opportunity=&tipo=`).
+- «Fissa sopralluogo» dall'opportunità (modulo appuntamento della scheda) ha il riquadro
+  «Prepara il rilievo», come il calendario.
+- Commessa nata da un'opportunità: i sopralluoghi di quella opportunità si collegano da soli
+  (trigger su `orders`, migrazione 20290530100200; quelli del contatto su altre trattative restano
+  «da collegare»). Nessun rilievo vecchio da recuperare.
+- Bacheca: niente voce nel menu delle Vendite (decisione già scritta nel test
+  `sidebarMenuStability`); ci si arriva da «Tutti i sopralluoghi» nella scheda dell'opportunità,
+  filtrata sui commerciali. Chi non vede le Commesse ora la apre da sola invece di trovare la
+  pagina negata.
 
 ### Lotto 4 — Dal rilievo al preventivo e al computo *(prima parte fatta 24/11/2026)*
 - Rilievo → preventivo: righe dal `output_mapping` del modello (descrizione, unità, quantità),

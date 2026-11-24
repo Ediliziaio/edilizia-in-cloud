@@ -37,6 +37,7 @@ import {
   Loader2, Trash2, StickyNote, FileText, CalendarDays, Activity,
   Settings2, User, Mail, Phone, UserPlus, DatabaseZap, RefreshCw, Folder,
   Target, AlertTriangle, ChevronDown, Trophy, MessageCircle, ExternalLink, History, Printer,
+  ClipboardCheck,
 } from "lucide-react";
 import { useUpdateOpportunityMutation } from "@/hooks/useSalesOS";
 import { format } from "date-fns";
@@ -55,6 +56,8 @@ import { OpportunityAppointmentTab } from "@/components/opportunities/Opportunit
 import { OpportunityQuotesTab } from "@/components/opportunities/OpportunityQuotesTab";
 import { STATUS_OPTIONS, inferOpportunityStatusFromStage } from "@/types/opportunities";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useFeatureFlags } from "@/hooks/useFeatureFlags";
+import { SopralluoghiVendita } from "@/components/sopralluoghi/SopralluoghiVendita";
 import { cleanPhone } from "@/lib/contactUtils";
 import { QuickContactSendDialog, type QuickSendChannel } from "@/components/contacts/QuickContactSendDialog";
 import { ContactActivityRegister } from "@/components/contacts/ContactActivityRegister";
@@ -76,7 +79,7 @@ interface Props {
   canEdit?: boolean;
 }
 
-type Tab = "details" | "notes" | "appointments" | "registro" | "activities" | "documents" | "quotes";
+type Tab = "details" | "notes" | "appointments" | "registro" | "activities" | "documents" | "quotes" | "sopralluoghi";
 
 // Stile condiviso dei select del form: stesso look degli input (bordo visibile +
 // sfondo bianco + hover), così il campo si legge chiaramente come selezionabile
@@ -89,7 +92,8 @@ const SELECT_TRIGGER_CLS =
 
 // Mobile: le schede che restano nella fila. Appuntamento si apre dall'icona in
 // alto; attività, documenti e preventivi dal computer o dalla scheda contatto.
-const MOBILE_TABS = new Set<string>(["details", "registro", "notes"]);
+// Il commerciale fa il sopralluogo dal telefono: la scheda c'è anche lì.
+const MOBILE_TABS = new Set<string>(["details", "registro", "notes", "sopralluoghi"]);
 
 export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stages, initialTab, canEdit = true }: Props) {
   const navigate = useNavigate();
@@ -100,6 +104,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const companyId = effectiveCompany?.id;
   const isPlatformCrm = useIsPlatformCrm();
   const permissions = usePermissions();
+  const { isFeatureEnabled } = useFeatureFlags();
   const canEditOpportunity = canEdit && permissions.canEditMarketingOpportunities;
   // Chi può correggere una nota: le proprie, o tutte se vede tutti i clienti.
   const chiModificaNote = {
@@ -740,6 +745,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     { key: "documents", label: "Documenti", icon: <Folder className="h-4 w-4" />, enabled: true },
     // Nel CRM di piattaforma non si fanno preventivi con i preventivatori: niente scheda.
     ...(isPlatformCrm ? [] : [{ key: "quotes" as Tab, label: "Preventivi", icon: <FileText className="h-4 w-4" />, enabled: true }]),
+    // Sopralluoghi nelle Vendite (piano sopralluoghi, lotto 3): commerciale e tecnico della trattativa.
+    ...(isPlatformCrm || !isFeatureEnabled("surveys_module") || !permissions.canViewSopralluoghi ? [] : [{ key: "sopralluoghi" as Tab, label: "Sopralluoghi", icon: <ClipboardCheck className="h-4 w-4" />, enabled: true }]),
   ];
 
   const searchTrimmed = contactSearch.trim();
@@ -1653,6 +1660,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                     return acc;
                   }, [])}
                 />
+              )}
+
+              {tab === "sopralluoghi" && companyId && (
+                <SopralluoghiVendita companyId={companyId} contactId={opportunity.contact_id} opportunityId={opportunity.id} />
               )}
 
               {tab === "quotes" && opportunity.contact_id && companyId && (

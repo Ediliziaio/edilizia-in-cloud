@@ -150,11 +150,13 @@ export function SurveyCreateForm({
 
   // A chi si riferisce: cliente esistente OPPURE contatto/opportunità (prospect).
   // Chi arriva con ?client= parte da "cliente"; se non c'è nulla, si sceglie.
+  // Dalle Vendite si arriva con ?contact= e ?opportunity= (piano sopralluoghi, lotto 3).
   const [linkMode, setLinkMode] = useState<LinkMode>(
-    commessa || params.get("client") || params.get("order") ? "cliente" : "nessuno",
+    commessa || params.get("client") || params.get("order") ? "cliente"
+      : params.get("contact") || params.get("opportunity") ? "prospect" : "nessuno",
   );
-  const [contactId, setContactId] = useState<string | null>(null);
-  const [opportunityId, setOpportunityId] = useState<string | null>(null);
+  const [contactId, setContactId] = useState<string | null>(commessa ? null : params.get("contact"));
+  const [opportunityId, setOpportunityId] = useState<string | null>(commessa ? null : params.get("opportunity"));
   const [crmSearch, setCrmSearch] = useState("");
 
   const {

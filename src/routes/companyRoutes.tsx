@@ -12,17 +12,10 @@ import { COMPANY_ROLES, withCompanyPermission } from "./company/_shared";
 import { AcquistiDaFareRedirect } from "./company/AcquistiDaFareRedirect";
 import { LegacyPlanimetrieRedirect } from "./company/LegacyPlanimetrieRedirect";
 import { CommessaClienteGuard } from "./company/CommessaClienteGuard";
+import { SopralluoghiListRedirect } from "./company/SopralluoghiListRedirect";
 import type { Permissions } from "@/hooks/usePermissions";
 import { canAccessMediaLibrary } from "@/lib/mediaLibrary";
 import { useAuth, COMPANY_CHOSEN_KEY } from "@/contexts/AuthContext";
-
-/** Keep existing survey-list links within the Commesse workspace. */
-function SopralluoghiListRedirect() {
-  const location = useLocation();
-  const params = new URLSearchParams(location.search);
-  params.set("tab", "sopralluoghi");
-  return <Navigate to={`/azienda/ordini?${params.toString()}`} replace />;
-}
 
 /** Redirect /azienda/interventi/:id → /azienda/assistenza/:id (unificazione) */
 function InterventoDetailRedirect() {
