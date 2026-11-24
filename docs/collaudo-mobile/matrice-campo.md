@@ -438,3 +438,14 @@ Restano (non fatti):
 - Mezzi: l'operaio vede solo quelli assegnati a lui o al cantiere; un mezzo preso al volo dal deposito non si può segnare finché l'ufficio non lo assegna.
 
 Dati di prova in Demo 2: DEMO2-0025 con indirizzo, date, 2 fasi in corso, operaio2 assegnato, squadra demo sul cantiere, 3 mezzi assegnati (Miscelatori 1 e 2, Laser); su RIS01 Piattaforma aerea, Tagliapiastrelle, Trapani; Furgone squadra 1 a operaio2; un rapportino di prova inviato su DEMO2-0025 (24/11).
+
+## Secondo giro (24/11/2026, «procedi con tutto»)
+1. «Come l'ultimo rapportino (data)»: un tocco ricopia persone con le ore, fasi ancora aperte con le voci lavorate e mezzi ancora assegnati (`lib/campo/comeIeri.ts`, test). Mai descrizione/foto/firme.
+2. La voce segna anche fasi, voci del computo e mezzi, solo se indicati chiaramente (`lib/campo/voceCose.ts`, a pari merito non sceglie; frase per frase). Provato: «demolito il bagno… tracce impianto elettrico» → 1 fase.
+3. «Ho usato un mezzo non in elenco»: `campo_mezzi_azienda` + `campo_mezzo_al_volo` (migrazione 20290528120000, applicata e riallineata). Mezzo libero → passa al cantiere, avviso all'ufficio (admin + «modifica mezzi»); assegnato altrove → non si sposta. Provato in transazione annullata come operaio2: spostato / assegnato_altrove / gia_qui, 4 avvisi.
+4. Materiali detti a voce o letti dal foglio → articolo del cantiere se è l'unico che corrisponde (`collegaMateriali`), altrimenti testo libero.
+5. Promemoria della sera: c'era già (WhatsApp `whatsapp-operational-reminders`, orario per azienda). Non rifatto.
+6. Voce senza rete: la registrazione resta sul telefono (IndexedDB) e si compila da sola quando torna la rete. Provato nel browser simulando offline → online.
+7. Foto mai obbligatorie: installazione dal magazzino senza foto (migrazione 20290528120100, NOT NULL tolti); sopralluogo: le foto «richieste» non abbassano più il completamento.
+8. Traduzioni: fogli di revisione rigenerati (`docs/lingua/revisione/*.csv`, 3.848 frasi) da far rivedere a madrelingua: non si può fare da qui.
+- Test: nuovi comeIeri (2), voceCose (7), rapportino (+3). Rossi solo quelli già rossi su main pulito (flussiUfficioAudit, calendariVerita «salva partecipanti», queryFiltrateAzienda, regoleCalcolateUnaVoltaPerQuery).
