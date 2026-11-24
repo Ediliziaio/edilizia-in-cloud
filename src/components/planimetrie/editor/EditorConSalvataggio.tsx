@@ -289,13 +289,14 @@ export function EditorConSalvataggio({
       </Button>}
       {!nelComputo && <EffettoPrezzo effetti={effetti} collegati={collegate.data?.length ?? 0} />}
       {!nelComputo && companyId && perPrezzo && allApertura && <span className="rounded-md border border-teal-200 bg-teal-50 px-2 py-1 empty:hidden dark:border-teal-900 dark:bg-teal-950/25 max-md:hidden" title="Costo dei lavori della variante, ricalcolato dopo ogni modifica"><CostoProposta documento={allApertura} proposta={perPrezzo} ambito={ambitoPrezzo} companyId={companyId} /></span>}
-      {/* Sul telefono resta la sola icona: il nome della pianta ha bisogno di quello spazio. */}
+      {/* Sul telefono resta la sola icona: il nome della pianta ha bisogno di quello spazio. I bottoni
+          della testata sono alti 40 px come quelli della barra (min-h: batte la regola mobile dei 32 px). */}
       <Button ref={bottoneAnteprima3D} size="sm" variant={affiancata3D ? "secondary" : "outline"} aria-pressed={affiancata3D} aria-label="Anteprima 3D"
-        onClick={() => setAffiancata3D(aperta => !aperta)} disabled={salvando} className="gap-2 max-md:px-2.5" title="Mostra la pianta e il 3D insieme">
+        onClick={() => setAffiancata3D(aperta => !aperta)} disabled={salvando} className="gap-2 max-md:min-h-10 max-md:min-w-10 max-md:px-2.5" title="Mostra la pianta e il 3D insieme">
         <Box className="h-4 w-4" aria-hidden="true" /> <span className="max-md:hidden">Anteprima 3D</span>
       </Button>
-      {nelComputo?.annulla && modificata && <Button type="button" variant="ghost" size="sm" disabled={salvando || anteprimaChat} onClick={nelComputo.annulla}>Annulla modifiche</Button>}
-      {puoModificareDisegno && !nelComputo?.onRivediNelComputo && <Button size="sm" onClick={() => void salva()} disabled={salvando || anteprimaChat || (!modificata && !nuova) || (nuova && !titolo.trim())}
+      {nelComputo?.annulla && modificata && <Button type="button" variant="ghost" size="sm" className="max-md:min-h-10" disabled={salvando || anteprimaChat} onClick={nelComputo.annulla}>Annulla modifiche</Button>}
+      {puoModificareDisegno && !nelComputo?.onRivediNelComputo && <Button size="sm" className="max-md:min-h-10" onClick={() => void salva()} disabled={salvando || anteprimaChat || (!modificata && !nuova) || (nuova && !titolo.trim())}
         title={anteprimaChat ? "Applica o scarta la proposta prima di salvare" : undefined}>
         {salvando ? <Loader2 className="h-4 w-4 motion-safe:animate-spin" /> : <Save className="h-4 w-4" />}
         {nelComputo ? "Salva pianta" : "Salva"}
