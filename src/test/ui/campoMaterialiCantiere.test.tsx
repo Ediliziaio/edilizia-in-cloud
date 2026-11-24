@@ -38,14 +38,15 @@ function apriCantiere(props: { chiuso?: boolean; apri?: boolean } = {}) {
 }
 
 describe("Materiali in cantiere dall'app operaio", () => {
-  it("legge a richiesta e mostra la stessa unità in Consegnato e Residuo", async () => {
+  it("legge a richiesta e mostra la stessa unità in Arrivati e Rimasti", async () => {
     apriCantiere();
     expect(state.rpc).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Materiali in cantiere" }));
 
     const tubo = (await screen.findByText("Tubo corrugato")).closest("li")!;
-    expect(within(tubo).getByText("Consegnato").nextElementSibling).toHaveTextContent("2,25 m");
-    expect(within(tubo).getByText("Residuo").nextElementSibling).toHaveTextContent("2,25 m");
+    // Una riga per materiale (24/11): arrivati e rimasti affiancati al nome.
+    expect(within(tubo).getByLabelText("Arrivati")).toHaveTextContent("2,25 m");
+    expect(within(tubo).getByLabelText("Rimasti")).toHaveTextContent("2,25 m");
     expect(screen.getByText("0 kg")).toBeInTheDocument();
     expect(screen.getByText("Unità di misura da impostare")).toBeInTheDocument();
     expect(screen.getByText("Da verificare")).toBeInTheDocument();

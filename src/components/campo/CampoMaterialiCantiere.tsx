@@ -52,7 +52,7 @@ export function CampoMaterialiCantiere({ companyId, orderId, chiuso = false, apr
   );
 }
 
-function RiepilogoMateriali({ companyId, orderId, userId }: { companyId: string; orderId: string; userId: string }) {
+export function RiepilogoMateriali({ companyId, orderId, userId }: { companyId: string; orderId: string; userId: string }) {
   const t = useT();
   const materiali = useInfiniteQuery({
     queryKey: [...queryKeys.warehouse.campoMateriali(companyId, orderId), userId],
@@ -81,29 +81,29 @@ function RiepilogoMateriali({ companyId, orderId, userId }: { companyId: string;
       )}
       {materiali.isSuccess && righe.length === 0 && <p className="text-muted-foreground">{t("Nessuna consegna registrata.")}</p>}
       {righe.length > 0 && (
-        <ul className="divide-y">
-          {righe.map(riga => {
-            const unita = riga.unita_misura ? ` ${riga.unita_misura}` : "";
-            return (
-              <li key={riga.stock_item_id} className="space-y-1 py-2 first:pt-0">
-                <p className="break-words font-medium">{riga.nome}</p>
-                <dl className="grid grid-cols-2 gap-2 leading-snug">
-                  <div className="min-w-0 rounded-xl bg-muted/60 p-2.5">
-                    <dt className="text-xs text-muted-foreground">{t("Consegnato")}</dt>
-                    <dd className="break-words text-base font-bold tabular-nums">{formattaQuantitaMovimento(Number(riga.consegnato))}{unita}</dd>
-                  </div>
-                  <div className="min-w-0 rounded-xl bg-primary/10 p-2.5">
-                    <dt className="text-xs text-muted-foreground">{t("Residuo")}</dt>
-                    <dd className="break-words text-base font-bold tabular-nums">
-                      {riga.residuo === null ? t("Da verificare") : `${formattaQuantitaMovimento(Number(riga.residuo))}${unita}`}
-                    </dd>
-                  </div>
-                </dl>
-                {!riga.unita_misura && <p className="text-xs text-muted-foreground">{t("Unità di misura da impostare")}</p>}
-              </li>
-            );
-          })}
-        </ul>
+        // Una riga per materiale (24/11): nome a sinistra, arrivati e rimasti a destra. Prima due riquadri grandi a testa.
+        <div>
+          <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 border-b pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <span>{t("Materiale")}</span><span className="text-right">{t("Arrivati")}</span><span className="text-right">{t("Rimasti")}</span>
+          </div>
+          <ul className="divide-y">
+            {righe.map(riga => {
+              const unita = riga.unita_misura ? ` ${riga.unita_misura}` : "";
+              return (
+                <li key={riga.stock_item_id} className="grid grid-cols-[1fr_auto_auto] items-baseline gap-x-3 py-2">
+                  <span className="min-w-0 break-words font-medium">
+                    {riga.nome}
+                    {!riga.unita_misura && <span className="block text-xs font-normal text-muted-foreground">{t("Unità di misura da impostare")}</span>}
+                  </span>
+                  <span aria-label={t("Arrivati")} className="text-right tabular-nums text-muted-foreground">{formattaQuantitaMovimento(Number(riga.consegnato))}{unita}</span>
+                  <span aria-label={t("Rimasti")} className="text-right font-bold tabular-nums">
+                    {riga.residuo === null ? t("Da verificare") : `${formattaQuantitaMovimento(Number(riga.residuo))}${unita}`}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
       {righe.length > 0 && <p className="text-xs text-muted-foreground">{t("Il residuo tiene conto dei resi e dei consumi nei rapportini approvati.")}</p>}
       {materiali.hasNextPage && !materiali.isError && (

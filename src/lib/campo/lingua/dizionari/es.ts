@@ -3949,5 +3949,13 @@ const dizionario: Dizionario = {
   "Letto dallo scontrino: controlla e invia": "Leído del tique: revisa y envía",
   "Non sono riuscito a leggerlo: scrivi l'importo": "No he podido leerlo: escribe el importe",
   "Data dello scontrino": "Fecha del tique",
+  "I miei ritiri": "Mis retiradas",
+  "Scegli il cantiere: poi tocca «Aggiungi» sui materiali che prendi.": "Elige la obra: luego toca «Añadir» en los materiales que coges.",
+  "Tutti i magazzini": "Todos los almacenes",
+  "Arrivati": "Llegados",
+  "Rimasti": "Quedan",
+  "Materiali per cantiere": "Materiales por obra",
+  "{n} in attesa del magazzino": "{n} esperando al almacén",
+  "Prendi materiale per questo cantiere": "Coger material para esta obra",
 };
 export default dizionario;

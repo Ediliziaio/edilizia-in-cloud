@@ -3949,5 +3949,13 @@ const dizionario: Dizionario = {
   "Letto dallo scontrino: controlla e invia": "Citit de pe bon: verifică și trimite",
   "Non sono riuscito a leggerlo: scrivi l'importo": "Nu am reușit să-l citesc: scrie suma",
   "Data dello scontrino": "Data bonului",
+  "I miei ritiri": "Ridicările mele",
+  "Scegli il cantiere: poi tocca «Aggiungi» sui materiali che prendi.": "Alege șantierul: apoi atinge «Adaugă» la materialele pe care le iei.",
+  "Tutti i magazzini": "Toate depozitele",
+  "Arrivati": "Sosite",
+  "Rimasti": "Rămase",
+  "Materiali per cantiere": "Materiale pe șantier",
+  "{n} in attesa del magazzino": "{n} în așteptarea depozitului",
+  "Prendi materiale per questo cantiere": "Ia material pentru acest șantier",
 };
 export default dizionario;

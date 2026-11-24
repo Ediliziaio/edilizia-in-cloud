@@ -3949,5 +3949,13 @@ const dizionario: Dizionario = {
   "Letto dallo scontrino: controlla e invia": "اتقرا من الإيصال: راجع وابعت",
   "Non sono riuscito a leggerlo: scrivi l'importo": "معرفتش أقراه: اكتب المبلغ",
   "Data dello scontrino": "تاريخ الإيصال",
+  "I miei ritiri": "اللي استلمته",
+  "Scegli il cantiere: poi tocca «Aggiungi» sui materiali che prendi.": "اختار الموقع: وبعدين دوس «أضف» على الخامات اللي هتاخدها.",
+  "Tutti i magazzini": "كل المخازن",
+  "Arrivati": "وصلت",
+  "Rimasti": "فاضلة",
+  "Materiali per cantiere": "الخامات حسب الموقع",
+  "{n} in attesa del magazzino": "{n} مستنية المخزن",
+  "Prendi materiale per questo cantiere": "خد خامات للموقع ده",
 };
 export default dizionario;

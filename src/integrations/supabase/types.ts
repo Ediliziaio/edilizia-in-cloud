@@ -148963,7 +148963,9 @@ export type Database = {
         }[]
       }
       campo_magazzino_inventario_dettaglio: {
-        Args: { p_azienda: string; p_cerca: string; p_offset: number; p_solo_disponibili: boolean }
+        Args:
+          | { p_azienda: string; p_cerca: string; p_offset: number; p_solo_disponibili: boolean }
+          | { p_azienda: string; p_cerca: string; p_magazzino: string | null; p_offset: number; p_solo_disponibili: boolean }
         Returns: {
           description: string | null
           disponibile: number
@@ -148975,6 +148977,10 @@ export type Database = {
           unita_misura: string | null
           warehouse_id: string | null
         }[]
+      }
+      campo_magazzino_magazzini: {
+        Args: { p_azienda: string }
+        Returns: { articoli_disponibili: number; id: string; nome: string }[]
       }
       campo_magazzino_preleva: {
         Args: {

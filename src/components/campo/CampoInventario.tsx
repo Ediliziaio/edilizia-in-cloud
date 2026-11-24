@@ -11,9 +11,11 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Textarea } from "@/components/ui/textarea";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import {
-  useCampoCantieriPrelievo, useCampoInventario, useMieiPrelievi,
+  useCampoCantieriPrelievo, useCampoInventario, useCampoMagazzini, useMieiPrelievi,
   type CantierePrelievo, type StockCampo,
 } from "@/hooks/campo/useCampoPrelievo";
+import { useMiaGiornata } from "@/hooks/campo/useCampoGiornata";
+import { useCampoWorkDay } from "@/hooks/campo/useCampoWorkDay";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useCodaCampo } from "@/hooks/campo/useCodaCampo";
@@ -58,6 +60,8 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
   const [ricerca, setRicerca] = useState("");
   const [scansione, setScansione] = useState(false);
   const [soloDisponibili, setSoloDisponibili] = useState(true);
+  // I vari magazzini a un tocco (24/11, richiesta del founder): «Tutti» o uno solo.
+  const [magazzinoScelto, setMagazzinoScelto] = useState<string | null>(null);
   const inputRicerca = useRef<HTMLInputElement>(null);
   const cerca = useDebounce(ricerca.trim(), 250);
   const [aperto, setAperto] = useState(() => !!apriBozza && bozze.length > 0);
@@ -74,8 +78,15 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
     return () => { vivo = false; };
   }, [aperto, bozze.length]);
   const online = useOnlineStatus();
-  const inventario = useCampoInventario(companyId, cerca, soloDisponibili, attivo);
+  const magazzini = useCampoMagazzini(companyId, attivo);
+  const elencoMagazzini = magazzini.data ?? [];
+  const magazzinoAttivo = elencoMagazzini.some(m => m.id === magazzinoScelto) ? magazzinoScelto : null;
+  const inventario = useCampoInventario(companyId, cerca, soloDisponibili, attivo, magazzinoAttivo);
   const cantieri = useCampoCantieriPrelievo(companyId, attivo && puoPrelevare);
+  // Il cantiere di oggi è già scelto: è quasi sempre quello per cui si prende il materiale.
+  const giornata = useMiaGiornata(14);
+  const oggi = useCampoWorkDay();
+  const cantieriDiOggi = giornata.data?.giorni.find(g => g.giorno === oggi)?.cantieri.map(c => c.order_id) ?? [];
   const { data: storico } = useMieiPrelievi(companyId, attivo && puoPrelevare);
 
   useEffect(() => {
@@ -98,7 +109,9 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
   const articoliVisibili = new Map(articoli.map((articolo) => [articolo.id, articolo]));
   const assegnabili = cantieri.isError ? [] : cantieri.data ?? [];
   const cantieriPerId = new Map(assegnabili.map((cantiere) => [cantiere.id, cantiere]));
-  const cantiereAttivo = cantiereScelto ?? (bozze.length === 1 ? bozze[0].cantiere : assegnabili.length === 1 ? assegnabili[0].id : "");
+  const diOggi = assegnabili.filter(c => cantieriDiOggi.includes(c.id));
+  const cantiereAttivo = cantiereScelto ?? (bozze.length === 1 ? bozze[0].cantiere : assegnabili.length === 1 ? assegnabili[0].id
+    : diOggi.length === 1 ? diOggi[0].id : "");
   const attiva = bozzaPerCantiere(bozzePresenti, companyId, userId, cantiereAttivo);
   const { bozza } = attiva;
   const { righe, inVerifica } = bozza;
@@ -255,8 +268,25 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
             {assegnabili.map((item) => <option key={item.id} value={item.id}>{nomeCantierePrelievo(item)}</option>)}
           </UniformSelect>
         </div>
+        {!cantiere && assegnabili.length > 0 && (
+          <p className="mt-1 text-xs font-medium text-amber-800 dark:text-amber-300">{t("Scegli il cantiere: poi tocca «Aggiungi» sui materiali che prendi.")}</p>
+        )}
         </div>
       ))}
+      {elencoMagazzini.length > 1 && (
+        <div role="radiogroup" aria-label={t("Magazzino")} className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]">
+          {[{ id: null as string | null, nome: t("Tutti i magazzini"), n: null as number | null },
+            ...elencoMagazzini.map(m => ({ id: m.id as string | null, nome: m.nome, n: Number(m.articoli_disponibili) }))].map(m => (
+            <button key={m.id ?? "tutti"} type="button" role="radio" aria-checked={magazzinoAttivo === m.id}
+              onClick={() => setMagazzinoScelto(m.id)}
+              className={cn("min-h-11 shrink-0 rounded-full border px-3.5 text-sm font-semibold",
+                magazzinoAttivo === m.id ? "border-primary bg-primary text-primary-foreground" : "bg-background")}>
+              <Warehouse aria-hidden="true" className="me-1 inline size-3.5" />{m.nome}
+              {m.n !== null && <span className="ms-1 font-normal opacity-80">· {m.n}</span>}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex items-stretch gap-2">
         <div className="relative min-w-0 flex-1">
           <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -328,31 +358,31 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
             const stessoMagazzino = !righe.length || articolo.warehouse_id === righe[0].articolo.warehouse_id;
             const puoAggiungere = puoPrelevare && !!cantiere && !inVerifica && articolo.disponibile > 0 && stessoMagazzino;
             return (
-              <li key={articolo.id} className={cn("rounded-xl border bg-card px-2.5 py-2 sm:p-3.5", riga && "border-primary")}>
-                <div className="flex justify-between gap-2 sm:gap-4">
+              <li key={articolo.id} className={cn("rounded-xl border bg-card px-2.5 py-1.5 sm:px-3.5 sm:py-2.5", riga && "border-primary", articolo.disponibile <= 0 && "opacity-70")}>
+                <div className="flex items-center justify-between gap-2 sm:gap-4">
                   <div className="min-w-0 flex-1">
                     <p className="break-words text-sm font-semibold leading-snug sm:text-base">{articolo.name}</p>
-                    {articolo.internal_code && <p className="mt-0.5 break-words text-xs leading-tight text-muted-foreground">{articolo.internal_code}</p>}
-                    <p className="mt-1 flex items-start gap-1 text-xs leading-snug text-muted-foreground sm:text-sm">
-                      <MapPin aria-hidden="true" className="mt-px h-3.5 w-3.5 shrink-0" />
-                      <span className="min-w-0 break-words">
-                        {articolo.ubicazione && <span className="font-medium text-foreground">{articolo.ubicazione}</span>}
-                        {articolo.ubicazione && articolo.magazzino && " · "}
-                        {articolo.magazzino || (!articolo.ubicazione && t("Senza ubicazione"))}
-                      </span>
-                    </p>
+                    {/* Una riga sola sotto il nome: codice · scaffale · magazzino (il magazzino se non è già scelto). */}
+                    {(() => {
+                      const dove = [articolo.internal_code, articolo.ubicazione, magazzinoAttivo ? null : articolo.magazzino].filter(Boolean).join(" · ");
+                      if (!dove && magazzinoAttivo) return null;
+                      return (
+                        <p className="mt-0.5 flex items-start gap-1 text-xs leading-snug text-muted-foreground">
+                          <MapPin aria-hidden="true" className="mt-px h-3.5 w-3.5 shrink-0" />
+                          <span className="min-w-0 break-words">{dove || t("Senza ubicazione")}</span>
+                        </p>
+                      );
+                    })()}
                     {puoPrelevare && altre > 0 && (
                       <p className="mt-1 text-xs text-muted-foreground">{t("{quantita} in altre bozze", { quantita: `${formatoQuantitaMagazzino.format(altre)}${articolo.unita_misura ? ` ${articolo.unita_misura}` : ""}` })}</p>
                     )}
                   </div>
                   <div className="flex max-w-[44%] shrink-0 flex-col items-end gap-1">
                     <div className="max-w-full text-right">
-                      <p className="break-words font-bold leading-tight tabular-nums">
-                        {formatoQuantitaMagazzino.format(residuoPerCantiere ? disponibile : articolo.disponibile)} {articolo.unita_misura}
+                      <p className={cn("break-words font-bold leading-tight tabular-nums", articolo.disponibile <= 0 && "text-destructive")}>
+                        {articolo.disponibile <= 0 ? t("Esaurito") : `${formatoQuantitaMagazzino.format(residuoPerCantiere ? disponibile : articolo.disponibile)} ${articolo.unita_misura ?? ""}`}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {articolo.disponibile <= 0 ? t("Esaurito") : residuoPerCantiere ? t("Per il cantiere") : t("Disponibili")}
-                      </p>
+                      {residuoPerCantiere && <p className="text-xs text-muted-foreground">{t("Per il cantiere")}</p>}
                     </div>
                     {puoAggiungere && !riga && (
                       <Button type="button" variant="outline" className="min-h-11 gap-1 px-2" disabled={inSalvataggio || righe.length >= 100 || disponibile <= 0}

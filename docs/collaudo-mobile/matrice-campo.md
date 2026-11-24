@@ -468,3 +468,13 @@ Dati di prova creati (Demo 2, da tenere o cancellare): spesa «Carburante 12,50 
 | Scontrino letto dalla foto (importo, data, tipo) — funzione `campo-scontrino-leggi`, compito router `campo_scontrino` | /campo/spese | test di logica; prova dal vivo dopo il deploy della funzione |
 | Niente viola nell'area operai (scelta del founder): «tu/la tua» in blu dell'app, sopralluoghi in azzurro | Home, scheda cantiere, calendario, presenze | giro di 30 pagine a 443 px: nessuno scorrimento laterale, nessun errore |
 | Voci del modulo rapportino dell'azienda tradotte (Meteo, Materiale mancante, Cliente assente…) | rapportino | giro in rumeno: in italiano restano solo i dati scritti dall'ufficio |
+
+## 24/11/2026 — Magazzino dell'area operai
+
+| Cosa | Dove | Provato |
+|---|---|---|
+| Pulsanti dei magazzini (Tutti / uno solo, con quanti articoli disponibili) | /campo/magazzino › Inventario | Demo 2: «Cantiere WND Milano Nord · 0», «Magazzino Principale · 52»; filtro giusto |
+| Righe compatte (codice · scaffale · magazzino), «Esaurito» in rosso, avviso «Scegli il cantiere…», cantiere di oggi già scelto se è uno solo | Inventario | giro a 443 px |
+| Scheda «Per cantiere»: arrivati/rimasti per ogni cantiere (campo_materiali_cantiere), ritiri in attesa, «Prendi materiale per questo cantiere» | /campo/magazzino › Per cantiere | richiesta reale di 2 sacchi su ORD-2026-001 dal telefono, poi tolta |
+| Il ritiro arriva al cantiere | database | transazione annullata: richiesto → approvato → consegnato; giacenza 783 → 781; scarico con order_id; costo materiali ORD-2026-001 4,20 → 19,20 €; compare in «Materiali in cantiere» |
+| Ufficio: «Ritiri dal cantiere» (chi, cosa, per quale cantiere; filtri cantiere/persona/periodo; totali per materiale) | Magazzino (ufficio) | lettura come amministratore Demo 2: Marco Verdi · ORD-2026-001 · Cemento 2 sacchi |

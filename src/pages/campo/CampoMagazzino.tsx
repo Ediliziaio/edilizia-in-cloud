@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { CampoScorteFurgone } from "@/components/campo/CampoScorteFurgone";
 import { CampoInventario } from "@/components/campo/CampoInventario";
 import { CampoPrelievi, PrelieviInCoda } from "@/components/campo/CampoPrelievi";
+import { MaterialiPerCantiere } from "@/components/campo/MaterialiPerCantiere";
 import { Button } from "@/components/ui/button";
 import { useCampoMagazzinoConfig } from "@/hooks/campo/useCampoPrelievo";
 import { cn } from "@/lib/utils";
@@ -11,7 +12,7 @@ import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const schede = [
   { id: "inventario", label: "Inventario" },
-  { id: "prelievi", label: "I miei prelievi" },
+  { id: "prelievi", label: "Per cantiere" },
   { id: "furgone", label: "Furgone" },
 ] as const;
 
@@ -90,7 +91,10 @@ function Magazzino({ config, cantiereIniziale, apriBozza, schedaIniziale }: {
             />
           </div>
         )}
+        {/* «Per cantiere» (24/11): cosa è arrivato su ogni cantiere e cosa ne resta, poi i miei ritiri uno per uno. */}
         {scheda === "prelievi" && <>
+          <MaterialiPerCantiere companyId={config.companyId} userId={config.userId} puoPrelevare={puoPrelevare} />
+          <h2 className="mb-1.5 mt-1 px-1 text-[15px] font-bold">{t("I miei ritiri")}</h2>
           <PrelieviInCoda companyId={config.companyId} userId={config.userId} />
           <CampoPrelievi companyId={config.companyId} puoPrelevare={puoPrelevare} />
         </>}

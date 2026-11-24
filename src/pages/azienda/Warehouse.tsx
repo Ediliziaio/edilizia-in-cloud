@@ -54,6 +54,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { PrelieviCampoCard } from "@/components/warehouse/PrelieviCampoCard";
+import { RitiriDalCantiere } from "@/components/warehouse/RitiriDalCantiere";
 import { AcquistiCampoCard } from "@/components/warehouse/AcquistiCampoCard";
 import { RigheDaAbbinareCard } from "@/components/warehouse/RigheDaAbbinareCard";
 import { ImpostazionePrelievoCampo } from "@/components/warehouse/ImpostazionePrelievoCampo";
@@ -845,6 +846,8 @@ function WarehousePage() {
       {/* Prelievi dal cantiere: impostazione (libero/conferma) + coda da confermare. */}
       <div className="space-y-3 print:hidden">
         {!isReadOnly && <PrelieviCampoCard />}
+        {/* Chi ha ritirato cosa, per quale cantiere, dall'app degli operai (24/11). */}
+        <RitiriDalCantiere />
         <AcquistiCampoCard />
         <div className="max-md:hidden"><RigheDaAbbinareCard /></div>
       </div>

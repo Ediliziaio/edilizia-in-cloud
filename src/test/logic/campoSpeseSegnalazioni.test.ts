@@ -90,3 +90,30 @@ describe("Scontrino letto dall'AI: si scrive solo quello che ha senso", () => {
     expect(pulisciScontrino(null, "2026-11-24").importo).toBeNull();
   });
 });
+
+describe("Magazzino: ritiri dal cantiere sommati per materiale", () => {
+  it("consegnati e da approvare separati, rifiutati esclusi, con chi li ha presi", async () => {
+    const { totaliRitiri } = await import("@/lib/magazzino/ritiriCantiere");
+    const r = (id: string, stato: string, operaio: string, righe: { stock_item_id: string; name: string; quantita: number; unita?: string }[]) =>
+      ({ id, data: "2026-11-24T10:00:00Z", righe, note: null, order_id: "o1", operaio_id: operaio, stato, documento_numero: null, motivo_rifiuto: null });
+    const totali = totaliRitiri([
+      r("1", "consegnato", "marco", [{ stock_item_id: "cem", name: "Cemento", quantita: 2, unita: "sacchi" }]),
+      r("2", "consegnato", "luca", [{ stock_item_id: "cem", name: "Cemento", quantita: 3, unita: "sacchi" }, { stock_item_id: "col", name: "Collante", quantita: 1 }]),
+      r("3", "richiesto", "marco", [{ stock_item_id: "cem", name: "Cemento", quantita: 4, unita: "sacchi" }]),
+      r("4", "rifiutato", "anna", [{ stock_item_id: "cem", name: "Cemento", quantita: 99 }]),
+    ]);
+    expect(totali[0]).toMatchObject({ nome: "Cemento", consegnato: 5, daApprovare: 4, persone: ["marco", "luca"] });
+    expect(totali[1]).toMatchObject({ nome: "Collante", consegnato: 1, daApprovare: 0 });
+  });
+});
+
+describe("Magazzino: cantieri nella scheda «Per cantiere»", () => {
+  it("prima quelli di oggi, poi quelli con più ritiri; conta i ritiri in attesa", async () => {
+    const { cantieriPerMateriali } = await import("@/components/campo/MaterialiPerCantiere");
+    const c = (id: string, code: string) => ({ id, order_code: code, description: null, indirizzo_lavori: null });
+    const elenco = cantieriPerMateriali([c("a", "A"), c("b", "B")], [c("c", "C")],
+      [{ order_id: "c", stato: "consegnato" }, { order_id: "c", stato: "richiesto" }, { order_id: "b", stato: "richiesto" }], ["b"]);
+    expect(elenco.map(x => x.id)).toEqual(["b", "c", "a"]);
+    expect(elenco.find(x => x.id === "c")?.inAttesa).toBe(1);
+  });
+});

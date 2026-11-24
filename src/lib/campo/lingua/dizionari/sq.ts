@@ -3949,5 +3949,13 @@ const dizionario: Dizionario = {
   "Letto dallo scontrino: controlla e invia": "Lexuar nga kuponi: kontrollo dhe dërgo",
   "Non sono riuscito a leggerlo: scrivi l'importo": "Nuk arrita ta lexoj: shkruaj shumën",
   "Data dello scontrino": "Data e kuponit",
+  "I miei ritiri": "Tërheqjet e mia",
+  "Scegli il cantiere: poi tocca «Aggiungi» sui materiali che prendi.": "Zgjidh kantierin: pastaj prek «Shto» te materialet që merr.",
+  "Tutti i magazzini": "Të gjitha magazinat",
+  "Arrivati": "Mbërritur",
+  "Rimasti": "Mbetur",
+  "Materiali per cantiere": "Materiale për kantier",
+  "{n} in attesa del magazzino": "{n} në pritje të magazinës",
+  "Prendi materiale per questo cantiere": "Merr material për këtë kantier",
 };
 export default dizionario;

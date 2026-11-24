@@ -25,7 +25,11 @@ vi.mock("@/hooks/campo/useCampoPrelievo", () => ({
     refetch: state.refetch,
   }),
   useCampoCantieriPrelievo: () => ({ data: state.datiInCache ? state.cantieri : undefined, refetch: state.refetch }),
+  // Un magazzino solo: niente pulsanti dei magazzini (24/11).
+  useCampoMagazzini: () => ({ data: [] }),
 }));
+// Nessun cantiere «di oggi»: il cantiere si sceglie come prima.
+vi.mock("@/hooks/campo/useCampoGiornata", () => ({ useMiaGiornata: () => ({ data: { giorni: [], senza_date: [] } }) }));
 vi.mock("@/hooks/useOnlineStatus", () => ({ useOnlineStatus: () => state.online }));
 vi.mock("@/components/warehouse/BarcodeScanner", () => ({ BarcodeScanner: ({ open, onScan }: { open: boolean; onScan: (codice: string) => void }) =>
   open ? <button onClick={() => onScan("8012345678901")}>Leggi etichetta di prova</button> : null }));
@@ -255,7 +259,8 @@ describe("Destinazione del prelievo dall’app operaio", () => {
 
   it("mostra dove prendere i materiali e conferma più articoli insieme", async () => {
     inventario("C065");
-    expect(screen.getByText("Corsia A · Scaffale 4")).toBeInTheDocument();
+    // 24/11: codice, scaffale e magazzino stanno su una riga sola sotto il nome.
+    expect(screen.getByText("TUB-12 · Corsia A · Scaffale 4 · Deposito nord")).toBeInTheDocument();
     expect(screen.queryByText("Nastro isolante")).not.toBeInTheDocument();
     fireEvent.keyDown(screen.getByRole("combobox", { name: "Disponibilità dei materiali" }), { key: "ArrowDown" });
     fireEvent.click(await screen.findByRole("option", { name: "Tutti" }));

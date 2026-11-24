@@ -38,10 +38,25 @@ export function useCampoMagazzinoConfig(enabled = true) {
   return { ...query, companyId, userId: user?.id };
 }
 
-export function useCampoInventario(companyId: string, search: string, soloDisponibili: boolean, enabled: boolean) {
+/** I magazzini che la persona vede, coi materiali disponibili di ciascuno (pulsanti in cima all'inventario). */
+export function useCampoMagazzini(companyId: string, enabled: boolean) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["campo-magazzini", companyId, user?.id],
+    enabled: !!user?.id && !!companyId && enabled,
+    staleTime: 60_000,
+    queryFn: async ({ signal }) => {
+      const { data, error } = await supabase.rpc("campo_magazzino_magazzini", { p_azienda: companyId }).abortSignal(signal);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+export function useCampoInventario(companyId: string, search: string, soloDisponibili: boolean, enabled: boolean, magazzino: string | null = null) {
   const { user } = useAuth();
   return useInfiniteQuery({
-    queryKey: ["campo-warehouse-stock", companyId, user?.id, search, soloDisponibili],
+    queryKey: ["campo-warehouse-stock", companyId, user?.id, search, soloDisponibili, magazzino],
     enabled: !!user?.id && enabled,
     staleTime: 30_000,
     initialPageParam: 0,
@@ -51,6 +66,7 @@ export function useCampoInventario(companyId: string, search: string, soloDispon
         p_cerca: search,
         p_offset: pageParam,
         p_solo_disponibili: soloDisponibili,
+        p_magazzino: magazzino,
       }).abortSignal(signal);
       if (error) throw error;
       return data ?? [];
@@ -98,7 +114,7 @@ export function useMieiPrelievi(companyId: string, enabled = true) {
         .eq("company_id", companyId)
         .eq("operaio_id", user!.id)
         .order("data", { ascending: false })
-        .limit(30)
+        .limit(60)
         .abortSignal(signal);
       if (error) throw error;
 

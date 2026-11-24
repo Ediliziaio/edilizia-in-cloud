@@ -3949,5 +3949,13 @@ const dizionario: Dizionario = {
   "Letto dallo scontrino: controlla e invia": "Read from the receipt: check and send",
   "Non sono riuscito a leggerlo: scrivi l'importo": "Couldn't read it: enter the amount",
   "Data dello scontrino": "Receipt date",
+  "I miei ritiri": "My pickups",
+  "Scegli il cantiere: poi tocca «Aggiungi» sui materiali che prendi.": "Choose the site: then tap «Add» on the materials you take.",
+  "Tutti i magazzini": "All warehouses",
+  "Arrivati": "Arrived",
+  "Rimasti": "Left",
+  "Materiali per cantiere": "Materials by site",
+  "{n} in attesa del magazzino": "{n} waiting for the warehouse",
+  "Prendi materiale per questo cantiere": "Take material for this site",
 };
 export default dizionario;
