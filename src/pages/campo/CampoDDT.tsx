@@ -1,6 +1,7 @@
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { cn } from "@/lib/utils";
 import { ArrowDown, ArrowUp, Camera, Check, CloudUpload, FileText, FileUp, HardHat, ImagePlus, Loader2, MoreVertical, Receipt, RotateCw, Sparkles, Trash2, Warehouse, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -81,7 +82,12 @@ export default function CampoDDT() {
   return <CampoDDTEditor key={`${companyId}:${user?.id}`} companyId={companyId} />;
 }
 
-function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
+/**
+ * `cantiereFisso` (24/11/2026): l'editor dentro la scheda «Bolle» del cantiere. Prima «Bolla» del cantiere portava
+ * alla pagina generale e la scheda «Bolle» a un'altra lista: due posti per la stessa cosa. Col cantiere fisso
+ * non si chiede dove va la merce né quale cantiere, e l'elenco mostra solo i documenti di quel cantiere.
+ */
+export function CampoDDTEditor({ companyId, cantiereFisso }: { companyId?: string | null; cantiereFisso?: string }) {
   const t = useT();
   const { user } = useAuth();
   const assegnazioni = useCampoAssignments();
@@ -89,7 +95,7 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
   const [scelta, setScelta] = useState("");
   const online = useNetworkStatus();
   const cantieri = assegnazioni.data ?? [];
-  const richiesto = params.get("order");
+  const richiesto = cantiereFisso ?? params.get("order");
   // 12/11/2026 — L'unica scelta è dove va la merce: in magazzino o in cantiere.
   // «In magazzino» vuol dire senza commessa, anche per l'operaio: la destinazione
   // arriva a `ddt_documento_accoda`. «In cantiere» vuole un cantiere suo.
@@ -101,7 +107,7 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
   const soloFoto = !ufficio && letturaBolle.data === "solo_foto";
   const puoRegistrare = puoRegistrareBolle(permessi) && !soloFoto && !letturaBolle.isLoading;
   const senzaAIPossibile = puoCompilareSenzaAI(permessi) && !soloFoto && !letturaBolle.isLoading;
-  const [dove, setDove] = useState<"magazzino" | "cantiere" | null>(null);
+  const [dove, setDove] = useState<"magazzino" | "cantiere" | null>(cantiereFisso ? "cantiere" : null);
   const destinazione =
     dove ?? (!richiesto && !assegnazioni.isLoading && !assegnazioni.isError && !cantieri.length ? "magazzino" : "cantiere");
   const [conAI, setConAI] = useState(true);
@@ -141,7 +147,7 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
   const archivio = useRef<HTMLInputElement>(null);
   const sostituzione = useRef<HTMLInputElement>(null);
   const paginaDaSostituire = useRef<File | null>(null);
-  const documenti = useDocumentiDDT(true);
+  const documenti = useDocumentiDDT(true, cantiereFisso);
   const salvaSoloDocumento = useSalvaSoloDocumento();
   const occupato = salvando || preparando !== null;
   const pronto = !!files.length && cantierePronto && !occupato && !pdfDaDividere.length;
@@ -368,24 +374,24 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
   };
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-4 py-1 md:space-y-5">
-      <header className="flex items-center gap-3">
+    <div className={cn("mx-auto w-full max-w-3xl space-y-4 md:space-y-5", !cantiereFisso && "py-1")}>
+      {!cantiereFisso && <header className="flex items-center gap-3">
         <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
           <Receipt className="size-5" aria-hidden="true" />
         </span>
         <h1 className="min-w-0 text-xl font-bold">{t("Bolle e DDT")}</h1>
-      </header>
+      </header>}
       <section
         className="space-y-3 rounded-2xl border bg-card p-3 shadow-sm sm:space-y-4 sm:p-4"
         aria-label={t("Nuovo documento di cantiere")}
       >
-        <div className="space-y-2">
+        {!cantiereFisso && <div className="space-y-2">
           <h2 className="text-[15px] font-bold md:text-sm">{t("Dove va la merce")}</h2>
           <div className="grid grid-cols-2 gap-2" role="group" aria-label={t("Dove va la merce")}>
             <button
               type="button"
               aria-pressed={destinazione === "magazzino"}
-              className={`flex min-h-12 items-center justify-center gap-1.5 rounded-xl border px-1.5 text-sm font-semibold disabled:opacity-50 ${destinazione === "magazzino" ? "border-primary bg-primary/10 text-primary" : ""}`}
+              className={`flex min-h-12 items-center justify-center gap-1.5 rounded-full border px-1.5 text-sm font-semibold disabled:opacity-50 ${destinazione === "magazzino" ? "border-primary bg-primary/10 text-primary" : ""}`}
               disabled={occupato}
               onClick={() => setDove("magazzino")}
             >
@@ -394,15 +400,15 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
             <button
               type="button"
               aria-pressed={destinazione === "cantiere"}
-              className={`flex min-h-12 items-center justify-center gap-1.5 rounded-xl border px-1.5 text-sm font-semibold disabled:opacity-50 ${destinazione === "cantiere" ? "border-primary bg-primary/10 text-primary" : ""}`}
+              className={`flex min-h-12 items-center justify-center gap-1.5 rounded-full border px-1.5 text-sm font-semibold disabled:opacity-50 ${destinazione === "cantiere" ? "border-primary bg-primary/10 text-primary" : ""}`}
               disabled={occupato}
               onClick={() => setDove("cantiere")}
             >
               <HardHat className="size-4 shrink-0" aria-hidden="true" /> {t("In cantiere")}
             </button>
           </div>
-        </div>
-        {destinazione === "cantiere" && (
+        </div>}
+        {destinazione === "cantiere" && !cantiereFisso && (
           <label className="block space-y-1 text-sm font-medium">
             {t("Cantiere")}
             <UniformSelect
@@ -445,13 +451,13 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
               {t("L’ufficio deve prima assegnarti un cantiere. La merce per il magazzino puoi già mandarla.")}
             </p>
           )}
-        <div className="space-y-2 border-t pt-3">
+        <div className={cn("space-y-2", !cantiereFisso && "border-t pt-3")}>
           <h2 className="text-[15px] font-bold md:text-sm">{t("Foto della bolla")}</h2>
           {!files.length && <p className="text-sm text-muted-foreground">{t("Inquadra il foglio intero. Aggiungi il retro se contiene altre righe.")}</p>}
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border border-primary/25 bg-primary/10 px-2 text-sm font-semibold text-primary disabled:opacity-50 motion-safe:transition-transform motion-safe:active:scale-[0.98]"
+              className="flex min-h-12 items-center justify-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-2 text-sm font-semibold text-primary disabled:opacity-50 motion-safe:transition-transform motion-safe:active:scale-[0.98]"
               onClick={() => camera.current?.click()}
               disabled={occupato || files.length >= 12}
             >
@@ -460,7 +466,7 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
             </button>
             <button
               type="button"
-              className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border px-2 text-sm font-semibold disabled:opacity-50"
+              className="flex min-h-12 items-center justify-center gap-1.5 rounded-full border px-2 text-sm font-semibold disabled:opacity-50"
               onClick={() => archivio.current?.click()}
               disabled={occupato || files.length >= 12}
             >
@@ -605,7 +611,7 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
           )}
           {invioInCoda ? (
             <button type="button" disabled={!pronto || !user?.id || !companyId} onClick={() => void salva()}
-              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-3 font-semibold text-primary-foreground disabled:opacity-50 motion-safe:transition-transform motion-safe:active:scale-[0.98]">
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-primary px-3 font-semibold text-primary-foreground disabled:opacity-50 motion-safe:transition-transform motion-safe:active:scale-[0.98]">
               {salvando ? <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" /> : <CloudUpload className="size-5 shrink-0" aria-hidden="true" />}
               {salvando ? t("Salvo la bolla…") : online ? t("Invia la bolla") : t("Salva la bolla sul telefono")}
             </button>
@@ -614,7 +620,7 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
               <button type="button" disabled={!pronto || !online} onClick={() => setCompila(true)}
                 className="min-h-12 rounded-xl bg-primary px-2 font-semibold text-primary-foreground disabled:opacity-50">{t("Compila ora")}</button>
               <button type="button" disabled={!pronto || !online} onClick={() => void salva(true)}
-                className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border px-2 text-sm font-semibold disabled:opacity-50">
+                className="flex min-h-12 items-center justify-center gap-1.5 rounded-full border px-2 text-sm font-semibold disabled:opacity-50">
                 {salvando && <Loader2 className="size-4 shrink-0 motion-safe:animate-spin" aria-hidden="true" />}
                 {t("La compila l'ufficio")}
               </button>
@@ -675,7 +681,7 @@ function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
         </section>
       )}
       <section className="space-y-2" aria-label={t("Documenti inviati")}>
-        <h2 className="text-[15px] font-semibold md:text-base">{t("Documenti inviati")}</h2>
+        <h2 className="text-[15px] font-semibold md:text-base">{cantiereFisso ? t("Documenti inviati per questo cantiere") : t("Documenti inviati")}</h2>
         {documenti.isError && !documenti.data?.length ? (
           <button
             className="min-h-11 text-sm underline"

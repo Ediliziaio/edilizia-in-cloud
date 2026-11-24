@@ -14,8 +14,8 @@ describe("freccia indietro della testata campo", () => {
 describe("una sola freccia indietro sul telefono", () => {
   // La testata dell'app ha già la freccia; le pagine ne avevano una seconda (e quella del cantiere andava alla Home).
   const pagine: Record<string, string> = {
-    CampoLavoroDetail: 'rounded-xl bg-muted active:bg-muted max-md:hidden"',
-    CampoFotoCantiere: 'rounded-xl active:bg-muted max-md:hidden"',
+    CampoLavoroDetail: 'rounded-full bg-muted active:bg-muted max-md:hidden"',
+    CampoFotoCantiere: 'rounded-full active:bg-muted max-md:hidden"',
     CampoSquadra: 'className="h-10 w-10 shrink-0 max-md:hidden"',
     CampoTicketNuovo: 'bg-muted active:bg-muted shrink-0 max-md:hidden"',
   };

@@ -41,8 +41,8 @@ export function BottoneCollaudo({ orderId }: { orderId: string }) {
   if (modelli.length === 0 && !haVerbali) return null;
   return (
     <button type="button" onClick={() => navigate(`/campo/lavoro/${orderId}/verbale`)}
-      className="flex h-10 flex-col items-center justify-center gap-0.5 rounded-xl border bg-background px-1 text-xs font-semibold">
-      <ClipboardCheck className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />{t("Collaudo")}
+      className="flex min-h-[60px] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-0.5 text-[12px] font-semibold text-foreground active:bg-muted">
+      <span className="flex size-10 items-center justify-center rounded-full border bg-background"><ClipboardCheck className="size-[18px] text-primary" aria-hidden="true" /></span>{t("Collaudo")}
     </button>
   );
 }

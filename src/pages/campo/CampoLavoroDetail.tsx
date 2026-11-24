@@ -1,4 +1,3 @@
-import { useDocumentiDDT, STATO_DOCUMENTO } from "@/hooks/useDocumentiDDT";
 import { COLONNE_RAPPORTINO, COLONNE_RAPPORTINO_CON_AUTORE } from "@/lib/campo/colonneRapportino";
 import { RuoloCantiereCampo } from "@/components/campo/RuoloCantiereCampo";
 import { BottoneCollaudo } from "@/components/campo/BottoneCollaudo";
@@ -10,7 +9,7 @@ import { leggiRuoloOperativoCampo } from "@/lib/campo/ruoloOperativo";
 import { readInvokeError } from "@/lib/readInvokeError";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { missingCampoDocument, CAMPO_DOCUMENT_REQUIRED } from "../../../supabase/functions/_shared/campoDocumentGuard";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { NoteCantiereCampo } from "@/components/campo/NoteCantiereCampo";
 import { ChiLavoraCampo } from "@/components/campo/ChiLavoraCampo";
@@ -36,6 +35,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCommessaCampoSync } from "@/hooks/useCommessaCampoSync";
 import { cn } from "@/lib/utils";
+import { CHIP } from "@/lib/campo/stileCampo";
+import { FotoRecentiCantiere } from "@/components/campo/FotoRecentiCantiere";
+import { CampoDDTEditor } from "@/pages/campo/CampoDDT";
 import { useOrderDiary } from "@/hooks/useOrderDiary";
 import { useIsCampo } from "@/hooks/useIsCampo";
 import { useCantieriTecnici } from "@/hooks/campo/useSchedaCantiere";
@@ -52,7 +54,7 @@ import { RapportiniInCoda } from "@/components/campo/RapportiniInCoda";
 import { linkChiediCorrezione } from "@/lib/campo/chiediCorrezione";
 import { chiaveFasiCommessa, leggiFasiCommessa } from "@/lib/campo/fasiCommessa";
 import { giorniRitardoCantiere } from "@/lib/campo/ritardoCantiere";
-import { dateFnsCampo, intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { faseInRitardo, testoRitardo } from "@/components/campo/PianoSchedaCantiere";
 import { useNetworkStatus } from "@/hooks/campo/useNetworkStatus";
 import { campoReportUrl, isClientReport } from "@/lib/campo/reportKind";
@@ -877,81 +879,74 @@ export default function CampoLavoroDetail() {
   // blocco interno.
   return (
     <div ref={pageRef} className="mx-auto flex max-w-6xl flex-col">
-      {/* Header sticky */}
-      {/* -top-3 compensa il padding-top del <main>: lo sticky si aggancia
-          sotto il padding del contenitore scrollante, lasciando una striscia
-          in cui traspare il contenuto. Sugli schermi bassi la testata scorre con la pagina.
-          Su md scrolla il documento: top-14. */}
-      <div className="sticky -top-3 z-10 rounded-b-2xl border-b border-border bg-background px-3 py-3 shadow-sm max-md:[@media(max-height:640px)]:static md:top-14 md:px-4 md:py-4">
-        <div className="mb-2 flex items-center gap-3 md:mb-3">
+      {/* Testata (24/11/2026): prima era tutta fissa in alto e sul telefono si prendeva un terzo dello schermo.
+          Ora scorre con la pagina; in alto resta solo la fila delle schede. */}
+      <div className="space-y-2.5 rounded-b-2xl border-b border-border bg-background px-3 pb-3 pt-1 shadow-sm md:rounded-2xl md:border md:p-4">
+        <div className="flex items-start gap-2">
           <button
             onClick={() => navigate("/campo")}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted active:bg-muted max-md:hidden"
+            aria-label={t("Indietro")}
+            className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted active:bg-muted max-md:hidden"
           >
-            <ArrowLeft className="w-5 h-5 text-foreground" />
+            <ArrowLeft className="size-5 text-foreground rtl:rotate-180" />
           </button>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("Lavoro assegnato")}</p>
-            <p dir="auto" className="truncate text-lg font-black text-foreground md:text-xl">{order?.order_code}</p>
-            <p dir="auto" className="truncate text-xs text-muted-foreground md:text-sm">{order?.description}</p>
+          <div className="min-w-0 flex-1">
+            <p className="flex flex-wrap items-center gap-1.5">
+              <span dir="auto" className="text-xs font-semibold text-muted-foreground">{order?.order_code}</span>
+              <span className={cn(CHIP, "bg-primary/10 text-primary")}>{(order?.status ?? "").trim() ? t(statoLeggibile(order?.status)) : t("In lavorazione")}</span>
+            </p>
+            <h1 dir="auto" className="mt-0.5 line-clamp-2 text-[17px] font-bold leading-snug text-foreground">{order?.description || order?.order_code}</h1>
           </div>
-          {vedeSchedaTecnica && <Link to={percorsoCantiereTecnico(orderId)}
-            className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border px-2 text-xs font-semibold text-primary">
-            <BookOpenCheck className="size-4" aria-hidden="true" /> {t("Piano e documenti")}
-          </Link>}
         </div>
 
-        {/* Avanzamento compatto: una riga sottile invece della card grande */}
         {activeTab === "descrizione" && <>
-        <div className="rounded-xl bg-primary/10 px-3 py-2 text-primary md:rounded-2xl md:p-3">
-          <div className="flex items-center gap-2.5">
-            <span className="text-lg font-black leading-none md:text-2xl">{order?.percentuale_avanzamento ?? 0}%</span>
-            <div className="h-2 min-w-0 flex-1 rounded-full bg-primary/15">
-              <div
-                className="h-2 rounded-full bg-primary transition-all"
-                style={{ width: `${order?.percentuale_avanzamento ?? 0}%` }}
-              />
-            </div>
-            <span className="shrink-0 text-xs font-semibold">{(order?.status ?? "").trim() ? t(statoLeggibile(order?.status)) : t("In lavorazione")}</span>
-          </div>
-        </div>
-
-        {/* Indirizzo: una riga tappabile che apre Maps (niente card doppia) */}
+        {/* Indirizzo: una riga tappabile che apre Maps */}
         {order?.indirizzo_lavori && (
           <button
             onClick={() => window.open(
               `https://maps.google.com/?q=${encodeURIComponent(order.indirizzo_lavori)}`,
               "_blank"
             )}
-            className="mt-2 flex w-full items-center gap-2 rounded-xl bg-muted/60 px-3 py-2 text-left active:bg-muted md:rounded-2xl"
+            className="flex min-h-11 w-full items-center gap-2 rounded-full bg-muted/60 px-4 text-left active:bg-muted"
           >
-            <MapPin className="h-4 w-4 shrink-0 text-primary" />
-            <span dir="auto" className="min-w-0 flex-1 truncate text-xs font-semibold text-primary md:text-sm">{order.indirizzo_lavori}</span>
-            <Navigation className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <MapPin className="size-4 shrink-0 text-primary" aria-hidden="true" />
+            <span dir="auto" className="min-w-0 flex-1 truncate text-[13px] font-semibold text-primary">{order.indirizzo_lavori}</span>
+            <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-muted-foreground"><Navigation className="size-3.5" aria-hidden="true" />{t("Portami lì")}</span>
           </button>
         )}
 
-        <div className="mt-2 grid auto-cols-fr grid-flow-col gap-1.5 md:mt-3 md:gap-2">
-          {/* Le foto hanno casa loro: si scattano durante il lavoro, non la
-              sera dentro al rapportino (dove la galleria è irraggiungibile). */}
-          {/* Bolla: parte da QUI (cantiere già impostato), non più dal menu "App".
-              Giornaliero resta nella card "Chiudi giornata" e nella barra sticky. */}
-          <QuickAction icon={Receipt} label={t("Bolla")} onClick={() => navigate(`/campo/ddt?order=${orderId}`)} />
+        {/* Avanzamento: numero grande e barra, su una riga */}
+        <div className="flex items-center gap-3 px-1">
+          <span className="text-2xl font-black tabular-nums leading-none text-primary">{order?.percentuale_avanzamento ?? 0}%</span>
+          <div className="h-2 min-w-0 flex-1 rounded-full bg-primary/15">
+            <div className="h-2 rounded-full bg-primary transition-all" style={{ width: `${order?.percentuale_avanzamento ?? 0}%` }} />
+          </div>
+          <span className="shrink-0 text-xs font-semibold text-muted-foreground">{t("avanzamento")}</span>
+        </div>
+
+        <div className="grid auto-cols-fr grid-flow-col gap-1">
+          {/* Le foto hanno casa loro: si scattano durante il lavoro, non la sera dentro al rapportino. */}
           <QuickAction icon={Camera} label={t("Foto")} onClick={() => navigate(`/campo/lavoro/${orderId}/foto`)} />
+          {/* La bolla del cantiere si fa nella sua scheda, non nella pagina generale (24/11/2026). */}
+          <QuickAction icon={Receipt} label={t("Bolla")} onClick={() => { setActiveTab("bolle"); pageRef.current?.scrollIntoView({ block: "start" }); }} />
           <QuickAction icon={AlertCircle} label={t("Segnala")} onClick={() => navigate(`/campo/ticket/nuovo/${orderId}`)} />
           {orderId && <BottoneCollaudo orderId={orderId} />}
+          {/* «Piano e documenti» stava accanto al titolo e lo tagliava: ora è un'azione come le altre. */}
+          {vedeSchedaTecnica && <QuickAction icon={BookOpenCheck} label={t("Piano e documenti")} onClick={() => navigate(percorsoCantiereTecnico(orderId))} />}
         </div>
         </>}
+      </div>
 
-        {/* Tab selector */}
-        <div className="mt-2 flex gap-1 overflow-x-auto scrollbar-hide md:mt-3">
+      {/* Le schede restano in alto mentre si scorre: sono l'unica cosa fissa. -top-3 compensa il padding del <main>. */}
+      <div className="sticky -top-3 z-10 -mx-3 border-b bg-background/95 px-3 py-2 backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:px-0">
+        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
           {tabs.map(({ key, label }) => (
             <button
               key={key}
               aria-pressed={activeTab === key}
               onClick={() => setActiveTab(key)}
               className={cn(
-                "whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold transition-colors",
+                "min-h-9 whitespace-nowrap rounded-full px-4 text-[13px] font-semibold transition-colors",
                 activeTab === key
                   ? "bg-primary text-primary-foreground"
                   : "bg-muted text-muted-foreground active:bg-muted"
@@ -993,6 +988,8 @@ export default function CampoLavoroDetail() {
             {/* Con chi lavori: squadra, caposquadra, capocantiere */}
             {orderId && <RuoloCantiereCampo orderId={orderId} ruolo={ruoloRapportiError ? undefined : ruoloRapporti} subappaltatore={isSubappaltatore} caricamento={ruoloRapportiLoading} errore={ruoloRapportiError} onRapportini={() => setActiveTab("rapportini")} onRiprova={() => void ricaricaRuoloRapporti()} />}
             {orderId && <ChiLavoraCampo orderId={orderId} />}
+            {/* Le foto si vedono qui, senza aprire un'altra pagina (24/11/2026). */}
+            {orderId && <FotoRecentiCantiere orderId={orderId} nomeCantiere={order?.order_code ?? order?.description ?? undefined} />}
             {orderId && <DocumentiQrCampo orderId={orderId} />}
 
             {/* Fasi di lavoro della commessa */}
@@ -1371,29 +1368,18 @@ function statoLeggibile(stato: string | null | undefined): string {
  */
 function BolleCantiere({ orderId }: { orderId: string }) {
   const t = useT();
-  const navigate = useNavigate();
+  const { profile, effectiveCompany } = useAuth();
   const { data, isLoading, isError, refetch } = useAcquistiCommessa(orderId);
   const bolle = data ?? [];
-  const documenti = useDocumentiDDT(true, orderId);
+  // 24/11/2026: un posto solo per le bolle del cantiere. Si fotografa qui (cantiere già fissato, niente «dove va
+  // la merce»), sotto ci sono quelle inviate e quelle che l'ufficio ha registrato. Prima «Bolla» portava alla
+  // pagina generale e questa scheda a un altro elenco.
   return (
-    <div className="space-y-3">
-      <button
-        onClick={() => navigate(`/campo/ddt?order=${orderId}`)}
-        className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-black text-white transition-transform active:scale-[0.98]"
-      >
-        <Camera className="h-4 w-4" />{t("Fotografa una bolla")}
-      </button>
-      {documenti.data?.map(j => <div key={j.id} className="rounded-xl border bg-background p-3 text-sm"><p className="break-all font-semibold">{j.files[0]?.name}</p><p className="mt-1 text-xs text-muted-foreground">{t(STATO_DOCUMENTO[j.status])} · {new Date(j.created_at).toLocaleString(intlCampo())}</p></div>)}
-      {documenti.isError && <button className="min-h-11 text-sm underline" onClick={() => void documenti.refetch()}>{t("Riprova a caricare i DDT inviati")}</button>}
-      {documenti.hasNextPage && <button className="min-h-11 w-full rounded-xl border text-sm" disabled={documenti.isFetchingNextPage} onClick={()=>void documenti.fetchNextPage()}>{documenti.isFetchingNextPage?t("Caricamento…"):t("Carica altri DDT inviati")}</button>}
+    <div className="space-y-4">
+      <CampoDDTEditor companyId={effectiveCompany?.id ?? profile?.company_id} cantiereFisso={orderId} />
+      {(isLoading || isError || bolle.length > 0) && <h2 className="text-[15px] font-semibold">{t("Registrate dall'ufficio")}</h2>}
       {isLoading && <p className="text-sm text-muted-foreground">{t("Carico le bolle…")}</p>}
       {isError && <p className="text-sm text-destructive">{t("Non riesco a leggere le bolle.")} <button type="button" className="underline" onClick={() => refetch()}>{t("Riprova")}</button></p>}
-      {!isLoading && !isError && bolle.length === 0 && !documenti.data?.length && (
-        <div className="rounded-xl border bg-muted/40 p-4 text-center text-sm text-muted-foreground">
-          <Receipt className="mx-auto mb-2 h-7 w-7 opacity-60" />
-          {t("Nessuna bolla per questo cantiere. Fotografa una bolla, uno scontrino o una fattura: la legge e la registra l’ufficio.")}
-        </div>
-      )}
       {bolle.map((b) => {
         const s = descriviStato(b);
         const tipo = b.tipo_documento === "scontrino" ? t("Scontrino") : b.tipo_documento === "fattura" ? t("Fattura") : t("Bolla");
@@ -1667,13 +1653,15 @@ function QuickAction({
   onClick: () => void;
   disabled?: boolean;
 }) {
+  // Come in Home: cerchio con l'icona e la parola sotto (collaudo 23-24/11, «stesse forme»).
   return (
     <button
+      type="button"
       onClick={onClick}
       disabled={disabled}
-      className="flex h-10 flex-col items-center justify-center gap-0.5 rounded-xl border bg-background px-1 text-xs font-bold leading-tight text-foreground shadow-sm transition-transform active:scale-[0.98] disabled:opacity-50 md:h-12 md:flex-row md:gap-2 md:px-3 md:text-xs"
+      className="flex min-h-[60px] min-w-0 flex-col items-center justify-start gap-1 rounded-2xl px-0.5 pt-1 text-center text-[12px] font-semibold leading-tight text-foreground active:bg-muted disabled:opacity-50"
     >
-      <Icon className="h-4 w-4 shrink-0 text-primary" />
+      <span className="flex size-10 items-center justify-center rounded-full border bg-background"><Icon className="size-[18px] text-primary" aria-hidden="true" /></span>
       {label}
     </button>
   );
@@ -2019,7 +2007,7 @@ function ChatCantiere({ orderId, orderCode }: { orderId: string; orderCode: stri
       {canale ? (
         <>
           <button
-            onClick={() => navigate(`/campo/chat/${canale.id}`)}
+            onClick={() => navigate(`/campo/chat?channel=${encodeURIComponent(canale.id)}`)}
             className="bg-primary text-primary-foreground font-bold py-3.5 px-8 rounded-xl active:scale-[0.98] transition-transform"
           >
             {t("Apri chat cantiere")}

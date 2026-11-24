@@ -66,7 +66,7 @@ export function RuoloCantiereCampo({
         : t("Registra le tue ore, documenta il lavoro e consulta le fasi della commessa.");
   // Collaudo 23/11 («più semplice e minimale»): il riquadro occupava mezzo schermo in apertura — spiegazione, tre
   // pulsanti a tutta riga e una nota. Ora: ruolo su una riga, tre scorciatoie su una riga, la spiegazione a richiesta.
-  const scorciatoia = "flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl border px-1 text-[13px] font-medium";
+  const scorciatoia = "flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-full border bg-background px-2 text-[13px] font-semibold active:bg-muted";
   return (
     <section
       aria-label={t("Il tuo ruolo nel cantiere")}

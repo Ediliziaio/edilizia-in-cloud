@@ -66,19 +66,21 @@ export async function getGeoPosition(): Promise<GeolocationPosition | null> {
   });
 }
 
-export function useFotoCantiere(orderId?: string, opzioni?: { soloInvio?: boolean }) {
-  const { effectiveCompany, user, profile } = useAuth();
+/**
+ * Solo la lettura delle foto (24/11/2026): chi deve mostrarle e basta (il rapportino che le sceglie dal rullino)
+ * non deve agganciarsi alla coda degli invii offline come fa `useFotoCantiere`. Stessa chiave e stesse colonne:
+ * la cache è una sola.
+ */
+export function useFotoCantiereLettura(orderId?: string, abilitata = true) {
+  const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
-  const qc = useQueryClient();
-  const { enqueue } = useOfflineSync();
-
   const queryKey = orderId
     ? ['foto-cantiere', 'order', companyId, orderId]
     : ['foto-cantiere', 'company', companyId];
 
   const fotoQuery = useQuery({
     queryKey,
-    enabled: !!companyId && !opzioni?.soloInvio,
+    enabled: !!companyId && abilitata,
     staleTime: 2 * 60 * 1000,
     queryFn: async () => {
       let q = supabase
@@ -95,6 +97,24 @@ export function useFotoCantiere(orderId?: string, opzioni?: { soloInvio?: boolea
       return (data ?? []) as FotoCantiere[];
     },
   });
+
+  // Identità stabile: le schede foto la usano come dipendenza dell'effetto che
+  // chiede il link. Nuova a ogni render, ogni cambio nella pagina (anche aprire
+  // un pannello) rifaceva la richiesta per TUTTE le foto e le faceva lampeggiare.
+  const getSignedUrl = useCallback(async (path: string) => {
+    const { data } = await supabase.storage.from('foto-cantiere').createSignedUrl(path, 3600);
+    return data?.signedUrl ?? null;
+  }, []);
+  return { queryKey, foto: fotoQuery.data ?? [], isLoading: fotoQuery.isLoading, getSignedUrl };
+}
+
+export function useFotoCantiere(orderId?: string, opzioni?: { soloInvio?: boolean }) {
+  const { effectiveCompany, user, profile } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const qc = useQueryClient();
+  const { enqueue } = useOfflineSync();
+
+  const { queryKey, foto, isLoading, getSignedUrl } = useFotoCantiereLettura(orderId, !opzioni?.soloInvio);
 
   const uploadMutation = useMutation({
     mutationFn: async ({
@@ -237,17 +257,9 @@ export function useFotoCantiere(orderId?: string, opzioni?: { soloInvio?: boolea
     onError: (e) => toast.error(e instanceof Error && e.message.startsWith('Puoi eliminare') ? e.message : 'Errore eliminazione foto'),
   });
 
-  // Identità stabile: le schede foto la usano come dipendenza dell'effetto che
-  // chiede il link. Nuova a ogni render, ogni cambio nella pagina (anche aprire
-  // un pannello) rifaceva la richiesta per TUTTE le foto e le faceva lampeggiare.
-  const getSignedUrl = useCallback(async (path: string) => {
-    const { data } = await supabase.storage.from('foto-cantiere').createSignedUrl(path, 3600);
-    return data?.signedUrl ?? null;
-  }, []);
-
   return {
-    foto: fotoQuery.data ?? [],
-    isLoading: fotoQuery.isLoading,
+    foto,
+    isLoading,
     upload: uploadMutation.mutateAsync,
     isUploading: uploadMutation.isPending,
     elimina: eliminaMutation.mutate,
