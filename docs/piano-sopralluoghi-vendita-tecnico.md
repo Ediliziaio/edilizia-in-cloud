@@ -145,13 +145,30 @@ e `surveys.tipo` non è ancora nei tipi. Va rigenerato a parte.
 - Bacheca anche sotto Vendite, filtrata sui commerciali.
 - Quando l'opportunità diventa commessa, i suoi rilievi si collegano da soli.
 
-### Lotto 4 — Dal rilievo al preventivo e al computo
+### Lotto 4 — Dal rilievo al preventivo e al computo *(prima parte fatta 24/11/2026)*
 - Rilievo → preventivo: righe dal `output_mapping` del modello (descrizione, unità, quantità),
   `quotes.survey_id` con chiave esterna, `estimate_id` scritto davvero.
 - Serramenti: il rilievo riempie il «Rilievo per posizioni» invece di riscriverlo.
 - Rilievo → computo: bozza (`computo_preventivo_drafts`) con le voci e l'origine, aperta su
   `?bozza=id`.
 - Dal preventivo e dal computo, link «Apri il rilievo».
+
+Fatto (anticipato su richiesta, prima dei lotti 2 e 3):
+- `lib/surveys/righeDalRilievo.ts` legge `output_mapping.estimate_lines` del modello: descrizione
+  con le etichette delle opzioni (senza emoji), unità, quantità; a mq/ml cerca la superficie nei
+  valori, altrimenti 1 con «misura non trovata». Un tipo senza mappatura diventa comunque una riga
+  col suo nome. Per gli infissi, ogni complemento spuntato («Cosa rilevo»: tapparella, cassonetto,
+  zanzariera, persiana, davanzale) è una riga a sé con le sue misure.
+- «Crea preventivo» e «Crea computo» sul rilievo (in compilazione e firmato), per chi ha
+  «Preventivi» in modifica: finestra con le righe da togliere o correggere e, per il preventivo,
+  i prezzi e l'IVA. Preventivo in bozza col contatto e l'opportunità del rilievo; computo come bozza
+  dell'editor nativo con l'ambiente come capitolo e l'indirizzo del cantiere.
+- Il rilievo scrive `estimate_id` (prima mai scritto) e mostra «Apri preventivo».
+- Fotovoltaico e clima: il preventivo resta quello del wizard; il computo c'è anche per loro.
+
+Resta: i prezzi dal listino (oggi si scrivono a mano), il «Rilievo per posizioni» dei serramenti
+riempito dal rilievo, `quotes.survey_id` con chiave esterna e il link «Apri il rilievo» dal
+preventivo e dal computo (oggi l'origine è scritta nella descrizione di ogni riga).
 
 ### Lotto 5 — Dal rilievo agli ordini
 - Collaudo vero di «Porta le misure in commessa» → righe su misura → offerta/ordine al fornitore,

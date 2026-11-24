@@ -58,6 +58,7 @@ import {SurveyWorkspace} from "@/components/sopralluoghi/SurveyWorkspace";
 import { PosizioniCommessaPanel } from "@/components/sopralluoghi/PosizioniCommessaPanel";
 import type { TemplateSchema } from "@/types/surveys";
 import {SurveyPdfTools} from "@/components/sopralluoghi/SurveyPdfTools";
+import { DocumentoDalRilievo } from "@/components/sopralluoghi/DocumentoDalRilievo";
 import {SurveyElementEditDialog} from "@/components/sopralluoghi/SurveyElementEditDialog";
 import { useSurveyAccess } from "@/contexts/SurveyAccessContext";
 import { submitFieldSurvey } from "@/lib/surveys/fieldAccess";
@@ -479,6 +480,7 @@ export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <SurveyPdfTools detail={detail} companyName={effectiveCompany?.name || "Azienda"} references={references.data} disabled={unsaved||references.isPending}/>
             {!access.field && <Button variant="outline" className="min-h-10 rounded-xl gap-2" onClick={()=>navigate(`/azienda/sopralluoghi/${id}/firma`)} disabled={unsaved}><FileSignature className="h-4 w-4"/>Firma</Button>}
+            {!access.field && <DocumentoDalRilievo detail={detail} disabled={unsaved} />}
             {!access.field && <Button variant="ghost" className="min-h-10 rounded-xl gap-2 text-blue-700" disabled={aiSummaryMut.isPending||unsaved} onClick={()=>aiSummaryMut.mutate()}>{aiSummaryMut.isPending?<Loader2 className="h-4 w-4 animate-spin"/>:<Sparkles className="h-4 w-4"/>}Riassunto AI</Button>}
             {unsaved&&<span className="text-xs text-orange-800">{tr("Attendi il salvataggio prima di esportare o uscire.")}</span>}
           </div>

@@ -43,6 +43,7 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { SurveyPdfTools } from "./SurveyPdfTools";
+import { DocumentoDalRilievo } from "./DocumentoDalRilievo";
 import { SurveyMediaGallery } from "./SurveyMediaGallery";
 import { WindowSurveyVisual } from "./WindowSurveyVisual";
 import { isWindowSurvey } from "@/lib/surveys/windowSurvey";
@@ -459,6 +460,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
                   onClick={() => navigate(() => routeTo(percorsiPlanimetrie.dalSopralluogo(survey.id, survey.order_id)))} />}
               {access.field && access.canEdit && <SurveyFieldHandoff compact={small} detail={detail} disabled={editState.dirty || editState.saving}/>}
               {!access.field && !solaLettura && ["fotovoltaico", "climatizzazione"].includes(detail.template.category) && <Button variant="outline" className="min-h-11 rounded-xl" disabled={editState.dirty || editState.saving} onClick={()=>navigate(()=>routeTo(energyQuoteHref(detail)))}>Prepara preventivo dal rilievo</Button>}
+              {!access.field && !solaLettura && <DocumentoDalRilievo detail={detail} disabled={editState.dirty || editState.saving} />}
               {!access.field && !solaLettura && onEdit && (
                 <Button
                   variant="outline"
