@@ -68,6 +68,21 @@ describe("lettore di PSC e contratto", () => {
     expect(normalizzaRisultatoLettore({ ...r, versione: VERSIONE_LETTORE + 1 })).toBeNull();
   });
 
+  it("la stessa riga ripetuta su più pagine resta una volta, alla prima pagina, anche in una lettura già salvata", () => {
+    const riga = "Attività di carico-scarico su pontile; Movimentazione e trasporto in area con percorsi interferenti";
+    const ripetuta = (pagina: number) => ({ campo: "fronti" as const, documento: "psc" as const, pagina, citazione: riga, metodo: "testo" as const });
+    const r = unisciRisultatiLettore([{ indicazioni: [ripetuta(54), ripetuta(49)], conflitti: [] }, { indicazioni: [ripetuta(52)], conflitti: [] }]);
+    expect(r.indicazioni.map(i => i.pagina)).toEqual([49]);
+    const salvata = { versione: VERSIONE_LETTORE, indicazioni: [ripetuta(49), ripetuta(52), ripetuta(54),
+      { ...ripetuta(54), campo: "scarico" as const }], conflitti: [] as unknown[], mancanti: [] as string[] };
+    expect(normalizzaRisultatoLettore(salvata)?.indicazioni.map(i => `${i.campo}:${i.pagina}`)).toEqual(["scarico:54", "fronti:49"]);
+    // Contenuta solo a metà di una parola o di un numero, o su un'altra pagina: non è un doppione.
+    const civico = (pagina: number, n: string) => ({ campo: "accessi" as const, documento: "psc" as const, pagina,
+      citazione: `Accesso al cantiere dal passo carraio di Via Rossi ${n}`, metodo: "testo" as const });
+    expect(unisciRisultatiLettore([{ indicazioni: [civico(3, "1"), civico(3, "10"), civico(4, "1")], conflitti: [] }]).indicazioni
+      .map(i => `${i.pagina}:${i.citazione.slice(-2)}`)).toEqual(["3: 1", "3:10"]);
+  });
+
   it("finché il conflitto non è deciso, l’accesso non entra né nella bozza né nella proposta delle lavorazioni", () => {
     const r = unisciRisultatiLettore([verificaRispostaLettore(risposta, blocco)]);
     expect(indicazioniValide(r).some(i => i.campo === "accessi")).toBe(false);

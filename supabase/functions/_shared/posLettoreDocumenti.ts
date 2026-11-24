@@ -205,6 +205,29 @@ export function verificaRispostaLettore(raw: unknown, blocco: BloccoLettore): Om
 }
 
 /** Unisce i blocchi: niente doppioni, un conflitto per campo, e l'elenco di ciò che nessun documento indica. */
+/**
+ * Nello stesso aspetto e documento una frase resta una volta sola: se è identica a un'altra resta quella della prima
+ * pagina (le righe di tabella che il PSC ripete a ogni fase); se nella stessa pagina è contenuta, a parole intere, in
+ * un'altra, resta la più lunga. Fra pagine diverse solo le frasi identiche: «Via Rossi 1» non è «Via Rossi 10».
+ * Vale anche rileggendo una lettura salvata, così quelle già fatte non vanno ripagate.
+ */
+function senzaDoppioni(indicazioni: IndicazioneLettore[]): IndicazioneLettore[] {
+  const ordinate = [...indicazioni].sort((a, b) =>
+    campiLettore.indexOf(a.campo) - campiLettore.indexOf(b.campo) || a.documento.localeCompare(b.documento) || a.pagina - b.pagina);
+  return ordinate.filter((i, n) => !ordinate.some((a, m) => m !== n && a.campo === i.campo && a.documento === i.documento &&
+    (a.citazione === i.citazione ? m < n : a.pagina === i.pagina && contieneFrase(a.citazione, i.citazione))));
+}
+
+/** `testo` contiene `frase` a parole intere: prima e dopo non c'è una lettera o una cifra. */
+function contieneFrase(testo: string, frase: string): boolean {
+  if (frase.length >= testo.length) return false;
+  for (let da = testo.indexOf(frase); da >= 0; da = testo.indexOf(frase, da + 1)) {
+    const prima = testo[da - 1] ?? " ", dopo = testo[da + frase.length] ?? " ";
+    if (!/[\p{L}\p{N}]/u.test(prima) && !/[\p{L}\p{N}]/u.test(dopo)) return true;
+  }
+  return false;
+}
+
 export function unisciRisultatiLettore(parziali: Omit<RisultatoLettore, "mancanti" | "versione">[]): RisultatoLettore {
   const viste = new Set<string>();
   const indicazioni = parziali.flatMap(p => p.indicazioni).filter(i => {
@@ -221,10 +244,7 @@ export function unisciRisultatiLettore(parziali: Omit<RisultatoLettore, "mancant
       }
     }
   }
-  // Una citazione contenuta in un'altra dello stesso aspetto, documento e pagina è un doppione: resta la più lunga.
-  const uniche = indicazioni.filter(i => !indicazioni.some(a => a !== i && a.campo === i.campo && a.documento === i.documento &&
-    a.pagina === i.pagina && a.citazione.length > i.citazione.length && a.citazione.includes(i.citazione)));
-  uniche.sort((a, b) => campiLettore.indexOf(a.campo) - campiLettore.indexOf(b.campo) || a.documento.localeCompare(b.documento) || a.pagina - b.pagina);
+  const uniche = senzaDoppioni(indicazioni);
   const presenti = new Set(uniche.map(i => i.campo));
   return { versione: VERSIONE_LETTORE, indicazioni: uniche, conflitti, mancanti: campiLettore.filter(c => !presenti.has(c)) };
 }
@@ -247,7 +267,7 @@ export function normalizzaRisultatoLettore(v: unknown): RisultatoLettore | null 
         psc: { pagina: psc.pagina, citazione: psc.citazione, ...(psc.metodo === "ocr" ? { metodo: "ocr" as const } : {}) },
         contratto: { pagina: contratto.pagina, citazione: contratto.citazione } }] : [];
   });
-  return { versione: VERSIONE_LETTORE, indicazioni, conflitti, mancanti: lista(o.mancanti, 20).filter(eCampoLettore) };
+  return { versione: VERSIONE_LETTORE, indicazioni: senzaDoppioni(indicazioni), conflitti, mancanti: lista(o.mancanti, 20).filter(eCampoLettore) };
 }
 
 export function normalizzaDecisioniLettore(v: unknown, risultato: RisultatoLettore): DecisioniLettore {
