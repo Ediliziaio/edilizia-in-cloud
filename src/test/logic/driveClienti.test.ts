@@ -27,6 +27,19 @@ describe("cartelle standard dei clienti in EiC Drive", () => {
     expect(cartelle.find(c => c.chiave === "subappalti")?.documenti).toBe(0);
   });
 
+  it("sicurezza e SAL hanno la loro cartella, anche quando il documento è un link", () => {
+    const conSalSicurezza = [
+      ...righe,
+      riga({ cartella: "sal", nome: "SAL n. 1", bucket: null, path: null, link: "/azienda/ordini/o1?tab=finanza&vista_economia=sal" }),
+      riga({ cartella: "sicurezza", nome: "POS rev. 1", bucket: null, path: null, link: "/azienda/sicurezza-cantiere/pos/p1" }),
+      riga({ cartella: "sicurezza", nome: "PSC.pdf", bucket: "sicurezza-documenti" }),
+    ];
+    const cartelle = cartelleDelCliente(conSalSicurezza, "c1");
+    expect(cartelle.slice(-3).map(c => c.nome)).toEqual(["Sicurezza", "SAL", "Foto cantiere"]);
+    expect(cartelle.find(c => c.chiave === "sicurezza")?.documenti).toBe(2);
+    expect(cartelle.find(c => c.chiave === "sal")?.documenti).toBe(1);
+  });
+
   it("filtra per cliente e per cartella", () => {
     expect(righeDelCliente(righe, "c1", "ddt")).toHaveLength(2);
     expect(righeDelCliente(righe, "c1", null)).toHaveLength(3);

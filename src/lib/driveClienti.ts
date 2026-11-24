@@ -11,6 +11,8 @@ export const CARTELLE_CLIENTE = [
   { chiave: "ddt", nome: "DDT" },
   { chiave: "fatture_fornitori", nome: "Fatture fornitori" },
   { chiave: "subappalti", nome: "Contratti subappaltatori" },
+  { chiave: "sicurezza", nome: "Sicurezza" },
+  { chiave: "sal", nome: "SAL" },
   { chiave: "foto_cantiere", nome: "Foto cantiere" },
 ] as const;
 

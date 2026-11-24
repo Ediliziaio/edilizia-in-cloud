@@ -120,7 +120,7 @@ it("Clienti: una cartella per cliente, dentro le cartelle standard coi documenti
   expect(within(elenco).getAllByRole("button").map(b => b.textContent)).toEqual(["Bianchi Srl1", "Rossi Mario2"]);
   fireEvent.click(within(elenco).getByRole("button", { name: /Rossi Mario/ }));
   const cartelle = await screen.findByLabelText("Cartelle del cliente");
-  expect(within(cartelle).getAllByRole("button")).toHaveLength(9);
+  expect(within(cartelle).getAllByRole("button")).toHaveLength(11);
   await screen.findByText("2 risultati");
   fireEvent.click(within(cartelle).getByRole("button", { name: /^DDT/ }));
   await screen.findByText("1 risultato");
