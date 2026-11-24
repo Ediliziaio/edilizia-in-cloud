@@ -1,3 +1,6 @@
+// Prima di tutto: le funzioni che mancano ai Safari vecchi (pdfjs-dist 6).
+import "./lib/polyfillBrowserVecchi";
+import { deployNuovo } from "./lib/deployNuovo";
 import { createRoot } from "react-dom/client";
 import { installInvalidAuthSessionRecovery } from "./lib/authInvalidSessionRecovery";
 import App from "./App.tsx";
@@ -95,6 +98,13 @@ if (typeof window !== "undefined" && "requestIdleCallback" in window) {
 // longer exists on the server), Vite fires this event. Force a hard reload so
 // the browser picks up the fresh index.html + new chunk hashes.
 window.addEventListener("vite:preloadError", () => {
+  // Niente preventDefault: così Vite rilancia l'errore a chi ha chiamato l'import, che sa gestirlo. Si ricarica
+  // dopo, e solo se online c'è davvero una versione nuova: un modulo rotto su questo browser non guarisce
+  // ricaricando, e la pagina perdeva il lavoro in corso (vedi deployNuovo.ts).
+  void deployNuovo().then((nuovo) => { if (nuovo) ricaricaPerDeploy(); });
+});
+
+function ricaricaPerDeploy() {
   const LEGACY_KEY = "vite_preload_recovered";
   const KEY = "vite_preload_recovered_v2";
   const MAX_AUTO_ATTEMPTS = 3;
@@ -126,7 +136,7 @@ window.addEventListener("vite:preloadError", () => {
   const url = new URL(window.location.href);
   url.searchParams.set("__recovery", Date.now().toString());
   window.location.replace(url.toString());
-});
+}
 
 // Se questa pagina E' un recovery riuscito, togli subito il parametro dalla
 // barra: senza questa pulizia il ?__recovery=<timestamp> restava nell'URL,

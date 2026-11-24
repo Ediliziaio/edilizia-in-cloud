@@ -349,10 +349,15 @@ export default defineConfig(({ command, mode }) => ({
     })]),
   ],
   resolve: {
-    alias: { "https://esm.sh/pdf-lib@1.17.1": "pdf-lib",
-      "https://esm.sh/fontkit@2.0.4": "fontkit",
-      "@": path.resolve(__dirname, "./src"),
-    },
+    alias: [
+      { find: "https://esm.sh/pdf-lib@1.17.1", replacement: "pdf-lib" },
+      { find: "https://esm.sh/fontkit@2.0.4", replacement: "fontkit" },
+      { find: "@", replacement: path.resolve(__dirname, "./src") },
+      // pdfjs-dist 6 usa funzioni che i Safari prima della 18.2 non hanno: la build legacy le porta con sé
+      // (manca solo Promise.withResolvers, in src/lib/polyfillBrowserVecchi.ts). Stessa API, worker compreso.
+      { find: /^pdfjs-dist$/, replacement: "pdfjs-dist/legacy/build/pdf.mjs" },
+      { find: /^pdfjs-dist\/build\/pdf\.worker\.min\.mjs/, replacement: "pdfjs-dist/legacy/build/pdf.worker.min.mjs" },
+    ],
     // Forza UNA sola copia del core di React Flow. In node_modules c'erano DUE
     // versioni di @xyflow/system (0.0.76 hoisted + 0.0.77, dipendenza di
     // @xyflow/react@12) → store/misurazione divisi tra le due istanze → nel
