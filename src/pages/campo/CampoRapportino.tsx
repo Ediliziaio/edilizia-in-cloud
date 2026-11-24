@@ -20,7 +20,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   ArrowLeft, ChevronRight, ChevronLeft,
-  Camera, X, Minus, Plus, Loader2, Send, CalendarDays, ClipboardPenLine, LogIn, Mic, Images, Trash2, WifiOff,
+  Camera, Check, Search, X, Minus, Plus, Loader2, Send, CalendarDays, ClipboardPenLine, LogIn, Images, Trash2, WifiOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { MezziFineGiornata, righeDaSalvare, useMezziDellaGiornata, type RigaMezzoGiornata } from "@/components/campo/MezziFineGiornata";
@@ -40,6 +40,11 @@ import { useIsCampo } from "@/hooks/useIsCampo";
 import { useGPS } from "@/hooks/useGPS";
 import { FirmaPad } from "@/components/campo/FirmaPad";
 import { CampiModulo } from "@/components/campo/CampiModulo";
+import { ScegliDalRullino } from "@/components/campo/ScegliDalRullino";
+import { RegistraGiornata } from "@/components/campo/RegistraGiornata";
+import { presenzeDaVoce } from "@/lib/campo/presenzeDaVoce";
+import { MAX_FASI_IN_VISTA, corrisponde, fasiInVista } from "@/lib/campo/sceltaRapida";
+import type { RapportinoVocaleDraft } from "@/hooks/campo/useRapportinoVocale";
 import { useRilevazioniMezziRapportino } from "@/hooks/campo/useRilevazioniMezziRapportino";
 import { useModuloRapportino } from "@/hooks/useModuliCantiere";
 import { campiPerContesto, chiaveValore, componiValori, fasiDelRapportino, leggiValori, mancanti, valoreInTesto, valoriInBozza } from "../../../supabase/functions/_shared/moduliCantiere";
@@ -71,7 +76,6 @@ import { REGOLE_COME_OGGI, flussoPersona, giaCoperto, oreInTesto, proponiOre, sc
 import { useCampoWorkDay } from "@/hooks/campo/useCampoWorkDay";
 import { assertReportDay, campoWorkDay, giorniIndietroValidi, giorniSceglibili, messaggioScadenzaRapportino, reportDayAllowed, shiftWorkDay, validWorkDay } from "@/lib/campo/workDay";
 import { isClientReport } from "@/lib/campo/reportKind";
-import { RapportinoVoceInput, type PropostaRapportino } from "@/components/campo/RapportinoVoceInput";
 import { DettaTesto } from "@/components/campo/DettaTesto";
 import { accodaTesto } from "@/lib/campo/dettaTesto";
 import { useFormDraft } from "@/hooks/campo/useFormDraft";
@@ -446,7 +450,9 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
   const puoCompilareAVoce = !!ruoloCampo && !!orderId && !verificaInCorso && !verificaFallita && dayAllowed
     && !lavoro_completato && !soloOreAllOperaio && !flusso.soloTimbratura && !bloccatoDaEsistente
     && (ripresaDecisa || daRifare);
-  const vocaleVisibile = voceAperta && puoCompilareAVoce && step === 1;
+  // 24/11/2026: la voce non apre più un riquadro che nasconde il modulo (vedi «RegistraGiornata»): compila e basta.
+  // Anche il link con ?input=voce mostra il modulo, col bottone della voce in cima.
+  const vocaleVisibile = false;
   const giornoOk = () => daRifare || reportDayAllowed(workDay, undefined, giorniIndietro);
   const controllaGiorno = () => { if (!daRifare) assertReportDay(workDay, undefined, giorniIndietro, t); };
 
@@ -592,6 +598,8 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
   }, [meteoMap, coordCantiere, rapportinoGiaOggi, workDay]);
   // Solo le fasi non completate sono dichiarabili
   const fasiDichiarabili = fasiCommessa.filter(f => f.status !== "completata");
+  const [cercaFase, setCercaFase] = useState("");
+  const [cercaPersona, setCercaPersona] = useState("");
   // Le fasi su cui si è lavorato oggi, nell'ordine in cui compaiono nel cantiere. Con più di una, accanto a ogni
   // materiale e a ogni foto compare «Fase»; con una sola, tutto si collega lì senza chiedere niente.
   const fasiSelezionate = fasiCommessa.filter(f => f.id in fasiDichiarate);
@@ -1108,6 +1116,9 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
               const mostraTimbrate = dalleTimbrature || regole.avvisoScostamentoMinuti != null;
               const timbratiDaSelezionare = squadra.filter(m =>
                 !giaCoperto(m) && !(m.key in presenzeSel) && (m.ore_timbrate ?? 0) > 0 && !m.timbratura_aperta);
+              // Scelta rapida (24/11/2026): tutta la squadra con un tocco, poi le ore uguali per tutti con un altro.
+              const liberi = squadra.filter(m => !giaCoperto(m));
+              const tuttiScelti = liberi.length > 0 && liberi.every(m => m.key in presenzeSel);
               return (
               <div className="rounded-2xl border bg-background p-4 shadow-sm">
                 <p className="text-sm font-semibold text-foreground">{t(workDay === today ? "Chi ha lavorato oggi?" : "Chi ha lavorato in questa giornata?")}</p>
@@ -1118,6 +1129,24 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                       ? "Tocca chi era in cantiere e scrivi le sue ore. Chi ha già mandato il suo rapportino non va segnato di nuovo."
                       : "Tocca chi della tua squadra era in cantiere e scrivi le sue ore. Chi ha già mandato il suo rapportino non va segnato di nuovo.")}
                 </p>
+                {liberi.length > 1 && (
+                  <button
+                    type="button"
+                    aria-pressed={tuttiScelti}
+                    onClick={() => {
+                      segnaPresenzeModificate(liberi.map(m => m.key));
+                      setPresenzeSel(prev => {
+                        if (tuttiScelti) return Object.fromEntries(Object.entries(prev).filter(([k]) => !liberi.some(m => m.key === k)));
+                        const next = { ...prev };
+                        for (const m of liberi) if (!(m.key in next)) next[m.key] = dalleTimbrature ? proponiOre(m.ore_timbrate, m.timbratura_aperta) : (oreLavorate === "" ? "" : oreLavorate);
+                        return next;
+                      });
+                    }}
+                    className={`mb-3 me-2 min-h-11 rounded-full px-4 text-sm font-semibold ${tuttiScelti ? "border border-border bg-muted text-foreground" : "bg-primary text-primary-foreground"}`}
+                  >
+                    {tuttiScelti ? t("Togli tutti") : t("Tutta la squadra ({n})", { n: liberi.length })}
+                  </button>
+                )}
                 {dalleTimbrature && timbratiDaSelezionare.length > 0 && (
                   <button
                     type="button"
@@ -1134,6 +1163,15 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                     {t("Seleziona chi ha timbrato ({n})", { n: timbratiDaSelezionare.length })}
                   </button>
                 )}
+                {/* 20 persone e più (24/11/2026): si cerca per nome; le scelte restano sempre in vista. */}
+                {squadra.length > 12 && (
+                  <label className="mb-3 flex min-h-11 items-center gap-2 rounded-full border bg-background px-4">
+                    <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    <input type="search" value={cercaPersona} onChange={e => setCercaPersona(e.target.value)}
+                      placeholder={t("Cerca tra le {n} persone", { n: squadra.length })} aria-label={t("Cerca una persona")}
+                      className="min-w-0 flex-1 bg-transparent text-base outline-none md:text-sm" />
+                  </label>
+                )}
                 <div className="space-y-3">
                   {/* Collaudo 23/11: le persone senza squadra erano disegnate subito sotto «DITTA», senza titolo,
                       e sembravano ditte. Prima le persone («Persone»), poi squadre e ditte, ognuna col suo titolo. */}
@@ -1143,9 +1181,34 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                     return gruppi.map(gruppo => ({ gruppo, titolo: gruppo === "" ? (gruppi.length > 1 ? t("Persone") : "") : gruppo === "Ditta" ? t("Ditte") : gruppo }));
                   })().map(({ gruppo, titolo }) => (
                     <div key={gruppo || "da-soli"}>
-                      {titolo && <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{titolo}</p>}
+                      {(() => {
+                        // Ogni squadra o ditta col suo «Tutti»: con tre squadre in cantiere si segna la propria con un tocco.
+                        const delGruppo = squadra.filter(m => (m.squadra ?? "") === gruppo && !giaCoperto(m));
+                        const tuttiDelGruppo = delGruppo.length > 0 && delGruppo.every(m => m.key in presenzeSel);
+                        return (titolo || delGruppo.length > 1) && (
+                          <div className="mb-1.5 flex min-h-9 items-center justify-between gap-2">
+                            <p className="min-w-0 truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">{titolo}</p>
+                            {delGruppo.length > 1 && squadra.some(m => (m.squadra ?? "") !== gruppo) && (
+                              <button type="button" aria-pressed={tuttiDelGruppo}
+                                aria-label={tuttiDelGruppo ? t("Togli tutti: {gruppo}", { gruppo: titolo || t("Persone") }) : t("Segna tutti: {gruppo}", { gruppo: titolo || t("Persone") })}
+                                onClick={() => {
+                                  segnaPresenzeModificate(delGruppo.map(m => m.key));
+                                  setPresenzeSel(prev => {
+                                    if (tuttiDelGruppo) return Object.fromEntries(Object.entries(prev).filter(([k]) => !delGruppo.some(m => m.key === k)));
+                                    const next = { ...prev };
+                                    for (const m of delGruppo) if (!(m.key in next)) next[m.key] = dalleTimbrature ? proponiOre(m.ore_timbrate, m.timbratura_aperta) : (oreLavorate === "" ? "" : oreLavorate);
+                                    return next;
+                                  });
+                                }}
+                                className="min-h-9 shrink-0 rounded-full border px-3 text-xs font-semibold text-primary">
+                                {tuttiDelGruppo ? t("Togli tutti") : t("Tutti ({n})", { n: delGruppo.length })}
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
                       <div className="flex flex-wrap gap-2">
-                        {squadra.filter(m => (m.squadra ?? "") === gruppo).map(m => {
+                        {squadra.filter(m => (m.squadra ?? "") === gruppo && (!cercaPersona.trim() || m.key in presenzeSel || corrisponde(m.nome, cercaPersona))).map(m => {
                           const selected = m.key in presenzeSel;
                           const coperto = giaCoperto(m);
                           if (coperto) {
@@ -1172,6 +1235,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                                   : "border-border bg-muted text-muted-foreground"
                               }`}
                             >
+                              {selected && <Check className="me-1 inline size-3.5 align-[-2px]" aria-hidden="true" />}
                               {m.sono_io ? t("{nome} (tu)", { nome: m.nome }) : m.nome}
                               {nota && <span className="ml-1.5 text-xs font-normal opacity-80">· {nota}</span>}
                             </button>
@@ -1186,10 +1250,10 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                     {t("Il costo della squadra usa queste presenze. Se hai lavorato anche tu, seleziona anche il tuo nome.")}
                   </p>
                 )}
-                {Object.keys(presenzeSel).length > 1 && (
+                {Object.keys(presenzeSel).length > 0 && (
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <span className="text-xs text-muted-foreground">{t("Stesse ore per tutti:")}</span>
-                    {[4, 6, 8].map(h => (
+                    {[4, 6, 8, 9, 10].map(h => (
                       <button
                         key={h}
                         type="button"
@@ -1198,14 +1262,18 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                           segnaPresenzeModificate(chiavi);
                           setPresenzeSel(prev => ({ ...prev, ...Object.fromEntries(chiavi.map(k => [k, h])) }));
                         }}
-                        className="min-h-11 rounded-full border border-border bg-muted px-4 text-sm font-semibold"
+                        aria-pressed={squadra.filter(m => m.key in presenzeSel).every(m => presenzeSel[m.key] === h)}
+                        className={`min-h-11 rounded-full border px-4 text-sm font-semibold ${squadra.filter(m => m.key in presenzeSel).every(m => presenzeSel[m.key] === h) ? "border-primary bg-primary text-primary-foreground" : "border-border bg-muted"}`}
                       >
                         {h} h
                       </button>
                     ))}
                   </div>
                 )}
-                {squadra.filter(m => m.key in presenzeSel).map(m => {
+                {(() => {
+                  const scelti = squadra.filter(m => m.key in presenzeSel);
+                  const righe = (<>
+                {scelti.map(m => {
                   const diff = scostamento(presenzeSel[m.key], m.ore_timbrate, regole.avvisoScostamentoMinuti);
                   return (
                   <div key={m.key} className="mt-3 rounded-xl border border-border bg-muted/40 p-3">
@@ -1249,12 +1317,29 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                   </div>
                   );
                 })}
+                  </>);
+                  // Con tante persone (20 operai) le righe una per una si chiudono: le ore le dà «Stesse ore per tutti»,
+                  // qui si corregge solo chi ha fatto diverso. Chi è ancora senza ore la apre da sola.
+                  if (scelti.length <= 6) return righe;
+                  const senzaOre = scelti.filter(m => presenzeSel[m.key] === "").length;
+                  return (
+                    <details open={senzaOre > 0 && senzaOre < scelti.length} className="mt-3 rounded-xl border px-3 [&[open]]:pb-3">
+                      <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold">
+                        {t("Ore di ognuno ({n})", { n: scelti.length })}
+                        {senzaOre > 0 && <span className="ms-2 text-xs font-semibold text-amber-700">{t("{n} senza ore", { n: senzaOre })}</span>}
+                      </summary>
+                      {righe}
+                    </details>
+                  );
+                })()}
               </div>
               );
             })()}
 
     </>
   );
+  // Cantieri grandi (200 fasi): in vista solo le probabili, le altre si cercano (lib/campo/sceltaRapida).
+  const sceltaFasi = fasiInVista(fasiDichiarabili, new Set(Object.keys(fasiDichiarate)), cercaFase);
   const bloccoFasi = (
     <>
             {/* ── Fasi lavorate (solo se la commessa ha fasi non completate) ── */}
@@ -1268,25 +1353,43 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                     ? "Tocca le fasi e indica l'avanzamento raggiunto (facoltativo)"
                     : "Tocca le fasi su cui hai lavorato: servono ad attribuire le tue ore. L'avanzamento lo dichiara il capocantiere.")}
                 </p>
+                {fasiDichiarabili.length > MAX_FASI_IN_VISTA && (
+                  <label className="mb-3 flex min-h-11 items-center gap-2 rounded-full border bg-background px-4">
+                    <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    <input type="search" value={cercaFase} onChange={e => setCercaFase(e.target.value)}
+                      placeholder={t("Cerca tra le {n} fasi", { n: fasiDichiarabili.length })} aria-label={t("Cerca una fase")}
+                      className="min-w-0 flex-1 bg-transparent text-base outline-none md:text-sm" />
+                  </label>
+                )}
                 <div className="flex flex-wrap gap-2">
-                  {fasiDichiarabili.map(fase => {
+                  {sceltaFasi.inVista.length === 0 && <p className="text-sm text-muted-foreground">{t("Nessuna fase con questo nome.")}</p>}
+                  {sceltaFasi.inVista.map(fase => {
                     const selected = fase.id in fasiDichiarate;
                     return (
                       <button
                         key={fase.id}
                         type="button"
+                        aria-pressed={selected}
                         onClick={() => toggleFase(fase)}
-                        className={`rounded-full border px-3 py-2 text-sm transition-colors ${
+                        className={`min-h-11 rounded-full border px-3 py-2 text-sm transition-colors ${
                           selected
                             ? "border-primary bg-primary/10 font-semibold text-primary"
                             : "border-border bg-muted text-muted-foreground"
                         }`}
                       >
+                        {selected && <Check className="me-1 inline size-3.5 align-[-2px]" aria-hidden="true" />}
                         {fase.name}
                       </button>
                     );
                   })}
                 </div>
+                {sceltaFasi.altre > 0 && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {cercaFase.trim()
+                      ? t("Altre {n}: scrivi qualche lettera in più.", { n: sceltaFasi.altre })
+                      : t("Qui ci sono quelle in corso e le prossime. Le altre {n} le trovi cercando.", { n: sceltaFasi.altre })}
+                  </p>
+                )}
 
                 {puoDichiararePercentuali && fasiDichiarabili.filter(f => f.id in fasiDichiarate).map(fase => {
                   const sotto = sottofasiDi.get(fase.id) ?? [];
@@ -1439,7 +1542,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                         [key]: { ...m, quantita: Math.max(0.01, m.quantita - 1) },
                       }))
                     }
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-muted"
                   >
                     <Minus className="w-4 h-4 text-foreground" />
                   </button>
@@ -1463,7 +1566,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                         [key]: { ...m, quantita: m.quantita + 1 },
                       }))
                     }
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary"
                   >
                     <Plus className="w-4 h-4 text-primary-foreground" />
                   </button>
@@ -1477,7 +1580,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                         return next;
                       })
                     }
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-500/10"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-500/10"
                   >
                     <X className="w-4 h-4 text-red-500" />
                   </button>
@@ -1567,14 +1670,59 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
   // La proposta completa i campi disponibili senza sostituire ore, materiali o testo già inseriti.
   const puoSuggerireOre = !oreNonMie && mostraOrePersonali && oreRilevate == null && oreLavorate === "";
   const puoSuggerireMateriali = parti.materiali && Object.keys(materialiSel).length === 0;
-  const applicaVocale = (proposta: PropostaRapportino) => {
+  // ── La voce compila tutto (24/11/2026) ──
+  // Cosa conviene dire dipende dal rapportino di questa azienda: chi c'era solo se si registra la squadra,
+  // i materiali solo se il modulo li usa, e così via.
+  const cosaDireAVoce = [
+    t("cosa avete fatto"),
+    registraSquadra ? t("chi c'era") : null,
+    puoSuggerireOre || registraSquadra ? t("quante ore") : null,
+    parti.materiali ? t("i materiali usati") : null,
+  ].filter(Boolean).join(", ");
+  const [riepilogoVoce, setRiepilogoVoce] = useState<{ voci: string[]; prima: { descrizione: string; oreLavorate: number | ""; materialiSel: typeof materialiSel; presenzeSel: typeof presenzeSel } } | null>(null);
+  const applicaDaVoce = (draft: RapportinoVocaleDraft) => {
     if (!puoCompilareAVoce) return;
-    setDescrizione(testo => accodaTesto(testo, proposta.descrizione));
-    if (puoSuggerireMateriali && proposta.materiali.length) setMaterialiSel(restoreRapportinoMaterials(proposta.materiali));
-    if (puoSuggerireOre && proposta.ore !== null) modificaOre(proposta.ore);
-    tornaAScrivere();
-    toast.success(t("Proposta inserita. Controlla il rapportino prima di inviarlo."));
+    const e = draft.dati_estratti;
+    const prima = { descrizione, oreLavorate, materialiSel, presenzeSel };
+    const voci: string[] = [];
+    const testo = [e.lavorazione, e.note].filter(Boolean).join(" — ") || draft.trascrizione;
+    if (testo) { setDescrizione(d => accodaTesto(d, testo)); voci.push(t("descrizione")); }
+    const ore = typeof e.ore_lavorate === "number" ? e.ore_lavorate : null;
+    if (puoSuggerireOre && ore !== null) { modificaOre(ore); voci.push(t("{ore} ordinarie", { ore: oreInTesto(ore) })); }
+    const materiali = (e.materiali ?? []).filter(m => m.nome?.trim() && m.quantita > 0);
+    if (puoSuggerireMateriali && materiali.length) {
+      setMaterialiSel(restoreRapportinoMaterials(materiali));
+      voci.push(t(materiali.length === 1 ? "{n} materiale" : "{n} materiali", { n: materiali.length }));
+    }
+    if (registraSquadra && e.team_presenti?.length) {
+      const liberi = squadra.filter(m => !giaCoperto(m) && !(m.key in presenzeSel));
+      const chiavi = presenzeDaVoce(e.team_presenti, liberi.map(m => ({ key: m.key, nome: m.nome })));
+      if (chiavi.length) {
+        segnaPresenzeModificate(chiavi);
+        setPresenzeSel(p => {
+          const next = { ...p };
+          for (const k of chiavi) {
+            const m = squadra.find(x => x.key === k)!;
+            next[k] = ore ?? (regole.oreDalle === "timbrature" ? proponiOre(m.ore_timbrate, m.timbratura_aperta) : "");
+          }
+          return next;
+        });
+        voci.push(t(chiavi.length === 1 ? "{n} persona" : "{n} persone", { n: chiavi.length }));
+      }
+    }
+    if (!voci.length) { toast.error(t("Non ho capito abbastanza: riprova parlando un po' di più.")); return; }
+    setRiepilogoVoce({ voci, prima });
   };
+  const annullaVoce = () => {
+    if (!riepilogoVoce) return;
+    const { prima } = riepilogoVoce;
+    setDescrizione(prima.descrizione);
+    modificaOre(prima.oreLavorate);
+    setMaterialiSel(prima.materialiSel);
+    setPresenzeSel(prima.presenzeSel);
+    setRiepilogoVoce(null);
+  };
+
 
   if (!verificaInCorso && !verificaFallita && !lavoro_completato && flusso.soloTimbratura && !daRifare) return (
     <section className="mx-auto max-w-lg space-y-4 rounded-2xl border bg-background p-4 shadow-sm">
@@ -1642,7 +1790,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
           onClick={() => void goBack()}
           aria-label={t("Indietro nel rapportino")}
           disabled={saving || uploadingFoto}
-          className="flex size-11 shrink-0 items-center justify-center rounded-xl border bg-muted/60 disabled:opacity-50"
+          className="flex size-11 shrink-0 items-center justify-center rounded-full border bg-muted/60 disabled:opacity-50"
         >
           <ArrowLeft className="size-5 text-foreground" aria-hidden="true" />
         </button>
@@ -1667,7 +1815,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
         {!ripresaDecisa && !daRifare && !bloccatoDaEsistente && <div className="space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm">
           <p role="status"><strong>{t("Bozza sul telefono.")}</strong> {t("Puoi riprendere il rapportino di questa giornata.")}</p>
           <div className="flex flex-wrap gap-x-3">
-            <button type="button" className="min-h-11 rounded-xl bg-primary px-3 font-semibold text-primary-foreground" onClick={riprendiBozza}>{t("Riprendi la bozza")}</button>
+            <button type="button" className="min-h-11 rounded-full bg-primary px-4 font-semibold text-primary-foreground" onClick={riprendiBozza}>{t("Riprendi la bozza")}</button>
             <button type="button" className="min-h-11 font-semibold text-primary" onClick={() => {
               void Promise.resolve().then(() => del(chiaveBozza, fotoBozze)).then(() => {
                 setFotoLocali({});
@@ -1737,18 +1885,25 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                   ? t(workDay === today ? "Le tue ore di oggi" : "Le tue ore di questa giornata")
                   : t(workDay === today ? "Cosa hai fatto oggi?" : "Cosa hai fatto in questa giornata?")}
               </h2>
-              {puoCompilareAVoce && !vocaleVisibile && (
-                <button type="button" disabled={saving} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 text-sm font-semibold text-primary motion-safe:transition-transform motion-safe:active:scale-[0.98]"
-                  onClick={() => setVoceAperta(true)}>
-                  <Mic className="size-4" aria-hidden="true" /> {t("Compila parlando")}
-                </button>
-              )}
             </div>
-            {vocaleVisibile && orderId && <RapportinoVoceInput
-              orderId={orderId} workDay={workDay}
-              proponiOre={puoSuggerireOre} proponiMateriali={puoSuggerireMateriali}
-              onApply={applicaVocale} onClose={tornaAScrivere}
-            />}
+            {/* Un bottone solo per la voce (24/11/2026): tocchi, racconti, ritocchi e il rapportino si compila. */}
+            {puoCompilareAVoce && orderId && !riepilogoVoce && (
+              <RegistraGiornata orderId={orderId} workDay={workDay} disabilitato={saving} onCompilato={applicaDaVoce}
+                suggerimento={t("Tocca e parla: {cosa}. Compilo io.", { cosa: cosaDireAVoce })} />
+            )}
+            {riepilogoVoce && (
+              <section role="status" aria-label={t("Compilato dalla voce")} className="space-y-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-900">
+                <p className="flex items-center gap-2 text-[15px] font-bold"><Check className="size-4 shrink-0" aria-hidden="true" />{t("Ho compilato il rapportino")}</p>
+                <ul className="flex flex-wrap gap-1.5">
+                  {riepilogoVoce.voci.map(v => <li key={v} className="rounded-full bg-white/80 px-2.5 py-1 text-xs font-semibold">{v}</li>)}
+                </ul>
+                <p className="text-[13px]">{t("Controlla qui sotto e correggi se serve.")}</p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={annullaVoce} className="min-h-10 rounded-full border border-emerald-300 bg-white px-4 text-[13px] font-semibold">{t("Annulla")}</button>
+                  <button type="button" onClick={() => setRiepilogoVoce(null)} className="min-h-10 rounded-full border border-emerald-300 bg-white px-4 text-[13px] font-semibold">{t("Registra ancora")}</button>
+                </div>
+              </section>
+            )}
             {/* Con «ore_proprie» l'operaio manda solo le ore: il racconto, le foto
                 e i materiali li scrive il capocantiere per tutto il cantiere. */}
             {soloOreAllOperaio ? (
@@ -1812,7 +1967,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                 <div className="mt-3 flex items-center gap-3">
                   <button type="button" aria-label={t("Riduci ore ordinarie")}
                     onClick={() => modificaOre(Math.max(0, Math.round(((oreLavorate === "" ? 0 : oreLavorate) - 0.5) * 10) / 10))}
-                    className="h-11 w-11 shrink-0 rounded-xl bg-muted flex items-center justify-center">
+                    className="h-11 w-11 shrink-0 rounded-full bg-muted flex items-center justify-center">
                     <Minus className="w-4 h-4" />
                   </button>
                   <input ref={campoOre} id="ore-cantiere" type="number" min={0} max={24} step={0.1} inputMode="decimal"
@@ -1824,7 +1979,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                   <span className="text-sm text-muted-foreground">h</span>
                   <button type="button" aria-label={t("Aumenta ore ordinarie")}
                     onClick={() => modificaOre(Math.min(24, Math.round(((oreLavorate === "" ? 0 : oreLavorate) + 0.5) * 10) / 10))}
-                    className="h-11 w-11 shrink-0 rounded-xl border border-primary/40 bg-background text-primary flex items-center justify-center">
+                    className="h-11 w-11 shrink-0 rounded-full border border-primary/40 bg-background text-primary flex items-center justify-center">
                     <Plus className="w-4 h-4" />
                   </button>
                 </div>
@@ -1842,19 +1997,24 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <label className={cn(
-                  "flex min-h-12 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-primary/25 bg-primary/10 px-2 text-sm font-semibold text-primary focus-within:ring-2 focus-within:ring-primary",
+                  "flex min-h-12 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-2 text-sm font-semibold text-primary focus-within:ring-2 focus-within:ring-primary",
                   bloccaFoto && "cursor-not-allowed opacity-60",
                 )}>
                   <input type="file" aria-label={t("Scatta una foto")} accept="image/*" capture="environment" className="sr-only"
                     onChange={handleFotoChange} disabled={bloccaFoto} />
                   <Camera className="size-5 shrink-0" aria-hidden="true" />{t(fotoUrls.length ? "Altra foto" : "Scatta foto")}
                 </label>
-                <label className={cn("flex min-h-12 cursor-pointer items-center justify-center gap-1.5 rounded-xl border px-2 text-sm font-semibold focus-within:ring-2 focus-within:ring-primary", bloccaFoto && "cursor-not-allowed opacity-60")}>
+                <label className={cn("flex min-h-12 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-2 text-sm font-semibold focus-within:ring-2 focus-within:ring-primary", bloccaFoto && "cursor-not-allowed opacity-60")}>
                   <input type="file" aria-label={t("Scegli foto dalla galleria")} accept="image/*" multiple className="sr-only"
                     onChange={handleFotoChange} disabled={bloccaFoto} />
                   <Images className="size-4 shrink-0" aria-hidden="true" /> {t("Galleria")}
                 </label>
               </div>
+              {/* Le foto già scattate sul cantiere (anche ieri, anche dai colleghi) si scelgono qui (24/11/2026). */}
+              {orderId && (
+                <ScegliDalRullino orderId={orderId} giaNelRapportino={fotoUrls} posti={postiLiberi(fotoUrls.length)} disabilitato={bloccaFoto}
+                  onAggiungi={rif => setFotoUrls(prima => [...prima, ...rif.filter(r => !prima.includes(r))].slice(0, MAX_FOTO_PER_RAPPORTINO))} />
+              )}
               {uploadingFoto ? (
                 <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Loader2 className="size-4 shrink-0 motion-safe:animate-spin" aria-hidden="true" />{fotoProgresso ?? t("Caricamento in corso…")}
@@ -1884,9 +2044,12 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
             )}
 
             {campiSulRapportino.length > 0 && (
-              <div className="rounded-2xl border bg-background p-4 shadow-sm">
+              <section aria-labelledby="campi-azienda" className="rounded-2xl border bg-background p-4 shadow-sm">
+                {/* Collaudo 23/11: i campi che l'azienda chiede stavano in fondo senza titolo, non si capiva che fossero richiesti. */}
+                <h3 id="campi-azienda" className="text-[15px] font-bold">{t("Richiesto dalla tua azienda")}</h3>
+                {campiSulRapportino.some(c => c.obbligatorio) && <p className="mb-3 text-xs text-muted-foreground">{t("I campi con * sono obbligatori.")}</p>}
                 <CampiModulo campi={campiSulRapportino} valori={campiValori} onChange={cambiaCampo} mostraErrori={erroriCampi} />
-              </div>
+              </section>
             )}
 
             {compilaArrivo && !arrivoInAltro && bloccoArrivo}
@@ -1927,7 +2090,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
             {compilaArrivo && arrivo.length > 0 && <p className="text-sm text-muted-foreground">{t("Trasporto")} · {arrivo.map(a =>
               [(mezziPerArrivo.data ?? []).find(m => m.id === a.mezzoId)?.nome ?? t("Mezzo dichiarato"), a.km.trim() && t("{km} km all’andata", { km: a.km })].filter(Boolean).join(" · ")
             ).join(", ")}</p>}
-            {!confermaCliente && <>{(parti.avanzamento || parti.fasi) && <details className="rounded-2xl border px-3 py-1 [&[open]]:pb-3">
+            {!confermaCliente && <>{(parti.avanzamento || parti.fasi) && <details open className="rounded-2xl border px-3 py-1 [&[open]]:pb-3">
               <summary className="cursor-pointer py-2.5 text-sm font-semibold">{t(parti.fasi && parti.avanzamento ? "Lavorazioni e avanzamento" : parti.fasi ? "Lavorazioni" : "Avanzamento")}{Object.keys(fasiDichiarate).length > 0 ? " · " + t("{n} selezionate", { n: Object.keys(fasiDichiarate).length }) : ""}</summary>
               <div className="space-y-3">{parti.avanzamento && bloccoAvanzamento}{parti.fasi && bloccoFasi}</div>
             </details>}
@@ -2098,6 +2261,13 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
           outer page and main have different scroll heights. The pb-24 above
           keeps the last field visible; CampoLayout hides the app bottom nav. */}
       <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.06)] md:sticky md:inset-x-auto md:z-20 md:px-4 md:pb-3">
+        {/* Avanti grigio senza spiegazione (collaudo 24/11): ora si dice cosa manca. */}
+        {!saving && !ripresaDecisa && !daRifare && !bloccatoDaEsistente && (
+          <p role="status" className="mb-1.5 text-xs font-semibold text-primary">{t("Prima scegli in alto: riprendi la bozza o parti da un modulo vuoto.")}</p>
+        )}
+        {!saving && ripresaDecisa && !dayAllowed && (
+          <p role="status" className="mb-1.5 text-xs font-semibold text-amber-700">{t("Questa giornata non si può più inviare: scegline un'altra.")}</p>
+        )}
         <div className="mb-1.5 flex min-w-0 items-center gap-2">
           <RapportinoSiteContext orderId={orderId} companyId={companyId} compatto />
           {riepilogoRapido && isUltimoStep && <p className="max-w-[40%] truncate text-xs text-muted-foreground" title={riepilogoRapido}>{riepilogoRapido}</p>}
@@ -2108,7 +2278,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
             onClick={() => void goBack()}
             aria-label={t(step === 1 ? "Esci dal modulo" : "Passo precedente")}
             disabled={saving || uploadingFoto}
-            className="bg-muted border border-border text-foreground font-semibold py-3.5 px-6 rounded-xl active:bg-muted transition-colors"
+            className="bg-muted border border-border text-foreground font-semibold py-3.5 px-6 rounded-full active:bg-muted transition-colors"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
@@ -2116,7 +2286,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
             type="button"
             onClick={goNext}
             disabled={saving || uploadingFoto || vocaleVisibile || verificaInCorso || verificaFallita || clienteNonConsentito || (!lavoro_completato && flusso.soloTimbratura && !daRifare) || !dayAllowed || bloccatoDaEsistente || (!ripresaDecisa && !daRifare) || (lavoro_completato && !descrizione.trim()) || (isUltimoStep && (firmeMancanti || (lavoro_completato && !online)))}
-            className="flex min-h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-2 py-2.5 text-center text-sm font-bold text-primary-foreground disabled:opacity-60 motion-safe:transition-transform motion-safe:active:scale-[0.98] sm:text-base"
+            className="flex min-h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-primary px-2 py-2.5 text-center text-sm font-bold text-primary-foreground disabled:opacity-60 motion-safe:transition-transform motion-safe:active:scale-[0.98] sm:text-base"
           >
             {saving ? (
               <><Loader2 className="size-5 motion-safe:animate-spin" aria-hidden="true" /> {t("Invio in corso…")}</>

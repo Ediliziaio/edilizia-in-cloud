@@ -11,8 +11,12 @@ export function normalizeVoiceProposal(raw: unknown): { trascrizione: string; da
       ? [{ nome, quantita: q, unita: text(m.unita, 30) }] : [];
   }).slice(0, 100) : [];
   const ore = d.ore_lavorate;
+  // Chi c'era, detto a voce: serve a segnare le presenze della squadra (24/11/2026).
+  const team = Array.isArray(d.team_presenti)
+    ? d.team_presenti.map(n => text(n, 120)).filter(Boolean).slice(0, 60) : [];
   return { trascrizione: text(r.trascrizione), dati_estratti: {
     lavorazione: text(d.lavorazione), note: text(d.note), materiali,
+    ...(team.length ? { team_presenti: team } : {}),
     ...(typeof ore === "number" && Number.isFinite(ore) && ore >= 0 && ore <= 24 ? { ore_lavorate: ore } : {}),
   } };
 }

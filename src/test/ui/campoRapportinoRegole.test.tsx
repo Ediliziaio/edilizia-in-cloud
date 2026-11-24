@@ -40,6 +40,11 @@ vi.mock("@/hooks/useWeatherForecast", () => ({ useWeatherForecast: () => ({ data
 vi.mock("@/hooks/campo/useRapportinoVocale", () => ({ useRapportinoVocale: () => ({
   draft: state.proposta, uploading: false, transcribing: false, error: null as string | null, processAudio: vi.fn(), resetDraft: vi.fn(),
 }) }));
+// Il registratore vero (microfono, MediaRecorder) non c'è in jsdom: un bottone consegna la proposta dell'AI.
+vi.mock("@/components/campo/RegistraGiornata", () => ({
+  RegistraGiornata: ({ onCompilato }: { onCompilato: (d: RapportinoVocaleDraft) => void }) =>
+    <button type="button" onClick={() => onCompilato(state.proposta!)}>Racconta la giornata a voce</button>,
+}));
 vi.mock("@/hooks/campo/useCampoDayTime", () => ({ useCampoDayTime: () => ({
   summary: summarizeCampoTime([], { start: new Date("2026-09-24T00:00:00Z"), end: new Date("2026-09-25T00:00:00Z"), now: new Date("2026-09-24T18:00:00Z"), includeOpen: true }),
   isSuccess: true, isError: false, refetch: vi.fn(),
@@ -225,11 +230,10 @@ describe("L'operaio, secondo come lavora l'azienda", () => {
     expect(ore()).toBeInTheDocument(); expect(screen.getByLabelText("Lavori svolti nella giornata")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Luca/ })).toBeNull();
   });
-  it("la voce rimane nello stesso modulo e non permette di saltare alla verifica mentre è aperta", () => {
+  it("la voce è un bottone in cima al modulo: il modulo resta lì e si può andare avanti", () => {
     render(<CampoRapportino />);
-    fireEvent.click(screen.getByRole("button", { name: "Compila parlando" }));
-    expect(screen.getByRole("button", { name: "Avanti" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "Torna a scrivere" }));
+    expect(screen.getByRole("button", { name: "Racconta la giornata a voce" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Lavori svolti nella giornata")).toBeVisible();
     expect(screen.getByRole("button", { name: "Avanti" })).toBeEnabled();
     expect(state.insert).not.toHaveBeenCalled();
   });
@@ -254,15 +258,16 @@ describe("L'operaio, secondo come lavora l'azienda", () => {
     render(<CampoRapportino />);
     fireEvent.change(screen.getByLabelText("Lavori svolti nella giornata"), { target: { value: "Controllato il primo piano" } });
     fireEvent.change(ore()!, { target: { value: "6.5" } });
-    fireEvent.click(screen.getByRole("button", { name: "Compila parlando" }));
-    expect(screen.getByText("Controlla la proposta vocale")).toBeVisible();
-    expect(screen.queryByText("Ore proposte")).toBeNull();
-    expect(screen.queryByText("Materiali proposti")).toBeNull();
-    expect(state.insert).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Inserisci nel rapportino" }));
+    // Un tocco: la voce compila da sola, senza cancellare testo e ore già scritti, e niente si invia.
+    fireEvent.click(screen.getByRole("button", { name: "Racconta la giornata a voce" }));
+    expect(screen.getByText("Ho compilato il rapportino")).toBeVisible();
     expect(screen.getByLabelText("Lavori svolti nella giornata")).toHaveValue("Controllato il primo piano\nPosati due telai");
     expect(ore()).toHaveValue(6.5);
     expect(state.insert).not.toHaveBeenCalled();
+    // «Annulla» rimette com'era prima della voce.
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
+    expect(screen.getByLabelText("Lavori svolti nella giornata")).toHaveValue("Controllato il primo piano");
+    expect(screen.queryByText("Ho compilato il rapportino")).toBeNull();
   });
   it("se il rapportino lo fa il capo, propone solo timbratura e cantiere", () => {
     state.regole = { chiCompila: "capo", oreDalle: "capo", avvisoScostamentoMinuti: null };
@@ -389,7 +394,7 @@ describe("Un rapportino diverso per chi lo compila", () => {
     render(<CampoRapportino />);
     expect(screen.queryByText("Stesse ore per tutti:")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Mario" }));
-    expect(screen.queryByText("Stesse ore per tutti:")).toBeNull(); // con uno solo non serve
+    expect(screen.getByText("Stesse ore per tutti:")).toBeInTheDocument(); // anche con uno: un tocco invece di scrivere
     fireEvent.click(screen.getByRole("button", { name: "Luca" }));
     fireEvent.click(screen.getByRole("button", { name: "8 h" }));
     expect(screen.getByLabelText("Ore di Mario")).toHaveValue(8);
@@ -398,6 +403,29 @@ describe("Un rapportino diverso per chi lo compila", () => {
     await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({
       presenze: [expect.objectContaining({ nome: "Mario", ore: 8 }), expect.objectContaining({ nome: "Luca", ore: 8 })],
     })));
+  });
+
+  it("«Tutta la squadra» segna tutti con un tocco e un altro tocco li toglie", () => {
+    state.role = { isCapocantiere: true, esisteCapo: true }; state.crew = squadra;
+    render(<CampoRapportino />);
+    fireEvent.click(screen.getByRole("button", { name: "Tutta la squadra (3)" }));
+    for (const nome of ["Mario", "Luca", "Anna"]) expect(screen.getByLabelText(`Ore di ${nome}`)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "9 h" }));
+    expect(screen.getByLabelText("Ore di Anna")).toHaveValue(9);
+    fireEvent.click(screen.getByRole("button", { name: "Togli tutti" }));
+    expect(screen.queryByLabelText("Ore di Mario")).toBeNull();
+  });
+
+  it("la voce segna chi c'era, se il nome è nella squadra di oggi", () => {
+    state.role = { isCapocantiere: true, esisteCapo: true }; state.crew = squadra;
+    state.proposta = { trascrizione: "Oggi con Luca e Anna abbiamo fatto il massetto", audio_duration_sec: 9,
+      dati_estratti: { lavorazione: "Massetto al primo piano", ore_lavorate: 8, team_presenti: ["Luca", "Anna", "Giuseppe"] } };
+    render(<CampoRapportino />);
+    fireEvent.click(screen.getByRole("button", { name: "Racconta la giornata a voce" }));
+    expect(screen.getByLabelText("Ore di Luca")).toHaveValue(8);
+    expect(screen.getByLabelText("Ore di Anna")).toHaveValue(8);
+    expect(screen.queryByLabelText("Ore di Mario")).toBeNull();
+    expect(screen.getByText("2 persone")).toBeInTheDocument();
   });
 
   it("se in cantiere non c'è nessuno da segnare, il capo scrive le sue ore come tutti", () => {
@@ -592,4 +620,25 @@ it("il coordinatore può inviare sole note con zero ore esplicite e senza presen
  avanti();invia();await waitFor(()=>expect(state.insert).toHaveBeenCalled());
  expect(state.insert.mock.calls[0][0]).toMatchObject({ore_lavorate:0});
  expect(state.insert.mock.calls[0][0].presenze).toBeUndefined();
+});
+
+describe("Cantieri grandi: 200 fasi", () => {
+  it("mostra le fasi in corso e le prossime; le altre si trovano cercando", () => {
+    state.role = { isCapocantiere: true, esisteCapo: true };
+    state.fasi = Array.from({ length: 200 }, (_, i) => ({
+      id: `f${i}`, name: i === 150 ? "Impianto elettrico piano terra" : `Fase ${i}`,
+      status: i === 120 ? "in_corso" : "da_iniziare", percentuale: 0,
+    }));
+    render(<CampoRapportino />);
+    fireEvent.change(ore()!, { target: { value: "8" } });
+    avanti();
+    expect(screen.getByRole("button", { name: "Fase 120" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Fase 199" })).toBeNull();
+    expect(screen.getByText(/Le altre 192 le trovi cercando/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Cerca una fase"), { target: { value: "elettrico terra" } });
+    fireEvent.click(screen.getByRole("button", { name: "Impianto elettrico piano terra" }));
+    fireEvent.change(screen.getByLabelText("Cerca una fase"), { target: { value: "" } });
+    // la fase scelta resta in vista anche dopo aver tolto la ricerca
+    expect(screen.getByRole("button", { name: "Impianto elettrico piano terra" })).toHaveAttribute("aria-pressed", "true");
+  });
 });
