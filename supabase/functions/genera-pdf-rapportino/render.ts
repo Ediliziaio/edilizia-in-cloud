@@ -8,7 +8,7 @@ import { PDFDocument, rgb, setCharacterSpacing, StandardFonts, type PDFFont, typ
 import { fontPiedeBase64, misurePiede, personalizzazioneDocumento, testoRigaPiede } from "../_shared/personalizzazioneDocumenti.ts";
 // Lo stile unico dei documenti (10/11/2026): colori, testata, sezioni, tabelle, riquadri e piè vengono da lì.
 import { accentoDocumento, colore as C, pagina as PG, riquadro as RQ, rgb01, sezione as SZ, tabella as TB, testata as TS } from "../_shared/stileDocumenti.ts";
-import { compilatoDa, bloccoFasi, dayLabel, number, oraBreve, oreBrevi, record, reportSummary, rows, text, timestamp, type FaseBlocco, type PdfContext } from "./model.ts";
+import { compilatoDa, bloccoFasi, dayLabel, number, oraBreve, oreBrevi, record, reportSummary, rigaViaggio, rows, text, timestamp, type FaseBlocco, type PdfContext } from "./model.ts";
 
 /** Keep paragraph breaks; replace unsupported glyphs explicitly instead of crashing. */
 export function printable(value: string): string {
@@ -529,6 +529,14 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
     tabella(["Mezzo", "Ore"], [CW - 90, 90],
       mezzi.map((m, i) => [text(m.nome) || "Mezzo senza nome", oreMezzi[i] == null ? "non indicate" : oreBrevi(m.ore)]),
       ["l", "r"], M, mezzi.length > 1 && oreMezzi.every(h => h != null) ? ["Totale ore mezzi", oreBrevi(oreMezzi.reduce<number>((t, h) => t + (h ?? 0), 0))] : undefined);
+  }
+
+  // ═════════ Viaggi (24/11/2026): il rapportino del trasporto dice da dove a dove, con cosa e quanti km ═════════
+  const viaggi = (ctx.viaggi ?? []).filter(v => Object.keys(record(v.viaggio)).length);
+  if (viaggi.length) {
+    sezione(viaggi.length > 1 ? "Viaggi" : "Viaggio", 100);
+    tabella(["Carico → scarico", "Mezzo", "DDT", "Km", "Ore"], [CW - 120 - 70 - 50 - 90, 120, 70, 50, 90],
+      viaggi.map(rigaViaggio), ["l", "l", "l", "r", "r"], M);
   }
 
   // ═════════ Tempi ═════════

@@ -104,12 +104,16 @@ Deno.serve(async (req: Request) => {
         return data.length <= 2 * 1024 * 1024 ? data : null;
       } catch { return null; }
     };
+    // Il viaggio del rapportino del trasporto (24/11/2026): luoghi, mezzo, DDT, km e ore. Niente prezzi.
+    const { data: viaggi, error: viaggiError } = await admin.from("rapportino_voci_libere")
+      .select("viaggio").eq("rapportino_id", id).not("viaggio", "is", null).order("created_at", { ascending: true });
+    if (viaggiError) warnings.push("Dati del viaggio non disponibili in questa edizione.");
     const tipoModello = rap.lavoro_completato === true ? "fine_lavori" : "rapportino";
     const { data: modello, error: modelloError } = await admin.from("company_document_templates").select("config").eq("company_id", rap.company_id).eq("document_type", tipoModello).maybeSingle();
     if (modelloError) return errorResponse("Modello PDF non disponibile: riprova la generazione.", 500, cors);
     const generatedAt = new Date().toISOString();
     const revision = Date.now().toString(36) + "-" + crypto.randomUUID().slice(0, 8);
-    const result = await renderRapportino({ report: rap, company: { ...company, name: company.business_name || company.name }, branding: { ...branding, logoUrl: company.logo_url || undefined, primaryColor: company.brand_primary_color || branding.primaryColor }, phases, punches, warnings, revision, generatedAt, modelloPdf: normalizzaModelloPdf(tipoModello, modello?.config), subphases }, loadImage);
+    const result = await renderRapportino({ report: rap, company: { ...company, name: company.business_name || company.name }, branding: { ...branding, logoUrl: company.logo_url || undefined, primaryColor: company.brand_primary_color || branding.primaryColor }, phases, punches, warnings, revision, generatedAt, modelloPdf: normalizzaModelloPdf(tipoModello, modello?.config), subphases, viaggi: viaggi ?? [] }, loadImage);
     // Every edition has its own object; previous exports are never overwritten.
     // v4 = documento a blocchi (schede per fase). Cambiare il numero fa rigenerare, alla prima apertura, i PDF già fatti.
     const path = rap.company_id + "/" + id + "/rapportino-v4-" + revision + ".pdf";

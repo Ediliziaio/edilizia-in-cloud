@@ -4,6 +4,7 @@ import { ArrivoRapportino } from "@/components/orders/ArrivoRapportino";
 import { ARRIVI_VUOTI, mezzoStradale } from "@/lib/campo/arrivoRapportino";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useMemo, useState, type ReactNode } from "react";
+import { useCatalogoVociRapportino } from "@/hooks/useCatalogoVociRapportino";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarRange, Camera, Check, FileUp, Hammer, Loader2, NotebookPen, Plus, Sparkles, Trash2, Users, X } from "lucide-react";
 import { toast } from "sonner";
@@ -26,7 +27,7 @@ import { refreshRapportinoQueries } from "@/lib/orders/refreshRapportinoQueries"
 import { messaggioErrore } from "@/lib/orders/sottofasi";
 import { giornoLocale } from "@/lib/orders/cronoprogramma";
 import { compressImage } from "@/lib/campo/compressImage";
-import { applicaParti, fasiDelGiorno,
+import { applicaParti, commessaDeiTrasporti, fasiDelGiorno, voceViaggioNuova,
   METEO, caricoRapportini, erroriGiorni, giornoDaLetto, giorniDaPeriodo, giornoVuoto,
   type GiornoUfficio, type PersonaPresenza, type RapportinoLetto,
 } from "@/lib/campo/rapportiniUfficio";
@@ -157,8 +158,27 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
     .map((m) => ({ id: m.id, nome: `${m.nome}${m.targa ? ` · ${m.targa}` : ""}`, qui: idQui.has(m.id) }));
 
   const [giorni, setGiorni] = useState<GiornoUfficio[]>(() => [giornoVuoto(oggi, "g0")]);
+  // Commessa dei trasporti (24/11/2026): ogni giorno parte con la voce del viaggio, coi prezzi del catalogo.
+  const commessa = useQuery({
+    queryKey: ["rapportini-ufficio-commessa", orderId],
+    queryFn: async () => {
+      const { data, error } = await dbx.from("orders").select("description").eq("id", orderId).maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as { description: string | null } | null;
+    },
+  });
+  const catalogoVoci = useCatalogoVociRapportino(companyId, canViewCosts);
+  const trasporti = canViewCosts && commessaDeiTrasporti(commessa.data?.description) && (catalogoVoci.isFetched || catalogoVoci.isError);
+  const conViaggio = (g: GiornoUfficio): GiornoUfficio =>
+    trasporti && !(g.voci ?? []).length ? { ...g, voci: [voceViaggioNuova(crypto.randomUUID(), catalogoVoci.data?.voci ?? [])] } : g;
+  // Una volta sola, appena si sa che è una commessa dei trasporti: i giorni ancora senza voci ricevono il viaggio.
+  const [viaggioMesso, setViaggioMesso] = useState(false);
   const [tentato, setTentato] = useState(false);
   const [caricando, setCaricando] = useState<string | null>(null);
+  if (trasporti && !viaggioMesso) {
+    setViaggioMesso(true);
+    setGiorni((gs) => gs.map(conViaggio));
+  }
   const [periodo, setPeriodo] = useState<{ dal: string; al: string; feriali: boolean } | null>(null);
   const [lettura, setLettura] = useState<{ stato: "legge" } | { stato: "letto"; n: number; avvisi: string[] } | null>(null);
   // Il primo giorno ancora vuoto si sostituisce, invece di restare lì in cima.
@@ -472,7 +492,7 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
         );
       })}
       <Button variant="outline" size="sm" disabled={giorni.length >= 31}
-        onClick={() => setGiorni((gs) => [...gs, giornoVuoto(oggi, `g${Date.now()}`, gs[gs.length - 1])])}>
+        onClick={() => setGiorni((gs) => [...gs, conViaggio(giornoVuoto(oggi, `g${Date.now()}`, gs[gs.length - 1]))])}>
         <Plus className="mr-1 h-4 w-4" />{tr("Aggiungi un altro giorno")}
       </Button>
       {tentato && errori.length > 0 && <ul role="alert" className="list-disc pl-5 text-xs text-rose-700">{errori.map((e) => <li key={e}>{e}</li>)}</ul>}

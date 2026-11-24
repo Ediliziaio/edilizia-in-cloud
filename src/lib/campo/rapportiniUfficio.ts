@@ -56,6 +56,27 @@ export interface GiornoUfficio {
   voci?: VoceUfficio[];
 }
 
+/**
+ * Commessa dei trasporti (24/11/2026): «TRASPORTI», «TRASPORTI E SMALTIMENTI», «TRASPORTI C/T»…
+ * Lì ogni rapportino è un viaggio: parte già con la voce del viaggio (carico, scarico, mezzo, km),
+ * invece di lasciare tutto nella descrizione.
+ */
+export function commessaDeiTrasporti(nome?: string | null): boolean {
+  return /(^|[^\p{L}])trasport[oi]([^\p{L}]|$)/iu.test(nome ?? "");
+}
+
+/** La voce del viaggio da aggiungere: quella del catalogo dell'azienda, se ce n'è una, con i suoi prezzi. */
+export function voceViaggioNuova(
+  chiave: string,
+  catalogo: ReadonlyArray<{ nome: string; unita: string; costo_unitario: number | null; vendita_unitaria: number | null }> = [],
+): VoceUfficio {
+  const m = catalogo.find((x) => voceTrasporto(x.nome, x.unita));
+  const testo = (n: number | null | undefined): string => (n == null ? "" : String(n).replace(".", ","));
+  return m
+    ? { chiave, descrizione: m.nome, quantita: unitaChilometro(m.unita) ? "" : "1", unita: m.unita, costo: testo(m.costo_unitario), vendita: testo(m.vendita_unitaria), viaggio: {} }
+    : { chiave, descrizione: "Trasporto", quantita: "1", unita: "viaggio", costo: "", vendita: "", viaggio: {} };
+}
+
 /** «7,5» → 7.5; vuoto o non numero → null. */
 export function oreLette(v: string | undefined): number | null {
   if (v == null || !v.trim()) return null;

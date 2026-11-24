@@ -36,3 +36,13 @@ it("azienda senza catalogo e senza voci a mano: non si mostra", () => {
   const { container } = render(<VociRapportinoUfficio companyId="c" voci={[]} onCambia={vi.fn()} />);
   expect(container.firstChild).toBeNull();
 });
+
+it("la voce TRASPORTI del catalogo apre i campi del viaggio, e «Aggiungi viaggio» la usa coi suoi prezzi", () => {
+  m.catalogo = { voci: [{ id: "t", nome: "TRASPORTI", unita: "cad", costo_unitario: 120, vendita_unitaria: 180 }], aMano: false };
+  const onCambia = vi.fn();
+  render(<VociRapportinoUfficio companyId="c" voci={[]} onCambia={onCambia} />);
+  changeFormControl(screen.getByRole("combobox", { name: "Aggiungi una voce" }), { target: { value: "t" } });
+  expect(onCambia.mock.calls[0][0][0]).toMatchObject({ descrizione: "TRASPORTI", viaggio: {} });
+  fireEvent.click(screen.getByRole("button", { name: /Aggiungi viaggio/ }));
+  expect(onCambia.mock.calls[1][0][0]).toMatchObject({ descrizione: "TRASPORTI", unita: "cad", quantita: "1", costo: "120", vendita: "180", viaggio: {} });
+});

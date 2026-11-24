@@ -125,3 +125,17 @@ describe("voci libere nel modulo dell'ufficio", () => {
     expect(giornoVuoto("2026-11-04", "h", { ...giorno, voci: [{ chiave: "a", descrizione: "X", quantita: "1", unita: "cad", costo: "", vendita: "" }] }).voci).toBeUndefined();
   });
 });
+
+describe("commessa dei trasporti (24/11/2026)", () => {
+  it("riconosce il nome, non le parole che lo contengono", async () => {
+    const { commessaDeiTrasporti } = await import("@/lib/campo/rapportiniUfficio");
+    for (const nome of ["TRASPORTI", "TRASPORTI E SMALTIMENTI", "TRASPORTI/SMALTIMENTI ATTIVI", "Trasporto materiale", "TRASPORTI C/T"]) expect(commessaDeiTrasporti(nome)).toBe(true);
+    for (const nome of ["Villa Rossi", "Trasportatori riuniti", "", null]) expect(commessaDeiTrasporti(nome)).toBe(false);
+  });
+  it("la voce del viaggio prende quella del catalogo, o «Trasporto» a viaggio", async () => {
+    const { voceViaggioNuova } = await import("@/lib/campo/rapportiniUfficio");
+    expect(voceViaggioNuova("k", [{ nome: "SERVIZIO GRU", unita: "cad", costo_unitario: 1, vendita_unitaria: 2 }, { nome: "TRASPORTI", unita: "cad", costo_unitario: 90.5, vendita_unitaria: null }]))
+      .toEqual({ chiave: "k", descrizione: "TRASPORTI", quantita: "1", unita: "cad", costo: "90,5", vendita: "", viaggio: {} });
+    expect(voceViaggioNuova("k")).toEqual({ chiave: "k", descrizione: "Trasporto", quantita: "1", unita: "viaggio", costo: "", vendita: "", viaggio: {} });
+  });
+});
