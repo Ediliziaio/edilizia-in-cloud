@@ -371,6 +371,17 @@ class LegendaEStanzeDaiNomiTest(unittest.TestCase):
         self.assertEqual(esito[1], "Int. 04")
 
 
+class AltezzeDeiLocaliTest(unittest.TestCase):
+    def test_legge_h_nelle_stanze_e_scarta_porte_e_sigle(self):
+        from ricostruisciDxf import leggi_altezze_locali
+        doc = ezdxf.new()
+        spazio = doc.modelspace()
+        for testo, x in (("H 313", 1), ("h = 2,70", 2), ("H 210", 3), ("L 99 H 241 Hs 92", 4), ("H 318*", 5)):
+            spazio.add_text(testo, dxfattribs={"insert": (x, 1)})
+        altezze = leggi_altezze_locali(list(spazio), box(0, 0, 1000, 1000), 100)
+        self.assertEqual([h for _, h in altezze], [313, 270, 318])
+
+
 class SistemazioniDelLottoTest(unittest.TestCase):
     def test_ritrova_l_edificio_nella_planimetria_e_porta_il_lotto_nella_pianta(self):
         from ricostruisciDxf import leggi_sistemazioni

@@ -586,6 +586,29 @@ def leggi_legenda_unita(entita):
     return [unita[k] for k in sorted(unita)]
 
 
+ALTEZZA_LOCALE = re.compile(r"^\s*h\s*[=.:]?\s*(\d{3})\s*\*?\s*$|^\s*h\s*[=.:]?\s*([23][.,]\d{2})\s*m?\s*$", re.IGNORECASE)
+
+
+def leggi_altezze_locali(entita, zona, cm):
+    """Le altezze nette scritte nelle stanze: «H 313», «h = 2,70». Sotto i 2,20 m è una porta o un
+    sottoscala, non un'altezza di stanza; le sigle complete degli infissi («L 99 H 241») non c'entrano."""
+    altezze = []
+    for e in entita:
+        if e.dxftype() not in ("TEXT", "MTEXT"):
+            continue
+        p = e.dxf.insert
+        posizione = Point(p.x * cm, p.y * cm)
+        if not zona.covers(posizione):
+            continue
+        m = ALTEZZA_LOCALE.match(" ".join((e.plain_text() if e.dxftype() == "MTEXT" else e.dxf.text).split()))
+        if not m:
+            continue
+        h = int(m.group(1)) if m.group(1) else round(float(m.group(2).replace(",", ".")) * 100)
+        if 220 <= h <= 600:
+            altezze.append((posizione, h))
+    return altezze
+
+
 def altezza_del_piano(quota, quote, richiesta, solaio=30):
     """L'altezza netta di un piano dalla quota del piano sopra (interpiano meno il solaio), se è
     plausibile; altrimenti quella indicata nella richiesta. L'ultimo piano prende quella del
@@ -1734,6 +1757,7 @@ class PianoLetto:
     sigle: list = field(default_factory=list)
     sigle_unita: list = field(default_factory=list)
     nomi_letti: int = 0
+    altezze: list = field(default_factory=list)
 
 
 def leggi_piano(entita, regione, cm, layer, controllo=False):
@@ -1840,7 +1864,8 @@ def leggi_piano(entita, regione, cm, layer, controllo=False):
         mq == l.superficie and l.contorno.covers(p) for l in locali
     ))
     return PianoLetto(muri, pertinenti, locali, testi, leggi_quote(entita, zona, cm), assi_vicini(entita, zona, cm), linee, archi, riscontri[:48], fonti,
-                      leggi_sigle_infissi(entita, zona, cm), leggi_sigle_unita(entita, zona, cm), len(nomi))
+                      leggi_sigle_infissi(entita, zona, cm), leggi_sigle_unita(entita, zona, cm), len(nomi),
+                      leggi_altezze_locali(entita, zona, cm))
 
 
 def leggi_scale(letti, altezza):
@@ -2095,6 +2120,10 @@ def ricostruisci(documento, opzioni):
             }
             if l.superficie is not None:
                 locale["superficieDichiarataMq"] = l.superficie
+            # «H 313» scritto nella stanza è la sua altezza netta (anche un controsoffitto).
+            altezza_scritta = next((h for p, h in piano.altezze if l.contorno.covers(p)), None)
+            if altezza_scritta and altezza_scritta <= altezza + 60:
+                locale["altezza"] = altezza_scritta
             if i - 1 in unita:
                 locale["unita"] = unita[i - 1]
             if l.aperto:
