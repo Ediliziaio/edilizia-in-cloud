@@ -398,7 +398,7 @@ export async function esportaFascicolo(d: DatiFascicolo): Promise<{ dati: Uint8A
         const quantita = riga.quantita === null ? "Da quantificare" : `${num(riga.quantita)} ${riga.unita}${riga.stimata ? " (stima)" : ""}`;
         testo(`${riga.descrizione} · ${quantita}`, 11, true);
         testo([riga.piano, riga.fase, riga.criterio].filter(Boolean).join(" / "), 9);
-        if (riga.prezzo) testo(`Prezzo unitario ${num(riga.prezzo.importo)} €/${riga.prezzo.unita}${riga.quantita === null ? "" : ` / importo ${euro(riga.quantita * riga.prezzo.importo)}`} / ${riga.prezzo.fonte} ${riga.prezzo.tariffa}`, 9);
+        if (riga.prezzo) testo(`Prezzo unitario ${num(riga.prezzo.importo)} €/${riga.prezzo.unita}${riga.quantita === null ? "" : ` / importo ${euro(riga.quantita * riga.prezzo.importo)}`} / ${riga.prezzo.fonte}${riga.prezzo.tariffa && !riga.prezzo.fonte.includes(riga.prezzo.tariffa) ? ` ${riga.prezzo.tariffa}` : ""}`, 9);
         y -= 8;
       }
       const quotate = righe.filter((r) => r.prezzo && r.quantita !== null);
