@@ -1,10 +1,11 @@
 import{randomUUID,createHash}from'node:crypto';
 import{extractDocuments}from'../gare-ai/extract.mjs';
-import{infer,contextText,groundCitation,MODEL}from'../gare-ai/inference.mjs';
+import{infer,contextText,groundCitation,MODEL,privateInference}from'../gare-ai/inference.mjs';
 import{ok,fail}from'./data.mjs';
 import{checkedProposal}from'./proposal.mjs';
 const fields={registration:['register','number','issuer','scope'],certification:['scheme','issuer','number','scope'],cel:['client','number','category','period','amount','share','role','completion','contract'],insurance:['issuer','number','scope','amount','conditions'],qualification:['scheme','category','classification','issuer','number','scope'],experience:['client','description','period','amount','currency','category','share','completion'],person:['name','role','skills','relationship','availability'],equipment:['description','availability','quantity','capacity','location'],authority:['signer','powers','role','authority_document','scope'],economic:['metric','period','amount','currency','scope','document']};
 export async function extractCompany(ctx,id,{signal,force=false}={}){
+ if(!privateInference)fail('Per i documenti aziendali riservati usa il fascicolo manuale o il motore privato.',422);
  const file=await ok(ctx.client.from('gare_evidence_files').select('*').eq('company_id',ctx.companyId).eq('id',id).single());
  const newer=await ok(ctx.client.from('gare_evidence_files').select('id').eq('previous_id',id).limit(1));if(newer.length)fail('La prova è stata aggiornata: scegli la versione corrente.');
  const hash=createHash('sha256').update(JSON.stringify([ctx.companyId,id,file.sha256,MODEL,3])).digest('hex');
