@@ -196,6 +196,28 @@ const COLORI_AREA: Record<string, { pieno: string; bordo: string }> = {
   orto: { pieno: "#E6D5B6", bordo: "#A0835A" },
 };
 
+// ─── Zone delle tavole di vendita ────────────────────────────────────────────
+
+export type ZonaLocale = "giorno" | "notte" | "servizi" | "comuni" | "esterni";
+export const COLORI_ZONA: Record<ZonaLocale, { pieno: string; nome: string }> = {
+  giorno: { pieno: "#FCE7B2", nome: "Zona giorno" },
+  notte: { pieno: "#C9DDF5", nome: "Zona notte" },
+  servizi: { pieno: "#CDEBDF", nome: "Bagni e servizi" },
+  comuni: { pieno: "#E5E1DA", nome: "Parti comuni" },
+  esterni: { pieno: "#DDEFC6", nome: "Balconi e terrazzi" },
+};
+
+/** La zona dalla destinazione, e dal nome se la destinazione è generica («letto», «dis.», «atrio»). */
+export function zonaDelLocale(l: { destinazione?: string; nome: string }): ZonaLocale {
+  const d = l.destinazione ?? "", n = l.nome.toLowerCase();
+  if (/balcon|terrazz|loggia|portico|giardin/.test(d + " " + n)) return "esterni";
+  if (/atrio|scal[ae]\b|androne|condomin|pianerottol|vano scala/.test(n) || d === "scala") return "comuni";
+  if (/camera|letto/.test(d) || /\bletto\b|camer/.test(n)) return "notte";
+  if (/bagno|lavanderia|ripostiglio|disimpegno|corridoio|cabina|guardaroba|wc|cantina|locale_tecnico/.test(d)
+    || /bagn|\bwc\b|\bdis\b|disimp|\brip\b|ripost|corrid|armadio|cabina|lavand|cantin/.test(n)) return "servizi";
+  return "giorno";
+}
+
 // ─── Costruzione ─────────────────────────────────────────────────────────────
 
 export function costruisciScena(vista: VistaPianta, opzioni: OpzioniScena = {}): Scena {
@@ -215,7 +237,7 @@ export function costruisciScena(vista: VistaPianta, opzioni: OpzioniScena = {}):
     const colore = COLORI_AREA[a.tipo] ?? COLORI_AREA.prato;
     primitive.push({
       tipo: "poligono", layer: "ESTERNI", punti: a.contorno, chiuso: true,
-      ...(lotto || !presentazione ? {} : { riempimento: colore.pieno }),
+      ...(lotto || stile === "tecnico" ? {} : { riempimento: colore.pieno }),
       tratto: lotto ? { colore: "#DC2626", spessoreMm: 0.35, tratteggioMm: [6, 1.5, 1, 1.5] } : { colore: colore.bordo, spessoreMm: 0.13, ...(a.stato === "nuovo" ? { tratteggioMm: [2, 1] } : {}) },
     });
     const etichetta = `${a.nome || NOMI_AREA[a.tipo as TipoArea] || a.tipo}${a.superficieMq && !lotto ? ` ${numeroIt(a.superficieMq)} m²` : ""}`;
@@ -255,6 +277,9 @@ export function costruisciScena(vista: VistaPianta, opzioni: OpzioniScena = {}):
           tratto: { colore: t.coloreLinee, spessoreMm: t.spessoreMm },
         });
       }
+    }
+    if (stile === "zone") {
+      primitive.push({ tipo: "poligono", layer: "PAVIMENTI", punti: l.contorno, chiuso: true, riempimento: COLORI_ZONA[zonaDelLocale(l)].pieno });
     }
     primitive.push({
       tipo: "poligono", layer: "LOCALI", punti: l.contorno, chiuso: true,

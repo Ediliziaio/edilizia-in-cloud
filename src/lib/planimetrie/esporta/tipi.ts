@@ -182,5 +182,6 @@ export interface LogoCartiglio {
   tipo: "png" | "jpg";
 }
 
-/** Tecnico: bianco e nero come lo vuole il geometra. Presentazione: colori e pavimenti. */
-export type StileDisegno = "tecnico" | "presentazione";
+/** Tecnico: bianco e nero come lo vuole il geometra. Presentazione: colori e pavimenti.
+ *  Zone: le stanze colorate per zona (giorno, notte, servizi, parti comuni), come le tavole di vendita. */
+export type StileDisegno = "tecnico" | "presentazione" | "zone";

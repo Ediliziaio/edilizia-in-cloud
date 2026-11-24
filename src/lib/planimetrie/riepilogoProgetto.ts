@@ -5,7 +5,7 @@
  */
 import { geometriaPiano } from "../../../shared/planimetrie/costruzione.ts";
 import { areaPoligono } from "../../../shared/planimetrie/geometria.ts";
-import { ambitiDi, eAmbienteInterno, statoDelLivello, type Planimetria, type UnitaDichiarata } from "../../../shared/planimetrie/modello.ts";
+import { ambitiDi, eAmbienteInterno, NOMI_AREA, statoDelLivello, type Planimetria, type UnitaDichiarata } from "../../../shared/planimetrie/modello.ts";
 
 export interface PianoRiepilogo { id: string; nome: string; stanze: number; nettaMq: number; lordaMq: number }
 export interface UnitaRiepilogo {
@@ -41,6 +41,37 @@ export function tipoAlloggio(camere: number): string {
 
 const eCamera = (l: { destinazione: string; nome: string }) => l.destinazione === "camera" || /\bletto\b|camer/i.test(l.nome);
 const eBagno = (l: { destinazione: string; nome: string }) => l.destinazione === "bagno" || /bagn/i.test(l.nome);
+
+export interface DatiLotto {
+  /** Superficie del lotto (confine disegnato), m²; 0 se manca. */
+  lottoMq: number;
+  /** Ingombro lordo del piano più basso fuori terra: la superficie coperta. */
+  copertaMq: number;
+  /** Coperta / lotto, 0-1; null senza lotto. */
+  rapportoCopertura: number | null;
+  /** m² per tipo di area esterna (prato, pavimentato, parcheggio…), senza il lotto. */
+  aree: Array<{ tipo: string; nome: string; mq: number }>;
+  piscine: number;
+}
+
+/** I dati della planimetria generale: lotto, coperto, verde e pavimentato, come nelle tavole. */
+export function datiLotto(doc: Planimetria, chiave: string): DatiLotto | null {
+  const ambito = ambitiDi(doc).find((a) => a.chiave === chiave) ?? ambitiDi(doc)[0];
+  const stati = doc.livelli.map((l) => ({ livello: l, stato: statoDelLivello(l, ambito) ?? l.fatto }));
+  const aree = stati.flatMap((s) => s.stato.aree ?? []);
+  if (!aree.length) return null;
+  const lottoMq = aree.filter((a) => a.tipo === "lotto").reduce((s, a) => s + areaPoligono(a.contorno) / 10_000, 0);
+  const terra = stati.filter((s) => s.livello.quota >= 0 && s.stato.muri.length).sort((a, b) => a.livello.quota - b.livello.quota)[0];
+  const copertaMq = terra ? geometriaPiano(terra.stato.muri, terra.stato.locali).lordaMq : 0;
+  const perTipo = new Map<string, number>();
+  for (const a of aree) if (a.tipo !== "lotto") perTipo.set(a.tipo, (perTipo.get(a.tipo) ?? 0) + areaPoligono(a.contorno) / 10_000);
+  return {
+    lottoMq: arrotonda(lottoMq), copertaMq: arrotonda(copertaMq),
+    rapportoCopertura: lottoMq > 0 ? Math.round(copertaMq / lottoMq * 1000) / 1000 : null,
+    aree: [...perTipo].map(([tipo, mq]) => ({ tipo, nome: NOMI_AREA[tipo as keyof typeof NOMI_AREA] ?? tipo, mq: arrotonda(mq) })).sort((a, b) => b.mq - a.mq),
+    piscine: stati.reduce((n, s) => n + s.stato.elementi.filter((e) => e.tipo === "piscina").length, 0),
+  };
+}
 
 /** `chiave` è l'ambito della pagina: «fatto» o «progetto:<variante>». */
 export function riepilogoProgetto(doc: Planimetria, chiave: string): RiepilogoProgetto {
