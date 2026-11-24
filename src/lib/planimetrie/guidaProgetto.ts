@@ -3,18 +3,18 @@
  * disegno non dice, e poi propone tavole, video e costo. Regole, niente AI: gratis e immediata.
  * Ogni azione porta al punto della scheda dove la cosa si fa, con anteprima e conferma.
  */
-import { ambitiDi, type Planimetria } from "../../../shared/planimetrie/modello.ts";
+import { ambitiDi, statoDelLivello, type Planimetria } from "../../../shared/planimetrie/modello.ts";
 import { riepilogoProgetto } from "./riepilogoProgetto";
 
 /** Dove porta un'azione: una sezione della scheda, con l'eventuale punto da raggiungere. */
 export type DestinazioneGuida =
   | { sezione: "dettagli"; ancora?: string }
-  | { sezione: "pianta"; vista?: "3d"; silvio?: boolean }
+  | { sezione: "pianta"; vista?: "3d"; silvio?: boolean; livello?: string }
   | { sezione: "studio" }
   | { sezione: "esporta" };
 
 export interface PassoGuida {
-  id: "tipo" | "unita" | "lotto" | "consegne";
+  id: "tipo" | "unita" | "lotto" | "completezza" | "consegne";
   domanda: string;
   dettaglio?: string;
   azioni: Array<{ etichetta: string; verso: DestinazioneGuida }>;
@@ -58,6 +58,17 @@ export function passiGuidaProgetto(doc: Planimetria, chiave: string): PassoGuida
       azioni: [{ etichetta: "Controlla il lotto", verso: { sezione: "pianta" } }],
     });
   }
+  const mancanze = mancanzeProgetto(doc, chiave);
+  if (mancanze.length) {
+    const [prima] = mancanze;
+    passi.push({
+      id: "completezza",
+      domanda: mancanze.length === 1 ? `Per un progetto completo manca una cosa: ${prima.testo}.`
+        : `Per un progetto completo mancano ${mancanze.length} cose. La prima: ${prima.testo}.`,
+      dettaglio: mancanze.length > 1 ? mancanze.slice(1, 4).map((m) => m.testo).join(" · ") : undefined,
+      azioni: [{ etichetta: `Apri ${prima.piano}`, verso: { sezione: "pianta", livello: prima.livelloId } }],
+    });
+  }
   passi.push({
     id: "consegne",
     domanda: passi.length ? "Quando hai finito, ti preparo il resto:" : "Il progetto è pronto. Cosa ti preparo?",
@@ -70,6 +81,37 @@ export function passiGuidaProgetto(doc: Planimetria, chiave: string): PassoGuida
   return passi;
 }
 
+export interface MancanzaProgetto { livelloId: string; piano: string; tipo: "stanze" | "scala" | "copertura"; testo: string }
+
+const SCALE = ["scala", "scala_u", "scala_chiocciola", "ascensore"];
+
+/**
+ * Cosa manca perché il progetto sia completo, piano per piano (24/11/2026): un piano con muri ma
+ * senza stanze chiuse (niente pavimenti, solai, computo), un piano senza scala verso quello sopra,
+ * l'ultimo piano senza copertura impostata. Un piano solo non ha bisogno di scale.
+ */
+export function mancanzeProgetto(doc: Planimetria, chiave: string): MancanzaProgetto[] {
+  const ambito = ambitiDi(doc).find((a) => a.chiave === chiave) ?? ambitiDi(doc)[0];
+  const piani = [...doc.livelli].sort((a, b) => a.quota - b.quota)
+    .map((l) => ({ livello: l, stato: statoDelLivello(l, ambito) ?? l.fatto }))
+    .filter((p) => p.stato.muri.length || p.stato.locali.length);
+  const esito: MancanzaProgetto[] = [];
+  piani.forEach(({ livello, stato }, i) => {
+    const base = { livelloId: livello.id, piano: livello.nome.toLowerCase() };
+    if (stato.muri.length && !stato.locali.length) {
+      esito.push({ ...base, tipo: "stanze", testo: `${livello.nome}: nessuna stanza chiusa, quindi niente pavimenti, solai e voci nel computo` });
+    }
+    const sopra = piani[i + 1];
+    if (sopra && !stato.elementi.some((e) => SCALE.includes(e.tipo))) {
+      esito.push({ ...base, tipo: "scala", testo: `${livello.nome}: nessuna scala per salire a ${sopra.livello.nome.toLowerCase()}` });
+    }
+    if (!sopra && piani.length > 1 && !livello.tetto) {
+      esito.push({ ...base, tipo: "copertura", testo: `${livello.nome}: copertura non impostata (nel 3D resta un tetto piano)` });
+    }
+  });
+  return esito;
+}
+
 /** I parametri della scheda per arrivare a una destinazione (vedi RenderPlanimetriaScheda). */
 export function parametriGuida(attuali: URLSearchParams, verso: DestinazioneGuida): { params: URLSearchParams; ancora?: string } {
   const n = new URLSearchParams(attuali);
@@ -80,6 +122,7 @@ export function parametriGuida(attuali: URLSearchParams, verso: DestinazioneGuid
   if (verso.sezione === "pianta") {
     if (verso.vista) n.set("vista", verso.vista);
     if (verso.silvio) n.set("silvio", "1");
+    if (verso.livello) n.set("livello", verso.livello);
     return { params: n };
   }
   return { params: n, ancora: verso.ancora };

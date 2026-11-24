@@ -23,7 +23,7 @@ export function GuidaProgetto({ documento, ambito, onVai }: { documento: Planime
       </Button>)}
     </div>
     {dopo.length > 0 && <p className="text-xs text-muted-foreground">
-      {t("Dopo:")} {dopo.map((p) => p.id === "consegne" ? t("tavole, 3D e costi") : p.id === "unita" ? t("le unità") : p.id === "lotto" ? t("il lotto") : t("il tipo di lavori")).join(" · ")}
+      {t("Dopo:")} {dopo.map((p) => p.id === "consegne" ? t("tavole, 3D e costi") : p.id === "unita" ? t("le unità") : p.id === "lotto" ? t("il lotto") : p.id === "completezza" ? t("cosa manca al progetto") : t("il tipo di lavori")).join(" · ")}
     </p>}
   </div>;
 }
