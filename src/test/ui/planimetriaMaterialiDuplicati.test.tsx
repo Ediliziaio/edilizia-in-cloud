@@ -8,6 +8,7 @@ vi.mock('@/lib/planimetrie/archivio',()=>({
  usePlanimetria:()=>({data:{riga:{titolo:'Pianta demo',company_id:'azienda-demo'},versione:{numero:1,documento:bilocale}}}),
  useVersionePlanimetria:()=>({}),
  useVersioniPlanimetria:(): { data: never[] } => ({ data: [] }),
+ useSalvaVersionePlanimetria:() => ({ isPending: false, mutateAsync: async (): Promise<number> => 2 }),
 }));
 vi.mock('@/contexts/AuthContext',()=>({useAuth:()=>({effectiveCompany:{id:'azienda-demo'}})}));
 vi.mock('@/lib/planimetrie/render/renderDallaPianta',()=>({useRenderDellaPianta:()=>({data:[] as never[]})}));

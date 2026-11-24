@@ -496,8 +496,12 @@ export function daPlanimetria(doc: Planimetria, livelloId?: string, propostaId: 
     ...(l.unita ? { unita: l.unita } : {}),
   }));
   const parti = new Set(proposta?.frazionamenti?.flatMap(f => f.parti));
+  // Se oggi il piano non ha stanze (nuova costruzione, piano da DWG da rifare), le stanze del progetto
+  // sono le sole che ci sono: si caricano nell'editor. Prima restavano solo come nomi sopra il
+  // disegno e alla prima stanza aggiunta il salvataggio le perdeva (Callimaco, piano terra, 24/11/2026).
+  const soloNelProgetto = !fatto.locali.length;
   for (const l of proposta?.locali ?? []) {
-    if ((!parti.has(l.id) && !proposta?.distribuzioneBilocali) || locali.some(x => x.id === l.id)) continue;
+    if ((!parti.has(l.id) && !proposta?.distribuzioneBilocali && !soloNelProgetto) || locali.some(x => x.id === l.id)) continue;
     const contorno = proposta?.distribuzioneBilocali && !l.aperto
       ? contornoSullAsse(l.contorno, proposta.muri.filter(m => m.stato !== "da_demolire")) : l.contorno;
     locali.push({
@@ -770,7 +774,7 @@ export function aPlanimetria(pianta: Pianta, base: Planimetria = nuovaPlanimetri
         .filter((a) => pianta.muri.some((m) => m.id === a.muroId))
         .map((a) => aperturaAModello(aperturaNellaVista(pianta, a, "progetto"), a.stato, trova(propostaBase?.aperture, a.id) ?? trova(fattoBase.aperture, a.id))),
       locali: stessiLocali && precedente.nomiProgetto === pianta.nomiProgetto
-        ? propostaBase?.locali ?? localiOggi : localiDelProgetto(pianta, muri, propostaBase, daCad ? localiOggi : null),
+        ? propostaBase?.locali ?? localiOggi : localiDelProgetto(pianta, muri, propostaBase, daCad ? localiOggi : null, !fattoBase.locali.length),
       ...(pianta.elementi
         ? {
             elementi: pianta.elementi
@@ -819,7 +823,7 @@ export function aPlanimetria(pianta: Pianta, base: Planimetria = nuovaPlanimetri
  * computo non cambiano), altrimenti quello della stanza di oggi più grande che ci
  * sta dentro (abbattendo un tramezzo, il soggiorno si prende la cucina).
  */
-function localiDelProgetto(pianta: Pianta, muri: MuroModello[], propostaBase: Proposta | undefined, localiCad: LocaleModello[] | null): LocaleModello[] {
+function localiDelProgetto(pianta: Pianta, muri: MuroModello[], propostaBase: Proposta | undefined, localiCad: LocaleModello[] | null, soloDisegnate = false): LocaleModello[] {
   const daCad = localiCad !== null;
   if (propostaBase?.distribuzioneBilocali) {
     const primaPerId = new Map(propostaBase.muri.map(m => [m.id, m]));
@@ -879,6 +883,11 @@ function localiDelProgetto(pianta: Pianta, muri: MuroModello[], propostaBase: Pr
     // I contorni CAD sono già al filo interno. Mantenerli evita che un raccordo lontano deformi il locale.
     for (const l of stanze) disegnati.add(l.id);
   }
+  // Un piano che oggi non ha stanze (nuova costruzione, piano da DWG da rifare): le stanze del progetto
+  // sono disegnate a contorno. Se una faccia dei muri ne contiene più d'una e fra loro non c'è un muro
+  // da demolire, i muri non le separano (varchi del DWG): restano com'erano. Prima la faccia ne teneva
+  // una e le altre sparivano (Callimaco, piano terra: aggiungendo una stanza, 12 locali diventavano 1).
+  const conDemolizioni = muri.some((m) => m.stato === "da_demolire");
   const dentro = (contenitore: Punto[]) => (c: { contorno: Punto[] }) => {
     const p = puntoInterno(c.contorno);
     return !!p && puntoNelPoligono(p, contenitore);
@@ -902,6 +911,10 @@ function localiDelProgetto(pianta: Pianta, muri: MuroModello[], propostaBase: Pr
   const out: LocaleModello[] = [];
   let progressivo = 1;
   for (const f of facce) {
+    if (soloDisegnate && !conDemolizioni && stanze.filter(dentro(f.contorno)).length > 1) {
+      for (const s of stanze.filter(dentro(f.contorno))) disegnati.add(s.id);
+      continue;
+    }
     // In un DWG una faccia chiusa può essere un vuoto, un cavedio o un contorno senza riscontro.
     const contorniSovrapposti = contorniCad.filter(s => interniSovrapposti(s.contorno, f.contorno));
     if (nuoviMuri && (!contorniSovrapposti.length || conservaContorniCad) && !f.muriIds.every(id => nuoviMuri.has(id))) continue;
