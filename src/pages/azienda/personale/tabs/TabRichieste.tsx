@@ -22,6 +22,7 @@ import { colleghiGiaAssenti, inizialiRichiedente, nomeRichiedente } from "@/lib/
 import { useHrFestivita } from "@/hooks/useHrFestivita";
 import { workingDates } from "@/lib/personale/calendarioLavorativo";
 import { usePermissions } from "@/hooks/usePermissions";
+import { SpeseCantiereUfficio } from "@/components/personale/SpeseCantiereUfficio";
 
 const TIPO_LABELS: Record<RichiestaTipo, string> = {
   ferie: "Ferie",
@@ -114,6 +115,8 @@ export function TabRichieste() {
 
   return (
     <div className="space-y-4 max-sm:space-y-3">
+      {/* Gli scontrini mandati dal cantiere (24/11): si vedono solo se ce ne sono, e solo a chi approva. */}
+      {canApprove && <SpeseCantiereUfficio />}
       {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-sm:hidden">
         <KpiCard title="Totali" value={kpis.totali} icon={Calendar} />

@@ -50,6 +50,10 @@ export default function CampoFerie() {
   const [dataInizio, setDataInizio] = useState(format(new Date(), "yyyy-MM-dd"));
   const [dataFine, setDataFine] = useState(format(new Date(), "yyyy-MM-dd"));
   const [note, setNote] = useState("");
+  // Permesso o ROL a ore (24/11): «2 ore domani mattina» è la richiesta più comune in cantiere.
+  const [ore, setOre] = useState<number | null>(null);
+  const aOre = tipo === "permesso" || tipo === "rol";
+  const giorno = (spostamento: number) => format(new Date(Date.now() + spostamento * 86_400_000), "yyyy-MM-dd");
 
   // Le mie richieste
   const { data: richieste = [], isLoading } = useQuery({
@@ -84,7 +88,7 @@ export default function CampoFerie() {
           .maybeSingle();
         if (saldi) {
           assertBalanceAvailable(
-            { tipo: tipo as any, data_inizio: dataInizio, data_fine: dataFine },
+            { tipo: tipo as any, data_inizio: dataInizio, data_fine: dataFine, ore_richieste: aOre && ore ? ore : null },
             saldi as any,
           );
         }
@@ -106,6 +110,7 @@ export default function CampoFerie() {
         data_inizio: dataInizio,
         data_fine: dataFine,
         motivo: note.trim() || null,
+        ore_richieste: aOre && ore ? ore : null,
         stato: "in_attesa",
       });
       if (error) throw error;
@@ -115,6 +120,7 @@ export default function CampoFerie() {
       queryClient.invalidateQueries({ queryKey: ["campo-mie-richieste"] });
       setShowForm(false);
       setNote("");
+      setOre(null);
     },
     onError: (err: any) => toast.error(err.message ?? tr("Errore nell'invio")),
   });
@@ -181,6 +187,41 @@ export default function CampoFerie() {
                 ))}
               </div>
             </div>
+
+            {/* Le date più chieste a un tocco; il calendario resta sotto per tutto il resto. */}
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label={tr("Quando")}>
+              {[{ label: "Oggi", d: 0 }, { label: "Domani", d: 1 }, { label: "Dopodomani", d: 2 }].map(q => {
+                const attivo = dataInizio === giorno(q.d) && dataFine === giorno(q.d);
+                return (
+                  <button key={q.label} type="button" aria-pressed={attivo}
+                    onClick={() => { setDataInizio(giorno(q.d)); setDataFine(giorno(q.d)); }}
+                    className={cn("min-h-11 rounded-full border px-4 text-sm font-semibold",
+                      attivo ? "border-primary bg-primary text-primary-foreground" : "bg-background")}>
+                    {tr(q.label)}
+                  </button>
+                );
+              })}
+            </div>
+
+            {aOre && (
+              <div>
+                <label className="text-sm text-muted-foreground mb-1.5 block">{tr("Quante ore")}</label>
+                <div className="flex flex-wrap gap-1.5" role="group" aria-label={tr("Quante ore")}>
+                  {[1, 2, 3, 4].map(h => (
+                    <button key={h} type="button" aria-pressed={ore === h} onClick={() => setOre(ore === h ? null : h)}
+                      className={cn("min-h-11 min-w-14 rounded-full border px-4 text-sm font-semibold",
+                        ore === h ? "border-primary bg-primary text-primary-foreground" : "bg-background")}>
+                      {h} h
+                    </button>
+                  ))}
+                  <button type="button" aria-pressed={ore === null} onClick={() => setOre(null)}
+                    className={cn("min-h-11 rounded-full border px-4 text-sm font-semibold",
+                      ore === null ? "border-primary bg-primary text-primary-foreground" : "bg-background")}>
+                    {tr("Tutto il giorno")}
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -271,8 +312,15 @@ export default function CampoFerie() {
                           ? format(new Date(r.data_inizio), "d MMMM yyyy", { locale: dateFnsCampo() })
                           : <>{format(new Date(r.data_inizio), "d MMM", { locale: dateFnsCampo() })} — {format(new Date(r.data_fine), "d MMM yyyy", { locale: dateFnsCampo() })}</>}
                       </p>
+                      {r.ore_richieste ? <p className="text-xs text-muted-foreground">{tr("{n} ore", { n: Number(r.ore_richieste) })}</p> : null}
                       {r.motivo && (
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-2" dir="auto">{r.motivo}</p>
+                      )}
+                      {/* La risposta dell'ufficio: prima si vedeva solo lo stato, il perché no. */}
+                      {r.note_risposta && (
+                        <p className="mt-1.5 rounded-lg bg-background px-2 py-1.5 text-xs" dir="auto">
+                          <span className="font-semibold">{tr("Ufficio:")}</span> {r.note_risposta}
+                        </p>
                       )}
                     </div>
                   </div>

@@ -425,6 +425,19 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
                           onCheckedChange={(checked) => setValue("lavora_in_cantiere", checked)}
                         />
                       </div>
+                      {watch("lavora_in_cantiere") && (
+                        <div className="col-span-2 flex items-center justify-between rounded-md border px-3 py-2 max-sm:order-last">
+                          <div>
+                            <Label htmlFor="hr-timbra-dall-app">Timbra dall’app</Label>
+                            <p className="text-xs text-muted-foreground max-sm:hidden">Spento: nell’app non vede la timbratura, le ore le segna il caposquadra o l’ufficio.</p>
+                          </div>
+                          <Switch
+                            id="hr-timbra-dall-app"
+                            checked={watch("timbra_dall_app") ?? true}
+                            onCheckedChange={(checked) => setValue("timbra_dall_app", checked)}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
 

@@ -226,7 +226,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
         .select(`
           id, subject, status, priority, fonte, tipo, created_at, updated_at, last_message_at,
           order_id, assigned_to, category,
-          a_pagamento, merce_stato, merce_mancante, richiami_count, ultimo_richiamo_at,
+          a_pagamento, merce_stato, merce_mancante, richiami_count, ultimo_richiamo_at, serve_entro,
           data_intervento_prevista, data_intervento_effettiva, indirizzo_intervento,
           customer:profiles!tickets_customer_id_fkey(first_name, last_name, email),
           order:orders(description),
@@ -1226,7 +1226,12 @@ function BadgeMerceRichiami({ ticket }: { ticket: Record<string, unknown> }) {
   const merceStato = (ticket.merce_stato as string | null) ?? null;
   const mancante = (ticket.merce_mancante as string | null) ?? null;
   const richiami = (ticket.richiami_count as number | null) ?? 0;
-  if (merceStato !== "arrivata_parziale" && merceStato !== "ordinata" && merceStato !== "da_ordinare" && richiami === 0) {
+  // «Serve entro» scelto dall'operaio in cantiere (24/11): oggi, domani, questa settimana.
+  const serveEntro = (ticket.serve_entro as string | null) ?? null;
+  const chiuso = TICKET_STATI_CHIUSI.includes(ticket.status as never);
+  const entro = serveEntro && !chiuso ? serveEntro : null;
+  const oggiIso = new Date().toLocaleDateString("sv-SE");
+  if (merceStato !== "arrivata_parziale" && merceStato !== "ordinata" && merceStato !== "da_ordinare" && richiami === 0 && !entro) {
     return null;
   }
   return (
@@ -1239,9 +1244,19 @@ function BadgeMerceRichiami({ ticket }: { ticket: Record<string, unknown> }) {
           Bolla incompleta
         </Badge>
       )}
-      {(merceStato === "ordinata" || merceStato === "da_ordinare") && (
+      {merceStato === "da_ordinare" && (
+        <Badge className="bg-orange-100 text-orange-800 border border-orange-200 text-[10px] px-1.5 py-0">
+          Materiale da ordinare
+        </Badge>
+      )}
+      {merceStato === "ordinata" && (
         <Badge className="bg-purple-100 text-purple-800 border border-purple-200 text-[10px] px-1.5 py-0">
           Merce in arrivo
+        </Badge>
+      )}
+      {entro && (
+        <Badge className={`text-[10px] px-1.5 py-0 border ${entro <= oggiIso ? "bg-red-100 text-red-800 border-red-200" : "bg-muted text-foreground border-transparent"}`}>
+          Serve entro {new Date(`${entro}T12:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "short" })}
         </Badge>
       )}
       {richiami > 0 && (

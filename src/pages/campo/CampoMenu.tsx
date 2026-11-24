@@ -8,7 +8,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Clock, CalendarDays, Receipt,
   CreditCard, FileText, Ticket, LogOut,
-  ClipboardCheck, CheckSquare, Package, ListChecks, Truck, ShoppingBag,
+  ClipboardCheck, CheckSquare, Package, ListChecks, Truck, ShoppingBag, Wallet,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
@@ -58,14 +58,15 @@ export default function CampoMenu() {
         { icon: Package, label: "Magazzino", url: "/campo/magazzino", color: "text-amber-700 bg-amber-50" },
         { icon: ShoppingBag, label: "Bolle e DDT", url: "/campo/ddt", color: "text-orange-700 bg-orange-50" },
         { icon: ShoppingBag, label: "Merce presa", url: "/campo/merce", color: "text-orange-700 bg-orange-50" },
-        { icon: Truck, label: mieiMezzi.length ? "Mezzi e attrezzi" : "Scansiona attrezzo", url: mieiMezzi.length ? "/campo/mezzi" : "/campo/mezzi?scansiona=1", color: "text-slate-700 bg-slate-100" },
+        { icon: Truck, label: mieiMezzi.length ? "Mezzi e attrezzi" : "Prendi un mezzo (QR)", url: mieiMezzi.length ? "/campo/mezzi" : "/campo/mezzi?scansiona=1", color: "text-slate-700 bg-slate-100" },
       ],
     },
     {
       title: "HR e Personale",
       items: [
         { icon: Clock, label: "Presenze", url: "/campo/presenze", color: "text-teal-600 bg-teal-50" },
-        { icon: CalendarDays, label: "Ferie", url: "/campo/ferie", color: "text-orange-600 bg-orange-50" },
+        { icon: CalendarDays, label: "Ferie e permessi", url: "/campo/ferie", color: "text-orange-600 bg-orange-50" },
+        { icon: Wallet, label: "Spese", url: "/campo/spese", color: "text-emerald-700 bg-emerald-50" },
         { icon: Receipt, label: "Cedolini", url: "/campo/cedolini", color: "text-pink-600 bg-pink-50" },
         ...(conBuoni ? [{ icon: UtensilsCrossed, label: "Buoni pasto", url: "/campo/buoni-pasto", color: "text-lime-700 bg-lime-50" }] : []),
         { icon: CreditCard, label: "Tesserino", url: "/campo/tesserino", color: "text-cyan-600 bg-cyan-50" },

@@ -59,6 +59,8 @@ export interface HrProfilo {
   attivo: boolean;
   /** Operaio di cantiere: compare in Manodopera e Mezzi → Operai (26/09/2026). */
   lavora_in_cantiere?: boolean;
+  /** false: non timbra dall'app operai (ore segnate dal caposquadra o dall'ufficio). */
+  timbra_dall_app?: boolean;
   created_at: string;
   updated_at: string;
   // Organigramma fields

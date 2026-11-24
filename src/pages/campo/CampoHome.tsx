@@ -21,10 +21,13 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { CampoCrewAgenda } from "@/components/campo/CampoCrewAgenda";
 import { CampoOggi } from "@/components/campo/CampoOggi";
 import { CantieriTecniciLink } from "@/components/campo/CantieriTecniciLink";
+import { AzioniAlVolo } from "@/components/campo/AzioniAlVolo";
+import { FineGiornataCaposquadra } from "@/components/campo/FineGiornataCaposquadra";
 import { useCampoMagazzinoConfig } from "@/hooks/campo/useCampoPrelievo";
 import { InterventiCampo } from "@/components/campo/InterventiCampo";
 import { useMiaGiornata } from "@/hooks/campo/useCampoGiornata";
 import { CampoTimbroCard } from "@/components/campo/CampoTimbroCard";
+import { useMyHrProfilo } from "@/hooks/useTimbratura";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -100,6 +103,7 @@ export default function CampoHome() {
   const { t, lingua } = useLinguaCampo();
   const { isOperaio, isSubappaltatore } = useIsCampo();
   const magazzino = useCampoMagazzinoConfig(isOperaio);
+  const { data: mioProfiloHr } = useMyHrProfilo();
   const azienda = effectiveCompany?.id ?? profile?.company_id;
   // Sul telefono i blocchi nascosti col CSS (`hidden md:block`) erano comunque montati: ognuno faceva le sue
   // richieste a vuoto a ogni apertura della Home. Qui non si montano proprio.
@@ -158,7 +162,10 @@ export default function CampoHome() {
       </div>
 
       {/* Timbratura: l'azione di ogni mattina, in cima. Un tocco per iniziare, un tocco per ogni posto. */}
-      {isOperaio && <CampoTimbroCard />}
+      {/* Chi non timbra dall'app (scelta dell'ufficio nella scheda persona) non vede il riquadro: una riga lo dice. */}
+      {isOperaio && (mioProfiloHr?.timbra_dall_app === false
+        ? <p className="px-1 text-xs text-muted-foreground">{t("Non timbri dall'app: le tue ore le segna il caposquadra o l'ufficio.")}</p>
+        : <CampoTimbroCard />)}
 
       {/* Visita medica, corsi, patentini scaduti o in scadenza: solo se c'è qualcosa (collaudo 23/11). */}
       {isOperaio && <AvvisoScadenzePersonali />}
@@ -169,11 +176,16 @@ export default function CampoHome() {
       )}
 
       {/* A fine giornata il rapportino è la cosa che aspetta: sta sopra, non in fondo alla pagina. */}
+      {/* La sera il caposquadra vede la fine giornata guidata (24/11): rapportino, materiale, uscita. */}
+      {isOperaio && sera && (isCaposquadra || isCapocantiere) && <FineGiornataCaposquadra timbra={mioProfiloHr?.timbra_dall_app !== false} />}
       {isOperaio && sera && <RapportiniDaCompilareOggi />}
 
       {/* Oggi: dove vai, cosa fai, con chi e chi chiamare — le TUE date */}
       {(isOperaio || isSubappaltatore) && <CampoOggi memoria={azienda && user?.id ? `${azienda}:${user.id}` : undefined}
         puoPrelevare={isOperaio && !magazzino.isError && magazzino.data?.livello === "prelievi"} />}
+
+      {/* Mezzo col QR, scontrino, materiale, problema: a un tocco (24/11). */}
+      {isOperaio && <AzioniAlVolo />}
 
       {isOperaio && <CantieriTecniciLink />}
       {isOperaio && <CampoCrewAgenda />}

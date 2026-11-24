@@ -1,3 +1,8 @@
+-- Attestati dal telefono (24/11/2026, richiesta del founder): l'operaio fotografa il corso di sicurezza, la
+-- visita medica, la patente e li carica nella sua scheda documenti (hr_documenti, bucket hr-documenti,
+-- cartella <azienda>/<profilo HR>/), la stessa che usa l'ufficio. Solo per sé, solo i tipi personali (non
+-- contratto, UNILAV o DURC), solo in aggiunta: modificare e cancellare resta all'ufficio, che riceve un avviso.
+
 drop policy if exists hr_documenti_self_insert on public.hr_documenti;
 create policy hr_documenti_self_insert on public.hr_documenti for insert to authenticated
   with check (
@@ -10,6 +15,7 @@ create policy hr_documenti_self_insert on public.hr_documenti for insert to auth
          and hp.company_id = hr_documenti.company_id
     )
   );
+
 drop policy if exists hr_doc_storage_self_insert on storage.objects;
 create policy hr_doc_storage_self_insert on storage.objects for insert to authenticated
   with check (
@@ -21,6 +27,7 @@ create policy hr_doc_storage_self_insert on storage.objects for insert to authen
          and (storage.foldername(name))[2] = hp.id::text
     )
   );
+
 create or replace function public.hr_documento_caricato_da_operaio()
 returns trigger
 language plpgsql
@@ -30,6 +37,7 @@ as $$
 declare
   v_nome text;
 begin
+  -- Solo i caricamenti fatti dalla persona stessa: quelli dell'ufficio non avvisano nessuno.
   if new.created_by is null or not exists (
     select 1 from public.hr_profili hp where hp.id = new.hr_profilo_id and hp.user_id = new.created_by
   ) then
@@ -52,7 +60,9 @@ begin
   return new;
 end;
 $$;
+
 revoke all on function public.hr_documento_caricato_da_operaio() from public, anon;
+
 drop trigger if exists trg_hr_documento_caricato_da_operaio on public.hr_documenti;
 create trigger trg_hr_documento_caricato_da_operaio after insert on public.hr_documenti
   for each row execute function public.hr_documento_caricato_da_operaio();

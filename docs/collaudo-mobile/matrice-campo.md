@@ -449,3 +449,18 @@ Dati di prova in Demo 2: DEMO2-0025 con indirizzo, date, 2 fasi in corso, operai
 7. Foto mai obbligatorie: installazione dal magazzino senza foto (migrazione 20290528120100, NOT NULL tolti); sopralluogo: le foto «richieste» non abbassano più il completamento.
 8. Traduzioni: fogli di revisione rigenerati (`docs/lingua/revisione/*.csv`, 3.848 frasi) da far rivedere a madrelingua: non si può fare da qui.
 - Test: nuovi comeIeri (2), voceCose (7), rapportino (+3). Rossi solo quelli già rossi su main pulito (flussiUfficioAudit, calendariVerita «salva partecipanti», queryFiltrateAzienda, regoleCalcolateUnaVoltaPerQuery).
+
+## 24/11/2026 — Spese, materiale mancante, risposte dell'ufficio, attestati, fine giornata
+
+| Cosa | Dove | Provato |
+|---|---|---|
+| Spese con lo scontrino (carburante, pedaggio, parcheggio, pasto…) | /campo/spese → Personale › Richieste «Spese dal cantiere» | invio reale Demo 2 (foto nel bucket privato, avviso agli amministratori); approvazione in transazione annullata → avviso «Spesa approvata» all'operaio |
+| Segnala: «Un problema» / «Manca materiale», «Serve entro» oggi/domani/settimana | /campo/ticket/nuovo(?tipo=materiale) → Ticket (badge «Materiale da ordinare», «Serve entro») | invio reale Demo 2: category materiale_mancante, merce da_ordinare, serve_entro domani; compare in «Le mie segnalazioni» |
+| Ferie e permessi: Oggi/Domani/Dopodomani, permesso a ore, risposta dell'ufficio visibile | /campo/ferie | avviso all'operaio a ogni approvazione/rifiuto (trigger notify_hr_richiesta_esito) |
+| QR del mezzo dal rapportino («Scansiona il QR» accanto a «Un altro mezzo») | rapportino › Mezzi | usa mezzo_da_codice + campo_mezzo_al_volo |
+| Riga «al volo» in Home: Prendi un mezzo · Spesa · Manca materiale · Problema | /campo | 443 px senza scroll laterale |
+| Attestati dal telefono (corso, visita, patente…) | /campo/documenti | regole: solo propria cartella e tipi personali; avviso «Documento da controllare» |
+| Chi non timbra dall'app (interruttore nella scheda persona) | Personale › scheda › «Timbra dall'app» | Home senza riquadro timbratura, una riga lo dice |
+| Fine giornata guidata del caposquadra (dalle 15) | /campo | test di logica (rapportino per cantiere, materiale, uscita solo a chi timbra) |
+
+Dati di prova creati (Demo 2, da tenere o cancellare): spesa «Carburante 12,50 €» di Marco Operaio (`campo_spese` 4306dd97…), ticket «DEMO prova: 20 sacchi di collante per il cappotto» (af7bc584…).

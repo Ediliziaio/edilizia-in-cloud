@@ -172,7 +172,9 @@ describe("chi nell'app nomina il bucket hr-documenti", () => {
       "src/hooks/useRiesameProprioPos.ts", // POS: l'originale lo firma il server, qui si controlla solo l'indirizzo
       "src/pages/azienda/ContenutiMultimediali.tsx", // Drive: parte dalle righe di hr_documenti (stessa porta)
       "src/pages/azienda/personale/tabs/TabCandidati.tsx", // CV dei candidati: Personale & HR
-      "src/pages/campo/CampoDocumenti.tsx", // il lavoratore: la propria cartella (hr_doc_storage_self_read)
+      // il lavoratore: la propria cartella (hr_doc_storage_self_read; dal 24/11/2026 carica anche i suoi
+      // attestati, hr_doc_storage_self_insert: solo <azienda>/<suo profilo HR>/)
+      "src/pages/campo/CampoDocumenti.tsx",
     ]);
   });
 
@@ -236,11 +238,31 @@ describe("chi nell'app nomina il bucket hr-documenti", () => {
     expect(riesame).not.toMatch(/\.storage\b/);
   });
 
-  it("il lavoratore legge, non carica né cancella", () => {
+  it("il lavoratore legge e carica solo nella propria cartella; non sposta, non copia, non cancella i file dell'ufficio", () => {
+    // 24/11/2026 (richiesta del founder): l'operaio carica dal telefono i suoi attestati.
     const campo = leggi("src/pages/campo/CampoDocumenti.tsx");
     expect(campo).toMatch(/\.createSignedUrl\(/);
-    expect(campo).not.toMatch(/\.(upload|remove|move|copy)\(/);
     expect(campo).toContain('.eq("hr_profilo_id", profiloId)');
+    expect(campo).not.toMatch(/\.(move|copy)\(/);
+    // Un solo caricamento, nella cartella <azienda>/<suo profilo HR>/, e una sola rimozione: il file appena
+    // caricato, se la riga non si salva.
+    expect(campo.match(/\.upload\(/g)).toHaveLength(1);
+    expect(campo).toContain("const path = `${companyId}/${profiloId}/${crypto.randomUUID()}-${sicuro}`;");
+    expect(campo.match(/\.remove\(/g)).toHaveLength(1);
+    expect(campo).toContain(".remove([path])");
+  });
+
+  it("le regole del caricamento del lavoratore: sua cartella, sua riga, solo tipi personali", () => {
+    const nome = readdirSync(CARTELLA_MIGRAZIONI).find((f) => f.endsWith("_campo_attestati_dal_telefono.sql"));
+    expect(nome).toBeDefined();
+    const m = norm(senzaCommenti(leggi(`supabase/migrations/${nome}`)));
+    expect(m).toContain("create policy hr_doc_storage_self_insert on storage.objects for insert to authenticated");
+    expect(m).toContain("(storage.foldername(name))[1] = hp.company_id::text and (storage.foldername(name))[2] = hp.id::text");
+    expect(m).toContain("hp.user_id = (select auth.uid())");
+    expect(m).toContain("create policy hr_documenti_self_insert on public.hr_documenti for insert to authenticated");
+    expect(m).not.toMatch(/'(contratto|unilav|durc)'/);
+    // Niente lettura, modifica o cancellazione nuove: solo INSERT.
+    expect(m).not.toMatch(/for (all|update|delete)/);
   });
 
   it("l'originale del POS lo apre una funzione chiusa agli utenti", () => {

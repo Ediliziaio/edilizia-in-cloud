@@ -2,17 +2,21 @@
  * «Ho usato un altro mezzo» (24/11/2026): il mezzo preso dal deposito senza che l'ufficio l'abbia assegnato.
  * Si sceglie dall'elenco dell'azienda (`campo_mezzi_azienda`); se è libero passa a questo cantiere e l'ufficio
  * riceve un avviso (`campo_mezzo_al_volo`), poi si segna come usato. Se è assegnato altrove non si sposta niente.
+ * Con l'etichetta QR basta inquadrarla (24/11): «ho preso questo», senza cercarlo nell'elenco.
  */
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Search, X } from "lucide-react";
+import { Loader2, Plus, ScanLine, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { PILLOLA } from "@/lib/campo/stileCampo";
 import { corrisponde } from "@/lib/campo/sceltaRapida";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { BarcodeScanner } from "@/components/warehouse/BarcodeScanner";
+import { leggiCodiceScansionato } from "@/types/mezzi";
+import { cercaCodiceMezzo } from "@/hooks/useMezzi";
 
 interface MezzoAzienda { id: string; nome: string; tipo: string; targa: string | null; libero: boolean; dove: string | null }
 
@@ -22,6 +26,8 @@ export function MezzoAlVolo({ orderId, onUsato }: { orderId: string; onUsato: (m
   const t = useT();
   const qc = useQueryClient();
   const [aperto, setAperto] = useState(false);
+  const [scanner, setScanner] = useState(false);
+  const [cercoCodice, setCercoCodice] = useState(false);
   const [cerca, setCerca] = useState("");
   const rpc = supabase.rpc as unknown as Rpc;
   const elenco = useQuery({
@@ -57,13 +63,37 @@ export function MezzoAlVolo({ orderId, onUsato }: { orderId: string; onUsato: (m
     onError: () => toast.error(t("Non sono riuscito a segnare il mezzo. Riprova.")),
   });
 
+  const letto = async (testo: string) => {
+    setScanner(false);
+    const c = leggiCodiceScansionato(testo);
+    if (!c) { toast.error(t("Non riconosco questo codice.")); return; }
+    setCercoCodice(true);
+    try {
+      const esito = await cercaCodiceMezzo(c.codice, c.companyId);
+      if (esito.esito !== "trovato") { toast.error(t("Questa etichetta non è collegata a un mezzo.")); return; }
+      const nome = esito.vista === "campo" ? esito.mezzo.nome : c.codice;
+      sposta.mutate({ id: esito.id, nome, tipo: "", targa: null, libero: true, dove: null });
+    } catch {
+      toast.error(t("Non sono riuscito a leggere il mezzo. Riprova."));
+    } finally {
+      setCercoCodice(false);
+    }
+  };
+
   const visti = (elenco.data ?? []).filter(m => m.dove !== "questo_cantiere" && (!cerca.trim() || corrisponde(`${m.nome} ${m.targa ?? ""}`, cerca)));
 
   return (
     <>
-      <button type="button" onClick={() => setAperto(true)} className={cn(PILLOLA, "mt-2 w-full")}>
-        <Plus className="size-4 shrink-0" aria-hidden="true" />{t("Ho usato un mezzo non in elenco")}
-      </button>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <button type="button" onClick={() => setScanner(true)} disabled={cercoCodice || sposta.isPending} className={cn(PILLOLA, "w-full")}>
+          {cercoCodice ? <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" /> : <ScanLine className="size-4 shrink-0" aria-hidden="true" />}
+          {t("Scansiona il QR")}
+        </button>
+        <button type="button" onClick={() => setAperto(true)} className={cn(PILLOLA, "w-full")}>
+          <Plus className="size-4 shrink-0" aria-hidden="true" />{t("Un altro mezzo")}
+        </button>
+      </div>
+      <BarcodeScanner open={scanner} onOpenChange={setScanner} onScan={(testo: string): void => { void letto(testo); }} />
       {aperto && createPortal(
         <div role="dialog" aria-modal="true" aria-label={t("Scegli il mezzo usato")} className="fixed inset-0 z-50 flex flex-col bg-background">
           <div className="flex items-center gap-2 border-b px-2 pt-[max(env(safe-area-inset-top),0.5rem)] pb-2">

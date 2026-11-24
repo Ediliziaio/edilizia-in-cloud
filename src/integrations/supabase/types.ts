@@ -21090,6 +21090,63 @@ export type Database = {
           },
         ]
       }
+      campo_spese: {
+        Row: {
+          company_id: string
+          created_at: string
+          deciso_da: string | null
+          deciso_il: string | null
+          descrizione: string | null
+          foto_path: string | null
+          giorno: string
+          id: string
+          importo: number
+          nota_ufficio: string | null
+          order_id: string | null
+          pagata_con: string
+          stato: string
+          tipo: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          deciso_da?: string | null
+          deciso_il?: string | null
+          descrizione?: string | null
+          foto_path?: string | null
+          giorno?: string
+          id?: string
+          importo: number
+          nota_ufficio?: string | null
+          order_id?: string | null
+          pagata_con?: string
+          stato?: string
+          tipo?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          deciso_da?: string | null
+          deciso_il?: string | null
+          descrizione?: string | null
+          foto_path?: string | null
+          giorno?: string
+          id?: string
+          importo?: number
+          nota_ufficio?: string | null
+          order_id?: string | null
+          pagata_con?: string
+          stato?: string
+          tipo?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       campo_timbrature: {
         Row: {
           company_id: string
@@ -61309,6 +61366,7 @@ export type Database = {
           stato_civile: string | null
           telefono: string | null
           telefono_privato: string | null
+          timbra_dall_app: boolean
           tipo_contratto: string | null
           updated_at: string | null
           user_id: string | null
@@ -61371,6 +61429,7 @@ export type Database = {
           stato_civile?: string | null
           telefono?: string | null
           telefono_privato?: string | null
+          timbra_dall_app?: boolean
           tipo_contratto?: string | null
           updated_at?: string | null
           user_id?: string | null
@@ -61433,6 +61492,7 @@ export type Database = {
           stato_civile?: string | null
           telefono?: string | null
           telefono_privato?: string | null
+          timbra_dall_app?: boolean
           tipo_contratto?: string | null
           updated_at?: string | null
           user_id?: string | null
@@ -129262,6 +129322,7 @@ export type Database = {
           priority: Database["public"]["Enums"]["ticket_priority"]
           richiami_count: number
           scadenza_id: string | null
+          serve_entro: string | null
           squadra_id: string | null
           status: Database["public"]["Enums"]["ticket_status"]
           subject: string
@@ -129315,6 +129376,7 @@ export type Database = {
           priority?: Database["public"]["Enums"]["ticket_priority"]
           richiami_count?: number
           scadenza_id?: string | null
+          serve_entro?: string | null
           squadra_id?: string | null
           status?: Database["public"]["Enums"]["ticket_status"]
           subject: string
@@ -129368,6 +129430,7 @@ export type Database = {
           priority?: Database["public"]["Enums"]["ticket_priority"]
           richiami_count?: number
           scadenza_id?: string | null
+          serve_entro?: string | null
           squadra_id?: string | null
           status?: Database["public"]["Enums"]["ticket_status"]
           subject?: string
@@ -148861,6 +148924,7 @@ export type Database = {
         Returns: number
       }
       campo_mezzi_giornata: { Args: { p_order_id: string }; Returns: Json }
+      campo_mie_segnalazioni: { Args: never; Returns: Json }
       campo_mia_giornata: {
         Args: { p_dal?: string; p_giorni?: number }
         Returns: Json

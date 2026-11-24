@@ -1,5 +1,5 @@
 /**
- * Documenti dipendente — lista sola lettura con badge scadenza.
+ * Documenti dipendente — lista con badge scadenza; dal 24/11/2026 l'operaio carica anche i suoi attestati.
  *
  * Leggeva `documenti_dipendenti`: una TERZA tabella, diversa sia da quella su
  * cui l'ufficio carica sia da quella che manda gli avvisi di scadenza. Il
@@ -23,6 +23,7 @@ import { calcStato, categoriaLabel } from "@/types/hrDocumenti";
 import { cn } from "@/lib/utils";
 import { apriDocumentoDopoAttesa } from "@/lib/campo/apriDocumento";
 import SubDocumenti from "./subappaltatore/SubDocumenti";
+import { CaricaAttestato, type AttestatoDaCaricare } from "@/components/campo/CaricaAttestato";
 import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const PRIVATE_DOC_BUCKET = "hr-documenti";
@@ -110,7 +111,7 @@ function CampoDocumentiDipendente() {
     <div>
       <h1 className="text-lg font-bold tracking-tight text-foreground">{t("Documenti")}</h1>
       <p className="mt-0.5 text-xs text-muted-foreground">
-        {t("Contratti, certificazioni e documenti caricati dall'ufficio.")}
+        {t("Contratti, corsi, visite e patenti. Puoi caricare i tuoi attestati: l'ufficio li controlla.")}
       </p>
     </div>
   );
@@ -162,6 +163,25 @@ function CampoDocumentiDipendente() {
   const scadutiCount = documenti.filter((d) => getScadenzaStatus(d) === "scaduto").length;
   const inScadenzaCount = documenti.filter((d) => getScadenzaStatus(d) === "in_scadenza").length;
 
+  // Il lavoratore carica nella propria cartella <azienda>/<profilo HR>/ (hr_doc_storage_self_insert) e la riga
+  // nasce sua (hr_documenti_self_insert, solo tipi personali); l'ufficio riceve l'avviso dal database.
+  const caricaAttestato = async (a: AttestatoDaCaricare) => {
+    if (!companyId || !profiloId || !user?.id) throw new Error(t("Azienda non disponibile, riprova tra un istante"));
+    const sicuro = a.file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const path = `${companyId}/${profiloId}/${crypto.randomUUID()}-${sicuro}`;
+    const { error: up } = await supabase.storage.from(PRIVATE_DOC_BUCKET).upload(path, a.file, { upsert: false });
+    if (up) throw up;
+    const { error } = await supabase.from("hr_documenti").insert({
+      company_id: companyId, hr_profilo_id: profiloId, categoria: a.categoria, created_by: user.id,
+      titolo: a.titolo, data_scadenza: a.scadenza, file_path: path, file_name: a.file.name,
+      note: "Caricato dall'operaio dall'app",
+    });
+    if (error) {
+      void supabase.storage.from(PRIVATE_DOC_BUCKET).remove([path]);
+      throw error;
+    }
+  };
+
   const openDocumento = async (url: string) => {
     if (/^https?:\/\//i.test(url)) {
       window.open(url, "_blank", "noopener,noreferrer");
@@ -179,6 +199,9 @@ function CampoDocumentiDipendente() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col space-y-4">
       {pageHeader}
+
+      {/* Corso, visita, patente: li fotografa lui, l'ufficio li controlla (24/11). */}
+      {companyId && profiloId && user?.id && <CaricaAttestato carica={caricaAttestato} />}
 
       {/* Alert scadenze */}
       {scadutiCount > 0 && (

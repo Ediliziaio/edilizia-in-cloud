@@ -1,4 +1,15 @@
--- see file 20290529100000_campo_spese_e_risposte.sql
+-- Area operai (24/11/2026, richieste del founder):
+--
+-- 1. Spese dell'operaio: foto dello scontrino (carburante, pedaggio, parcheggio…), importo, cantiere.
+--    L'ufficio (amministratore) le approva o rifiuta; l'operaio riceve la risposta. Le foto stanno in
+--    un bucket privato, nella cartella <azienda>/<utente>/.
+-- 2. Segnalazioni dal cantiere con «serve entro» (oggi, domani, questa settimana): colonna su tickets.
+--    L'operaio non può rileggere i ticket (RLS): vede le sue ultime segnalazioni e il loro stato con
+--    campo_mie_segnalazioni(), che restituisce solo poche colonne e solo le sue.
+-- 3. Ferie e permessi: quando l'ufficio approva o rifiuta, l'operaio riceve l'avviso. Prima arrivava
+--    solo all'ufficio la richiesta, la risposta no.
+
+-- ── 1. Spese ─────────────────────────────────────────────────────────────────────────────
 create table if not exists public.campo_spese (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references public.companies(id) on delete cascade,
@@ -18,12 +29,16 @@ create table if not exists public.campo_spese (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
 create index if not exists campo_spese_company_stato_idx on public.campo_spese (company_id, stato, giorno desc);
 create index if not exists campo_spese_user_idx on public.campo_spese (user_id, giorno desc);
+
 alter table public.campo_spese enable row level security;
+
 drop policy if exists campo_spese_mie_lettura on public.campo_spese;
 create policy campo_spese_mie_lettura on public.campo_spese for select to authenticated
   using (user_id = (select auth.uid()) or (select public.e_amministratore_di(company_id)));
+
 drop policy if exists campo_spese_mie_inserimento on public.campo_spese;
 create policy campo_spese_mie_inserimento on public.campo_spese for insert to authenticated
   with check (
@@ -31,21 +46,28 @@ create policy campo_spese_mie_inserimento on public.campo_spese for insert to au
     and company_id = (select public.get_my_company_id())
     and stato = 'inviata' and deciso_da is null and deciso_il is null and nota_ufficio is null
   );
+
+-- L'operaio può togliere una spesa finché l'ufficio non l'ha guardata.
 drop policy if exists campo_spese_mie_cancellazione on public.campo_spese;
 create policy campo_spese_mie_cancellazione on public.campo_spese for delete to authenticated
   using (user_id = (select auth.uid()) and stato = 'inviata');
+
 drop policy if exists campo_spese_ufficio on public.campo_spese;
 create policy campo_spese_ufficio on public.campo_spese for update to authenticated
   using ((select public.e_amministratore_di(company_id)))
   with check ((select public.e_amministratore_di(company_id)));
+
 drop policy if exists blocco_utente_bloccato on public.campo_spese;
 create policy blocco_utente_bloccato on public.campo_spese as restrictive for all to authenticated
   using (not (select public.utente_bloccato())) with check (not (select public.utente_bloccato()));
+
 grant select, insert, delete on public.campo_spese to authenticated;
 grant update (stato, nota_ufficio, deciso_da, deciso_il, updated_at) on public.campo_spese to authenticated;
+
 insert into storage.buckets (id, name, public)
 values ('campo-spese', 'campo-spese', false)
 on conflict (id) do nothing;
+
 drop policy if exists campo_spese_foto_carica on storage.objects;
 create policy campo_spese_foto_carica on storage.objects for insert to authenticated
   with check (
@@ -53,6 +75,7 @@ create policy campo_spese_foto_carica on storage.objects for insert to authentic
     and (storage.foldername(name))[1] = (select public.get_my_company_id())::text
     and (storage.foldername(name))[2] = (select auth.uid())::text
   );
+
 drop policy if exists campo_spese_foto_leggi on storage.objects;
 create policy campo_spese_foto_leggi on storage.objects for select to authenticated
   using (
@@ -62,6 +85,8 @@ create policy campo_spese_foto_leggi on storage.objects for select to authentica
       or public.e_amministratore_di(nullif((storage.foldername(name))[1], '')::uuid)
     )
   );
+
+-- Avvisi: spesa nuova → amministratori; decisione → l'operaio. Best-effort: mai bloccare il salvataggio.
 create or replace function public.campo_spese_avvisi()
 returns trigger
 language plpgsql
@@ -72,7 +97,7 @@ declare
   v_nome text;
   v_euro text;
 begin
-  v_euro := replace(to_char(new.importo, 'FM999G990D00'), ',', '.') || ' €';
+  v_euro := translate(to_char(new.importo, 'FM999G990D00'), ',.', '.,') || ' €';  -- 1.234,50 €
   begin
     if tg_op = 'INSERT' then
       select coalesce(nullif(btrim(coalesce(first_name, '') || ' ' || coalesce(last_name, '')), ''), 'Un operaio')
@@ -80,7 +105,7 @@ begin
       perform public.create_notification(new.company_id, ur.user_id, 'campo_spesa',
         'Spesa da approvare · ' || coalesce(v_nome, 'Un operaio'),
         left(initcap(replace(new.tipo, '_', ' ')) || ' · ' || v_euro || coalesce(' · ' || new.descrizione, ''), 300),
-        'campo_spesa', new.id, '/azienda/personale?tab=spese')
+        'campo_spesa', new.id, '/azienda/personale?tab=richieste')
       from public.user_roles ur
       join public.profiles p on p.id = ur.user_id and p.company_id = new.company_id
       where ur.role = 'company_admin' and ur.user_id <> new.user_id;
@@ -96,11 +121,16 @@ begin
   return new;
 end;
 $$;
+
 revoke all on function public.campo_spese_avvisi() from public, anon;
+
 drop trigger if exists trg_campo_spese_avvisi on public.campo_spese;
 create trigger trg_campo_spese_avvisi after insert or update of stato on public.campo_spese
   for each row execute function public.campo_spese_avvisi();
+
+-- ── 2. Segnalazioni: «serve entro» e le mie segnalazioni ───────────────────────────────
 alter table public.tickets add column if not exists serve_entro date;
+
 create or replace function public.campo_mie_segnalazioni()
 returns jsonb
 language sql
@@ -122,8 +152,11 @@ as $$
        limit 20
     ) s;
 $$;
+
 revoke all on function public.campo_mie_segnalazioni() from public, anon;
 grant execute on function public.campo_mie_segnalazioni() to authenticated;
+
+-- ── 3. Ferie e permessi: la risposta arriva all'operaio ────────────────────────────────
 create or replace function public.notify_hr_richiesta_esito()
 returns trigger
 language plpgsql
@@ -163,7 +196,9 @@ begin
   return new;
 end;
 $$;
+
 revoke all on function public.notify_hr_richiesta_esito() from public, anon;
+
 drop trigger if exists trg_notify_hr_richiesta_esito on public.hr_richieste;
 create trigger trg_notify_hr_richiesta_esito after update of stato on public.hr_richieste
   for each row execute function public.notify_hr_richiesta_esito();

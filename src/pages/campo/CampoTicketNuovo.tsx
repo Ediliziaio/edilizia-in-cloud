@@ -3,6 +3,8 @@ import { UniformSelect } from "@/components/ui/uniform-select";
  * Segnalare un problema dal cantiere (02/11/2026): una frase, scritta o detta, e una foto.
  * All'ufficio arriva come ticket con fonte='campo': il titolo sono le prime parole.
  * Il cantiere è già scelto se si arriva da /campo/ticket/nuovo/:orderId.
+ * 24/11: «Manca materiale» (?tipo=materiale) arriva con la merce da ordinare; «Serve entro» dice quando;
+ * sotto, le mie ultime segnalazioni con lo stato (l'operaio non legge i ticket: campo_mie_segnalazioni).
  */
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -15,7 +17,9 @@ import { toast } from "sonner";
 import CampoAudioRecorder from "@/components/campo/CampoAudioRecorder";
 import { useRapportinoVocale } from "@/hooks/campo/useRapportinoVocale";
 import { senzaRete } from "@/lib/campo/timbra";
-import { MASSIMO_FOTO_SEGNALAZIONE, segnalazioneDaTesto } from "@/lib/campo/segnalazione";
+import { MASSIMO_FOTO_SEGNALAZIONE, SERVE_ENTRO, dataServeEntro, segnalazioneDaTesto, type ServeEntro } from "@/lib/campo/segnalazione";
+import { MieSegnalazioni } from "@/components/campo/MieSegnalazioni";
+import { cn } from "@/lib/utils";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function AnteprimaFoto({ file, numero }: { file: File; numero: number }) {
@@ -44,6 +48,8 @@ export default function CampoTicketNuovo() {
   const [parametri] = useSearchParams();
   const [testo, setTesto] = useState(() => (parametri.get("testo") ?? "").slice(0, 500));
   const [urgente, setUrgente] = useState(false);
+  const [materiale, setMateriale] = useState(() => parametri.get("tipo") === "materiale");
+  const [entro, setEntro] = useState<ServeEntro | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState(orderId ?? "");
   const [foto, setFoto] = useState<File[]>([]);
   const [voceAperta, setVoceAperta] = useState(false);
@@ -68,8 +74,10 @@ export default function CampoTicketNuovo() {
       // company_id è NOT NULL: senza guardia un profilo non ancora caricato
       // produceva un errore criptico invece di un messaggio chiaro.
       if (!companyId) throw new Error(t("Azienda non disponibile, riprova tra un istante"));
-      const s = segnalazioneDaTesto(testo, urgente);
-      if (!s) throw new Error(t("Scrivi cosa succede"));
+      // «Serve oggi» è urgente anche senza la spunta: l'ufficio lo vede in cima.
+      const s = segnalazioneDaTesto(testo, urgente || entro === "oggi");
+      if (!s) throw new Error(materiale ? t("Scrivi cosa manca") : t("Scrivi cosa succede"));
+      const serveEntro = entro ? dataServeEntro(entro, new Date()) : null;
       // L'id nasce qui: l'operaio non può rileggere i ticket, e la foto si attacca a questo.
       const ticketId = crypto.randomUUID();
       const { error } = await supabase.from("tickets").insert({
@@ -89,6 +97,9 @@ export default function CampoTicketNuovo() {
         priority: s.priority,
         status: "aperto",
         fonte: "campo",
+        serve_entro: serveEntro,
+        // Cosa manca sta nel testo: `merce_mancante` il database la tiene solo per l'arrivo parziale.
+        ...(materiale ? { category: "materiale_mancante", merce_stato: "da_ordinare" } : {}),
       });
       if (error) throw error;
 
@@ -154,7 +165,7 @@ export default function CampoTicketNuovo() {
           <ArrowLeft className="w-5 h-5 text-foreground" />
         </button>
         <div className="min-w-0">
-          <h1 className="text-lg font-bold">{t("Segnala un problema")}</h1>
+          <h1 className="text-lg font-bold">{materiale ? t("Manca materiale") : t("Segnala un problema")}</h1>
           {/* Arrivando da un cantiere si vede per quale (collaudo 23/11): prima non lo diceva da nessuna parte. */}
           {orderId && <RapportinoSiteContext orderId={orderId} companyId={companyId} compatto />}
         </div>
@@ -174,11 +185,20 @@ export default function CampoTicketNuovo() {
         </UniformSelect>
       )}
 
+      <div className="grid grid-cols-2 gap-1 rounded-full border bg-muted/50 p-1" role="radiogroup" aria-label={t("Cosa vuoi segnalare")}>
+        {([[false, "Un problema"], [true, "Manca materiale"]] as const).map(([v, l]) => (
+          <button key={l} type="button" role="radio" aria-checked={materiale === v} onClick={() => setMateriale(v)}
+            className={cn("min-h-11 rounded-full text-sm font-semibold", materiale === v ? "bg-background shadow-sm" : "text-muted-foreground")}>
+            {t(l)}
+          </button>
+        ))}
+      </div>
+
       <textarea
-        aria-label={t("Cosa succede")}
+        aria-label={materiale ? t("Cosa manca") : t("Cosa succede")}
         value={testo}
         onChange={(e) => setTesto(e.target.value)}
-        placeholder={t("Cosa succede? Es: mancano i tasselli per il secondo piano")}
+        placeholder={materiale ? t("Cosa manca e quanto? Es: 20 sacchi di collante, 2 rotoli di rete") : t("Cosa succede? Es: mancano i tasselli per il secondo piano")}
         rows={4}
         className="w-full resize-none rounded-2xl border bg-muted/60 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
       />
@@ -242,8 +262,20 @@ export default function CampoTicketNuovo() {
         </div>
       )}
 
-      <label className="flex min-h-11 items-center gap-2 text-sm font-semibold">
-        <input type="checkbox" checked={urgente} onChange={(e) => setUrgente(e.target.checked)} className="h-5 w-5" />
+      <div>
+        <p className="mb-1.5 text-xs font-semibold text-muted-foreground">{t("Serve entro")}</p>
+        <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t("Serve entro")}>
+          {SERVE_ENTRO.map(q => (
+            <button key={q.value} type="button" role="radio" aria-checked={entro === q.value} onClick={() => setEntro(entro === q.value ? null : q.value)}
+              className={cn("min-h-11 rounded-full border px-4 text-sm font-semibold", entro === q.value ? "border-primary bg-primary text-primary-foreground" : "bg-background")}>
+              {t(q.label)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <label className="relative flex min-h-11 items-center gap-2 text-sm font-semibold">
+        <input type="checkbox" checked={urgente || entro === "oggi"} disabled={entro === "oggi"} onChange={(e) => setUrgente(e.target.checked)} className="h-5 w-5" />
         {t("È urgente")}
       </label>
 
@@ -256,6 +288,8 @@ export default function CampoTicketNuovo() {
         {submitMutation.isPending && <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />}
         {t("Invia all'ufficio")}
       </button>
+
+      <MieSegnalazioni />
     </div>
   );
 }
