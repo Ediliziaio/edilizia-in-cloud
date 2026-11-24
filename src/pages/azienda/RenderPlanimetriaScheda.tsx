@@ -3,6 +3,7 @@ import { StatoVerificaDocumento } from "@/components/planimetrie/ControlloPrimaD
 import { useControlloPrimaDellUso } from "@/hooks/useVerificaPlanimetria";
 import { MaterialiProgetto } from "@/components/planimetrie/MaterialiProgetto";
 import { NuovaCostruzione } from "@/components/planimetrie/NuovaCostruzione";
+import { RiepilogoProgetto } from "@/components/planimetrie/RiepilogoProgetto";
 import { AssociazioniPiantaPanel, CollegamentiProgetto } from "@/components/planimetrie/CollegamentiPianta";
 import { accessiCollegamenti, useCollegamentiPiante, type TipoCollegamento } from "@/lib/planimetrie/collegamenti";
 import { controlliDalDocumento } from "../../../shared/planimetrie/letturaDocumento.ts";
@@ -457,9 +458,13 @@ export default function RenderPlanimetriaScheda() {
 
       {scheda==="dettagli" && <div className="space-y-6">
         <StatoVerificaDocumento documento={documento} modifica={percorsoEditor} />
+        {/* Prima i numeri del progetto, poi le scelte, poi prima e dopo e render (24/11/2026). */}
+        <RiepilogoProgetto documento={documento} ambito={ambito} companyId={data.riga.company_id} onStudio={() => vaiAllaScheda("studio")} />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <NuovaCostruzione key={"costruzione:"+data.versione.numero} documento={documento} planimetriaId={id} versione={data.versione.numero} solaLettura={!!sola} />
+          <MaterialiProgetto key={ambito+":"+data.versione.numero} documento={documento} ambito={ambito} planimetriaId={id} versione={data.versione.numero} solaLettura={!!sola} />
+        </div>
         {!storico && <CollegamentiProgetto riga={data.riga} mappa={collegamenti.data} onAssocia={tipo=>setGestisciCollegamenti({tipo})} />}
-        <NuovaCostruzione key={"costruzione:"+data.versione.numero} documento={documento} planimetriaId={id} versione={data.versione.numero} solaLettura={!!sola} />
-        <MaterialiProgetto key={ambito+":"+data.versione.numero} documento={documento} ambito={ambito} planimetriaId={id} versione={data.versione.numero} solaLettura={!!sola} />
         {controlliDalDocumento(documento).length > 0 && <section aria-label={t("Controlli dal documento originale")} className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
           <h2 className="mb-2 font-semibold">{t("Controlli dal documento originale")}</h2>
           <ul className="list-disc space-y-1 pl-5">{controlliDalDocumento(documento).map((s,i)=><li key={i}>{s}</li>)}</ul>
