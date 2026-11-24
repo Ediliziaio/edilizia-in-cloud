@@ -10,6 +10,7 @@ from ricostruisciDxf import (
     combina_vani_comunicanti, completa_ingressi_aperti, contorni_facce, contorni_senza_etichette, finestre_tra_stipiti, includi_battuta_portone,
     layer_del_piano, leggi_piano, leggi_quote, portoni_garage, raccordi_muratura, registra_tavola, riconosci_locali, riscontri_chiusure, riscontri_sovrapposizioni,
     scale_da_riscontrare, vani_senza_segno, varchi_tra_stipiti, leggi_testi, leggi_sigle_infissi, misure_da_sigle, unita_dei_locali, altezza_del_piano,
+    leggi_legenda_unita, stanze_dai_nomi, completa_unita_con_legenda,
 )
 
 
@@ -326,6 +327,48 @@ class AltezzaDelPianoTest(unittest.TestCase):
         self.assertEqual(altezza_del_piano(-300, quote, 300), 270)
         self.assertEqual(altezza_del_piano(0, [0], 280), 280)
         self.assertEqual(altezza_del_piano(0, [0, 1000], 280), 280)
+
+
+class LegendaEStanzeDaiNomiTest(unittest.TestCase):
+    def test_legge_la_legenda_degli_alloggi_come_dati(self):
+        doc = ezdxf.new()
+        spazio = doc.modelspace()
+        spazio.add_text("INT. 04  - SUL MQ. 55.20 - BILOCALE (S.U.44.00)  +balcone+ terrazzo coperto")
+        spazio.add_text("INT. 03  - SUL MQ. 85,45 - TRILOCALE (S.U. 64,70) +giardino")
+        spazio.add_text("int. 04")
+        legenda = leggi_legenda_unita(list(spazio))
+        self.assertEqual(legenda, [
+            {"nome": "Int. 03", "sulMq": 85.45, "suMq": 64.7, "tipo": "Trilocale", "pertinenze": ["giardino"]},
+            {"nome": "Int. 04", "sulMq": 55.2, "suMq": 44.0, "tipo": "Bilocale", "pertinenze": ["balcone", "terrazzo coperto"]},
+        ])
+
+    def test_la_riga_di_legenda_non_e_il_nome_di_una_stanza(self):
+        doc = ezdxf.new()
+        spazio = doc.modelspace()
+        spazio.add_text("INT. 07 - SUL MQ. 60.00 - BILOCALE (S.U.44.40) + terrazzo", dxfattribs={"insert": (5, 5)})
+        spazio.add_text("terrazzo", dxfattribs={"insert": (6, 6)})
+        nomi, _ = leggi_testi(list(spazio), box(0, 0, 1000, 1000), 1)
+        self.assertEqual([n for _, n, _ in nomi], ["terrazzo"])
+
+    def test_chiude_la_stanza_dal_nome_e_dalla_superficie_scritti(self):
+        # Ripostiglio 300 × 200 con la porta senza segno sul lato basso: la sagoma la chiude.
+        muri = [Asse(0, 0, -5, 120, 10), Asse(0, 0, 200, 305, 10), Asse(0, 200, -5, 305, 10),
+                Asse(90, 0, 0, 200, 10), Asse(90, -300, 0, 200, 10)]
+        nomi = [(Point(150, 100), "rip.", "ripostiglio")]
+        aree = [(Point(150, 80), 5.7)]
+        (stanza,) = stanze_dai_nomi(muri, [], [], nomi, aree, box(-500, -500, 800, 700))
+        self.assertAlmostEqual(stanza.contorno.area / 10_000, 5.7, delta=0.3)
+        self.assertEqual(stanza.superficie, 5.7)
+        # Se la superficie scritta non torna, la stanza non si inventa.
+        self.assertEqual(stanze_dai_nomi(muri, [], [], nomi, [(Point(150, 80), 12.0)], box(-500, -500, 800, 700)), [])
+
+    def test_la_legenda_rifiuta_la_stanza_all_unita_gia_piena(self):
+        a = LocaleLetto(box(0, 0, 500, 400), [(Point(1, 1), "sogg", "soggiorno")])   # 20 m², int. 06
+        b = LocaleLetto(box(510, 0, 810, 400), [(Point(600, 1), "letto", "camera")])  # 12 m², senza unità
+        c = LocaleLetto(box(820, 0, 1320, 400), [(Point(900, 1), "sogg", "soggiorno")])  # 20 m², int. 04
+        legenda = [{"nome": "Int. 06", "suMq": 20.5}, {"nome": "Int. 04", "suMq": 32.0}]
+        esito = completa_unita_con_legenda([a, b, c], {0: "Int. 06", 2: "Int. 04"}, legenda)
+        self.assertEqual(esito[1], "Int. 04")
 
 
 if __name__ == "__main__":

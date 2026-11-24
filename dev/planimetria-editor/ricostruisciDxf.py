@@ -493,6 +493,8 @@ def leggi_testi(entita, zona, cm):
         if not zona.covers(posizione):
             continue
         testo = " ".join(e.plain_text().split())[:80]
+        if RIGA_LEGENDA.match(testo):
+            continue  # «INT. 07 - SUL … + terrazzo» è la legenda dell'alloggio, non il nome di una stanza
         chiave = semplice(testo)
         posizione_locale = next((valore for pattern, valore in DESTINAZIONI if re.search(pattern, chiave)), None)
         if posizione_locale and not re.search(r"\b(planta|nivel|facade|sezione|elevacion|level)\b", chiave):
@@ -546,6 +548,41 @@ def leggi_sigle_unita(entita, zona, cm):
         if m and zona.covers(posizione):
             sigle.append((posizione, f"Int. {int(m.group(1)):02d}"))
     return sigle
+
+
+RIGA_LEGENDA = re.compile(
+    r"^\s*int\.?\s*0*(\d{1,2})\s*[-–]\s*S\.?U\.?L\.?\s*(?:mq\.?|m²)?\s*([\d.,]+)\s*[-–]\s*([a-zà]+)\s*"
+    r"\(\s*S\.?\s*U\.?\s*(?:mq\.?|m²)?\s*([\d.,]+)\s*\)\s*(.*)$", re.IGNORECASE)
+
+
+def numero_legenda(testo):
+    """«55.20», «55,20», «1.055,20»: la virgola, se c'è, è il separatore dei decimali."""
+    testo = testo.strip(".,")
+    if "," in testo:
+        testo = testo.replace(".", "").replace(",", ".")
+    return float(testo)
+
+
+def leggi_legenda_unita(entita):
+    """Le righe della legenda degli alloggi, ovunque nella tavola:
+    «INT. 04 - SUL MQ. 55.20 - BILOCALE (S.U.44.00) +balcone+ terrazzo coperto».
+    Sono i dati dichiarati dal progettista: la pianta li deve ritrovare, non sostituire."""
+    unita = {}
+    for e in entita:
+        if e.dxftype() not in ("TEXT", "MTEXT"):
+            continue
+        testo = " ".join((e.plain_text() if e.dxftype() == "MTEXT" else e.dxf.text).split())
+        m = RIGA_LEGENDA.match(testo)
+        if not m:
+            continue
+        try:
+            sul, su = numero_legenda(m.group(2)), numero_legenda(m.group(4))
+        except ValueError:
+            continue
+        pertinenze = [p.strip(" .,;").lower() for p in re.split(r"\+|,", m.group(5)) if p.strip(" .,;")]
+        nome = f"Int. {int(m.group(1)):02d}"
+        unita[nome] = {"nome": nome, "sulMq": sul, "suMq": su, "tipo": m.group(3).capitalize(), "pertinenze": pertinenze}
+    return [unita[k] for k in sorted(unita)]
 
 
 def altezza_del_piano(quota, quote, richiesta, solaio=30):
@@ -612,6 +649,46 @@ def unita_dei_locali(locali, muri, aperture, sigle, sottile=16, distanza=600):
         for i in gruppi[r]:
             esito[i] = sigle[k][1]
     return esito
+
+
+ESTERNO_UNITA = re.compile(r"balcon|terrazz|loggia|portico|giardin|cortile", re.IGNORECASE)
+
+
+def completa_unita_con_legenda(locali, unita, legenda, vicino=40, tolleranza=0.12):
+    """Le stanze rimaste senza unità vanno all'unità confinante solo se la legenda lo consente:
+    la superficie utile misurata non deve superare quella dichiarata («S.U. 44,00») oltre il 12%.
+
+    Senza questo vincolo la stanza finiva al vicino sbagliato (la camera dell'int. 04 nell'int. 06);
+    col vincolo l'int. 06, già pieno, la rifiuta. Fra più unità possibili vince quella a cui manca
+    la superficie più vicina all'area della stanza; si ripete finché qualcosa cambia.
+    """
+    dichiarata = {u["nome"]: u["suMq"] for u in legenda}
+    if not dichiarata:
+        return unita
+    esito = dict(unita)
+    nomi = [" ".join(n for _, n, _ in l.etichette) for l in locali]
+    privati = [i for i, n in enumerate(nomi) if not COMUNI.search(n) and not ESTERNO_UNITA.search(n)]
+    aree = {i: locali[i].contorno.area / 10_000 for i in privati}
+    misurata = defaultdict(float)
+    for i, u in esito.items():
+        if i in aree:
+            misurata[u] += aree[i]
+    while True:
+        scelte = []
+        for i in privati:
+            if i in esito:
+                continue
+            for j, u in esito.items():
+                if u not in dichiarata or locali[i].contorno.distance(locali[j].contorno) > vicino:
+                    continue
+                manca = dichiarata[u] - misurata[u]
+                if aree[i] <= manca + dichiarata[u] * tolleranza:
+                    scelte.append((abs(manca - aree[i]), i, u))
+        if not scelte:
+            return esito
+        _, i, u = min(scelte)
+        esito[i] = u
+        misurata[u] += aree[i]
 
 
 def misure_da_sigle(vani, sigle, distanza=250):
@@ -867,6 +944,54 @@ class LocaleLetto:
     etichette: list
     superficie: float | None = None
     aperto: bool = False
+
+
+def stanze_dai_nomi(muri, aperture, locali, nomi, aree, zona, involucro=100, vicino=80):
+    """Le stanze con un nome e una superficie scritti che il riconoscimento delle facce non ha
+    chiuso (ingressi, disimpegni, ripostigli: contorni con un tratto mancante o un vano senza segno).
+
+    Si riempie lo spazio libero fra le pareti ricostruite, con i vani chiusi, dentro la sagoma
+    dell'edificio (pareti dilatate e riempite: le porte d'ingresso non fanno uscire la stanza),
+    tolte le stanze già trovate. Un pezzo è accettato solo se la sua area torna con quella scritta
+    (±20%, o 0,8 m² per i vani piccoli): se due nomi cadono nello stesso pezzo (un bagno e il suo
+    disimpegno senza la porta disegnata) diventano una stanza sola, con le due superfici sommate.
+    Callimaco, 24/11/2026: ripostiglio, ingresso, bagno e disimpegni del primo piano.
+    """
+    liberi = [(p, n, t) for p, n, t in nomi if not any(l.contorno.covers(p) for l in locali)]
+    if not liberi or not muri:
+        return []
+    pieni = [LineString((punto(m.inizio, m.centro, m.angolo), punto(m.fine, m.centro, m.angolo))).buffer(max(m.spessore, 4) / 2, cap_style=2)
+             for m in muri if m.fine > m.inizio]
+    pieni += [LineString((punto(a, m.centro, m.angolo), punto(b, m.centro, m.angolo))).buffer(max(m.spessore, 4) / 2 + 1, cap_style=2)
+              for m, a, b, _ in aperture if b > a]
+    solido = union_all(pieni)
+    sagoma = solido.buffer(involucro, join_style=2).buffer(-involucro, join_style=2)
+    sagoma = union_all([Polygon(g.exterior) for g in getattr(sagoma, "geoms", [sagoma]) if g.geom_type == "Polygon"])
+    occupato = union_all([l.contorno for l in locali]).buffer(3) if locali else Polygon()
+    libero = sagoma.intersection(zona).difference(solido).difference(occupato)
+    pezzi = [g for g in getattr(libero, "geoms", [libero]) if g.geom_type == "Polygon" and g.area > 0]
+    usate = {id(a) for a, _ in aree if any(l.contorno.covers(a) for l in locali)}
+    nuovi = []
+    for pezzo in pezzi:
+        dentro = [e for e in liberi if pezzo.covers(e[0])]
+        if not dentro:
+            continue
+        superfici = []
+        for p, _, _ in dentro:
+            vicine = sorted((a.distance(p), id(a), mq) for a, mq in aree if id(a) not in usate and a.distance(p) <= vicino)
+            if not vicine:
+                break
+            usate.add(vicine[0][1])
+            superfici.append(vicine[0][2])
+        if len(superfici) != len(dentro):
+            continue
+        attesa = sum(superfici)
+        if abs(pezzo.area / 10_000 - attesa) > max(attesa * 0.2, 0.8):
+            continue
+        # La destinazione della parte più grande dà il tipo alla stanza.
+        ordinate = [e for _, e in sorted(zip(superfici, dentro), key=lambda c: -c[0])]
+        nuovi.append(LocaleLetto(Polygon(pezzo.exterior), ordinate, round(attesa, 2)))
+    return nuovi
 
 
 def separa_ambienti_aperti(spazio, etichette, misure):
@@ -1467,6 +1592,7 @@ class PianoLetto:
     fonti: list
     sigle: list = field(default_factory=list)
     sigle_unita: list = field(default_factory=list)
+    nomi_letti: int = 0
 
 
 def leggi_piano(entita, regione, cm, layer, controllo=False):
@@ -1565,13 +1691,15 @@ def leggi_piano(entita, regione, cm, layer, controllo=False):
     if not locali and not nomi and not aree:
         locali = contorni_senza_etichette(muri, pertinenti)
     locali.extend(completa_ingressi_aperti(locali, muri, tratti, stipiti + varchi, nomi, aree, pertinenti))
+    if nomi and aree:
+        locali.extend(stanze_dai_nomi(muri, pertinenti, locali, nomi, aree, zona))
     nomi_usati = {id(p) for l in locali for p, _, _ in l.etichette}
     testi = [(p, nome) for p, nome, _ in nomi if id(p) not in nomi_usati]
     testi.extend((p, f"{mq:g} m²".replace(".", ",")) for p, mq in aree if not any(
         mq == l.superficie and l.contorno.covers(p) for l in locali
     ))
     return PianoLetto(muri, pertinenti, locali, testi, leggi_quote(entita, zona, cm), assi_vicini(entita, zona, cm), linee, archi, riscontri[:48], fonti,
-                      leggi_sigle_infissi(entita, zona, cm), leggi_sigle_unita(entita, zona, cm))
+                      leggi_sigle_infissi(entita, zona, cm), leggi_sigle_unita(entita, zona, cm), len(nomi))
 
 
 def leggi_scale(letti, altezza):
@@ -1754,6 +1882,9 @@ def ricostruisci(documento, opzioni):
             "origine": [round(x - ox, 3), round(Y - oy, 3)],
             "larghezza": round(X - x, 3), "altezza": round(Y - y, 3), "allineamento": allineamento,
             "contorniDaVerificare": sum(not l.etichette and l.superficie is None for l in piano.locali),
+            # Quanti nomi di stanza scritti sulla tavola sono finiti dentro una stanza chiusa.
+            "nomiScritti": piano.nomi_letti,
+            "nomiInStanze": len({id(p) for l in piano.locali for p, _, _ in l.etichette}),
         })
 
     scale = leggi_scale(letti, altezza)
@@ -1762,6 +1893,7 @@ def ricostruisci(documento, opzioni):
     except (ezdxf.DXFError, ValueError, IndexError, TypeError, OverflowError):
         tavola = None
     altezza_richiesta = altezza
+    legenda = leggi_legenda_unita(entita)
     quote_piani = sorted({r["quota"] for _, r, _, _, _ in letti})
     for numero, regione, piano, (ox, oy), _ in letti:
         # I riscontri tra piani usano i tratti della tavola prima della normalizzazione per l’editor.
@@ -1808,7 +1940,7 @@ def ricostruisci(documento, opzioni):
                 **({"ante": 2} if tipo == "porta_doppia" else {}),
                 "stato": "esistente", "origine": "da_documento", **({"origineMisure": misure} if misure else {}),
             })
-        unita = unita_dei_locali(piano.locali, piano.muri, piano.aperture, piano.sigle_unita)
+        unita = completa_unita_con_legenda(piano.locali, unita_dei_locali(piano.locali, piano.muri, piano.aperture, piano.sigle_unita), legenda)
         for i, l in enumerate(piano.locali, 1):
             etichette = sorted(l.etichette, key=lambda e: (e[0].x, -e[0].y))
             nome = " / ".join(dict.fromkeys(n for _, n, _ in etichette)) if etichette else (
@@ -1868,10 +2000,10 @@ def ricostruisci(documento, opzioni):
                 riscontri.append(voce)
             livello["controlloDwg"] = riscontri
         livelli.append(livello)
-    return {
-        "documento": {"schema": 1, "unita": "cm", "scala": 100, "livelli": livelli},
-        "piani": riepilogo,
-    }
+    documento_letto = {"schema": 1, "unita": "cm", "scala": 100, "livelli": livelli}
+    if legenda:
+        documento_letto["unitaDichiarate"] = legenda
+    return {"documento": documento_letto, "piani": riepilogo}
 
 
 def main(source, request, target):

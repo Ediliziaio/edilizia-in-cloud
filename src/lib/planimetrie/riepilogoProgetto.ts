@@ -5,10 +5,31 @@
  */
 import { geometriaPiano } from "../../../shared/planimetrie/costruzione.ts";
 import { areaPoligono } from "../../../shared/planimetrie/geometria.ts";
-import { ambitiDi, eAmbienteInterno, statoDelLivello, type Planimetria } from "../../../shared/planimetrie/modello.ts";
+import { ambitiDi, eAmbienteInterno, statoDelLivello, type Planimetria, type UnitaDichiarata } from "../../../shared/planimetrie/modello.ts";
 
 export interface PianoRiepilogo { id: string; nome: string; stanze: number; nettaMq: number; lordaMq: number }
-export interface UnitaRiepilogo { nome: string; tipo: string; piani: string[]; stanze: number; camere: number; bagni: number; nettaMq: number }
+export interface UnitaRiepilogo {
+  nome: string; tipo: string; piani: string[]; stanze: number; camere: number; bagni: number; nettaMq: number;
+  /** Dalla legenda della tavola, se c'è: quello che il progettista dichiara. */
+  dichiarata?: UnitaDichiarata;
+  /** Misurata meno dichiarata (S.U.), m²: negativo = mancano stanze o pezzi di stanza. */
+  scartoMq?: number;
+  /** La misura torna con la legenda (entro il 10%, o 2 m²). */
+  torna?: boolean;
+}
+
+/** «Int. 04», «INT 4», «int.04» sono la stessa unità. */
+export function chiaveUnita(nome: string): string {
+  const numero = nome.match(/\d+/)?.[0];
+  return numero ? `${nome.replace(/[\d\s.]+/g, "").toLowerCase()}:${Number(numero)}` : nome.trim().toLowerCase();
+}
+
+function confronto(dichiarata: UnitaDichiarata | undefined, nettaMq: number): Pick<UnitaRiepilogo, "dichiarata" | "scartoMq" | "torna"> {
+  if (!dichiarata) return {};
+  if (dichiarata.suMq === undefined) return { dichiarata };
+  const scarto = arrotonda(nettaMq - dichiarata.suMq);
+  return { dichiarata, scartoMq: scarto, torna: Math.abs(scarto) <= Math.max(dichiarata.suMq * 0.1, 2) };
+}
 export interface RiepilogoProgetto { piani: PianoRiepilogo[]; unita: UnitaRiepilogo[]; nettaMq: number; lordaMq: number; senzaUnitaMq: number }
 
 const arrotonda = (n: number) => Math.round(n * 100) / 100;
@@ -47,8 +68,17 @@ export function riepilogoProgetto(doc: Planimetria, chiave: string): RiepilogoPr
     }
   }
   // Un alloggio senza bagno è disegnato a metà: dargli un tipo direbbe una cosa falsa.
-  const elenco = [...unita.values()].map((u) => ({ ...u, tipo: u.bagni ? tipoAlloggio(u.camere) : "Da completare", nettaMq: arrotonda(u.nettaMq) }))
-    .sort((a, b) => a.nome.localeCompare(b.nome, "it", { numeric: true }));
+  const legenda = new Map((doc.unitaDichiarate ?? []).map((u) => [chiaveUnita(u.nome), u]));
+  const elenco: UnitaRiepilogo[] = [...unita.values()].map((u) => {
+    const dichiarata = legenda.get(chiaveUnita(u.nome));
+    legenda.delete(chiaveUnita(u.nome));
+    return { ...u, tipo: u.bagni ? tipoAlloggio(u.camere) : "Da completare", nettaMq: arrotonda(u.nettaMq), ...confronto(dichiarata, u.nettaMq) };
+  });
+  // Le unità della legenda che la pianta non ha trovato: si vedono, a zero, invece di sparire.
+  for (const d of legenda.values()) {
+    elenco.push({ nome: d.nome, tipo: "Da completare", piani: [], stanze: 0, camere: 0, bagni: 0, nettaMq: 0, ...confronto(d, 0) });
+  }
+  elenco.sort((a, b) => a.nome.localeCompare(b.nome, "it", { numeric: true }));
   return {
     piani, unita: elenco,
     nettaMq: arrotonda(piani.reduce((s, p) => s + p.nettaMq, 0)),

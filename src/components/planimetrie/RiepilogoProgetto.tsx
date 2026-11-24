@@ -30,6 +30,7 @@ export function RiepilogoProgetto({ documento, ambito, companyId, onStudio }: {
   const { fonti } = useFontiPrezzi(companyId, tipi, permessi.canViewPreventivi && !!variante);
   const previsione = useMemo(() => variante && permessi.canViewPreventivi && grezze.length ? previsioneLavori(conPrezziProposti(grezze, fonti)) : null,
     [variante, permessi.canViewPreventivi, grezze, fonti]);
+  const conLegenda = r.unita.some((u) => u.dichiarata);
   const tipo = documento.costruzione ? t("Costruzione e sopraelevazione") : variante ? t("Ristrutturazione") : t("Stato di fatto");
 
   return <section aria-label={t("Riepilogo del progetto")} className="space-y-4 rounded-2xl border bg-card p-4 sm:p-5">
@@ -57,14 +58,22 @@ export function RiepilogoProgetto({ documento, ambito, companyId, onStudio }: {
       {r.unita.length > 0 && <div>
         <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("Unità")}</h3>
         <table className="w-full text-sm">
-          <thead><tr className="text-left text-xs text-muted-foreground"><th className="py-1 font-medium">{t("Alloggio")}</th><th className="font-medium">{t("Tipo")}</th><th className="font-medium">{t("Piano")}</th><th className="text-right font-medium">{t("m² netti")}</th></tr></thead>
+          <thead><tr className="text-left text-xs text-muted-foreground"><th className="py-1 font-medium">{t("Alloggio")}</th><th className="font-medium">{t("Tipo")}</th><th className="font-medium">{t("Piano")}</th><th className="text-right font-medium">{t("m² netti")}</th>
+            {conLegenda && <th className="text-right font-medium">{t("Legenda S.U.")}</th>}</tr></thead>
           <tbody className="divide-y">{r.unita.map((u) => <tr key={u.nome}>
             <td className="py-1.5 font-medium">{u.nome}</td>
-            <td className={u.tipo === "Da completare" ? "text-amber-800 dark:text-amber-200" : undefined}>{t(u.tipo)}<span className="block text-xs text-muted-foreground">{u.bagni === 1 ? t("1 bagno") : t("{n} bagni", { n: u.bagni })} · {t("{n} stanze", { n: u.stanze })}</span></td>
-            <td className="text-xs">{u.piani.join(", ")}</td>
+            <td className={u.tipo === "Da completare" ? "text-amber-800 dark:text-amber-200" : undefined}>{t(u.tipo)}<span className="block text-xs text-muted-foreground">{u.bagni === 1 ? t("1 bagno") : t("{n} bagni", { n: u.bagni })} · {t("{n} stanze", { n: u.stanze })}
+              {u.dichiarata?.tipo && u.dichiarata.tipo.toLowerCase() !== u.tipo.toLowerCase() && <> · {t("legenda: {tipo}", { tipo: u.dichiarata.tipo })}</>}</span></td>
+            <td className="text-xs">{u.piani.join(", ") || "—"}</td>
             <td className="text-right tabular-nums">{mq(u.nettaMq)}</td>
+            {conLegenda && <td className="text-right tabular-nums">{u.dichiarata?.suMq !== undefined ? <>
+              {mq(u.dichiarata.suMq)}
+              {u.scartoMq !== undefined && <span className={`block text-xs ${u.torna ? "text-emerald-700 dark:text-emerald-300" : "text-amber-800 dark:text-amber-200"}`}>
+                {u.torna ? t("torna") : u.scartoMq < 0 ? t("mancano {mq}", { mq: mq(-u.scartoMq) }) : t("{mq} in più", { mq: mq(u.scartoMq) })}</span>}
+            </> : "—"}</td>}
           </tr>)}</tbody>
         </table>
+        {conLegenda && r.unita.some((u) => u.torna === false) && <p className="mt-1 text-xs text-muted-foreground">{t("Dove mancano m², la pianta non ha chiuso qualche stanza o l'ha data a un'altra unità: controlla nell'editor (dettagli della stanza → unità).")}</p>}
         {r.senzaUnitaMq > 0 && <p className="mt-1 text-xs text-muted-foreground">{t("{mq} di stanze senza unità: assegnale nell'editor (dettagli della stanza).", { mq: mq(r.senzaUnitaMq) })}</p>}
       </div>}
       <div>

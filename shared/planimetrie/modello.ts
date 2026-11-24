@@ -498,6 +498,32 @@ export interface Planimetria {
   lavoriFatti?: Record<string, string[]>;
   /** Nuova costruzione: l'edificio si fa da zero e il computo comprende scavi, strutture e impianti (costruzione.ts). */
   costruzione?: Costruzione;
+  /** Le unità come le dichiara la legenda della tavola («INT. 04 - SUL MQ. 55.20 - BILOCALE (S.U. 44.00)»):
+   *  dato del progettista, da confrontare con quello che la pianta misura, mai sostituito. */
+  unitaDichiarate?: UnitaDichiarata[];
+}
+
+export interface UnitaDichiarata {
+  /** «Int. 04»: la stessa sigla che le stanze portano in `unita`. */
+  nome: string;
+  /** Superficie utile lorda dichiarata, m². */
+  sulMq?: number;
+  /** Superficie utile (calpestabile) dichiarata, m². */
+  suMq?: number;
+  /** «Bilocale», «Trilocale»… come scritto in legenda. */
+  tipo?: string;
+  /** «balcone», «terrazzo coperto», «giardino»… */
+  pertinenze?: string[];
+}
+
+function unitaDichiarateValide(dato: unknown): dato is UnitaDichiarata[] {
+  const superficie = (v: unknown) => v === undefined || (typeof v === "number" && Number.isFinite(v) && v >= 0 && v < 100_000);
+  return Array.isArray(dato) && dato.length <= 500 && dato.every((u) => eOggetto(u)
+    && typeof u.nome === "string" && u.nome.length > 0 && u.nome.length <= 80
+    && superficie(u.sulMq) && superficie(u.suMq)
+    && (u.tipo === undefined || (typeof u.tipo === "string" && u.tipo.length <= 80))
+    && (u.pertinenze === undefined || (Array.isArray(u.pertinenze) && u.pertinenze.length <= 20
+      && u.pertinenze.every((p) => typeof p === "string" && p.length <= 120))));
 }
 
 export type StatoVendita = "libera" | "prenotata" | "venduta";
@@ -646,6 +672,7 @@ export function validaPlanimetria(dato: unknown): EsitoValidazione {
   }
   if (dato.rilievo !== undefined && !rilievoValido(dato.rilievo)) errori.push("La pianta: il rilievo del terreno non è valido.");
   if (dato.costruzione !== undefined && !costruzioneValida(dato.costruzione)) errori.push("La pianta: le scelte della nuova costruzione non sono valide.");
+  if (dato.unitaDichiarate !== undefined && !unitaDichiarateValide(dato.unitaDichiarate)) errori.push("La pianta: la legenda delle unità non è valida.");
   if (dato.vendite !== undefined) {
     if (!eOggetto(dato.vendite)) errori.push("La pianta: il listino delle unità non è valido.");
     else for (const [sigla, v] of Object.entries(dato.vendite)) {
