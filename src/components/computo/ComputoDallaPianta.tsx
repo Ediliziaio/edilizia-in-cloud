@@ -9,7 +9,9 @@ import { usePlanimetria, useVersionePlanimetria, type VersionePlanimetria } from
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
 import { formatCurrency } from "@/lib/formatters";
 import { calcolaVoce, type VoceEditor } from "@/lib/computo/editorNativo";
-import { confrontaComputoConPianta, gruppiMisureDallaPianta, misureDalProgetto, vociDallaPianta, type MisuraPropostaDallaPianta, type OrigineComputoPianta } from "@/lib/computo/computoDallaPianta";
+import { confrontaComputoConPianta, gruppiMisureDallaPianta, importoProposto, misureDalProgetto, tipiDaQuotare, vociDallaPianta, type MisuraPropostaDallaPianta, type OrigineComputoPianta } from "@/lib/computo/computoDallaPianta";
+import { useFontiPrezzi } from "@/lib/planimetrie/fontiPrezzi";
+import { usePermissions } from "@/hooks/usePermissions";
 import { esigiVerificaDocumento } from "../../../shared/planimetrie/verificaDocumento";
 import type { Planimetria } from "../../../shared/planimetrie/modello";
 import type { Selezione } from "@/components/planimetrie/editor/TelaPlanimetria";
@@ -88,6 +90,15 @@ export default function ComputoDallaPianta({ origine, voci, companyId, modifica,
     if (!versioneEditor || !modifica) return;
     setBozza({ documento, base: versioneEditor });
   }, [modifica, versioneEditor]);
+  // Le voci nuove nascono quotate come nello studio della variante: solo per chi vede gli importi.
+  const permessi = usePermissions();
+  const vedePrezzi = permessi.canViewPreventivi;
+  const documentoPrezzi = bozzaPerConfronto ?? piantaAzienda?.versione.documento;
+  const tipiPrezzi = useMemo(() => {
+    try { return documentoPrezzi ? tipiDaQuotare(documentoPrezzi, origine) : []; } catch { return []; }
+  }, [documentoPrezzi, origine]);
+  const { fonti: fontiCaricate } = useFontiPrezzi(companyId, tipiPrezzi, vedePrezzi);
+  const fonti = vedePrezzi ? fontiCaricate : null;
   const leggiPropostaChat = useCallback((proposta: { documento: Planimetria; applicabile: boolean } | null) => {
     setPropostaChat(proposta && versioneEditor ? { ...proposta, base: versioneEditor } : null);
   }, [versioneEditor]);
@@ -99,16 +110,16 @@ export default function ComputoDallaPianta({ origine, voci, companyId, modifica,
       const documento = bozzaPerConfronto ?? versione.documento;
       esigiVerificaDocumento(documento, "computo");
       if (versione.numero < origine.versione) throw new Error("Riprova a leggere l’ultima versione del disegno.");
-      const precedenti = documentoStorico ? misureDalProgetto(documentoStorico, origine)
+      const precedenti = documentoStorico ? misureDalProgetto(documentoStorico, origine, fonti)
         : numeroRaggruppamento ? [] : undefined;
       return {
         numero: versione.numero, titolo: riga.titolo,
-        confronto: confrontaComputoConPianta(voci, misureDalProgetto(documento, origine), bozzaPerConfronto ? versione.numero + 1 : versione.numero, precedenti),
+        confronto: confrontaComputoConPianta(voci, misureDalProgetto(documento, origine, fonti), bozzaPerConfronto ? versione.numero + 1 : versione.numero, precedenti),
       };
     } catch (e) {
       return { errore: e instanceof Error ? e.message : "Le misure della pianta sono da verificare." };
     }
-  }, [attendeVersioneSalvata, bozzaPerConfronto, documentoStorico, numeroRaggruppamento, origine, piantaAzienda, voci]);
+  }, [attendeVersioneSalvata, bozzaPerConfronto, documentoStorico, fonti, numeroRaggruppamento, origine, piantaAzienda, voci]);
   const confronto = dati?.confronto;
   const numeroVersione = dati?.numero;
   const daAggiornare = Boolean(confronto?.haMisureDaAggiornare);
@@ -362,8 +373,10 @@ export default function ComputoDallaPianta({ origine, voci, companyId, modifica,
                 }
                 return nuove;
               })} />
-              <span className="min-w-0 flex-1 break-words">{prima.nome} · {prima.riferimento}{misure.some(m => m.origine === "stimata") && " · Stima"}</span>
-              <span className="shrink-0 tabular-nums">{numero.format(quantita)} {unitaVisibile(prima.unita)}</span>
+              <span className="min-w-0 flex-1 break-words">{prima.nome} · {prima.riferimento}{misure.some(m => m.origine === "stimata") && " · Stima"}
+                {prima.prezzo && <span className="block text-xs text-muted-foreground">{formatCurrency(prima.prezzo.importo)}/{unitaVisibile(prima.unita)} · {prima.prezzo.fonte}</span>}</span>
+              <span className="shrink-0 text-right tabular-nums">{numero.format(quantita)} {unitaVisibile(prima.unita)}
+                {prima.prezzo && <span className="block text-xs text-muted-foreground">{formatCurrency(importoProposto(quantita, prima.prezzo)!)}</span>}</span>
             </label>)}
           </fieldset>}
         </>}

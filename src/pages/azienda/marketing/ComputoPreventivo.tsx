@@ -51,8 +51,9 @@ export default function ComputoPreventivo() {
       if (!piantaId || !idComputoValido(piantaId) || !livelloId || livelloId.length > 250 || (propostaId !== null && (!propostaId || propostaId.length > 250))) {
         throw new Error("Scegli il piano dalla scheda della planimetria.");
       }
-      const [{ caricaPlanimetria }, { idComputoDallaPianta, misureDalProgetto, vociDallaPianta }, { esigiVerificaDocumento }] = await Promise.all([
+      const [{ caricaPlanimetria }, { idComputoDallaPianta, misureDalProgetto, tipiDaQuotare, vociDallaPianta }, { esigiVerificaDocumento }, { caricaFontiPrezzi }] = await Promise.all([
         import("@/lib/planimetrie/archivio"), import("@/lib/computo/computoDallaPianta"), import("../../../../shared/planimetrie/verificaDocumento"),
+        import("@/lib/planimetrie/fontiPrezzi"),
       ]);
       const collegamento = { id: piantaId, livelloId, propostaId };
       const idComputo = await ultimoComputoCollegato(effectiveCompany!.id, collegamento) ?? await idComputoDallaPianta(collegamento);
@@ -63,7 +64,10 @@ export default function ComputoPreventivo() {
         const piantaOrigine: OrigineComputoPianta = {
           ...collegamento, titolo: riga.titolo.slice(0, 160), versione: versione.numero,
         };
-        const proposte = propostaId ? vociDallaPianta(misureDalProgetto(versione.documento, piantaOrigine).filter(m => m.chiavePrecedente), versione.numero) : [];
+        // Le voci nascono quotate come nello studio della variante, per chi vede gli importi.
+        const fonti = propostaId && permessi.canViewPreventivi
+          ? await caricaFontiPrezzi(effectiveCompany!.id, tipiDaQuotare(versione.documento, piantaOrigine)) : null;
+        const proposte = propostaId ? vociDallaPianta(misureDalProgetto(versione.documento, piantaOrigine, fonti).filter(m => m.chiavePrecedente), versione.numero) : [];
         if (proposte.length > 5000) throw new Error("Apri un piano con un massimo di 5.000 lavorazioni per computo.");
         return { idComputo, bozza: { piantaOrigine, titolo: `Lavori — ${riga.titolo}`.slice(0, 160),
           voci: proposte } };

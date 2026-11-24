@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatCurrency } from "@/lib/formatters";
 import { arrotondaDecimale, calcolaVoce, type VoceEditor } from "@/lib/computo/editorNativo";
-import { gruppiMisureDallaPianta, type confrontaComputoConPianta, type MisuraPropostaDallaPianta } from "@/lib/computo/computoDallaPianta";
+import { gruppiMisureDallaPianta, importoProposto, type confrontaComputoConPianta, type MisuraPropostaDallaPianta } from "@/lib/computo/computoDallaPianta";
 import type { OggettoLavoro } from "@/lib/planimetrie/primaEDopo";
 
 const quantita = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 });
@@ -23,6 +23,8 @@ interface Riga {
   importoPrima?: number | null;
   importoDopo?: number | null;
   motivo?: string;
+  /** Da dove viene il prezzo proposto di una voce nuova. */
+  fonte?: string;
 }
 
 const coincide = (a: OggettoLavoro | undefined, b: { tipo: string; id: string } | null) => !!a && a.tipo === b?.tipo && a.id === b.id;
@@ -64,6 +66,7 @@ export default function LavorazioniDallaPianta({ confronto, voci, selezione, boz
     });
     return [...collegate, ...gruppiMisureDallaPianta(novitaDisegno ?? confronto.disponibili).map(({ prima, misure, quantita }): Riga => ({
       id: prima.chiave, nome: prima.nome, fase: prima.capitolo, unita: prima.unita, misure, dopo: quantita,
+      importoDopo: importoProposto(quantita, prima.prezzo), fonte: prima.prezzo?.fonte,
     }))];
   }, [confronto, novitaDisegno, voci]);
   const esplora = !inSilvio || altreMisure;
@@ -82,7 +85,7 @@ export default function LavorazioniDallaPianta({ confronto, voci, selezione, boz
   const modificheConPrezzo = variazioni.filter(r => r.importoPrima != null && r.importoDopo != null);
   const differenza = arrotondaDecimale(variazioni.reduce((tot, r) =>
     tot + (r.importoPrima != null && r.importoDopo != null ? r.importoDopo - r.importoPrima : 0), 0));
-  const importiDaDefinire = righe.filter(nuova).length + variazioni.filter(r => r.importoDopo == null).length;
+  const importiDaDefinire = righe.filter(r => nuova(r) && r.importoDopo == null).length + variazioni.filter(r => r.importoDopo == null).length;
   const rivedibili = puoConfermareDisegno || confronto.haMisureDaAggiornare || confronto.disponibili.length > 0 || confronto.daVerificare.length > 0;
   const contaVoci = (n: number) => n === 1 ? "1 voce collegata" : `${n} voci collegate`;
 
@@ -151,7 +154,7 @@ export default function LavorazioniDallaPianta({ confronto, voci, selezione, boz
                       <p className="break-words text-xs text-muted-foreground">{[luoghi, r.fase].filter(Boolean).join(" · ")}</p>
                       {r.misure.length === 1 && r.misure[0].calcolo && <p className="text-xs text-muted-foreground">{r.misure[0].calcolo}</p>}
                       {r.motivo ? <p className="text-xs text-amber-900">{r.motivo}</p>
-                        : nuova(r) ? <p className="text-xs text-blue-800">{r.misure.some(m => m.origine === "stimata") ? "Da aggiungere · misura stimata" : "Da aggiungere"}</p>
+                        : nuova(r) ? <p className="text-xs text-blue-800">{r.misure.some(m => m.origine === "stimata") ? "Da aggiungere · misura stimata" : "Da aggiungere"}{r.fonte && ` · ${r.fonte}`}</p>
                           : cambiata(r) && !inSilvio && <p className="text-xs text-blue-800">Quantità variata</p>}
                     </div>
                   </div>

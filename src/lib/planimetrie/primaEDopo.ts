@@ -99,7 +99,7 @@ function stanzaDi(p: Punto, progetto: Locale[], oggi: Locale[]): string | null {
 }
 
 /** La stanza di una parete: si guarda appena di qua e appena di là dalla metà. */
-function stanzaDelMuro(m: Muro, progetto: Locale[], oggi: Locale[]): string | null {
+export function stanzaDelMuro(m: Muro, progetto: Locale[], oggi: Locale[]): string | null {
   const l = lunghezza(m) || 1;
   const nx = -(m.p2.y - m.p1.y) / l, ny = (m.p2.x - m.p1.x) / l;
   const c = { x: (m.p1.x + m.p2.x) / 2, y: (m.p1.y + m.p2.y) / 2 };
