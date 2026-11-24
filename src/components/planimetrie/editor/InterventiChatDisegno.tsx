@@ -1,4 +1,5 @@
 import { lazy, Suspense, useId, useMemo, useRef, useState } from "react";
+import { oggiIso } from "@/lib/planimetrie/dataPrezzi";
 import { Focus, MapPin, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -164,7 +165,8 @@ function CostiInterventi({ proposta, revisione, contesto, consentiListino, onMod
   if (!righe.length) return <p className="py-1 text-muted-foreground">Gli interventi selezionati non cambiano le quantità del computo.</p>;
   const attiva = righe.find(r => r.dopo?.id === rigaAttiva)?.dopo;
   const assegna = (r: RigaStudio, prezzo: PrezzoVocePlanimetria) => {
-    onModifica({ ...revisione, prezzi: { ...revisione.prezzi, [r.id]: prezzo } });
+    // Il giorno del prezzo resta nella variante: lo studio dirà «prezzi al …» e quando riguardarli.
+    onModifica({ ...revisione, prezzi: { ...revisione.prezzi, [r.id]: { ...prezzo, data: prezzo.data ?? oggiIso() } } });
     setRigaAttiva(null);
     setDaListino(false);
     setErrore("");

@@ -364,6 +364,8 @@ export interface PrezzoVocePlanimetria {
   unita: "m²" | "m" | "cad" | "a corpo";
   fonte: string;
   tariffa: string;
+  /** Il giorno in cui il prezzo è stato preso (AAAA-MM-GG): dice quando va riguardato. Assente nelle varianti salvate prima del 24/11/2026. */
+  data?: string;
 }
 
 export interface Proposta extends StatoPianta {
@@ -744,7 +746,8 @@ export function validaPlanimetria(dato: unknown): EsitoValidazione {
       if (pr.prezziLavorazioni !== undefined && (!eOggetto(pr.prezziLavorazioni) || Object.entries(pr.prezziLavorazioni).length > 5000 ||
         Object.entries(pr.prezziLavorazioni).some(([id, p]) => !/^[-\w:.]{1,220}$/.test(id) || !eOggetto(p)
           || !eNumero(p.importo) || (p.importo as number) < 0 || !["m²", "m", "cad", "a corpo"].includes(p.unita as string)
-          || typeof p.fonte !== "string" || !p.fonte.trim() || p.fonte.length > 300 || typeof p.tariffa !== "string" || p.tariffa.length > 120))) {
+          || typeof p.fonte !== "string" || !p.fonte.trim() || p.fonte.length > 300 || typeof p.tariffa !== "string" || p.tariffa.length > 120
+          || (p.data !== undefined && (typeof p.data !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(p.data)))))) {
         errori.push(`${etichetta}: i prezzi delle lavorazioni non sono validi.`);
       }
       validaStato(pr, etichetta, `progetto:${pr.id}`, false, errori, idPerAmbito);

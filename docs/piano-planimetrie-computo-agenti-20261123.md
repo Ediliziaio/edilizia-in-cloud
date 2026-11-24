@@ -380,6 +380,13 @@ media il 40% in più»). Prima di allora sarebbe un numero inventato.
 - **Lotto H.** Il confronto fra due soluzioni mostra ora anche **costo previsto con i costi
   in più** e **durata in giorni**, con le stesse regole del pannello della previsione.
   Prima si fermava all'importo delle voci valorizzate.
+- **Lotto H, la data dei prezzi.** Ogni prezzo scritto nella variante porta il giorno in cui è
+  stato preso (`prezziLavorazioni[id].data`, nel jsonb: niente migrazione); il computo generato
+  dalla variante tiene il suo (`fontePlanimetria.prezziAl`). Lo studio mostra «Prezzi al
+  gg/mm/aaaa» per ciascuna soluzione (i proposti sono di oggi, le varianti di prima del 24/11 lo
+  dicono: «senza data») e «Prezzi da aggiornare» quando la stessa proposta oggi darebbe un altro
+  prezzo: `rst_listino_voci` non ha una data di modifica, quindi si confrontano i prezzi, non le
+  date. I prezzi scritti a mano non si segnalano. Logica in `src/lib/planimetrie/dataPrezzi.ts`.
 - **Lotto I, editor sul telefono.** A 375 px l'editor dava 245 px al disegno e 365 alle
   barre. Tolto il superfluo (titolo su una riga, sottotitolo e scritta del pulsante 3D solo
   da tablet in su, parola «Ambito» solo per i lettori di schermo): testata da 138 a 58 px,

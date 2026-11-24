@@ -56,7 +56,9 @@ const allegatoSchema = z.object({
   includi: z.boolean(),
 });
 export const bozzaComputoSchema = z.object({
-  fontePlanimetria: z.object({ planimetriaId: z.string().uuid(), versione: z.number().int().positive(), varianteId: z.string().regex(/^[a-zA-Z0-9_-]{1,36}$/) }).optional(),
+  fontePlanimetria: z.object({ planimetriaId: z.string().uuid(), versione: z.number().int().positive(), varianteId: z.string().regex(/^[a-zA-Z0-9_-]{1,36}$/),
+    /** Il giorno in cui il computo generato dalla variante ha preso i prezzi (AAAA-MM-GG, 24/11/2026). */
+    prezziAl: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }).optional(),
   versione: z.literal(1), titolo: z.string().max(160), committente: z.string().max(160), oggetto: z.string().max(500),
   numero: z.string().max(80).default(""), indirizzo: z.string().max(300).default(""),
   // Il cliente come negli altri preventivi (29/10/2026): il contatto del CRM, i recapiti, il cointestatario e

@@ -1,4 +1,5 @@
 import { ConflittoComputoCloud, leggiComputoCloud, primoComputoCloudEsistente, salvaComputoCloud } from "@/lib/computo/cloudComputo";
+import { oggiIso } from "./dataPrezzi";
 import { chiaveBozzaComputo } from "@/lib/computo/editorNativo";
 import { caricaPlanimetria, caricaVersione, elencaVersioni } from "./archivio";
 import { computoStudio, computoStudioRevisionato, idComputoStudio, studioVariante, type FonteStudio } from "./studioImmobiliare";
@@ -27,6 +28,7 @@ export async function apriComputoDaVariante(companyId: string, userId: string, f
   const fontiPrezzi = await caricaFontiPrezzi(companyId, tipiDaCercare(studio.righe));
   let bozza = computoStudio(fonte,`${documento.titolo || corrente.riga.titolo} · ${variante.nome}`,conPrezziProposti(studio.righe,fontiPrezzi),aperte);
   let precedente: number | null = null;
+  let prezziRipresiAl: string | undefined;
   const fonti = await Promise.all((await elencaVersioni(planimetriaId)).filter(v => v.numero < versione).map(async v => ({
     numero:v.numero, id:await idComputoStudio({...fonte,versione:v.numero}),
   })));
@@ -40,9 +42,12 @@ export async function apriComputoDaVariante(companyId: string, userId: string, f
         computoStudio({...fonte,versione:daRiprendere.numero},"",conPrezziProposti(studioVariante(vecchia.documento,varianteId).righe,fontiPrezzi)),
         new Set(studio.righe.filter(r=>r.quantificazioneSospesa).map(r=>r.id)));
       precedente = daRiprendere.numero;
+      prezziRipresiAl = cloud.bozza.fontePlanimetria?.prezziAl;
     }
   }
 
+  // Il giorno dei prezzi: quello del computo ripreso, se c'era, altrimenti oggi.
+  bozza = { ...bozza, fontePlanimetria: { ...fonte, prezziAl: prezziRipresiAl ?? oggiIso() } };
   const scope = chiaveBozzaComputo(companyId,userId,`preventivo:${id}`);
   try {
     await salvaComputoCloud(companyId,id,scope,bozza,0);

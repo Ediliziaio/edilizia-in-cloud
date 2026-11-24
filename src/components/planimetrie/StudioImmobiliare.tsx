@@ -16,6 +16,7 @@ import { differenzeLavorazioni, idComputoStudio, importiLavorazioni, percorsoMis
 import { apriComputoDaVariante } from "@/lib/planimetrie/computoDaVariante";
 import { useFontiPrezzi } from "@/lib/planimetrie/fontiPrezzi";
 import { conPrezziProposti, tipiDaCercare } from "@/lib/planimetrie/prezziProposti";
+import { dataItaliana, dataPrezziVariante, prezziDaAggiornare, testoDataPrezzi } from "@/lib/planimetrie/dataPrezzi";
 import { accessiDellaVariante } from "@/lib/planimetrie/accessiPlanimetria";
 import { useSalvaVersionePlanimetria, useVersionePlanimetria, useVersioniPlanimetria } from "@/lib/planimetrie/archivio";
 import { percorsoVariantePlanimetria, percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
@@ -52,7 +53,7 @@ export function StudioImmobiliare({ documento, companyId, planimetriaId, version
   const altroGrezzo = useMemo(() => confronto !== variante ? studioVariante(documento,confronto === "fatto" ? null : confronto) : null,[documento,confronto,variante]);
   // Le voci senza prezzo nascono quotate (listino dell'azienda, prezzario di zona, prezzo indicativo): solo per chi vede gli importi.
   const tipiPrezzi = useMemo(() => tipiDaCercare([...(studioGrezzo?.righe ?? []), ...(altroGrezzo?.righe ?? [])]),[studioGrezzo,altroGrezzo]);
-  const { fonti: fontiPrezzi } = useFontiPrezzi(companyId, tipiPrezzi, permessi.canViewPreventivi && effectiveCompany?.id === companyId);
+  const { fonti: fontiPrezzi, pronte: fontiPronte } = useFontiPrezzi(companyId, tipiPrezzi, permessi.canViewPreventivi && effectiveCompany?.id === companyId);
   const studio = useMemo(() => studioGrezzo && permessi.canViewPreventivi ? { ...studioGrezzo, righe: conPrezziProposti(studioGrezzo.righe, fontiPrezzi) } : studioGrezzo,[studioGrezzo,fontiPrezzi,permessi.canViewPreventivi]);
   const altro = useMemo(() => altroGrezzo && permessi.canViewPreventivi ? { ...altroGrezzo, righe: conPrezziProposti(altroGrezzo.righe, fontiPrezzi) } : altroGrezzo,[altroGrezzo,fontiPrezzi,permessi.canViewPreventivi]);
   const accessi = useMemo(()=>accessiDellaVariante(documento,variante),[documento,variante]);
@@ -82,6 +83,12 @@ export function StudioImmobiliare({ documento, companyId, planimetriaId, version
     },
   });
   const idBozza = computi[variante] || bozzaEsistente.data;
+  // Il computo generato tiene i prezzi del giorno in cui è nato: si confrontano con quelli di oggi.
+  const prezziComputo = useQuery({
+    queryKey:["computo-studio-prezzi",companyId,idBozza],
+    enabled:!!idBozza && permessi.canViewPreventivi && abilitata,
+    queryFn:async()=>(await leggiComputoCloud(companyId,idBozza!,{includiCosti:false}))?.bozza ?? null,
+  });
   const aperte = verificaUrbanisticaAperta(documento.urbanistica,variante,versione);
   const revisioni = useVersioniPlanimetria(mostraRevisioni ? planimetriaId : null);
   const precedenti = revisioni.data?.filter(r=>r.numero<versione) ?? [];
@@ -158,6 +165,19 @@ export function StudioImmobiliare({ documento, companyId, planimetriaId, version
       colonne.push({etichetta:"Durata prevista in giorni",valori:[previsioni[0]?.giorniCalendario ?? null,previsioni[1]?.giorniCalendario ?? null]});
     }
   }
+  // A che giorno sono i prezzi di ciascuna soluzione, e quali il listino ha cambiato da allora.
+  const datePrezzi = [studio, altro].map((s, i) => s && permessi.canViewPreventivi
+    ? dataPrezziVariante(documento, [variante, confronto][i] === "fatto" ? null : [variante, confronto][i], s.righe) : null);
+  const daAggiornare = [studio, altro].map(s => s && permessi.canViewPreventivi && fontiPronte ? prezziDaAggiornare(s.righe, fontiPrezzi) : []);
+  const computoDaAggiornare = useMemo(() => {
+    const bozza = prezziComputo.data;
+    if (!bozza || !studioGrezzo || !fontiPronte) return [];
+    const righe = new Map(studioGrezzo.righe.map(r => [r.id, r]));
+    return prezziDaAggiornare(bozza.voci.flatMap(v => {
+      const r = righe.get(v.id), importo = Number(v.prezzo.replace(",", "."));
+      return r && v.prezzo.trim() && Number.isFinite(importo) ? [{ ...r, prezzo: { importo, fonte: v.fonte } }] : [];
+    }), fontiPrezzi);
+  }, [prezziComputo.data, studioGrezzo, fontiPronte, fontiPrezzi]);
   const statoVerifica = (id: string) => id === "fatto" ? "—"
     : verificaUrbanisticaAperta(documento.urbanistica,id,versione) ? "Da completare" : "Verificate sulla fonte";
 
@@ -287,10 +307,20 @@ export function StudioImmobiliare({ documento, companyId, planimetriaId, version
                   {[variante,confronto].map(id => <td key={id} className="px-3 py-3">{statoVerifica(id)}</td>)}
                   <td className="px-3 py-3 text-muted-foreground">—</td>
                 </tr>
+                {datePrezzi.some(Boolean) && <tr><th scope="row" className="px-4 py-3 text-left font-medium">Data dei prezzi</th>
+                  {datePrezzi.map((d,i) => <td key={i} className="px-3 py-3 text-sm">{d ? testoDataPrezzi(d) : "—"}
+                    {!!daAggiornare[i].length && <span className="block text-xs font-medium text-amber-800 dark:text-amber-200">Prezzi da aggiornare · {daAggiornare[i].length} {daAggiornare[i].length === 1 ? "voce" : "voci"}</span>}</td>)}
+                  <td className="px-3 py-3 text-muted-foreground">—</td>
+                </tr>}
               </tbody>
             </table>
           </div>
           {costiParziali && <p className="border-t px-4 py-2 text-xs text-muted-foreground">La differenza economica si calcola quando entrambe le soluzioni hanno quantità e prezzi completi.</p>}
+          {daAggiornare.some(d => d.length) && <div role="status" className="border-t px-4 py-2 text-xs text-amber-900 dark:text-amber-200">
+            <p className="font-medium">Il listino è cambiato dopo la data dei prezzi: riguarda queste voci.</p>
+            <ul className="mt-1 space-y-0.5">{[...new Map(daAggiornare.flat().map(d => [d.id, d])).values()].slice(0, 6).map(d =>
+              <li key={d.id}>{d.descrizione}: {euro.format(d.prima)} → {euro.format(d.oggi)} · {d.fonte}</li>)}</ul>
+          </div>}
           {!!studio.unita.length && <ul className="flex flex-wrap gap-2 border-t p-3" aria-label="Unità della variante">
             {studio.unita.map(u=><li key={u.sigla} className="rounded-md bg-blue-50 px-2.5 py-1.5 text-xs text-blue-950">Unità {u.sigla} · {sup(u.mqNetti)} netti · {sup(u.mqCommerciali)} commerciali</li>)}
           </ul>}
@@ -337,6 +367,10 @@ export function StudioImmobiliare({ documento, companyId, planimetriaId, version
           {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
           {aperte && <p className="text-xs text-amber-800 dark:text-amber-200">Computo preliminare · {onFascicolo ? <button type="button" onClick={()=>onFascicolo("progetto:"+variante)} className="underline underline-offset-2">verifiche aperte nel fascicolo</button> : "verifiche urbanistiche aperte"}</p>}
           {versioniRiprese[variante] && <p className="text-xs text-muted-foreground">Prezzi e correzioni ripresi dal computo della planimetria v{versioniRiprese[variante]}.</p>}
+          {prezziComputo.data && <p role="status" className="text-xs text-muted-foreground">
+            {prezziComputo.data.fontePlanimetria?.prezziAl ? `Computo con prezzi al ${dataItaliana(prezziComputo.data.fontePlanimetria.prezziAl)}` : "Computo con prezzi senza data"}
+            {!!computoDaAggiornare.length && <span className="font-medium text-amber-800 dark:text-amber-200"> · prezzi da aggiornare: {computoDaAggiornare.length} {computoDaAggiornare.length === 1 ? "voce" : "voci"} oggi hanno un altro prezzo nel listino</span>}
+          </p>}
           {versione>1 && <details className="rounded-lg border p-2 text-xs" onToggle={e=>setMostraRevisioni(e.currentTarget.open)}>
             <summary className="cursor-pointer font-medium">Variazioni delle quantità tra revisioni</summary>
             <div className="mt-2 space-y-2">
