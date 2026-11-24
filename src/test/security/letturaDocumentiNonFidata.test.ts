@@ -57,6 +57,7 @@ const CON_REGOLE_CONDIVISE = [
   "ddt-ai-extract",
   "document-ai-router",
   "generic-doc-ai-extract",
+  "oda-leggi-documento",
   "parse-matrix-image",
   "planimetria-genera",
   "silvio-commessa",

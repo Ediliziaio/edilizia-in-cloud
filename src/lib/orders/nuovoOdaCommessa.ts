@@ -156,6 +156,11 @@ const SINONIMI_UNITA: Record<string, string> = {
   conf: "conf", confezioni: "conf", sacco: "conf", sacchi: "conf", rotolo: "conf", rotoli: "conf",
   bancale: "conf", bancali: "conf", scatola: "conf", scatole: "conf", secchio: "conf", secchi: "conf",
 };
+/** L'unità scritta su un documento o in un elenco («nr.», «m²», «sacchi») come la vuole l'ordine; «pz» se non si riconosce. */
+export function unitaNormalizzata(u: string | null | undefined): string {
+  const k = String(u ?? "").trim().toLowerCase();
+  return SINONIMI_UNITA[k] ?? SINONIMI_UNITA[k.replace(/\.$/, "")] ?? (k && k.length <= 6 ? k : "pz");
+}
 /** Le unità «a confezione» che vale la pena tenere scritte nella descrizione (10 sacchi, non 10 conf). */
 const CONFEZIONI = new Set(["sacco", "sacchi", "rotolo", "rotoli", "bancale", "bancali", "scatola", "scatole", "secchio", "secchi"]);
 

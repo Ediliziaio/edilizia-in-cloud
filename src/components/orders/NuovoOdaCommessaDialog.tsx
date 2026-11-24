@@ -5,10 +5,10 @@ import { condizioniPagamentoFornitore } from "@/lib/documentiOperativi/fornitore
  * comprare e righe libere), quando arriva. Nasce in bozza: l'invio al
  * fornitore resta un gesto della pagina dell'ordine.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ClipboardList, Loader2, Package, Plus, Trash2 } from "lucide-react";
+import { ClipboardList, FileText, Loader2, Package, Plus, ScanText, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle,  } from "@/components/ui/dialog";
 import { DialogContentOperativo as DialogContent } from "@/components/orders/generali/design/ContestoOperativo";
@@ -37,6 +37,10 @@ import { ArticleCombobox, type ArticleTemplateData } from "./ArticleCombobox";
 import { caricaArticoliCatalogo } from "@/lib/listino/catalogoArticoli";
 import { caricaVociListino } from "@/lib/listino/vociListino";
 import { valoriArticoloAcquisto } from "@/lib/orders/articoloAcquisto";
+import { leggiDocumentoOda, propostaDaLettura } from "@/lib/orders/letturaOdaDocumento";
+import { ACCEPT_DOCUMENTI_DDT, erroreDocumento, mimeDocumento } from "@/lib/ddt/preparaDocumento";
+import { percorsoDocumento } from "@/lib/commesse/documentiCommessa";
+import { ATTACHMENTS_BUCKET } from "./filePreviewUtils";
 
 interface Props {
   open: boolean;
@@ -72,6 +76,16 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
   // «Incolla un elenco»: una cosa per riga, diventano righe dell'ordine.
   const [elencoAperto, setElencoAperto] = useState(false);
   const [elenco, setElenco] = useState("");
+  // «Su documento» (24/11/2026): il modulo del fornitore o l'ordine firmato. Si legge e
+  // precompila il popup; alla creazione diventa l'allegato dell'ordine e della commessa.
+  const [documento, setDocumento] = useState<File | null>(null);
+  const [lettura, setLettura] = useState<"no" | "leggo" | "letto" | "errore">("no");
+  const [esitoLettura, setEsitoLettura] = useState<{ righe: number; abbinate: number; fornitoreLetto: string | null; fornitoreTrovato: boolean; avvisi: string[]; errore?: string } | null>(null);
+  // Cambia a ogni lettura: le righe ripartono dai valori letti (i campi tengono il testo scritto).
+  const [versione, setVersione] = useState(0);
+  const inputDocumento = useRef<HTMLInputElement>(null);
+  // Una lettura che arriva dopo «Togli», un altro file o la chiusura non tocca più il popup.
+  const letturaInCorso = useRef(0);
 
   // Catalogo e listino prodotti, con le stesse chiavi di cache del menu delle righe:
   // servono a riconoscere le voci dell'elenco incollato.
@@ -121,6 +135,7 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
     if (!v) {
       setOrigine(null); setFornitore(null); setModifiche({}); setLibere([]); setConsegna(""); setRiferimento(""); setNote("");
       setElenco(""); setElencoAperto(false);
+      setDocumento(null); setLettura("no"); setEsitoLettura(null); letturaInCorso.current++;
     }
     onOpenChange(v);
   };
@@ -130,6 +145,42 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
     else setLibere((rr) => rr.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   };
 
+  const leggi = async (file: File) => {
+    if (!companyId) return;
+    const turno = ++letturaInCorso.current;
+    setLettura("leggo");
+    setEsitoLettura(null);
+    try {
+      const letto = await leggiDocumentoOda(file, companyId);
+      if (turno !== letturaInCorso.current) return;
+      const p = propostaDaLettura(letto, attivi, righeDagliArticoli(daComprare, null));
+      if (p.fornitore) setFornitore(p.fornitore.id);
+      if (p.consegna) setConsegna(p.consegna);
+      if (p.riferimento) setRiferimento(p.riferimento);
+      setModifiche(p.modificheArticoli);
+      // Una seconda lettura sostituisce le righe della prima, non le raddoppia.
+      const nuove = p.libere.map((r, i) => ({ ...r, key: `doc:${contatore + i}` }));
+      setLibere((rr) => [...rr.filter((r) => !r.key.startsWith("doc:")), ...nuove]);
+      setContatore((c) => c + nuove.length);
+      setVersione((v) => v + 1);
+      setEsitoLettura({ righe: letto.righe.length, abbinate: p.abbinate, fornitoreLetto: p.fornitoreLetto, fornitoreTrovato: !!p.fornitore, avvisi: p.avvisi });
+      setLettura("letto");
+    } catch (e) {
+      if (turno !== letturaInCorso.current) return;
+      setEsitoLettura({ righe: 0, abbinate: 0, fornitoreLetto: null, fornitoreTrovato: false, avvisi: [], errore: e instanceof Error ? e.message : String(e) });
+      setLettura("errore");
+    }
+  };
+
+  const scegliDocumento = (file: File | undefined) => {
+    if (inputDocumento.current) inputDocumento.current.value = "";
+    if (!file) return;
+    const problema = erroreDocumento(file);
+    if (problema) { toast.error("Documento non caricato", { description: problema }); return; }
+    setDocumento(file);
+    void leggi(file);
+  };
+
   const errore = erroreNuovoOda({ fornitore, origine, righe });
   const totali = totaliNuovoOda(righe);
   const quante = righeInOrdine(righe).length;
@@ -137,7 +188,17 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
   const crea = async () => {
     if (errore || !companyId || !fornitore || !origine || salvando) return;
     setSalvando(true);
+    let caricato: string | null = null;
     try {
+      // Prima il file, così il percorso entra nell'ordine già alla creazione.
+      if (documento) {
+        const percorso = percorsoDocumento(orderId, documento.name, undefined, crypto.randomUUID());
+        const { error: errFile } = await supabase.storage.from(ATTACHMENTS_BUCKET)
+          .upload(percorso, documento, { contentType: mimeDocumento(documento), upsert: false });
+        // Un file che non sale non ferma l'ordine: si dice, e si allega poi dalla commessa.
+        if (errFile) toast.warning("Il documento non è stato caricato: l'ordine nasce senza allegato", { description: errFile.message });
+        else caricato = percorso;
+      }
       const datiFornitore = suppliers.find(s => s.id === fornitore);
       const condizioni = condizioniPagamentoFornitore(datiFornitore || {});
       const { data: po, error } = await supabase.from("purchase_orders").insert({
@@ -152,10 +213,14 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
         origine,
         expected_delivery_date: consegna || null,
         supplier_reference: riferimento.trim() || null,
+        attachment_url: caricato,
         notes: [note.trim(), `Generato da commessa ${orderCode || ""}`.trim()].filter(Boolean).join(" · "),
         created_by: user?.id,
       } as never).select("id, oda_number").single();
-      if (error) throw error;
+      if (error) {
+        if (caricato) await supabase.storage.from(ATTACHMENTS_BUCKET).remove([caricato]).catch((): null => null);
+        throw error;
+      }
       const nuovo = po as unknown as { id: string; oda_number: string };
       const { error: errRighe } = await supabase.from("purchase_order_items")
         .insert(righePerDatabase(righe, companyId, nuovo.id) as never);
@@ -170,6 +235,19 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
           description: `${quante} ${quante === 1 ? "riga" : "righe"} · ${formatCurrency(totali.imponibile)} + IVA. Inviala dalla pagina dell'ordine.`,
           action: { label: "Apri", onClick: () => navigate(`/azienda/ordini-acquisto/${nuovo.id}`) },
         });
+      }
+      if (caricato && documento && user?.id) {
+        // Tra i documenti della commessa, visibile a chi vede i costi: ha i prezzi d'acquisto.
+        // È anche ciò che permette di riaprirlo: lo storage legge solo i file registrati qui.
+        const { error: errAllegato } = await supabase.from("order_attachments").insert({
+          order_id: orderId, access_scope: "costi", file_name: documento.name, file_url: caricato,
+          file_type: mimeDocumento(documento) || "application/octet-stream", file_size: documento.size,
+          uploaded_by: user.id, visible_to_customer: false,
+        } as never);
+        if (errAllegato) {
+          logger.error("[NuovoOdaCommessaDialog] allegato non registrato", errAllegato);
+          toast.warning("Ordine creato, ma il documento non è registrato tra quelli della commessa", { description: errAllegato.message });
+        }
       }
       try {
         const { error: diario } = await supabase.from("order_events" as never).insert({
@@ -226,6 +304,56 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
           {origine && <p className="text-xs text-muted-foreground">{ODA_ORIGINE_INFO[origine].descrizione}</p>}
         </section>
 
+        {origine && ODA_ORIGINE_INFO[origine].vuoleDocumento && (
+          <section className="space-y-2 rounded-md border border-dashed p-3" aria-label="Documento dell'ordine">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label>{ODA_ORIGINE_INFO[origine].documentoLabel ?? "Documento"}</Label>
+              <div className="flex gap-2">
+                {documento && lettura !== "leggo" && (
+                  <Button type="button" size="sm" variant="ghost" onClick={() => void leggi(documento)}>
+                    <ScanText className="h-3.5 w-3.5 mr-1" /> Rileggi
+                  </Button>
+                )}
+                <Button type="button" size="sm" variant="outline" disabled={lettura === "leggo" || salvando} onClick={() => inputDocumento.current?.click()}>
+                  <Upload className="h-3.5 w-3.5 mr-1" /> {documento ? "Cambia file" : "Carica PDF o foto"}
+                </Button>
+              </div>
+            </div>
+            <input ref={inputDocumento} type="file" accept={ACCEPT_DOCUMENTI_DDT} className="hidden" aria-label="File del documento d'ordine"
+              onChange={(e) => scegliDocumento(e.target.files?.[0])} />
+            {!documento ? (
+              <p className="text-xs text-muted-foreground">
+                Carica l'ordine firmato o il modulo del fornitore: lo leggiamo e compiliamo fornitore, righe, prezzi, IVA e consegna. Controlli tutto prima di creare la bozza; il file resta allegato all'ordine.
+              </p>
+            ) : (
+              <div className="space-y-1 text-sm">
+                <p className="flex items-center gap-1.5 min-w-0">
+                  <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                  <span className="truncate">{documento.name}</span>
+                  <button type="button" className="ml-auto text-xs text-muted-foreground underline" disabled={lettura === "leggo"}
+                    onClick={() => { setDocumento(null); setLettura("no"); setEsitoLettura(null); letturaInCorso.current++; }}>Togli</button>
+                </p>
+                {lettura === "leggo" && <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Leggo il documento…</p>}
+                {lettura === "errore" && esitoLettura?.errore && (
+                  <p role="alert" className="text-xs text-red-600">Lettura non riuscita: {esitoLettura.errore} Il file resta allegato: compila i campi a mano.</p>
+                )}
+                {lettura === "letto" && esitoLettura && (
+                  <div className="text-xs text-muted-foreground space-y-0.5" role="status">
+                    <p>
+                      Letto: {esitoLettura.righe} {esitoLettura.righe === 1 ? "riga" : "righe"}
+                      {esitoLettura.abbinate > 0 ? `, ${esitoLettura.abbinate} abbinate agli articoli della commessa` : ""}. Controlla i campi qui sotto.
+                    </p>
+                    {esitoLettura.fornitoreLetto && !esitoLettura.fornitoreTrovato && (
+                      <p className="text-amber-700">Fornitore sul documento: {esitoLettura.fornitoreLetto}. Non l'ho trovato con certezza in rubrica: sceglilo dall'elenco.</p>
+                    )}
+                    {esitoLettura.avvisi.map((a) => <p key={a} className="text-amber-700">{a}</p>)}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
         <section className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="nuovo-oda-fornitore">Fornitore</Label>
@@ -255,7 +383,7 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
             <div className="divide-y rounded-md border">
               {articoli.map((r) => (
                 <RigaModificabile
-                  key={r.key}
+                  key={`${r.key}:${versione}`}
                   riga={r}
                   conSpunta
                   nota={r.fornitore_articolo && r.fornitore_articolo !== fornitore ? `di solito da ${nomeFornitore.get(r.fornitore_articolo) ?? "un altro fornitore"}` : null}
@@ -333,7 +461,7 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
 
         <DialogFooter>
           <Button variant="outline" onClick={() => chiudi(false)} disabled={salvando}>Annulla</Button>
-          <Button onClick={() => void crea()} disabled={!!errore || salvando}>
+          <Button onClick={() => void crea()} disabled={!!errore || salvando || lettura === "leggo"}>
             {salvando && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
             Crea la bozza
           </Button>

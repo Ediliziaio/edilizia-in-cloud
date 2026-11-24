@@ -5,6 +5,8 @@ import { MemoryRouter } from "react-router-dom";
 
 const state = vi.hoisted(() => ({
   inserti: [] as Array<{ tabella: string; righe: unknown }>,
+  caricati: [] as string[],
+  letture: [] as Array<Record<string, unknown>>,
 }));
 // Il menu del listino (provato a parte) qui è un campo: scrivere = voce libera.
 vi.mock("@/components/orders/ArticleCombobox", () => ({
@@ -15,7 +17,7 @@ vi.mock("@/components/orders/ArticleCombobox", () => ({
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "co" }, user: { id: "u" } }) }));
 vi.mock("@/hooks/useOperationalSuppliers", () => ({
   useOperationalSuppliers: () => ({ suppliers: [
-    { id: "s1", name: "Edil Forniture", is_active: true },
+    { id: "s1", name: "Edil Forniture", is_active: true, vat_number: "01234567890" },
     { id: "s2", name: "Colorificio Rossi", is_active: true },
   ] }),
 }));
@@ -23,6 +25,24 @@ vi.mock("@/hooks/useMaterialProcurement", () => ({ useMaterialProcurement: () =>
 vi.mock("@/lib/orders/refreshMaterialQueries", () => ({ refreshMaterialQueries: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
+    functions: {
+      invoke: (nome: string, opz: { body: Record<string, unknown> }) => {
+        state.letture.push({ nome, ...opz.body });
+        return Promise.resolve({ error: null, data: { success: true, ordine: {
+          fornitore: { nome: "Edil Forniture S.r.l.", partita_iva: "IT01234567890", codice_fiscale: null },
+          numero: "ORD 145", data: "2026-11-20", consegna: "2026-12-03", pagamento: null,
+          righe: [
+            { codice: null, descrizione: "Mattoni forati", quantita: 180, unita: "pz", prezzo_unitario: 0.75, iva: 22 },
+            { codice: null, descrizione: "Trasporto in cantiere", quantita: 1, unita: null, prezzo_unitario: 45, iva: 22 },
+          ],
+          imponibile: 180, iva: 39.6, totale: 219.6, note: null, avvisi: [],
+        } } });
+      },
+    },
+    storage: { from: () => ({
+      upload: (percorso: string) => { state.caricati.push(percorso); return Promise.resolve({ data: { path: percorso }, error: null }); },
+      remove: () => Promise.resolve({ error: null }),
+    }) },
     from: (tabella: string) => ({
       // Il catalogo articoli (vuoto): il listino arriva dal mock di caricaVociListino.
       select: () => { const q = { eq: () => q, order: () => Promise.resolve({ data: [], error: null }) }; return q; },
@@ -58,7 +78,7 @@ function disegna(onOpenChange = vi.fn()) {
   return onOpenChange;
 }
 
-beforeEach(() => { state.inserti = []; });
+beforeEach(() => { state.inserti = []; state.caricati = []; state.letture = []; });
 
 describe("Nuovo ordine d'acquisto dalla commessa", () => {
   it("mostra gli articoli da comprare e non crea finché mancano come e a chi", () => {
@@ -107,5 +127,40 @@ describe("Nuovo ordine d'acquisto dalla commessa", () => {
     expect(voci).toEqual(["sacchi cemento sfuso", "Cemento 32,5 sacco 25 kg", "noleggio betoniera"]);
     expect(screen.getByRole("textbox", { name: "Prezzo di Cemento 32,5 sacco 25 kg" })).toHaveValue("6,5");
     expect(screen.getByRole("textbox", { name: "Quantità di noleggio betoniera" })).toHaveValue("2");
+  });
+
+  it("«Su documento»: carica l'ordine firmato, lo legge, precompila e lo allega alla bozza", async () => {
+    const onOpenChange = disegna();
+    fireEvent.click(screen.getByRole("button", { name: /Su documento/ }));
+    const file = new File(["%PDF-1.4"], "ordine firmato.pdf", { type: "application/pdf" });
+    fireEvent.change(screen.getByLabelText("File del documento d'ordine"), { target: { files: [file] } });
+
+    await waitFor(() => expect(screen.getByText(/Letto: 2 righe, 1 abbinate agli articoli della commessa/)).toBeInTheDocument());
+    expect(state.letture[0]).toMatchObject({ nome: "oda-leggi-documento", company_id: "co", file_name: "ordine firmato.pdf", mime_type: "application/pdf" });
+    expect(screen.getByRole("combobox", { name: "Fornitore" })).toHaveTextContent("Edil Forniture");
+    expect(screen.getByLabelText("Consegna prevista")).toHaveValue("2026-12-03");
+    expect(screen.getByLabelText("Riferimento del fornitore")).toHaveValue("ORD 145 del 20/11/2026");
+    expect(screen.getByRole("checkbox", { name: "Ordina Mattoni forati" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Ordina Pittura lavabile" })).not.toBeChecked();
+    expect(screen.getByRole("textbox", { name: "Quantità di Mattoni forati" })).toHaveValue("180");
+    expect(screen.getByRole("textbox", { name: "Prezzo di Trasporto in cantiere" })).toHaveValue("45");
+
+    // Si corregge a mano prima di creare.
+    fireEvent.change(screen.getByRole("textbox", { name: "Prezzo di Mattoni forati" }), { target: { value: "0,70" } });
+    fireEvent.click(screen.getByRole("button", { name: "Crea la bozza" }));
+
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(state.caricati).toHaveLength(1);
+    expect(state.caricati[0]).toMatch(/^orders\/o1\/.+-ordine_firmato\.pdf$/);
+    const ordine = state.inserti.find((i) => i.tabella === "purchase_orders")!.righe as Record<string, unknown>;
+    expect(ordine).toMatchObject({ supplier_id: "s1", origine: "documento", expected_delivery_date: "2026-12-03",
+      supplier_reference: "ORD 145 del 20/11/2026", attachment_url: state.caricati[0] });
+    const righe = state.inserti.find((i) => i.tabella === "purchase_order_items")!.righe as Array<Record<string, unknown>>;
+    expect(righe.map((r) => [r.order_item_id, r.description, r.quantity, r.unit_price])).toEqual([
+      ["a1", "Mattoni forati", 180, 0.7],
+      [null, "Trasporto in cantiere", 1, 45],
+    ]);
+    const allegato = state.inserti.find((i) => i.tabella === "order_attachments")!.righe as Record<string, unknown>;
+    expect(allegato).toMatchObject({ order_id: "o1", file_url: state.caricati[0], access_scope: "costi", file_name: "ordine firmato.pdf", visible_to_customer: false });
   });
 });
