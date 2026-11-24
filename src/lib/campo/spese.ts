@@ -23,7 +23,7 @@ export const STATI_SPESA: Record<StatoSpesa, string> = {
 };
 
 export const COLONNE_SPESA =
-  "id, company_id, user_id, order_id, giorno, tipo, importo, descrizione, foto_path, pagata_con, stato, nota_ufficio, deciso_il, created_at";
+  "id, company_id, user_id, order_id, giorno, tipo, importo, descrizione, foto_path, pagata_con, stato, nota_ufficio, deciso_il, created_at, company_cost_id, expense_report_id";
 
 export interface Spesa {
   id: string;
@@ -40,6 +40,10 @@ export interface Spesa {
   nota_ufficio: string | null;
   deciso_il: string | null;
   created_at: string;
+  /** Il costo nato all'approvazione (sul cantiere, se c'è). */
+  company_cost_id: string | null;
+  /** La nota spese del mese in Tesoreria, se l'ha pagata l'operaio. */
+  expense_report_id: string | null;
 }
 
 /** «12,50», «12.50 €», «€ 1.234,5» → numero; niente di sensato → null. */

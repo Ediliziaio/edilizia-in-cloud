@@ -45,23 +45,23 @@ export function FineGiornataCaposquadra({ timbra }: { timbra: boolean }) {
   const daFare = passi.filter(p => !p.fatto && p.chiave !== "materiale").length;
 
   return (
-    <section className={cn(RIQUADRO, "border-violet-200 bg-violet-50/60 dark:border-violet-900 dark:bg-violet-950/20")} aria-label={t("Fine giornata")}>
+    <section className={RIQUADRO} aria-label={t("Fine giornata")}>
       <h2 className={cn(TITOLO_RIQUADRO, "flex items-center gap-2")}>
-        <MoonStar className="size-4 text-violet-700" aria-hidden="true" />
+        <MoonStar className="size-4 text-primary" aria-hidden="true" />
         {daFare === 0 ? t("Giornata chiusa") : t("Fine giornata: {n} da fare", { n: daFare })}
       </h2>
-      <ol className="mt-1 divide-y divide-violet-200/60">
+      <ol className="mt-1 divide-y">
         {passi.map(p => (
           <li key={p.chiave}>
             <Link to={p.link} className="flex min-h-12 items-center gap-3 py-1.5">
               {p.fatto
                 ? <CheckCircle2 className="size-5 shrink-0 text-emerald-600" aria-label={t("Fatto")} />
-                : <Circle className="size-5 shrink-0 text-violet-400" aria-hidden="true" />}
+                : <Circle className="size-5 shrink-0 text-muted-foreground/60" aria-hidden="true" />}
               <span className="min-w-0 flex-1">
                 <span className={cn("block text-sm font-semibold", p.fatto && "text-muted-foreground line-through")}>{t(p.testo)}</span>
                 {p.dettaglio && <span className="block truncate text-xs text-muted-foreground">{t(p.dettaglio)}</span>}
               </span>
-              {!p.fatto && <ChevronRight className="size-4 shrink-0 text-violet-600" aria-hidden="true" />}
+              {!p.fatto && <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
             </Link>
           </li>
         ))}

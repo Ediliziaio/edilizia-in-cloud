@@ -1,13 +1,16 @@
 /**
  * Spese dal cantiere (24/11/2026): gli scontrini mandati dagli operai dall'app (`campo_spese`).
- * Sta in Personale → Richieste, accanto a ferie e permessi: approva, non approvare (con il motivo), segna
- * rimborsata. L'operaio riceve l'avviso a ogni decisione (trigger sul database). Si vede solo se c'è qualcosa.
+ * Sta in Personale → Richieste, accanto a ferie e permessi: approva o non approvare (con il motivo). L'operaio
+ * riceve l'avviso a ogni decisione (trigger sul database). Si vede solo se c'è qualcosa.
+ * Approvata, la spesa diventa da sola un costo (sul cantiere, se c'è) e, se l'ha pagata l'operaio, una voce
+ * della sua nota spese del mese in Tesoreria: il rimborso si fa lì, col movimento della banca (24/11/2026).
  */
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { Check, ImageIcon, Loader2, Receipt, X } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Check, ExternalLink, ImageIcon, Loader2, Receipt, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -53,7 +56,9 @@ export function SpeseCantiereUfficio() {
       if (error) throw error;
     },
     onSuccess: (_d, v) => {
-      toast.success(v.stato === "approvata" ? "Spesa approvata" : v.stato === "rimborsata" ? "Segnata come rimborsata" : "Spesa non approvata");
+      toast.success(v.stato === "approvata"
+        ? (v.s.pagata_con === "soldi_miei" ? "Approvata: costo registrato e voce aggiunta alla nota spese del mese" : "Approvata: costo registrato")
+        : v.stato === "rimborsata" ? "Segnata come rimborsata" : "Spesa non approvata");
       void qc.invalidateQueries({ queryKey: ["ufficio-spese-cantiere"] });
     },
     onError: () => toast.error("Non sono riuscito a salvare. Riprova."),
@@ -78,7 +83,8 @@ export function SpeseCantiereUfficio() {
           <div>
             <h3 className="flex items-center gap-2 font-semibold"><Receipt className="size-4" aria-hidden="true" />Spese dal cantiere</h3>
             <p className="text-xs text-muted-foreground">
-              Da approvare {euro(totali.inAttesa)} · approvate da rimborsare {euro(totali.daRimborsare)}
+              Da approvare {euro(totali.inAttesa)} · approvate da rimborsare {euro(totali.daRimborsare)}.
+              Approvata, la spesa va nei costi del cantiere e, se l’ha pagata l’operaio, nella sua nota spese del mese in Tesoreria.
             </p>
           </div>
           <Button variant="outline" size="sm" onClick={() => setTutte(v => !v)}>{tutte ? "Solo da approvare" : "Mostra anche le approvate"}</Button>
@@ -114,9 +120,13 @@ export function SpeseCantiereUfficio() {
                       {decidi.isPending ? <Loader2 className="me-1 size-4 animate-spin" /> : <Check className="me-1 size-4" />}Approva
                     </Button>
                   </>)}
-                  {s.stato === "approvata" && s.pagata_con === "soldi_miei" && (
+                  {s.stato === "approvata" && s.pagata_con === "soldi_miei" && (s.expense_report_id ? (
+                    <Button variant="outline" size="sm" asChild>
+                      <Link to="/azienda/tesoreria?tab=note-spese"><ExternalLink className="me-1 size-4" />Rimborso in Note spese</Link>
+                    </Button>
+                  ) : (
                     <Button variant="outline" size="sm" disabled={decidi.isPending} onClick={() => decidi.mutate({ s, stato: "rimborsata" })}>Segna rimborsata</Button>
-                  )}
+                  ))}
                 </div>
               </li>
             ))}

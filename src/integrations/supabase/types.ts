@@ -21092,11 +21092,13 @@ export type Database = {
       }
       campo_spese: {
         Row: {
+          company_cost_id: string | null
           company_id: string
           created_at: string
           deciso_da: string | null
           deciso_il: string | null
           descrizione: string | null
+          expense_report_id: string | null
           foto_path: string | null
           giorno: string
           id: string
@@ -21110,11 +21112,13 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          company_cost_id?: string | null
           company_id: string
           created_at?: string
           deciso_da?: string | null
           deciso_il?: string | null
           descrizione?: string | null
+          expense_report_id?: string | null
           foto_path?: string | null
           giorno?: string
           id?: string
@@ -21128,11 +21132,13 @@ export type Database = {
           user_id?: string
         }
         Update: {
+          company_cost_id?: string | null
           company_id?: string
           created_at?: string
           deciso_da?: string | null
           deciso_il?: string | null
           descrizione?: string | null
+          expense_report_id?: string | null
           foto_path?: string | null
           giorno?: string
           id?: string

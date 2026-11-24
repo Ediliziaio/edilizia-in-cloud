@@ -49,10 +49,10 @@ export function RapportiniDaCompilareOggi() {
   if (cantieri.length === 0) return null;
 
   return (
-    <Card className="border-violet-200 bg-violet-50/60 dark:border-violet-900 dark:bg-violet-950/20">
+    <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2 text-violet-800 dark:text-violet-200">
-          <ClipboardList className="h-4 w-4" />
+        <CardTitle className="text-base flex items-center gap-2">
+          <ClipboardList className="h-4 w-4 text-primary" />
           {cantieri.length === 1 ? t("Rapportino da inviare") : t("{n} rapportini da inviare", { n: cantieri.length })}
         </CardTitle>
       </CardHeader>
@@ -61,7 +61,7 @@ export function RapportiniDaCompilareOggi() {
           <button
             key={`${c.order_id}:${c.data_lavoro}`}
             onClick={() => navigate(rapportinoDelGiorno(c.order_id, c.data_lavoro))}
-            className="min-h-14 w-full flex items-center justify-between text-left rounded-lg px-2 py-2 hover:bg-violet-100/60 dark:hover:bg-violet-900/40 transition-colors"
+            className="min-h-14 w-full flex items-center justify-between text-left rounded-lg px-2 py-2 hover:bg-muted transition-colors"
           >
             <div className="min-w-0 flex-1">
               <p className="text-sm text-foreground font-medium truncate">
@@ -71,7 +71,7 @@ export function RapportiniDaCompilareOggi() {
                 {c.description?.slice(0, 60) ?? "—"} · {t("~{ore}h stimate", { ore: c.ore_in_cantiere_stimate })}
               </p>
             </div>
-            <ChevronRight className="w-4 h-4 text-violet-600 shrink-0 ml-2" />
+            <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 ml-2" />
           </button>
         ))}
         {cantieri.length > 5 && (
