@@ -20,7 +20,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   ArrowLeft, ChevronRight, ChevronLeft,
-  Camera, Check, Search, X, Minus, Plus, Loader2, Send, CalendarDays, ClipboardPenLine, LogIn, Images, Trash2, WifiOff,
+  Camera, Check, CopyCheck, Search, X, Minus, Plus, Loader2, Send, CalendarDays, ClipboardPenLine, LogIn, Images, Trash2, WifiOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { MezziFineGiornata, righeDaSalvare, useMezziDellaGiornata, type RigaMezzoGiornata } from "@/components/campo/MezziFineGiornata";
@@ -43,8 +43,11 @@ import { CampiModulo } from "@/components/campo/CampiModulo";
 import { ScegliDalRullino } from "@/components/campo/ScegliDalRullino";
 import { RegistraGiornata } from "@/components/campo/RegistraGiornata";
 import { FotoRapportinoCarta } from "@/components/campo/FotoRapportinoCarta";
+import { MezzoAlVolo } from "@/components/campo/MezzoAlVolo";
 import type { RapportinoLetto } from "../../../supabase/functions/ai-rapportini-da-documento/mappa";
 import { chiParlaCera, presenzeDaVoce } from "@/lib/campo/presenzeDaVoce";
+import { daRicopiare, type UltimoRapportino } from "@/lib/campo/comeIeri";
+import { trovaNelleFrasi } from "@/lib/campo/voceCose";
 import { MAX_FASI_IN_VISTA, corrisponde, fasiInVista } from "@/lib/campo/sceltaRapida";
 import type { RapportinoVocaleDraft } from "@/hooks/campo/useRapportinoVocale";
 import { useRilevazioniMezziRapportino } from "@/hooks/campo/useRilevazioniMezziRapportino";
@@ -1644,7 +1647,11 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
     mezzi={(mezziPerArrivo.data ?? []).filter(mezzoStradale)} caricamento={mezziPerArrivo.isLoading}
     suggeriti={(mezziPerArrivo.data ?? []).filter(m => mezziSel[m.id]?.usato || (workDay === campoWorkDay() && m.dove_ora === "con_te")).map(m => m.id)}
     errore={mezziPerArrivo.isError} riprova={() => void mezziPerArrivo.refetch()} />;
-  const bloccoMezzi = orderId && mezziAmmessi ? <MezziFineGiornata orderId={orderId} companyId={companyId ?? undefined} valori={mezziSel} onChange={setMezziSel} rilevazioni={moduloCantiere.rilevazioni_mezzi} /> : null;
+  const bloccoMezzi = orderId && mezziAmmessi ? <>
+    <MezziFineGiornata orderId={orderId} companyId={companyId ?? undefined} valori={mezziSel} onChange={setMezziSel} rilevazioni={moduloCantiere.rilevazioni_mezzi} />
+    {/* Il mezzo preso al volo dal deposito (24/11/2026). */}
+    <MezzoAlVolo orderId={orderId} onUsato={id => setMezziSel(p => ({ ...p, [id]: { ...(p[id] ?? { dove: "invariato" as const }), usato: true } }))} />
+  </> : null;
   const bloccoCampiFase = campiDiFase.length > 0 ? fasiPerCampi.map(f => (
     <div key={f.id} className="space-y-2 rounded-2xl border bg-background p-4 shadow-sm">
       <p className="text-sm font-semibold">{f.nome}</p>
@@ -1701,11 +1708,15 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
     puoSuggerireOre || registraSquadra ? t("quante ore") : null,
     parti.materiali ? t("i materiali usati") : null,
   ].filter(Boolean).join(", ");
-  const [riepilogoVoce, setRiepilogoVoce] = useState<{ voci: string[]; prima: { descrizione: string; oreLavorate: number | ""; materialiSel: typeof materialiSel; presenzeSel: typeof presenzeSel } } | null>(null);
+  const [riepilogoVoce, setRiepilogoVoce] = useState<{ voci: string[]; titolo?: string; prima: {
+    descrizione: string; oreLavorate: number | ""; materialiSel: typeof materialiSel; presenzeSel: typeof presenzeSel;
+    fasiDichiarate: typeof fasiDichiarate; sottofasiLavorate: string[]; mezziSel: typeof mezziSel;
+  } } | null>(null);
+  const fotografia = () => ({ descrizione, oreLavorate, materialiSel, presenzeSel, fasiDichiarate, sottofasiLavorate, mezziSel });
   const applicaDaVoce = (draft: RapportinoVocaleDraft) => {
     if (!puoCompilareAVoce) return;
     const e = draft.dati_estratti;
-    const prima = { descrizione, oreLavorate, materialiSel, presenzeSel };
+    const prima = fotografia();
     const voci: string[] = [];
     const testo = [e.lavorazione, e.note].filter(Boolean).join(" — ") || draft.trascrizione;
     if (testo) { setDescrizione(d => accodaTesto(d, testo)); voci.push(t("descrizione")); }
@@ -1738,13 +1749,30 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
         voci.push(t(chiavi.length === 1 ? "{n} persona" : "{n} persone", { n: chiavi.length }));
       }
     }
+    // Fasi, voci del computo e mezzi detti a voce (24/11/2026): solo quelli indicati chiaramente (lib/campo/voceCose).
+    const racconto = [draft.trascrizione, e.lavorazione, e.note].filter(Boolean).join(". ");
+    const fasiDette = new Set(trovaNelleFrasi(racconto, fasiDichiarabili.map(f => ({ key: f.id, nome: f.name }))));
+    const vociComputo = fasiDichiarabili.flatMap(f => (sottofasiDi.get(f.id) ?? []).filter(v => !v.fatta).map(v => ({ key: v.id, nome: v.name, fase: f.id })));
+    const vociDette = trovaNelleFrasi(racconto, vociComputo);
+    for (const id of vociDette) fasiDette.add(vociComputo.find(v => v.key === id)!.fase);
+    const fasiNuoveVoce = [...fasiDette].filter(id => !(id in fasiDichiarate));
+    if (fasiNuoveVoce.length) {
+      setFasiDichiarate(p => ({ ...p, ...Object.fromEntries(fasiNuoveVoce.map(id => [id, fasiDichiarabili.find(f => f.id === id)!.percentuale])) }));
+      voci.push(t(fasiNuoveVoce.length === 1 ? "{n} fase" : "{n} fasi", { n: fasiNuoveVoce.length }));
+    }
+    if (vociDette.length) setSottofasiLavorate(p => [...new Set([...p, ...vociDette])]);
+    const mezziDetti = parti.mezzi ? trovaNelleFrasi(racconto, (mezziPerArrivo.data ?? []).map(m => ({ key: m.id, nome: m.nome }))) : [];
+    if (mezziDetti.length) {
+      setMezziSel(p => ({ ...p, ...Object.fromEntries(mezziDetti.map(id => [id, { ...(p[id] ?? { dove: "invariato" as const }), usato: true }])) }));
+      voci.push(t(mezziDetti.length === 1 ? "{n} mezzo" : "{n} mezzi", { n: mezziDetti.length }));
+    }
     if (!voci.length) { toast.error(t("Non ho capito abbastanza: riprova parlando un po' di più.")); return; }
     setRiepilogoVoce({ voci, prima });
   };
   // Dal foglio fotografato: stessi campi della voce, più fasi e mezzi (il foglio li nomina coi nomi del cantiere).
   const applicaDaCarta = (r: RapportinoLetto, avvisi: string[]) => {
     if (!puoCompilareAVoce) return;
-    const prima = { descrizione, oreLavorate, materialiSel, presenzeSel };
+    const prima = fotografia();
     const voci: string[] = [];
     if (r.descrizione) { setDescrizione(d => accodaTesto(d, r.descrizione)); voci.push(t("descrizione")); }
     const fasiNuove = r.fasi.filter(id => fasiDichiarabili.some(f => f.id === id) && !(id in fasiDichiarate));
@@ -1782,6 +1810,52 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
     if (!voci.length) { toast.error(t("Non ho trovato niente da compilare nel foglio.")); return; }
     setRiepilogoVoce({ voci, prima });
   };
+  // «Come ieri»: l'ultimo rapportino mandato da me su questo cantiere, prima della giornata scelta (24/11/2026).
+  const { data: ultimoMio } = useQuery({
+    queryKey: ["campo-come-ieri", orderId, user?.id, workDay],
+    enabled: !!orderId && !!user?.id && tipo === "daily" && validWorkDay(workDay),
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<UltimoRapportino | null> => {
+      const { data, error } = await supabase.from("campo_rapportini")
+        .select("data_lavoro, ore_lavorate, presenze, fasi_lavorate")
+        .eq("order_id", orderId!).eq("user_id", user!.id).lt("data_lavoro", workDay).is("annullato_at", null)
+        .order("data_lavoro", { ascending: false }).limit(1).maybeSingle();
+      if (error || !data) return null;
+      const mezzi = await supabase.from("mezzi_giornate").select("mezzo_id")
+        .eq("user_id", user!.id).eq("order_id", orderId!).eq("giorno", data.data_lavoro).eq("usato", true);
+      return { ...data, ore_lavorate: data.ore_lavorate == null ? null : Number(data.ore_lavorate),
+        mezzi: (mezzi.data ?? []).map(m => m.mezzo_id as string) } as UltimoRapportino;
+    },
+  });
+  const applicaComeIeri = () => {
+    if (!ultimoMio) return;
+    const prima = fotografia();
+    const copia = daRicopiare(ultimoMio, {
+      persone: registraSquadra ? squadra.filter(m => !giaCoperto(m)) : [],
+      fasiAperte: fasiDichiarabili.map(f => f.id),
+      mezziAmmessi: (mezziPerArrivo.data ?? []).map(m => m.id),
+    });
+    const voci: string[] = [];
+    const chiavi = Object.keys(copia.presenze);
+    if (chiavi.length) {
+      segnaPresenzeModificate(chiavi);
+      setPresenzeSel(p => ({ ...p, ...copia.presenze }));
+      voci.push(t(chiavi.length === 1 ? "{n} persona" : "{n} persone", { n: chiavi.length }));
+    } else if (!registraSquadra && puoSuggerireOre && copia.ore) {
+      modificaOre(copia.ore); voci.push(t("{ore} ordinarie", { ore: oreInTesto(copia.ore) }));
+    }
+    if (copia.fasi.length) {
+      setFasiDichiarate(p => ({ ...p, ...Object.fromEntries(copia.fasi.filter(id => !(id in p)).map(id => [id, fasiDichiarabili.find(f => f.id === id)!.percentuale])) }));
+      setSottofasiLavorate(p => [...new Set([...p, ...copia.sottofasiLavorate])]);
+      voci.push(t(copia.fasi.length === 1 ? "{n} fase" : "{n} fasi", { n: copia.fasi.length }));
+    }
+    if (parti.mezzi && copia.mezzi.length) {
+      setMezziSel(p => ({ ...p, ...Object.fromEntries(copia.mezzi.map(id => [id, { ...(p[id] ?? { dove: "invariato" as const }), usato: true }])) }));
+      voci.push(t(copia.mezzi.length === 1 ? "{n} mezzo" : "{n} mezzi", { n: copia.mezzi.length }));
+    }
+    if (!voci.length) { toast.error(t("Nell'ultimo rapportino non c'è niente da ricopiare per oggi.")); return; }
+    setRiepilogoVoce({ voci, prima, titolo: t("Ricopiato dal rapportino del {data}", { data: new Date(`${ultimoMio.data_lavoro}T12:00:00`).toLocaleDateString(intlCampo(), { weekday: "short", day: "numeric", month: "short" }) }) });
+  };
   const annullaVoce = () => {
     if (!riepilogoVoce) return;
     const { prima } = riepilogoVoce;
@@ -1789,6 +1863,9 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
     modificaOre(prima.oreLavorate);
     setMaterialiSel(prima.materialiSel);
     setPresenzeSel(prima.presenzeSel);
+    setFasiDichiarate(prima.fasiDichiarate);
+    setSottofasiLavorate(prima.sottofasiLavorate);
+    setMezziSel(prima.mezziSel);
     setRiepilogoVoce(null);
   };
 
@@ -1961,13 +2038,21 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
               <RegistraGiornata orderId={orderId} workDay={workDay} disabilitato={saving} onCompilato={applicaDaVoce}
                 suggerimento={t("Tocca e parla: {cosa}. Compilo io.", { cosa: cosaDireAVoce })} />
             )}
+            {/* Stessa squadra, stesso lavoro di ieri: un tocco (24/11/2026). */}
+            {puoCompilareAVoce && ultimoMio && !riepilogoVoce && Object.keys(presenzeSel).length === 0 && Object.keys(fasiDichiarate).length === 0 && (
+              <button type="button" onClick={applicaComeIeri} disabled={saving}
+                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-4 text-sm font-semibold text-primary active:bg-primary/15">
+                <CopyCheck className="size-4 shrink-0" aria-hidden="true" />
+                {t("Come l'ultimo rapportino ({data})", { data: new Date(`${ultimoMio.data_lavoro}T12:00:00`).toLocaleDateString(intlCampo(), { weekday: "short", day: "numeric", month: "short" }) })}
+              </button>
+            )}
             {/* Il rapportino scritto sul foglio: una foto e si compila (24/11/2026). */}
             {puoCompilareAVoce && orderId && companyId && !riepilogoVoce && (
               <FotoRapportinoCarta orderId={orderId} companyId={companyId} workDay={workDay} disabilitato={saving} onLetto={applicaDaCarta} />
             )}
             {riepilogoVoce && (
               <section role="status" aria-label={t("Compilato dalla voce")} className="space-y-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-900">
-                <p className="flex items-center gap-2 text-[15px] font-bold"><Check className="size-4 shrink-0" aria-hidden="true" />{t("Ho compilato il rapportino")}</p>
+                <p className="flex items-center gap-2 text-[15px] font-bold"><Check className="size-4 shrink-0" aria-hidden="true" />{riepilogoVoce.titolo ?? t("Ho compilato il rapportino")}</p>
                 <ul className="flex flex-wrap gap-1.5">
                   {riepilogoVoce.voci.map(v => <li key={v} className="rounded-full bg-white/80 px-2.5 py-1 text-xs font-semibold">{v}</li>)}
                 </ul>

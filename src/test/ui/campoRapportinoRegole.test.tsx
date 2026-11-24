@@ -15,6 +15,7 @@ type Membro = {
 const state = vi.hoisted(() => ({
   insert: vi.fn(),
   update: vi.fn(),
+  comeIeri: null as unknown,
   gia: null as Record<string, unknown> | null,
   role: { isCapocantiere: false, esisteCapo: false } as { isCapocantiere: boolean; esisteCapo: boolean; isCaposquadra?: boolean },
   crew: [] as Membro[],
@@ -64,7 +65,8 @@ vi.mock("@tanstack/react-query", () => ({
     queryKey[0] === "modulo-rapportino" ? state.modulo :
     queryKey[0] === "campo-ore-gia-registrate" ? state.oreGia :
     queryKey[0] === "campo-rapportino-gia-oggi" ? state.gia :
-    queryKey[0] === "campo-cantiere-coord" ? { lat: 45, lng: 9 } : undefined,
+    queryKey[0] === "campo-cantiere-coord" ? { lat: 45, lng: 9 } :
+    queryKey[0] === "campo-come-ieri" ? state.comeIeri : undefined,
     isError: queryKey[0] === "campo-rapportino-gia-oggi" && state.verificaErrore,
     isLoading: queryKey[0] === "campo-ruolo" && state.verificaCaricamento,
     refetch: vi.fn() }),
@@ -90,7 +92,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
-  state.role = { isCapocantiere: true, esisteCapo: true }; state.crew = []; state.regole = undefined; state.oreGia = null; state.gia = null;
+  state.role = { isCapocantiere: true, esisteCapo: true }; state.crew = []; state.regole = undefined; state.oreGia = null; state.gia = null; state.comeIeri = null;
   state.fasi = []; state.sottofasi = [];
   state.verificaErrore = false; state.verificaCaricamento = false;
   state.params = ""; state.proposta = null; state.modulo = undefined;
@@ -640,5 +642,44 @@ describe("Cantieri grandi: 200 fasi", () => {
     fireEvent.change(screen.getByLabelText("Cerca una fase"), { target: { value: "" } });
     // la fase scelta resta in vista anche dopo aver tolto la ricerca
     expect(screen.getByRole("button", { name: "Impianto elettrico piano terra" })).toHaveAttribute("aria-pressed", "true");
+  });
+});
+
+describe("Come l'ultimo rapportino", () => {
+  it("ricopia con un tocco chi c'era con le ore e la fase ancora aperta; «Annulla» rimette com'era", () => {
+    state.role = { isCapocantiere: true, esisteCapo: true };
+    state.crew = [
+      { key: "emp-1", employee_id: "1", nome: "Mario" },
+      { key: "emp-2", employee_id: "2", nome: "Luca" },
+      { key: "emp-3", employee_id: "3", nome: "Anna" },
+    ];
+    state.fasi = [{ id: "f1", name: "Massetti", status: "in_corso", percentuale: 40 }];
+    state.comeIeri = { data_lavoro: "2026-09-23", ore_lavorate: 0, mezzi: [],
+      presenze: [{ nome: "Mario", ore: 8, employee_id: "1" }, { nome: "Anna", ore: 6, employee_id: "3" }],
+      fasi_lavorate: [{ phase_id: "f1", sottofasi_lavorate: [] }] };
+    render(<CampoRapportino />);
+    fireEvent.click(screen.getByRole("button", { name: /Come l'ultimo rapportino/ }));
+    expect(screen.getByLabelText("Ore di Mario")).toHaveValue(8);
+    expect(screen.getByLabelText("Ore di Anna")).toHaveValue(6);
+    expect(screen.queryByLabelText("Ore di Luca")).toBeNull();
+    expect(screen.getByText(/Ricopiato dal rapportino del/)).toBeInTheDocument();
+    expect(screen.getByText("1 fase")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
+    expect(screen.queryByLabelText("Ore di Mario")).toBeNull();
+  });
+});
+
+describe("La voce segna anche le fasi", () => {
+  it("«abbiamo sostituito gli infissi» seleziona la fase Sostituzione infissi, non le altre", () => {
+    state.role = { isCapocantiere: false, esisteCapo: true };
+    state.fasi = [
+      { id: "f1", name: "Sostituzione infissi", status: "in_corso", percentuale: 10 },
+      { id: "f2", name: "Impianto fotovoltaico", status: "da_iniziare", percentuale: 0 },
+    ];
+    state.proposta = { trascrizione: "Oggi abbiamo sostituito gli infissi al primo piano", audio_duration_sec: 8,
+      dati_estratti: { lavorazione: "Sostituzione infissi primo piano" } };
+    render(<CampoRapportino />);
+    fireEvent.click(screen.getByRole("button", { name: "Racconta la giornata a voce" }));
+    expect(screen.getByText("1 fase")).toBeInTheDocument();
   });
 });
