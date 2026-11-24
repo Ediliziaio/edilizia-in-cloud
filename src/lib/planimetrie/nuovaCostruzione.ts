@@ -107,8 +107,8 @@ export function righeNuovaCostruzione(doc: Planimetria, variante: string | null,
   const c: Costruzione = doc.costruzione ?? COSTRUZIONE_PREDEFINITA;
   const piani: PianoCostruito[] = [...doc.livelli].sort((a, b) => a.quota - b.quota).map((livello) => {
     const stato = statoCostruito(livello, variante);
-    const interni = stato.locali.filter((l) => eAmbienteInterno(l) && l.stato !== "da_demolire");
-    return { livello, modo: modoPiano(doc.costruzione, livello.id), stato, geo: geometriaPiano(stato.muri, stato.locali.filter((l) => l.stato !== "da_demolire")), interni,
+    const interni = stato.locali.filter((l) => eAmbienteInterno(l));
+    return { livello, modo: modoPiano(doc.costruzione, livello.id), stato, geo: geometriaPiano(stato.muri, stato.locali), interni,
       nettaMq: arrotonda(interni.reduce((s, l) => s + areaPoligono(l.contorno) / 10_000, 0)) };
   }).filter((p) => p.geo.lordaMq > 0);
   const righe: RigaStudio[] = [];
@@ -317,12 +317,12 @@ export function disegnoDaCostruire(doc: Planimetria, costruzione: Pick<Costruzio
     livelli: doc.livelli.map((l) => {
       const modo = modoPiano(costruzione, l.id);
       if (modo === "esistente" || l.proposte.length || !(l.fatto.muri.length || l.fatto.locali.length)) return l;
-      const nuovo = <T extends { stato: string }>(x: readonly T[] | undefined) => (x ?? []).map((e) => ({ ...e, stato: "nuovo" as const }));
+      const nuovo = <T extends object>(x: readonly T[] | undefined) => (x ?? []).map((e) => ({ ...e, stato: "nuovo" as const }));
       const f = l.fatto;
       if (modo === "nuovo") return {
         ...l,
-        proposte: [{ ...f, id: ID_VARIANTE_COSTRUZIONE, nome: "Costruzione", muri: nuovo(f.muri), aperture: nuovo(f.aperture), locali: nuovo(f.locali),
-          elementi: nuovo(f.elementi) } as Proposta],
+        proposte: [{ ...f, id: ID_VARIANTE_COSTRUZIONE, nome: "Costruzione", muri: nuovo(f.muri), aperture: nuovo(f.aperture), locali: f.locali,
+          elementi: nuovo(f.elementi) } as unknown as Proposta],
         fatto: { ...f, muri: [], aperture: [], locali: [], elementi: [] },
       };
       const involucro = geometriaPiano(f.muri, f.locali).muriPerimetro;
@@ -330,8 +330,8 @@ export function disegnoDaCostruire(doc: Planimetria, costruzione: Pick<Costruzio
       return {
         ...l,
         proposte: [{ ...f, id: ID_VARIANTE_COSTRUZIONE, nome: "Costruzione",
-          muri: [...esistenti, ...nuovo(f.muri.filter((m) => !involucro.has(m.id)))], aperture: nuovo(f.aperture), locali: nuovo(f.locali),
-          elementi: nuovo(f.elementi) } as Proposta],
+          muri: [...esistenti, ...nuovo(f.muri.filter((m) => !involucro.has(m.id)))], aperture: nuovo(f.aperture), locali: f.locali,
+          elementi: nuovo(f.elementi) } as unknown as Proposta],
         fatto: { ...f, muri: esistenti, aperture: [], locali: [], elementi: [] },
       };
     }),

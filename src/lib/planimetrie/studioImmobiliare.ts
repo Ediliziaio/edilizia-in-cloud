@@ -40,7 +40,8 @@ export interface RigaStudio {
   fase: string;
   descrizione: string;
   gruppo: string;
-  unita: "m²" | "cad" | "m" | "a corpo";
+  /** «m³» solo per le voci della nuova costruzione (scavi, calcestruzzi). */
+  unita: "m²" | "m³" | "cad" | "m" | "a corpo";
   quantita: number | null;
   criterio: string;
   chiave?: string;
