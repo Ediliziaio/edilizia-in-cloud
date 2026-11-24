@@ -27,17 +27,18 @@ NON_PARETI = re.compile(r"\b(dim|dims|cotas?|quote|hatch|architrav\w*|proiez\w*|
 ASSI = re.compile(r"\b(axis|axes|grid|ejes?|assi|eixos?|trame)\b")
 LAYER_SCALE = re.compile(r"\b(stairs?|staircase|scal[ae]|escaleras?|escadas?)\d*\b")
 PORTE = re.compile(r"door|puert|porta|\bporte\b")
-FINESTRE = re.compile(r"window|windov|wind\d|ventana|janela|finestr|fenetre")
+FINESTRE = re.compile(r"infiss|window|windov|wind\d|ventana|janela|finestr|fenetre")
 PORTEFINESTRE = re.compile(r"portafinestr|french doors?|porte fenetre")
 DESTINAZIONI = [
-    (r"bedroom|master bed|dormitor|recamar|habitaci|camera", "camera"),
+    (r"bedroom|master bed|dormitor|recamar|habitaci|camera|\bletto\b", "camera"),
     (r"bath|bano|lavatory|\bwc\b|sanitario|bagno", "bagno"),
     (r"kitchen|cucina|cocina|cozinha", "cucina"),
-    (r"living|dining|family room|soggiorno|breakfast|\bsala\b|estancia|comedor", "soggiorno"),
+    (r"living|dining|family room|soggiorno|\bsogg\b|pranzo|breakfast|\bsala\b|estancia|comedor", "soggiorno"),
     (r"garag|cochera|carport", "garage"),
-    (r"pant\b|pantry|closet|vestidor|ripostiglio|guardaro|^(his|hers)$", "ripostiglio"),
+    (r"pant\b|pantry|closet|vestidor|ripostiglio|^rip$|guardaro|^(his|hers)$", "ripostiglio"),
+    (r"cantin", "cantina"),
     (r"foyer|ingresso|vestibul|recepcion", "ingresso"),
-    (r"hallway|pasillo|disimpegno|corridoio", "disimpegno"),
+    (r"hallway|pasillo|disimpegno|^dis$|^disimp$|corridoio", "disimpegno"),
     (r"studio|study|estudio|oficina|office", "studio"),
     (r"laundry|lavadero|lavander", "lavanderia"),
     (r"balcon|balcao", "balcone"),
@@ -497,7 +498,7 @@ def leggi_testi(entita, zona, cm):
         if posizione_locale and not re.search(r"\b(planta|nivel|facade|sezione|elevacion|level)\b", chiave):
             if not any(n == testo and p.distance(posizione) <= 2 for p, n, _ in nomi):
                 nomi.append((posizione, testo, posizione_locale))
-        quantita = re.fullmatch(r"(\d{1,3}(?:[.,]\d{1,3})?)(?:\s*(m2|m²|mq))?", testo.lower())
+        quantita = re.fullmatch(r"(\d{1,3}(?:[.,]\d{1,3})?)(?:\s*(m2|m²|mq)\.?)?", testo.lower())
         if quantita and (quantita[2] or semplice(e.dxf.layer) in ("ar", "area", "aree", "superfici", "areas")):
             m2 = float(quantita[1].replace(",", "."))
             if 0.8 <= m2 <= 220:
@@ -529,6 +530,64 @@ def varchi_tra_stipiti(linee, tratti, minimo=130):
             if any(max(abs(a - b) for a, b in zip(primo, secondo)) <= 3 for secondo in stipiti[1]):
                 yield asse, primo
                 break
+
+
+def vani_senza_segno(tratti, gia_trovati=(), infissi=(), minimo=55, massimo=135):
+    """Porte disegnate come semplice interruzione del muro: due spalle affrontate, niente in mezzo.
+
+    Molte tavole di progetto non disegnano l'anta: la porta è solo il muro che si interrompe.
+    Le due spalle sono tratti corti (lo spessore del muro) paralleli, allineati sulle stesse
+    facce, a una distanza da porta; fra le due non passa nessun altro tratto di muro.
+    """
+    spalle = [(i, proietta(p, q)) for i, (p, q) in enumerate(tratti) if 8 <= hypot(q[0] - p[0], q[1] - p[1]) <= 72]
+    geometrie = [LineString((p, q)) for p, q in tratti]
+    indice = STRtree(geometrie)
+    presi = [LineString(a.estremi()) for a, _ in gia_trovati]
+    # Un vano attraversato da un segno degli infissi è una finestra, non una porta.
+    telai = [LineString((p, q)) for p, q in infissi]
+    indice_telai = STRtree(telai) if telai else None
+    per_angolo = defaultdict(list)
+    for i, s in spalle:
+        per_angolo[s.angolo].append((i, s))
+    visti = set()
+    for gruppo in per_angolo.values():
+        for x, (i, a) in enumerate(gruppo):
+            for j, b in gruppo[x + 1:]:
+                if not minimo <= abs(a.centro - b.centro) <= massimo:
+                    continue
+                if abs(a.inizio - b.inizio) > 3 or abs(a.fine - b.fine) > 3:
+                    continue
+                pa = tuple((u + v) / 2 for u, v in zip(*tratti[i]))
+                pb = tuple((u + v) / 2 for u, v in zip(*tratti[j]))
+                vano = LineString((pa, pb))
+                interno = vano.interpolate(2).buffer(0.5).union(vano.interpolate(vano.length - 2).buffer(0.5))
+                tra = LineString((vano.interpolate(2).coords[0], vano.interpolate(vano.length - 2).coords[0]))
+                if any(k not in (i, j) and geometrie[k].intersects(tra) for k in indice.query(tra)):
+                    continue
+                if any(v.distance(vano.centroid) < 20 for v in presi):
+                    continue
+                if indice_telai is not None and len(indice_telai.query(vano.buffer(6), predicate="intersects")):
+                    continue
+                # Muro pieno fra due finestre: le sue facce, parallele al vano, lo coprono.
+                asse_vano = proietta(pa, pb)
+                fascia = vano.buffer((a.fine - a.inizio) / 2 + 2, cap_style="flat")
+                coperto = 0.0
+                for k in indice.query(fascia):
+                    if k in (i, j):
+                        continue
+                    f = proietta(*tratti[k])
+                    if f.angolo == asse_vano.angolo:
+                        coperto = max(coperto, geometrie[k].intersection(fascia).length)
+                if coperto >= 0.5 * vano.length:
+                    continue
+                asse = proietta(pa, pb)
+                _, normale = base(asse.angolo)
+                facce = tuple(sorted(prodotto(pt, normale) for pt in tratti[i]))
+                chiave = (asse.angolo, round(asse.centro), round(asse.inizio), round(asse.fine))
+                if chiave in visti:
+                    continue
+                visti.add(chiave)
+                yield asse, facce
 
 
 def finestre_tra_stipiti(varchi):
@@ -1320,6 +1379,8 @@ def leggi_piano(entita, regione, cm, layer, controllo=False):
     varchi = [(a,c) for a,c in stipiti if a.fine - a.inizio >= 130] if nomi and aree else []
     varchi.extend((Asse(m.angolo, m.centro, a, b), (m.centro - m.spessore / 2, m.centro + m.spessore / 2))
                   for m, a, b, tipo, _ in aperture if tipo == "porta_doppia")
+    vani_aperti = list(vani_senza_segno(tratti, stipiti + varchi, [(p, q) for p, q, l in linee if FINESTRE.search(semplice(l))])) if nomi and aree else []
+    varchi.extend(vani_aperti)
     pertinenti = []
     for muro, a, b, tipo, ponte in aperture:
         if any(muro.angolo == preso.angolo and abs(muro.centro - preso.centro) < 6 and min(b, f) - max(a, i) > (b - a) * 0.45 for preso, i, f, _ in pertinenti):
@@ -1346,6 +1407,11 @@ def leggi_piano(entita, regione, cm, layer, controllo=False):
         ):
             continue
         inserisci_varco(a, (c1, c2), muri, pertinenti, "finestra")
+    for a, (c1, c2) in vani_aperti:
+        if any(m.angolo == a.angolo and abs(m.centro - (c1 + c2) / 2) <= 8
+               and min(f, a.fine) - max(i, a.inizio) >= 0.65 * (a.fine - a.inizio) for m, i, f, _ in pertinenti):
+            continue
+        inserisci_varco(a, (c1, c2), muri, pertinenti, "porta")
     garage_da_rivedere = {}
     for locale, a, (c1, c2), fronte in portoni_garage(varchi, locali):
         if controllo:

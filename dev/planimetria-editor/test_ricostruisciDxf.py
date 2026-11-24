@@ -9,7 +9,7 @@ from ricostruisciDxf import (
     Asse, LocaleLetto, abbina_aperture, accorpa_assi_sovrapposti, allinea_pareti, candidato_finestra,
     combina_vani_comunicanti, completa_ingressi_aperti, contorni_facce, contorni_senza_etichette, finestre_tra_stipiti, includi_battuta_portone,
     layer_del_piano, leggi_piano, leggi_quote, portoni_garage, raccordi_muratura, registra_tavola, riconosci_locali, riscontri_chiusure, riscontri_sovrapposizioni,
-    scale_da_riscontrare, varchi_tra_stipiti,
+    scale_da_riscontrare, vani_senza_segno, varchi_tra_stipiti, leggi_testi,
 )
 
 
@@ -247,6 +247,44 @@ class RiconoscimentoTavolaTest(unittest.TestCase):
         risultati = abbina_aperture(md, muri, zona, 1)
         self.assertEqual(len(risultati), 1)
         self.assertEqual(risultati[0][1:], (120, 240, "finestra", True))
+
+
+class TavoleSenzaAnteTest(unittest.TestCase):
+    """Callimaco (Urban Vision, 24/11/2026): porte disegnate come muro interrotto, «27.40 mq.»."""
+
+    @staticmethod
+    def muro_interrotto(spalla_a, spalla_b, pieno=False):
+        # Muro orizzontale spesso 12 fra y=0 e y=12, interrotto fra x=spalla_a e x=spalla_b.
+        tratti = [((0, 0), (spalla_a, 0)), ((0, 12), (spalla_a, 12)), ((spalla_a, 0), (spalla_a, 12)),
+                  ((spalla_b, 0), (spalla_b, 12)), ((spalla_b, 0), (400, 0)), ((spalla_b, 12), (400, 12))]
+        if pieno:
+            tratti += [((spalla_a, 0), (spalla_b, 0)), ((spalla_a, 12), (spalla_b, 12))]
+        return tratti
+
+    def test_porta_senza_anta_fra_due_spalle(self):
+        (asse, facce), = vani_senza_segno(self.muro_interrotto(150, 240))
+        self.assertEqual((asse.angolo, asse.inizio, asse.fine), (0, 150, 240))
+        self.assertEqual(facce, (0, 12))
+
+    def test_non_e_una_porta_il_muro_pieno_fra_due_finestre(self):
+        self.assertEqual(list(vani_senza_segno(self.muro_interrotto(150, 240, pieno=True))), [])
+
+    def test_non_e_una_porta_il_vano_attraversato_da_un_infisso(self):
+        telaio = [((150, 6), (240, 6))]
+        self.assertEqual(list(vani_senza_segno(self.muro_interrotto(150, 240), infissi=telaio)), [])
+
+    def test_troppo_stretto_o_troppo_largo_per_una_porta(self):
+        self.assertEqual(list(vani_senza_segno(self.muro_interrotto(150, 190))), [])
+        self.assertEqual(list(vani_senza_segno(self.muro_interrotto(150, 300))), [])
+
+    def test_legge_mq_col_punto_e_i_nomi_abbreviati(self):
+        doc = ezdxf.new()
+        spazio = doc.modelspace()
+        for testo, x in [("sogg/pranzo", 10), ("27.40 mq.", 20), ("letto", 30), ("dis", 40), ("rip.", 50), ("cantina", 60)]:
+            spazio.add_mtext(testo, dxfattribs={"insert": (x, 10)})
+        nomi, aree = leggi_testi(spazio, box(0, 0, 100, 100), 1)
+        self.assertEqual([d for _, _, d in nomi], ["soggiorno", "camera", "disimpegno", "ripostiglio", "cantina"])
+        self.assertEqual([m for _, m in aree], [27.4])
 
 
 if __name__ == "__main__":
