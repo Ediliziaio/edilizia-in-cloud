@@ -19,6 +19,8 @@ vi.mock('@/hooks/usePermissions',()=>({usePermissions:()=>({solaLettura:false})}
 vi.mock('@/components/planimetrie/MaterialiProgetto',()=>({MaterialiProgetto:()=> <section aria-label="Materiali comuni">Materiali</section>}));
 vi.mock('@/components/planimetrie/EsportaPiantaDialog',()=>({EsportaPiantaDialog:({aperto,onChiudi}:{aperto:boolean;onChiudi:()=>void})=>aperto?<button onClick={onChiudi}>Chiudi esportazione</button>:null}));
 vi.mock('@/components/planimetrie/Vista3DPigra',()=>({Vista3DPigra:(): null=>null}));
+vi.mock('@/components/planimetrie/NuovaCostruzione',()=>({NuovaCostruzione:(): null=>null}));
+vi.mock('@/components/planimetrie/RiepilogoProgetto',()=>({RiepilogoProgetto:(): null=>null}));
 vi.mock('@/components/planimetrie/AbachiPianta',()=>({AbachiPianta:(): null=>null}));
 vi.mock('@/components/planimetrie/ProspettiDialog',()=>({ProspettiDialog:(): null=>null}));
 vi.mock('@/components/planimetrie/RenderInSerieDialog',()=>({RenderInSerieDialog:(): null=>null}));
