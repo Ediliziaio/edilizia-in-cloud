@@ -68760,5 +68760,11 @@ const dizionario: Dizionario = {
   "Contratti e verbali": "Verträge und Protokolle",
   "Fatture fornitori": "Lieferantenrechnungen",
   "Contratti subappaltatori": "Subunternehmerverträge",
+  // EiC Drive → Clienti → commessa, 24/11/2026.
+  "{n} documenti di questa commessa, presi dove sono senza copiarli": "{n} Dokumente dieses Auftrags, dort übernommen, wo sie liegen, ohne sie zu kopieren",
+  "Cartelle della commessa": "Ordner des Auftrags",
+  "Cerca commessa": "Auftrag suchen",
+  "Commesse del cliente": "Aufträge des Kunden",
+  "Cartelle di tutte le commesse": "Ordner aller Aufträge",
 };
 export default dizionario;

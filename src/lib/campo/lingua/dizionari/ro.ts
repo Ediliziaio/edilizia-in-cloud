@@ -68824,5 +68824,11 @@ const dizionario: Dizionario = {
   "Mostra i passi": "Arată pașii",
   "Nascondi i passi": "Ascunde pașii",
   "Ricezione e detraibilità degli acquisti": "Primirea și deductibilitatea achizițiilor",
+  // EiC Drive → Clienti → commessa, 24/11/2026.
+  "{n} documenti di questa commessa, presi dove sono senza copiarli": "{n} documente ale acestei lucrări, preluate de unde sunt, fără a le copia",
+  "Cartelle della commessa": "Directoarele lucrării",
+  "Cerca commessa": "Caută lucrarea",
+  "Commesse del cliente": "Lucrările clientului",
+  "Cartelle di tutte le commesse": "Directoarele tuturor lucrărilor",
 };
 export default dizionario;

@@ -78,7 +78,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import type { DriveFileRow, DriveFolderMode } from "@/integrations/supabase/appDatabase";
 import { leggiPagineDrive } from "@/lib/leggiPagineDrive";
-import { cartelleDelCliente, clientiDrive, nomeCartellaCliente, righeDelCliente, type ClienteDrive, type RigaDriveCliente } from "@/lib/driveClienti";
+import { cartelleDelCliente, clientiDrive, commesseDelCliente, nomeCartellaCliente, nomeCommessa, righeDelCliente, type ClienteDrive, type CommessaDrive, type RigaDriveCliente } from "@/lib/driveClienti";
 import { cartellaArchiviabile, cartellaEliminabile, cartelleInOrdineAlbero, percorsoCartella, sottocartelle } from "@/lib/driveCartelle";
 import type { Database } from "@/integrations/supabase/types";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -382,7 +382,7 @@ function rigaClienteComeDocumento(riga: RigaDriveCliente): MediaLibraryItem {
     fileName: riga.nome, status: "attached", docType: riga.cartella === "foto_cantiere" ? "foto_cantiere" : "documento_commessa",
     storageBucket: file?.bucket ?? riga.bucket, storagePath: file?.path ?? riga.path, externalUrl: riga.link,
     createdAt: riga.data, linkedEntityId: riga.order_id, linkedEntityTable: "orders",
-    linkedEntityLabel: riga.order_code ? `Commessa ${riga.order_code}` : "Commessa",
+    linkedEntityLabel: `Commessa ${nomeCommessa({ codice: riga.order_code, descrizione: riga.commessa })}`,
     integrationLabel: nomeCartellaCliente(riga.cartella),
     metadataFacts: [riga.cliente],
   });
@@ -1279,7 +1279,7 @@ export default function ContenutiMultimediali() {
   const [cercaCartella, setCercaCartella] = useState("");
   const [nuovaCartellaDaArchiviare, setNuovaCartellaDaArchiviare] = useState<MediaLibraryFolderRow | null>(null);
   // «Clienti»: null = non aperta; cliente/cartella null = livello sopra.
-  const [vistaClienti, setVistaClienti] = useState<{ cliente: string | null; cartella: string | null } | null>(null);
+  const [vistaClienti, setVistaClienti] = useState<VistaClienti | null>(null);
   const [cartellaDaEliminare, setCartellaDaEliminare] = useState<MediaLibraryFolderRow | null>(null);
   // Dove nasce la nuova cartella: null = radice, altrimenti dentro questa cartella manuale.
   const [cartellaMadre, setCartellaMadre] = useState<string | null>(null);
@@ -1403,15 +1403,21 @@ export default function ContenutiMultimediali() {
   const clienti = useMemo(() => clientiDrive(righeClienti), [righeClienti]);
   const clienteAperto = vistaClienti?.cliente ? clienti.find(c => c.chiave === vistaClienti.cliente) ?? null : null;
   const clienteScelto = vistaClienti?.cliente ?? null;
-  const cartelleClienteAperto = useMemo(
-    () => clienteScelto ? cartelleDelCliente(righeClienti, clienteScelto) : [],
+  const commessaScelta = vistaClienti?.commessa ?? null;
+  const commesseClienteAperto = useMemo(
+    () => clienteScelto ? commesseDelCliente(righeClienti, clienteScelto) : [],
     [righeClienti, clienteScelto],
   );
+  const commessaAperta = commessaScelta ? commesseClienteAperto.find(c => c.id === commessaScelta) ?? null : null;
+  const cartelleClienteAperto = useMemo(
+    () => clienteScelto ? cartelleDelCliente(righeClienti, clienteScelto, commessaScelta) : [],
+    [righeClienti, clienteScelto, commessaScelta],
+  );
   const itemsClienti = useMemo(() => vistaClienti
-    ? righeDelCliente(righeClienti, vistaClienti.cliente, vistaClienti.cartella).map(rigaClienteComeDocumento)
+    ? righeDelCliente(righeClienti, vistaClienti.cliente, vistaClienti.cartella, vistaClienti.commessa).map(rigaClienteComeDocumento)
     : [], [righeClienti, vistaClienti]);
-  const apriClienti = (cliente: string | null = null, cartella: string | null = null) => {
-    setVistaClienti({ cliente, cartella });
+  const apriClienti = (vista: Partial<VistaClienti> = {}) => {
+    setVistaClienti({ cliente: vista.cliente ?? null, commessa: vista.commessa ?? null, cartella: vista.cartella ?? null });
     setActiveCustomFolderId(null);
     azzeraFiltriAggiuntivi();
     setSelectedId(null);
@@ -1459,10 +1465,13 @@ export default function ContenutiMultimediali() {
   }, [customFolders, visibleItems]);
 
   const activeFolderTitle = vistaClienti
-    ? vistaClienti.cartella ? t(nomeCartellaCliente(vistaClienti.cartella)) : clienteAperto?.nome ?? t("Clienti")
+    ? vistaClienti.cartella ? t(nomeCartellaCliente(vistaClienti.cartella))
+      : commessaAperta ? nomeCommessa(commessaAperta) : clienteAperto?.nome ?? t("Clienti")
     : activeCustomFolder?.name ?? TAB_LABELS[activeTab];
   const activeFolderDescription = vistaClienti
-    ? clienteAperto
+    ? commessaAperta
+      ? t("{n} documenti di questa commessa, presi dove sono senza copiarli", { n: commessaAperta.documenti })
+      : clienteAperto
       ? t("{n} documenti da {c} commesse, presi dalle commesse senza copiarli", { n: clienteAperto.documenti, c: clienteAperto.commesse })
       : t("Una cartella per cliente, con dentro le cartelle standard: i documenti arrivano dalle commesse")
     : activeCustomFolder
@@ -1892,9 +1901,13 @@ export default function ContenutiMultimediali() {
                     ? <button type="button" className="hover:text-foreground hover:underline" onClick={() => apriClienti()}>{t("Clienti")}</button>
                     : <span aria-current="page" className="font-medium text-foreground">{t("Clienti")}</span>}
                   {vistaClienti.cliente && <><ChevronRight className="h-3 w-3" />
-                    {vistaClienti.cartella
-                      ? <button type="button" className="hover:text-foreground hover:underline" onClick={() => apriClienti(vistaClienti.cliente)}>{clienteAperto?.nome ?? t("Cliente")}</button>
+                    {vistaClienti.commessa || vistaClienti.cartella
+                      ? <button type="button" className="hover:text-foreground hover:underline" onClick={() => apriClienti({ cliente: vistaClienti.cliente })}>{clienteAperto?.nome ?? t("Cliente")}</button>
                       : <span aria-current="page" className="font-medium text-foreground">{clienteAperto?.nome ?? t("Cliente")}</span>}</>}
+                  {vistaClienti.commessa && <><ChevronRight className="h-3 w-3" />
+                    {vistaClienti.cartella
+                      ? <button type="button" className="max-w-56 truncate hover:text-foreground hover:underline" onClick={() => apriClienti({ cliente: vistaClienti.cliente, commessa: vistaClienti.commessa })}>{commessaAperta ? nomeCommessa(commessaAperta) : t("Commessa")}</button>
+                      : <span aria-current="page" className="max-w-56 truncate font-medium text-foreground">{commessaAperta ? nomeCommessa(commessaAperta) : t("Commessa")}</span>}</>}
                   {vistaClienti.cartella && <><ChevronRight className="h-3 w-3" /><span aria-current="page" className="font-medium text-foreground">{t(nomeCartellaCliente(vistaClienti.cartella))}</span></>}
                 </nav>}
                 {percorsoAttivo.length > 0 && <nav aria-label={t("Percorso")} className="mb-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
@@ -1953,7 +1966,7 @@ export default function ContenutiMultimediali() {
             {filtriDesktopAperti && <div className="space-y-2 rounded-lg border bg-muted/25 p-3"><FiltriDrive {...impostazioniFiltro} />
               {filtriAggiuntivi > 0 && <Button size="sm" variant="ghost" onClick={azzeraFiltriAggiuntivi}>{t("Azzera filtri")}</Button>}
             </div>}
-            {vistaClienti && !vistaClienti.cartella && <NavigazioneClienti vista={vistaClienti} clienti={clienti} cartelle={cartelleClienteAperto}
+            {vistaClienti && !vistaClienti.cartella && <NavigazioneClienti key={vistaClienti.cliente ?? "clienti"} vista={vistaClienti} clienti={clienti} commesse={commesseClienteAperto} cartelle={cartelleClienteAperto}
               caricamento={driveClienti.isLoading} errore={driveClienti.error?.message ?? null} onApri={apriClienti} />}
             {activeCustomFolder?.mode === "manual" && (sottocartelleAttive.length > 0 || puoScrivere) && <div className="flex flex-wrap gap-2" aria-label={t("Sottocartelle")}>
               {sottocartelleAttive.map(folder => <Button key={folder.id} type="button" variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => selectCustomFolder(folder.id)}>
@@ -2472,32 +2485,54 @@ function PageDropOverlay({
   );
 }
 
-function NavigazioneClienti({ vista, clienti, cartelle, caricamento, errore, onApri }: {
-  vista: { cliente: string | null; cartella: string | null };
+type VistaClienti = { cliente: string | null; commessa: string | null; cartella: string | null };
+
+function NavigazioneClienti({ vista, clienti, commesse, cartelle, caricamento, errore, onApri }: {
+  vista: VistaClienti;
   clienti: ClienteDrive[];
+  commesse: CommessaDrive[];
   cartelle: { chiave: string; nome: string; documenti: number }[];
   caricamento: boolean;
   errore: string | null;
-  onApri: (cliente?: string | null, cartella?: string | null) => void;
+  onApri: (vista?: Partial<VistaClienti>) => void;
 }) {
   const t = useT();
   const [cerca, setCerca] = useState("");
   if (caricamento) return <p role="status" className="text-xs text-muted-foreground">{t("Raccolgo i documenti delle commesse…")}</p>;
   if (errore) return <p role="alert" className="text-xs text-destructive">{t("Cartelle dei clienti non caricate: {motivo}", { motivo: errore })}</p>;
-  if (vista.cliente) return <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-label={t("Cartelle del cliente")}>
-    {cartelle.map(c => <Button key={c.chiave} type="button" variant="outline" size="sm" className="h-9 justify-between gap-1.5"
-      onClick={() => onApri(vista.cliente, c.chiave)}>
-      <span className="flex min-w-0 items-center gap-1.5"><Folder className={cn("h-4 w-4 shrink-0", c.documenti ? "text-orange-600" : "text-muted-foreground")} /><span className="truncate">{t(c.nome)}</span></span>
-      <Badge variant="secondary" className="h-5 min-w-6 justify-center text-[10px]">{c.documenti}</Badge>
-    </Button>)}
+  const filtro = cerca.trim().toLowerCase();
+  const cercaInput = (quanti: number, etichetta: string) => quanti > 8
+    ? <Input aria-label={etichetta} placeholder={`${etichetta}…`} value={cerca} onChange={e => setCerca(e.target.value)} className="h-8 text-xs" />
+    : null;
+  const griglia = cartelle.map(c => <Button key={c.chiave} type="button" variant="outline" size="sm" className="h-9 justify-between gap-1.5"
+    onClick={() => onApri({ cliente: vista.cliente, commessa: vista.commessa, cartella: c.chiave })}>
+    <span className="flex min-w-0 items-center gap-1.5"><Folder className={cn("h-4 w-4 shrink-0", c.documenti ? "text-orange-600" : "text-muted-foreground")} /><span className="truncate">{t(c.nome)}</span></span>
+    <Badge variant="secondary" className="h-5 min-w-6 justify-center text-[10px]">{c.documenti}</Badge>
+  </Button>);
+  if (vista.cliente && vista.commessa) return <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-label={t("Cartelle della commessa")}>{griglia}</div>;
+  if (vista.cliente) return <div className="space-y-3">
+    <div className="space-y-2">
+      <p className="text-xs font-medium text-muted-foreground">{t("Commesse")}</p>
+      {cercaInput(commesse.length, t("Cerca commessa"))}
+      <div className="grid max-h-60 gap-2 overflow-y-auto sm:grid-cols-2" aria-label={t("Commesse del cliente")}>
+        {commesse.filter(c => nomeCommessa(c).toLowerCase().includes(filtro)).map(c => <Button key={c.id} type="button" variant="outline" size="sm" className="h-9 justify-between gap-1.5"
+          onClick={() => onApri({ cliente: vista.cliente, commessa: c.id })}>
+          <span className="flex min-w-0 items-center gap-1.5"><FolderOpen className="h-4 w-4 shrink-0 text-orange-600" /><span className="truncate">{c.codice || c.descrizione ? nomeCommessa(c) : t("Commessa senza codice")}</span></span>
+          <Badge variant="secondary" className="h-5 min-w-6 justify-center text-[10px]">{c.documenti}</Badge>
+        </Button>)}
+      </div>
+    </div>
+    <div className="space-y-2">
+      <p className="text-xs font-medium text-muted-foreground">{t("Cartelle di tutte le commesse")}</p>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-label={t("Cartelle del cliente")}>{griglia}</div>
+    </div>
   </div>;
   if (clienti.length === 0) return <p className="text-xs text-muted-foreground">{t("Nessun documento nelle commesse: le cartelle dei clienti si riempiono da sole quando carichi documenti, ordini, DDT o fatture su una commessa.")}</p>;
-  const filtro = cerca.trim().toLowerCase();
   return <div className="space-y-2">
-    {clienti.length > 8 && <Input aria-label={t("Cerca cliente")} placeholder={t("Cerca cliente…")} value={cerca} onChange={e => setCerca(e.target.value)} className="h-8 text-xs" />}
+    {cercaInput(clienti.length, t("Cerca cliente"))}
     <div className="grid max-h-72 gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3" aria-label={t("Clienti")}>
       {clienti.filter(c => c.nome.toLowerCase().includes(filtro)).map(c => <Button key={c.chiave} type="button" variant="outline" size="sm" className="h-9 justify-between gap-1.5"
-        onClick={() => onApri(c.chiave)}>
+        onClick={() => onApri({ cliente: c.chiave })}>
         <span className="flex min-w-0 items-center gap-1.5"><Folder className="h-4 w-4 shrink-0 text-orange-600" /><span className="truncate">{c.nome}</span></span>
         <Badge variant="secondary" className="h-5 min-w-6 justify-center text-[10px]">{c.documenti}</Badge>
       </Button>)}

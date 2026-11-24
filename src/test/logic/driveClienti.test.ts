@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { CARTELLE_CLIENTE, cartelleDelCliente, clientiDrive, righeDelCliente, type RigaDriveCliente } from "@/lib/driveClienti";
+import { CARTELLE_CLIENTE, cartelleDelCliente, clientiDrive, commesseDelCliente, nomeCommessa, righeDelCliente, type RigaDriveCliente } from "@/lib/driveClienti";
 
 const riga = (r: Partial<RigaDriveCliente>): RigaDriveCliente => ({
-  cliente_chiave: "c1", cliente: "Rossi", order_id: "o1", order_code: "C-1", cartella: "ddt",
+  cliente_chiave: "c1", cliente: "Rossi", order_id: "o1", order_code: "C-1", commessa: "Villa", cartella: "ddt",
   id: Math.random().toString(), nome: "DDT 1", bucket: "ddt-documenti", path: "x", link: null, data: null, ...r,
 });
 
@@ -44,5 +44,26 @@ describe("cartelle standard dei clienti in EiC Drive", () => {
     expect(righeDelCliente(righe, "c1", "ddt")).toHaveLength(2);
     expect(righeDelCliente(righe, "c1", null)).toHaveLength(3);
     expect(righeDelCliente(righe, null, null)).toHaveLength(4);
+  });
+
+  it("dentro il cliente un livello per commessa, dalla più recente", () => {
+    const conDate = [
+      riga({ data: "2026-10-01" }), riga({ cartella: "fatture_fornitori", data: "2026-10-05" }),
+      riga({ order_id: "o2", order_code: "C-2", commessa: null, data: "2026-11-01" }),
+    ];
+    expect(commesseDelCliente(conDate, "c1")).toEqual([
+      { id: "o2", codice: "C-2", descrizione: null, documenti: 1, ultima: "2026-11-01" },
+      { id: "o1", codice: "C-1", descrizione: "Villa", documenti: 2, ultima: "2026-10-05" },
+    ]);
+    expect(cartelleDelCliente(conDate, "c1", "o1").find(c => c.chiave === "ddt")?.documenti).toBe(1);
+    expect(cartelleDelCliente(conDate, "c1", null).find(c => c.chiave === "ddt")?.documenti).toBe(2);
+    expect(righeDelCliente(conDate, "c1", null, "o1")).toHaveLength(2);
+    expect(righeDelCliente(conDate, "c1", "ddt", "o2")).toHaveLength(1);
+  });
+
+  it("nome della commessa: codice e descrizione, quando ci sono", () => {
+    expect(nomeCommessa({ codice: "C-1", descrizione: "Villa" })).toBe("C-1 · Villa");
+    expect(nomeCommessa({ codice: null, descrizione: "Villa" })).toBe("Villa");
+    expect(nomeCommessa({ codice: null, descrizione: null })).toBe("Commessa senza codice");
   });
 });

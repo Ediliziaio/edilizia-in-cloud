@@ -68824,5 +68824,11 @@ const dizionario: Dizionario = {
   "Mostra i passi": "Shfaq hapat",
   "Nascondi i passi": "Fshih hapat",
   "Ricezione e detraibilità degli acquisti": "Marrja dhe zbritshmëria e blerjeve",
+  // EiC Drive → Clienti → commessa, 24/11/2026.
+  "{n} documenti di questa commessa, presi dove sono senza copiarli": "{n} dokumente të kësaj porosie, të marra aty ku janë pa i kopjuar",
+  "Cartelle della commessa": "Dosjet e porosisë",
+  "Cerca commessa": "Kërko porosinë",
+  "Commesse del cliente": "Porositë e klientit",
+  "Cartelle di tutte le commesse": "Dosjet e të gjitha porosive",
 };
 export default dizionario;

@@ -35,9 +35,10 @@ vi.mock("@/integrations/supabase/client", () => {
 
   return { supabase: {
     rpc: (nome: string) => Promise.resolve({ error: null, data: nome !== "drive_documenti_clienti" ? [] : [
-      { cliente_chiave: "c1", cliente: "Rossi Mario", order_id: "o1", order_code: "C-001", cartella: "ddt", id: "ddt:1", nome: "DDT 12", bucket: "ddt-documenti", path: "a/b.pdf", link: null, data: "2026-11-01" },
-      { cliente_chiave: "c1", cliente: "Rossi Mario", order_id: "o1", order_code: "C-001", cartella: "fatture_fornitori", id: "fattura-ricevuta:1", nome: "Fattura 7", bucket: "documenti-smart", path: "a/f.pdf", link: null, data: "2026-11-02" },
-      { cliente_chiave: "c2", cliente: "Bianchi Srl", order_id: "o2", order_code: "C-002", cartella: "ordini_acquisto", id: "oda:1", nome: "Ordine ODA-1", bucket: null, path: null, link: "/azienda/ordini-acquisto/1", data: "2026-11-03" },
+      { cliente_chiave: "c1", cliente: "Rossi Mario", order_id: "o1", order_code: "C-001", commessa: "Villa al mare", cartella: "ddt", id: "ddt:1", nome: "DDT 12", bucket: "ddt-documenti", path: "a/b.pdf", link: null, data: "2026-11-01" },
+      { cliente_chiave: "c1", cliente: "Rossi Mario", order_id: "o1", order_code: "C-001", commessa: "Villa al mare", cartella: "fatture_fornitori", id: "fattura-ricevuta:1", nome: "Fattura 7", bucket: "documenti-smart", path: "a/f.pdf", link: null, data: "2026-11-02" },
+      { cliente_chiave: "c1", cliente: "Rossi Mario", order_id: "o3", order_code: "C-003", commessa: "Bagno", cartella: "ddt", id: "ddt:2", nome: "DDT 40", bucket: "ddt-documenti", path: "a/c.pdf", link: null, data: "2026-11-20" },
+      { cliente_chiave: "c2", cliente: "Bianchi Srl", order_id: "o2", order_code: "C-002", commessa: null, cartella: "ordini_acquisto", id: "oda:1", nome: "Ordine ODA-1", bucket: null, path: null, link: "/azienda/ordini-acquisto/1", data: "2026-11-03" },
     ] }),
     from: (table: string) => {
       const query = {
@@ -107,7 +108,7 @@ it("entra nelle sottocartelle, torna su con le briciole e crea una cartella dent
   await screen.findByText("3 risultati");
 });
 
-it("Clienti: una cartella per cliente, dentro le cartelle standard coi documenti delle commesse", async () => {
+it("Clienti: una cartella per cliente, dentro le commesse e le cartelle standard coi documenti", async () => {
   render(<MemoryRouter><QueryClientProvider client={new QueryClient()}>
     <ContenutiMultimediali />
   </QueryClientProvider></MemoryRouter>);
@@ -117,19 +118,38 @@ it("Clienti: una cartella per cliente, dentro le cartelle standard coi documenti
   // Aperta «Clienti», nel menu è evidenziata solo lei.
   expect(screen.getByRole("button", { name: /^Clienti/ })).toHaveAttribute("aria-current", "true");
   expect(screen.getByRole("button", { name: /^Tutti/ })).not.toHaveAttribute("aria-current");
-  expect(within(elenco).getAllByRole("button").map(b => b.textContent)).toEqual(["Bianchi Srl1", "Rossi Mario2"]);
+  expect(within(elenco).getAllByRole("button").map(b => b.textContent)).toEqual(["Bianchi Srl1", "Rossi Mario3"]);
   fireEvent.click(within(elenco).getByRole("button", { name: /Rossi Mario/ }));
-  const cartelle = await screen.findByLabelText("Cartelle del cliente");
+
+  // Dentro il cliente: le sue commesse, dalla più recente, e le cartelle di tutte le commesse.
+  const commesse = await screen.findByLabelText("Commesse del cliente");
+  expect(within(commesse).getAllByRole("button").map(b => b.textContent)).toEqual(["C-003 · Bagno1", "C-001 · Villa al mare2"]);
+  const cartelle = screen.getByLabelText("Cartelle del cliente");
   expect(within(cartelle).getAllByRole("button")).toHaveLength(11);
+  expect(within(cartelle).getByRole("button", { name: /^DDT/ })).toHaveTextContent("2");
+  await screen.findByText("3 risultati");
+
+  // Dentro una commessa: le stesse cartelle, solo coi suoi documenti.
+  fireEvent.click(within(commesse).getByRole("button", { name: /Villa al mare/ }));
+  const cartelleCommessa = await screen.findByLabelText("Cartelle della commessa");
+  expect(within(cartelleCommessa).getAllByRole("button")).toHaveLength(11);
+  expect(within(cartelleCommessa).getByRole("button", { name: /^DDT/ })).toHaveTextContent("1");
   await screen.findByText("2 risultati");
-  fireEvent.click(within(cartelle).getByRole("button", { name: /^DDT/ }));
+  fireEvent.click(within(cartelleCommessa).getByRole("button", { name: /^DDT/ }));
   await screen.findByText("1 risultato");
   const percorso = screen.getByRole("navigation", { name: "Percorso" });
   expect(percorso).toHaveTextContent("Clienti");
   expect(percorso).toHaveTextContent("Rossi Mario");
+  expect(percorso).toHaveTextContent("C-001 · Villa al mare");
   expect(percorso).toHaveTextContent("DDT");
-  fireEvent.click(within(percorso).getByRole("button", { name: "Rossi Mario" }));
+
+  // Il percorso riporta su: commessa, poi cliente, poi Drive.
+  fireEvent.click(within(percorso).getByRole("button", { name: "C-001 · Villa al mare" }));
+  await screen.findByLabelText("Cartelle della commessa");
   await screen.findByText("2 risultati");
+  fireEvent.click(within(screen.getByRole("navigation", { name: "Percorso" })).getByRole("button", { name: "Rossi Mario" }));
+  await screen.findByLabelText("Commesse del cliente");
+  await screen.findByText("3 risultati");
   fireEvent.click(within(screen.getByRole("navigation", { name: "Percorso" })).getByRole("button", { name: "Drive" }));
   await screen.findByText("3 risultati");
 });

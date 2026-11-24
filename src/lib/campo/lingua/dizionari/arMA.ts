@@ -68760,5 +68760,11 @@ const dizionario: Dizionario = {
   "Contratti e verbali": "عقود ومحاضر",
   "Fatture fornitori": "فاتورات الموردين",
   "Contratti subappaltatori": "عقود المقاولين من الباطن",
+  // EiC Drive → Clienti → commessa, 24/11/2026.
+  "{n} documenti di questa commessa, presi dove sono senza copiarli": "{n} وثائق ديال هاد الخدمة، مأخوذة من بلاصتها بلا ما تنسخ",
+  "Cartelle della commessa": "دوسيات الخدمة",
+  "Cerca commessa": "قلب على الخدمة",
+  "Commesse del cliente": "الخدمات ديال الكليان",
+  "Cartelle di tutte le commesse": "دوسيات جميع الخدمات",
 };
 export default dizionario;
