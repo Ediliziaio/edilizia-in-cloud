@@ -1594,6 +1594,50 @@ def sovrapposizione_scale(a, b):
     return sum(any(min(distanza_alzata(p, q), distanza_alzata(p, q[::-1])) <= 4 for q in b) for p in a)
 
 
+def scale_senza_freccia(linee, gia=()):
+    """Le rampe disegnate senza la freccia della linea di salita (Callimaco, 24/11/2026: su tutti i
+    piani le scale c'erano, pedate da 27-30 cm larghe 90-125, ma nessuna aveva la freccia e il 3D
+    restava senza scale). Una rampa è una fila di almeno 6 linee parallele della stessa lunghezza
+    (70-170 cm) a passo costante fra 22 e 34 cm, su qualunque layer non di muri. Una griglia (piastrelle,
+    grigliati) ha anche le linee nell'altra direzione allo stesso passo: si scarta."""
+    gruppi = []
+    for p, q, layer in linee:
+        gradino = proietta(p, q)
+        if not 70 <= gradino.fine - gradino.inizio <= 170:
+            continue
+        gruppo = next((g for g in gruppi if g[0].angolo == gradino.angolo and
+                       abs(g[0].inizio - gradino.inizio) <= 4 and abs(g[0].fine - gradino.fine) <= 4), None)
+        if gruppo is None:
+            gruppi.append([gradino])
+        elif all(abs(gradino.centro - a.centro) > 2 for a in gruppo):
+            gruppo.append(gradino)
+    trovate = []
+    for gruppo in gruppi:
+        sequenze = []
+        for gradino in sorted(gruppo, key=lambda a: a.centro):
+            if not sequenze or gradino.centro - sequenze[-1][-1].centro > 36:
+                sequenze.append([gradino])
+            elif gradino.centro - sequenze[-1][-1].centro >= 20:
+                sequenze[-1].append(gradino)
+        for serie in sequenze:
+            if not 6 <= len(serie) <= 41:
+                continue
+            passi = [b.centro - a.centro for a, b in zip(serie, serie[1:])]
+            if max(passi) - min(passi) > 4 or not 22 <= median(passi) <= 34:
+                continue
+            alzate = [a.estremi() for a in serie]
+            impronta = LineString([p for alzata in alzate for p in alzata]).convex_hull
+            angolo = serie[0].angolo
+            trasversali = sum(1 for p, q, _ in linee if abs(((proietta(p, q).angolo - angolo) % 180) - 90) < 1
+                              and impronta.contains(LineString((p, q)).interpolate(0.5, normalized=True)))
+            if trasversali >= 3:
+                continue
+            if any(sovrapposizione_scale(alzate, a) >= 4 for a in [*gia, *trovate]):
+                continue
+            trovate.append(alzate)
+    return trovate
+
+
 def scale_da_riscontrare(linee, modellate):
     """Localizza le rampe disegnate sul layer delle scale, anche senza una freccia leggibile."""
     gruppi = []
@@ -1760,6 +1804,7 @@ class PianoLetto:
     sigle_unita: list = field(default_factory=list)
     nomi_letti: int = 0
     altezze: list = field(default_factory=list)
+    tratti_scale: list = field(default_factory=list)
 
 
 def muri_esterni(muri, distanza=60):
@@ -1827,7 +1872,7 @@ def spostamento_per_correlazione(muri_rif, muri, fisso=None, passo=10):
 
 def leggi_piano(entita, regione, cm, layer, controllo=False):
     zona = box(*(x * cm for x in regione["rettangolo"]))
-    tratti, linee, archi, fonti = [], [], [], []
+    tratti, linee, archi, fonti, polilinee = [], [], [], [], []
     for e in entita:
         originale = e.dxf.layer
         gruppo = semplice(originale)
@@ -1841,6 +1886,10 @@ def leggi_piano(entita, regione, cm, layer, controllo=False):
                 archi.append((centro, raggio, e.dxf.start_angle, e.dxf.end_angle))
             continue
         if not parete and e.dxftype() != "LINE" and not FINESTRE.search(gruppo):
+            # Le pedate disegnate come polilinee servono solo a riconoscere le scale.
+            if e.dxftype() in ("LWPOLYLINE", "POLYLINE") and not ASSI.search(gruppo):
+                polilinee.extend((p, q, originale.casefold()) for p, q in segmenti(e, cm)
+                                 if 70 <= hypot(q[0] - p[0], q[1] - p[1]) <= 170 and zona.covers(LineString([p, q])))
             continue
         for p, q in segmenti(e, cm):
             if hypot(q[0] - p[0], q[1] - p[1]) < 3 or not zona.covers(LineString([p, q])):
@@ -1930,7 +1979,7 @@ def leggi_piano(entita, regione, cm, layer, controllo=False):
     ))
     return PianoLetto(muri, pertinenti, locali, testi, leggi_quote(entita, zona, cm), assi_vicini(entita, zona, cm), linee, archi, riscontri[:48], fonti,
                       leggi_sigle_infissi(entita, zona, cm), leggi_sigle_unita(entita, zona, cm), len(nomi),
-                      leggi_altezze_locali(entita, zona, cm))
+                      leggi_altezze_locali(entita, zona, cm), linee + polilinee)
 
 
 def leggi_scale(letti, altezza):
@@ -1958,6 +2007,12 @@ def leggi_scale(letti, altezza):
             if any(sovrapposizione_scale(relative, a) >= 4 for _, a, _ in scale):
                 continue
             scale.append((nome, relative, interpiano or altezza))
+        # Le rampe senza freccia: il verso di salita non si sa, ma la scala c'è (vano, pedate, ingombro).
+        for alzate in scale_senza_freccia(piano.tratti_scale or piano.linee, [[tuple((p[0] + ox, p[1] + oy) for p in a) for a in r] for _, r, _ in scale]):
+            relative = [tuple((p[0] - ox, p[1] - oy) for p in a) for a in alzate]
+            if any(sovrapposizione_scale(relative, a) >= 4 for a in (precedenti if in_griglia else [])):
+                continue
+            scale.append(("Scala rettilinea (verso da verificare)", relative, interpiano or altezza))
         riconosciute[n] = scale
         if in_griglia:
             precedenti = [a for _, a, _ in scale]

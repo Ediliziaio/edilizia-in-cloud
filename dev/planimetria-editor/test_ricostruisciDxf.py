@@ -371,6 +371,19 @@ class LegendaEStanzeDaiNomiTest(unittest.TestCase):
         self.assertEqual(esito[1], "Int. 04")
 
 
+class ScaleSenzaFrecciaTest(unittest.TestCase):
+    def test_rampa_di_pedate_senza_freccia_e_griglia_scartata(self):
+        from ricostruisciDxf import scale_senza_freccia
+        rampa = [((0, 28 * i), (110, 28 * i), "viste") for i in range(9)]
+        (alzate,) = scale_senza_freccia(rampa)
+        self.assertEqual(len(alzate), 9)
+        # Un pavimento a quadrotti: linee nei due versi allo stesso passo, non è una scala.
+        griglia = [((500, 30 * i), (620, 30 * i), "pav") for i in range(8)] + [((500 + 30 * i, 0), (500 + 30 * i, 210), "pav") for i in range(1, 4)]
+        self.assertEqual(scale_senza_freccia(griglia), [])
+        # Linee a 60 cm (un parcheggio, un grigliato largo) non sono pedate.
+        self.assertEqual(scale_senza_freccia([((0, 60 * i), (110, 60 * i), "x") for i in range(8)]), [])
+
+
 class AllineamentoDeiPianiTest(unittest.TestCase):
     def test_ritrova_lo_spostamento_fra_due_piante_della_stessa_sagoma(self):
         from ricostruisciDxf import spostamento_per_correlazione
