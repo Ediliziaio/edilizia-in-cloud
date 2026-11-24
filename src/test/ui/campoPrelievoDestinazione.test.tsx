@@ -26,10 +26,10 @@ vi.mock("@/hooks/campo/useCampoPrelievo", () => ({
   }),
   useCampoCantieriPrelievo: () => ({ data: state.datiInCache ? state.cantieri : undefined, refetch: state.refetch }),
   // Un magazzino solo: niente pulsanti dei magazzini (24/11).
-  useCampoMagazzini: () => ({ data: [] }),
+  useCampoMagazzini: () => ({ data: [] as unknown[] }),
 }));
 // Nessun cantiere «di oggi»: il cantiere si sceglie come prima.
-vi.mock("@/hooks/campo/useCampoGiornata", () => ({ useMiaGiornata: () => ({ data: { giorni: [], senza_date: [] } }) }));
+vi.mock("@/hooks/campo/useCampoGiornata", () => ({ useMiaGiornata: () => ({ data: { giorni: [] as unknown[], senza_date: [] as unknown[] } }) }));
 vi.mock("@/hooks/useOnlineStatus", () => ({ useOnlineStatus: () => state.online }));
 vi.mock("@/components/warehouse/BarcodeScanner", () => ({ BarcodeScanner: ({ open, onScan }: { open: boolean; onScan: (codice: string) => void }) =>
   open ? <button onClick={() => onScan("8012345678901")}>Leggi etichetta di prova</button> : null }));
