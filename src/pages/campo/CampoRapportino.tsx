@@ -42,7 +42,7 @@ import { FirmaPad } from "@/components/campo/FirmaPad";
 import { CampiModulo } from "@/components/campo/CampiModulo";
 import { ScegliDalRullino } from "@/components/campo/ScegliDalRullino";
 import { RegistraGiornata } from "@/components/campo/RegistraGiornata";
-import { presenzeDaVoce } from "@/lib/campo/presenzeDaVoce";
+import { chiParlaCera, presenzeDaVoce } from "@/lib/campo/presenzeDaVoce";
 import { MAX_FASI_IN_VISTA, corrisponde, fasiInVista } from "@/lib/campo/sceltaRapida";
 import type { RapportinoVocaleDraft } from "@/hooks/campo/useRapportinoVocale";
 import { useRilevazioniMezziRapportino } from "@/hooks/campo/useRilevazioniMezziRapportino";
@@ -1697,6 +1697,9 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
     if (registraSquadra && e.team_presenti?.length) {
       const liberi = squadra.filter(m => !giaCoperto(m) && !(m.key in presenzeSel));
       const chiavi = presenzeDaVoce(e.team_presenti, liberi.map(m => ({ key: m.key, nome: m.nome })));
+      // «Eravamo io, Davide e Matteo»: chi parla c'era anche lui (24/11/2026, prova del founder).
+      const io = liberi.find(m => m.sono_io);
+      if (io && !chiavi.includes(io.key) && chiParlaCera(e.team_presenti, draft.trascrizione)) chiavi.push(io.key);
       if (chiavi.length) {
         segnaPresenzeModificate(chiavi);
         setPresenzeSel(p => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { presenzeDaVoce } from "@/lib/campo/presenzeDaVoce";
+import { chiParlaCera, presenzeDaVoce } from "@/lib/campo/presenzeDaVoce";
 
 const squadra = [
   { key: "a", nome: "Davide DEMO Villa" },
@@ -22,5 +22,16 @@ describe("Presenze dette a voce", () => {
 
   it("chi non è nella squadra di oggi non viene inventato", () => {
     expect(presenzeDaVoce(["Giuseppe", "il geometra", ""], squadra)).toEqual([]);
+  });
+});
+
+describe("Chi parla c'era?", () => {
+  it("«eravamo io, Davide e Matteo», «anche io», «io» nella lista: sì", () => {
+    expect(chiParlaCera(["Davide", "Matteo"], "Oggi eravamo io, Davide e Matteo, otto ore a testa.")).toBe(true);
+    expect(chiParlaCera(["io", "Luca"])).toBe(true);
+    expect(chiParlaCera([], "C'era anche io col geometra")).toBe(true);
+  });
+  it("se racconta solo il lavoro degli altri: no", () => {
+    expect(chiParlaCera(["Davide"], "Davide ha posato il pavimento")).toBe(false);
   });
 });

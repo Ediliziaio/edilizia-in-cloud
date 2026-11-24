@@ -24,3 +24,10 @@ export function presenzeDaVoce(detti: string[], persone: PersonaSquadra[]): stri
   }
   return [...trovate];
 }
+
+/** Chi parla dice di esserci stato («eravamo io, Davide e Matteo», «anche io», «con me»). */
+export function chiParlaCera(detti: string[], trascrizione = ""): boolean {
+  const tutto = pulito([...detti, trascrizione].join(" , "));
+  return detti.some(d => ["io", "me", "anche io", "io stesso"].includes(pulito(d)))
+    || /\b(eravamo io|io e |io , |anche io|con me|io ho lavorato|ho lavorato io)\b/.test(` ${tutto} `);
+}
