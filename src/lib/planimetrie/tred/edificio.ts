@@ -102,7 +102,11 @@ export function scenaEdificio(piani: PianoPer3D[], opzioni: OpzioniEdificio = {}
     // l'ultimo piano mostrato resta senza soffitto se lo si guarda dall'alto: lo decide `soffitto`
     const dy = piano.quota / 100 + i * (opzioni.esploso ?? 0);
     if (Math.abs(dy) < .05) scaviPiscine.push(...(s.scaviPiscine ?? []));
-    for (const m of s.mesh) {
+    // I soffitti fanno da tetto piano dove il piano sopra non arriva (l'ultimo piano, o un piano
+    // più piccolo sopra): si devono vedere anche da sopra. Erano disegnati solo verso il basso e
+    // da fuori l'edificio restava scoperchiato (Callimaco, 24/11/2026).
+    for (const m0 of s.mesh) {
+      const m = m0.genere === "soffitto" ? { ...m0, doppioLato: true } : m0;
       const posizioni = m.posizioni.slice();
       for (let k = 1; k < posizioni.length; k += 3) posizioni[k] += dy;
       mesh.push({ ...m, id: `${piano.id}/${m.id}`, nome: `${piano.nome} · ${m.nome}`, posizioni,

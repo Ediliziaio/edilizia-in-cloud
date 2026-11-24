@@ -831,7 +831,8 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     setInquadraturaLocale(false);
     inquadraturaScelta.current = tipo;
     setModo(tipo === "alto" ? "alto" : "giro");
-    setSoffitto(false);
+    // Da fuori l'edificio si vede chiuso: solai e copertura (senza erano scatole aperte, Callimaco 24/11).
+    setSoffitto(tipo !== "alto");
     risistemaInquadratura(n => n + 1);
   };
   const fotoVista = () => esegui(async () => {
@@ -951,7 +952,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
           } : undefined} />}
         {/* L'edificio intero in vista: prima stava solo nel menu «Vista» e non lo trovava nessuno (24/11/2026). */}
         {conPiani && !inVisita && !schemaCanali && <Button type="button" size="sm" variant={edificio ? "secondary" : "outline"} aria-pressed={edificio}
-          className="gap-1.5" onClick={() => setEdificio((v) => !v)}><Building className="size-4" />{tr("Edificio intero")}</Button>}
+          className="gap-1.5" onClick={() => { const acceso = !edificio; setEdificio(acceso); if (acceso && modo !== "alto") setSoffitto(true); }}><Building className="size-4" />{tr("Edificio intero")}</Button>}
         {!inVisita && !schemaCanali && <Button type="button" size="sm" variant={strutturaStrati ? "secondary" : "outline"} aria-pressed={strutturaStrati}
           className="gap-1.5" onClick={cambiaVistaEsplosa}><Layers className="size-4" />{tr("Vista esplosa")}</Button>}
         {!inVisita && !schemaCanali && modo !== "dentro" && <>
