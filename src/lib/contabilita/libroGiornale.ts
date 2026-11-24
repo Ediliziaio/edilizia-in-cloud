@@ -173,7 +173,6 @@ export function costruisciGiornale(scritture: readonly Scrittura[], conti: reado
   for (const s of ordinate) {
     const nGiornale = (perEsercizio.get(s.esercizio) ?? 0) + 1;
     perEsercizio.set(s.esercizio, nGiornale);
-    const fuoriPosto = nGiornale !== s.numero;
     const proprie = [...(s.contabilita_righe ?? [])].sort((a, b) => a.riga - b.riga);
     proprie.forEach((r, i) => {
       progressivo += 1;
@@ -186,7 +185,9 @@ export function costruisciGiornale(scritture: readonly Scrittura[], conti: reado
         numero: `${nGiornale}/${s.esercizio}`,
         registrazione: `${s.numero}/${s.esercizio}`,
         data: s.data_registrazione,
-        causale: [s.causale, s.documento_numero ? `doc. ${s.documento_numero}` : "", fuoriPosto ? `reg. n. ${s.numero}` : ""]
+        // Senza «reg. n.» (24/11/2026): il numero d'inserimento accanto a quello del giornale confondeva
+        // («la rilevazione di settembre prende il n. 354»). Nel giornale conta solo l'ordine di data.
+        causale: [s.causale, s.documento_numero ? `doc. ${s.documento_numero}` : ""]
           .filter(Boolean).join(" · "),
         conto: nomi.get(r.conto_id) ?? "conto non trovato",
         descrizione: r.descrizione ?? s.descrizione ?? "",
@@ -305,4 +306,18 @@ export function csvPianoDeiConti(conti: readonly ContoContabile[]): string {
     ...conti.map((c) => [c.codice, c.descrizione, c.mastro_id ? perId.get(c.mastro_id)?.codice : "", c.natura, c.sezione_cee,
       c.voce_cee, c.movimentabile ? "sì" : "no", c.codice_standard].map((v) => cella(v as string | null)).join(";")),
   ].join("\r\n");
+}
+
+/**
+ * Il codice proposto per un conto nuovo sotto un mastro: il successivo dei conti che ha già, con le
+ * stesse cifre (4855001153 → 4855001154); senza figli, il codice del mastro seguito da «0001».
+ */
+export function codiceNuovoConto(mastro: Pick<ContoContabile, "id" | "codice">, conti: readonly Pick<ContoContabile, "codice" | "mastro_id">[]): string {
+  const figli = conti.filter((c) => c.mastro_id === mastro.id && /^\d+$/.test(c.codice)).map((c) => c.codice);
+  if (!figli.length) return /^\d+$/.test(mastro.codice) ? `${mastro.codice}0001` : `${mastro.codice}.01`;
+  const lunghezza = Math.max(...figli.map((c) => c.length));
+  const presi = new Set(figli);
+  let n = figli.reduce((m, c) => (BigInt(c) > m ? BigInt(c) : m), 0n) + 1n;
+  while (presi.has(String(n).padStart(lunghezza, "0"))) n += 1n;
+  return String(n).padStart(lunghezza, "0");
 }

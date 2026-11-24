@@ -70,6 +70,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import type { AziendaIntestazione } from "@/lib/contabilita/documentoContabile";
 import { contoAPartite, htmlMastrino, mastrino, partitario } from "@/lib/contabilita/mastrini";
 import {
+  codiceNuovoConto,
   controllaBozza,
   costruisciGiornale,
   csvGiornale,
@@ -637,14 +638,14 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
             <p className="rounded-xl border p-4 text-sm text-muted-foreground">{conFiltri ? tTesto("Nessuna scrittura con questi filtri.") : tTesto("Nessuna scrittura di questo tipo nel {anno}.", { anno })}</p>
           ) : <>
           <p className="text-xs text-muted-foreground">
-            {tTesto("«N. scrittura» è il numero della registrazione in contabilità, progressivo nell'esercizio, nell'ordine in cui sono state registrate (di solito il n. 1 è l'apertura dei conti del 1° gennaio). Il numero della fattura è nella colonna «Documento». Il libro giornale stampato rinumera le scritture in ordine di data.")}
+            {tTesto("«N. scrittura» è il numero nel libro giornale, in ordine di data: una scrittura registrata oggi con data 30/09 prende il suo posto a settembre e le successive scalano, finché il giornale non è stampato in definitivo. Sotto, in piccolo, il numero d'inserimento. Il numero della fattura è nella colonna «Documento».")}
           </p>
           <TabellaContabile>
             <table className="w-full whitespace-nowrap text-sm">
               <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
                 <tr>
                   <th className="relative w-10 p-2"><span className="sr-only">{tTesto("Selezione")}</span></th>
-                  <th className="p-2" title={tTesto("Numero di registrazione in contabilità: progressivo dell'esercizio, non il numero della fattura")}>{tTesto("N. scrittura")}</th>
+                  <th className="p-2" title={tTesto("Numero nel libro giornale, in ordine di data: non il numero della fattura")}>{tTesto("N. scrittura")}</th>
                   <th className="p-2">{tTesto("Data")}</th>
                   <th className="p-2">{tTesto("Causale")}</th>
                   <th className="p-2" title={tTesto("Numero e data della fattura o del documento da cui viene la scrittura")}>{tTesto("Documento")}</th>
@@ -658,7 +659,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
                   setDettaglioId(s.id);
                 }}>
                   <td className="px-2" onClick={e => e.stopPropagation()}><Checkbox aria-label={tTesto("Seleziona scrittura {numero}/{esercizio}", { numero: String(s.numero ?? ""), esercizio: String(s.esercizio ?? "") })} checked={selezione.ids.has(s.id)} disabled={stornaSelezionate.isPending} onCheckedChange={() => selezione.alterna(s.id)} /></td>
-                  <td className="px-2"><button type="button" aria-haspopup="dialog" aria-label={tTesto("Apri scrittura {numero}/{esercizio}", { numero: String(s.numero ?? ""), esercizio: String(s.esercizio ?? "") })} className="py-2 font-mono text-xs text-primary hover:underline">{s.numero}/{s.esercizio}</button></td>
+                  <td className="px-2"><button type="button" aria-haspopup="dialog" aria-label={tTesto("Apri scrittura {numero}/{esercizio}", { numero: String(s.numero ?? ""), esercizio: String(s.esercizio ?? "") })} className="py-2 font-mono text-xs text-primary hover:underline">{nGiornale.get(s.id) ?? s.numero}/{s.esercizio}</button>{(nGiornale.get(s.id) ?? s.numero) !== s.numero ? <span className="block text-[10px] text-muted-foreground" title={tTesto("Numero d'inserimento: l'ordine in cui è stata registrata")}>{tTesto("ins. n. {numero}", { numero: String(s.numero) })}</span> : null}</td>
                   <td className="px-2">{dataIt(s.data_registrazione)}</td>
                   <td className="px-2">{s.causale}{s.storno_di || stornate.has(s.id) ? <span className="ml-2 text-xs text-muted-foreground">{s.storno_di ? tTesto("storno") : tTesto("stornata")}</span> : null}</td>
                   <td className="px-2 font-medium">{riferimentoDocumento(s) || <span className="font-normal text-muted-foreground">—</span>}</td>
@@ -851,16 +852,91 @@ function VersamentoCollegato({ companyId, id }: { companyId: string; id: string 
   </details>;
 }
 
+/**
+ * Un conto nuovo dalla scrittura (24/11/2026): la cliente registrava gli stipendi e mancavano i conti
+ * delle addizionali, «non so come crearli». Basta il nome e il mastro: codice, natura e voce CEE
+ * vengono dal mastro, come gli altri conti sotto di lui.
+ */
+function NuovoContoVeloce({ companyId, tutti, nome, onCreato, onAnnulla }: {
+  companyId: string; tutti: ContoContabile[]; nome: string; onCreato: (id: string) => void; onAnnulla: () => void;
+}) {
+  const t = useT();
+  const qc = useQueryClient();
+  const mastri = tutti.filter((c) => !c.movimentabile && c.attivo);
+  const [descrizione, setDescrizione] = useState(nome.toUpperCase() === nome ? nome : nome.toUpperCase());
+  const [mastroId, setMastroId] = useState("");
+  const [cercaMastro, setCercaMastro] = useState("");
+  const mastro = mastri.find((m) => m.id === mastroId);
+  const [codice, setCodice] = useState("");
+  const parole = cercaMastro.toLowerCase().split(/\s+/).filter(Boolean);
+  const mastriTrovati = mastri.filter((m) => parole.every((p) => `${m.codice} ${m.descrizione}`.toLowerCase().includes(p))).slice(0, 40);
+  const crea = useMutation({
+    mutationFn: async () => {
+      const m = mastro!;
+      const sezione = m.sezione_cee ?? NATURE.find((n) => n.value === m.natura)!.sezione;
+      const { data, error } = await db.rpc("contabilita_crea_conto", {
+        p_company: companyId, p_codice: codice.trim(), p_descrizione: descrizione.trim(), p_natura: m.natura,
+        p_sezione_cee: sezione, p_voce_cee: m.voce_cee ?? "", p_mastro: m.id,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: async (id) => {
+      toast.success(t("Conto creato"));
+      await qc.invalidateQueries({ queryKey: chiave(companyId, "conti") });
+      onCreato(id);
+    },
+    onError: (e) => toast.error(t("Conto non creato"), { description: e instanceof Error ? e.message : String(e) }),
+  });
+  return (
+    <div className="space-y-2 p-3 text-sm">
+      <p className="font-medium">{t("Nuovo conto")}</p>
+      <div className="space-y-1"><Label>{t("Nome del conto")}</Label><Input value={descrizione} onChange={(e) => setDescrizione(e.target.value)} placeholder={t("Es. ERARIO C/ADDIZIONALE REGIONALE")} /></div>
+      <div className="space-y-1">
+        <Label>{t("Sotto quale mastro")}</Label>
+        {mastro ? (
+          <button type="button" className="w-full rounded-md border px-2 py-1.5 text-left hover:bg-accent" onClick={() => { setMastroId(""); setCodice(""); }}>
+            <span className="mr-2 font-mono text-xs text-muted-foreground">{mastro.codice}</span>{mastro.descrizione}
+            <span className="ml-2 text-xs text-primary">{t("cambia")}</span>
+          </button>
+        ) : (
+          <div className="rounded-md border">
+            <Input className="h-8 border-0 border-b" value={cercaMastro} onChange={(e) => setCercaMastro(e.target.value)} placeholder={t("Cerca il mastro, es. debiti tributari")} />
+            <ul className="max-h-40 overflow-y-auto">
+              {mastriTrovati.map((m) => (
+                <li key={m.id}><button type="button" className="w-full px-2 py-1 text-left hover:bg-accent" onClick={() => { setMastroId(m.id); setCodice(codiceNuovoConto(m, tutti)); }}>
+                  <span className="mr-2 font-mono text-xs text-muted-foreground">{m.codice}</span>{m.descrizione}
+                </button></li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+      {mastro ? (
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1"><Label>{t("Codice")}</Label><Input className="font-mono" value={codice} onChange={(e) => setCodice(e.target.value)} /></div>
+          <p className="self-end pb-2 text-xs text-muted-foreground">{t("Natura e voce CEE come il mastro")}: {mastro.natura}{mastro.voce_cee ? ` · ${mastro.voce_cee}` : ""}</p>
+        </div>
+      ) : null}
+      <div className="flex justify-end gap-2">
+        <Button type="button" size="sm" variant="outline" onClick={onAnnulla}>{t("Annulla")}</Button>
+        <Button type="button" size="sm" disabled={!mastro || !descrizione.trim() || !codice.trim() || crea.isPending} onClick={() => crea.mutate()}>{t("Crea e usa")}</Button>
+      </div>
+    </div>
+  );
+}
+
 /** Conto con ricerca per codice o descrizione: i conti movimentabili sono centinaia. */
-function SceltaConto({ conti, value, onChange }: { conti: ContoContabile[]; value: string; onChange: (id: string) => void }) {
+function SceltaConto({ conti, value, onChange, companyId, tutti }: { conti: ContoContabile[]; value: string; onChange: (id: string) => void; companyId: string; tutti: ContoContabile[] }) {
   const t = useT();
   const [aperto, setAperto] = useState(false);
   const [q, setQ] = useState("");
+  const [nuovo, setNuovo] = useState(false);
   const scelto = conti.find((c) => c.id === value);
   const parole = q.toLowerCase().split(/\s+/).filter(Boolean);
   const trovati = conti.filter((c) => { const t = `${c.codice} ${c.descrizione}`.toLowerCase(); return parole.every((p) => t.includes(p)); }).slice(0, 80);
   return (
-    <Popover open={aperto} onOpenChange={(v) => { setAperto(v); if (!v) setQ(""); }}>
+    <Popover open={aperto} onOpenChange={(v) => { setAperto(v); if (!v) { setQ(""); setNuovo(false); } }}>
       <PopoverTrigger asChild>
         <Button type="button" variant="outline" role="combobox" aria-expanded={aperto} className="w-full justify-between truncate font-normal">
           <span className="truncate">{scelto ? `${scelto.codice} ${scelto.descrizione}` : <span className="text-muted-foreground">{t("Scegli il conto")}</span>}</span>
@@ -868,6 +944,10 @@ function SceltaConto({ conti, value, onChange }: { conti: ContoContabile[]; valu
       </PopoverTrigger>
       {/* Senza Portal: dentro il Dialog il focus resta nella ricerca (vedi filtri dei Contatti). */}
       <PopoverPrimitive.Content align="start" sideOffset={4} onEscapeKeyDown={(e) => { e.preventDefault(); setAperto(false); }} className="z-50 w-[min(460px,calc(100vw-2rem))] rounded-md border bg-popover p-0 text-popover-foreground shadow-md">
+        {nuovo ? (
+          <NuovoContoVeloce companyId={companyId} tutti={tutti} nome={q.trim()}
+            onCreato={(id) => { onChange(id); setNuovo(false); setAperto(false); setQ(""); }} onAnnulla={() => setNuovo(false)} />
+        ) : (
         <Command shouldFilter={false}>
           <CommandInput placeholder={t("Cerca codice o nome del conto…")} value={q} onValueChange={setQ} />
           <CommandList className="max-h-72">
@@ -878,7 +958,11 @@ function SceltaConto({ conti, value, onChange }: { conti: ContoContabile[]; valu
               </CommandItem>
             ))}
           </CommandList>
+          <button type="button" className="flex w-full items-center gap-1 border-t px-3 py-2 text-left text-sm text-primary hover:bg-accent" onClick={() => setNuovo(true)}>
+            <Plus className="h-4 w-4" />{q.trim() ? t("Nuovo conto «{nome}»", { nome: q.trim() }) : t("Nuovo conto")}
+          </button>
         </Command>
+        )}
       </PopoverPrimitive.Content>
     </Popover>
   );
@@ -940,7 +1024,7 @@ function NuovaScrittura({ open, onOpenChange, companyId, conti, onFatto, daRetti
               <div key={i} className="grid grid-cols-12 items-end gap-2">
                 <div className="col-span-12 space-y-1 sm:col-span-5">
                   {i === 0 ? <Label>{t("Conto")}</Label> : null}
-                  <SceltaConto conti={movimentabili} value={r.conto_id} onChange={(v) => cambia(i, "conto_id", v)} />
+                  <SceltaConto conti={movimentabili} tutti={conti} companyId={companyId} value={r.conto_id} onChange={(v) => cambia(i, "conto_id", v)} />
                 </div>
                 <div className="col-span-4 space-y-1 sm:col-span-2">{i === 0 ? <Label>{t("Dare")}</Label> : null}<Input inputMode="decimal" value={r.dare} onChange={(e) => cambia(i, "dare", e.target.value)} /></div>
                 <div className="col-span-4 space-y-1 sm:col-span-2">{i === 0 ? <Label>{t("Avere")}</Label> : null}<Input inputMode="decimal" value={r.avere} onChange={(e) => cambia(i, "avere", e.target.value)} /></div>

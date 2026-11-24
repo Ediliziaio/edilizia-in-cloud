@@ -68781,5 +68781,16 @@ const dizionario: Dizionario = {
   "Il totale torna con il documento ({importo}).": "Totalul corespunde cu documentul ({importo}).",
   "Sul documento l'imponibile è {documento}, le righe fanno {righe}: controlla quantità, prezzi o righe mancanti.": "Pe document baza impozabilă este {documento}, rândurile fac {righe}: verifică cantitățile, prețurile sau rândurile lipsă.",
   "Sul documento il totale è {documento}, le righe fanno {righe}: controlla quantità, prezzi o righe mancanti.": "Pe document totalul este {documento}, rândurile fac {righe}: verifică cantitățile, prețurile sau rândurile lipsă.",
+  "Es. ERARIO C/ADDIZIONALE REGIONALE": "Ex. ERARIO C/ADDIZIONALE REGIONALE",
+  "Sotto quale mastro": "Sub ce cont sintetic",
+  "Cerca il mastro, es. debiti tributari": "Caută contul sintetic, ex. datorii fiscale",
+  "Natura e voce CEE come il mastro": "Natura și poziția CEE ca la contul sintetic",
+  "Nuovo conto «{nome}»": "Cont nou «{nome}»",
+  "Numero nel libro giornale, in ordine di data: non il numero della fattura": "Numărul din registrul-jurnal, în ordinea datei: nu numărul facturii",
+  "Numero d'inserimento: l'ordine in cui è stata registrata": "Numărul de introducere: ordinea în care a fost înregistrată",
+  "ins. n. {numero}": "introd. nr. {numero}",
+  "«N. scrittura» è il numero nel libro giornale, in ordine di data: una scrittura registrata oggi con data 30/09 prende il suo posto a settembre e le successive scalano, finché il giornale non è stampato in definitivo. Sotto, in piccolo, il numero d'inserimento. Il numero della fattura è nella colonna «Documento».": "«Nr. înregistrare» este numărul din registrul-jurnal, în ordinea datei: o înregistrare făcută azi cu data 30/09 își ia locul în septembrie, iar cele următoare se decalează, până la tipărirea definitivă a jurnalului. Dedesubt, mai mic, numărul de introducere. Numărul facturii se află în coloana «Document».",
+  "IVA, liquidazioni e F24 → Contabilità generale": "TVA, decontări și F24 → Contabilitate generală",
+  "Ritenute di garanzia e archivio": "Rețineri de garanție și arhivă",
 };
 export default dizionario;

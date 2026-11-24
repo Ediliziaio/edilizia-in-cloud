@@ -10,6 +10,10 @@ const s = vi.hoisted(() => ({
   mounts: [] as string[],
   billing: true,
   mode: "native",
+  generale: false as boolean | undefined,
+}));
+vi.mock("@/components/contabilita/ContabilitaInCasa", () => ({
+  useContabilitaGeneraleAttiva: () => ({ attiva: s.generale, companyId: "c1" }),
 }));
 vi.mock("@/hooks/usePermissions", () => ({
   usePermissions: () => ({ canViewBilling: s.billing, isLoading: false }),
@@ -95,6 +99,7 @@ beforeEach(() => {
   s.mounts = [];
   s.billing = true;
   s.mode = "native";
+  s.generale = false;
 });
 afterEach(cleanup);
 it("uses the shared rounded menus and keeps period context after real option selections", async () => {
@@ -253,4 +258,22 @@ it("il Registro IVA si apre anche a chi fattura con un altro programma (legge na
   s.mode = "external";
   setup("/azienda/documenti?tab=fiscalita&sezione=iva");
   expect(await screen.findByText("Registro montato")).toBeInTheDocument();
+});
+
+it("con la contabilità generale in casa l'IVA ha un posto solo: qui ritenute e archivio, i vecchi indirizzi portano là", async () => {
+  s.generale = true;
+  setup("/azienda/documenti?tab=fiscalita&anno=2026");
+  await screen.findByText("Ritenute montate");
+  expect(screen.queryByRole("tab", { name: /Registro IVA/ })).toBeNull();
+  expect(screen.queryByRole("tab", { name: /Liquidazione IVA/ })).toBeNull();
+  expect(screen.getByRole("tab", { name: /Archivio fiscale/ })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: /Contabilità generale/ })).toHaveAttribute("href", "/azienda/contabilita-generale?vista=iva");
+  cleanup();
+  setup("/azienda/documenti?tab=fiscalita&sezione=contabilita&vista=f24&anno=2026&mese=10");
+  expect(screen.getByTestId("location").textContent).toBe("/azienda/contabilita-generale?anno=2026&mese=10&vista=iva&iva=liquidazione&iva_vista=f24");
+  cleanup();
+  setup("/azienda/documenti?tab=fiscalita&sezione=iva&anno=2026&mese=9");
+  expect(screen.getByTestId("location").textContent).toBe("/azienda/contabilita-generale?anno=2026&mese=9&vista=iva&iva=registri");
+  expect(s.mounts).not.toContain("iva");
+  expect(s.mounts).not.toContain("contabilita");
 });

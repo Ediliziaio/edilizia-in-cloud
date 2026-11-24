@@ -1,4 +1,5 @@
 import { Suspense, useState, useMemo } from "react";
+import { etichettaMetodo } from "@/lib/finance/metodoScadenza";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -226,7 +227,7 @@ function PrimaNotaInner() {
           e.category,
           e.description,
           e.direction === "uscita" ? `-${e.amount}` : e.amount,
-          e.payment_method || "",
+          etichettaMetodo(e.payment_method) || "",
           e.reference_number || "",
           e.notes || "",
           e.is_auto ? "Sì" : "No",
@@ -273,7 +274,7 @@ function PrimaNotaInner() {
       category: e.category,
       description: e.description,
       amount: Number(e.amount),
-      payment_method: e.payment_method,
+      payment_method: etichettaMetodo(e.payment_method),
       reference_number: e.reference_number,
       account_label: e.account_label,
       notes: e.notes,
@@ -676,7 +677,7 @@ function PrimaNotaInner() {
                     </span>
                   </td>
                   <td className="p-3 text-xs text-muted-foreground capitalize">
-                    {e.payment_method || "—"}
+                    {etichettaMetodo(e.payment_method) || "—"}
                   </td>
                   <td>{e.account_label || "—"}</td>
                   <td>{t(origineMovimento(e))}</td>
@@ -827,7 +828,7 @@ function PrimaNotaInner() {
           <dl className="grid grid-cols-2 gap-3 text-sm">
             {[
               ["Categoria", CATEGORY_LABELS[dettaglio.category] ? t(CATEGORY_LABELS[dettaglio.category]) : dettaglio.category],
-              ["Origine", t(origineMovimento(dettaglio))], ["Metodo", dettaglio.payment_method],
+              ["Origine", t(origineMovimento(dettaglio))], ["Metodo", etichettaMetodo(dettaglio.payment_method)],
               ["Conto", dettaglio.account_label], ["Fornitore", dettaglio.suppliers?.name],
               ["Riferimento", dettaglio.reference_number], ["Progressivo pagina", formatCurrency(dettaglio.runningBalance)],
               ["Documento", dettaglio.documenti_fiscali?.numero ?? dettaglio.invoices?.invoice_number],

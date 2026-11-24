@@ -68781,5 +68781,16 @@ const dizionario: Dizionario = {
   "Il totale torna con il documento ({importo}).": "Totali përputhet me dokumentin ({importo}).",
   "Sul documento l'imponibile è {documento}, le righe fanno {righe}: controlla quantità, prezzi o righe mancanti.": "Në dokument imponibili është {documento}, rreshtat bëjnë {righe}: kontrollo sasitë, çmimet ose rreshtat që mungojnë.",
   "Sul documento il totale è {documento}, le righe fanno {righe}: controlla quantità, prezzi o righe mancanti.": "Në dokument totali është {documento}, rreshtat bëjnë {righe}: kontrollo sasitë, çmimet ose rreshtat që mungojnë.",
+  "Es. ERARIO C/ADDIZIONALE REGIONALE": "P.sh. ERARIO C/ADDIZIONALE REGIONALE",
+  "Sotto quale mastro": "Nën cilën llogari kryesore",
+  "Cerca il mastro, es. debiti tributari": "Kërko llogarinë kryesore, p.sh. detyrime tatimore",
+  "Natura e voce CEE come il mastro": "Natyra dhe zëri CEE si llogaria kryesore",
+  "Nuovo conto «{nome}»": "Llogari e re «{nome}»",
+  "Numero nel libro giornale, in ordine di data: non il numero della fattura": "Numri në librin ditar, sipas datës: jo numri i faturës",
+  "Numero d'inserimento: l'ordine in cui è stata registrata": "Numri i futjes: rendi në të cilin është regjistruar",
+  "ins. n. {numero}": "futja nr. {numero}",
+  "«N. scrittura» è il numero nel libro giornale, in ordine di data: una scrittura registrata oggi con data 30/09 prende il suo posto a settembre e le successive scalano, finché il giornale non è stampato in definitivo. Sotto, in piccolo, il numero d'inserimento. Il numero della fattura è nella colonna «Documento».": "«Nr. regjistrimi» është numri në librin ditar, sipas datës: një regjistrim i bërë sot me datë 30/09 zë vendin e vet në shtator dhe të tjerat zhvendosen, derisa ditari të shtypet përfundimisht. Poshtë, më i vogël, numri i futjes. Numri i faturës është në kolonën «Dokument».",
+  "IVA, liquidazioni e F24 → Contabilità generale": "TVSH, likuidime dhe F24 → Kontabilitet i përgjithshëm",
+  "Ritenute di garanzia e archivio": "Mbajtjet e garancisë dhe arkivi",
 };
 export default dizionario;

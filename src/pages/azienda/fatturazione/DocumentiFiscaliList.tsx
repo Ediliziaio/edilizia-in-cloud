@@ -1,4 +1,5 @@
 import { SoloDaTabletOComputer } from "@/components/shared/SoloDaTabletOComputer";
+import { useContabilitaGeneraleAttiva } from "@/components/contabilita/ContabilitaInCasa";
 import { supabase } from "@/integrations/supabase/client";
 import { nomeCliente } from "@/lib/fatturazione/clienteSnapshot";
 import { CelleEmesse, IntestazioniEmesse, SceltaColonneEmesse, STICKY_SELEZIONE, useColonneEmesse } from "@/components/fatturazione/ColonneFattureEmesse";
@@ -149,12 +150,15 @@ function BillingHubTabs({
   const t = useT();
   // Telefono (decisione del founder, 23/11/2026): Registro incassi e Fiscalità non compaiono.
   const telefono = useIsMobile(640);
-  const sezioni = telefono ? HUB_TABS.filter(({ id }) => !SOLO_DA_TABLET.has(id)) : HUB_TABS;
+  // Con la contabilità generale l'IVA sta là (24/11/2026): qui Fiscalità tiene ritenute di garanzia e archivio.
+  const { attiva: generale } = useContabilitaGeneraleAttiva();
+  const schede = generale ? HUB_TABS.map((h) => (h.id === "fiscalita" ? { ...h, description: "Ritenute di garanzia e archivio" } : h)) : HUB_TABS;
+  const sezioni = telefono ? schede.filter(({ id }) => !SOLO_DA_TABLET.has(id)) : schede;
   return (
     <>
       <SelettoreSezione nome={t("Sezioni documenti")} valore={activeTab} sezioni={sezioni} onScegli={onChange} className="max-sm:-order-1 lg:hidden" />
       <nav aria-label={t("Sezioni documenti")} className="hidden flex-wrap gap-1 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm lg:flex">
-        {HUB_TABS.map(({ id, icon: Icon, label, description }) => {
+        {schede.map(({ id, icon: Icon, label, description }) => {
           const attiva = activeTab === id;
           return (
             <button key={id} type="button" aria-current={attiva ? "page" : undefined} onClick={() => onChange(id)}
