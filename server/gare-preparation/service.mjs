@@ -2,7 +2,7 @@ import{z}from'zod';
 import{ok,fail}from'./data.mjs';
 import{createCoordinator,preparationScope}from'./coordinator.mjs';
 import{extractCompany}from'./company-extraction.mjs';
-import{infer,groundCitation,normalize,missingMarkers}from'../gare-ai/inference.mjs';
+import{infer,groundCitation,normalize,missingMarkers,privateInference}from'../gare-ai/inference.mjs';
 import{extractDocuments}from'../gare-ai/extract.mjs';
 import{randomUUID}from'node:crypto';
 export function installGarePreparation(middlewares,{auth,service,createJob}){
@@ -34,6 +34,7 @@ export function installGarePreparation(middlewares,{auth,service,createJob}){
     const criteria=await ok(ctx.client.from('gare_technical_criteria').select('*').eq('participation_id',scope.p.id).order('code'));if(!criteria.length)fail('Registra e verifica la griglia dei criteri prima di preparare la bozza tecnica.');
     result=await createJob(ctx,{participation_id:scope.p.id,action:'bozza',category:'tecnica',deep:true,goal:`Segui la griglia dei criteri registrati, nell’ordine, con un capitolo per codice e sottocriterio. Collega soltanto risorse e lavori del titolare corretto. Distingui descrizione, prove, impegni da approvare e dati mancanti. Rispetta i limiti espliciti di pagine e contenuto. Non inserire ribassi, prezzi o importi dell’offerta economica nella relazione tecnica. Non attribuire punteggi o probabilità. La bozza è una struttura di lavoro da revisionare sul modello ufficiale.`});
    }else if(route==='/review-draft'){
+    if(!privateInference)fail('I controlli documentali restano disponibili. Per l’analisi AI del testo riservato usa il motore privato.',422);
     const input=z.object({draft_id:z.string().uuid()}).parse(body),draft=await ok(ctx.client.from('gare_ai_drafts').select('*').eq('id',input.draft_id).single()),scope=await preparationScope(ctx,draft.participation_id);
     const signal=AbortSignal.timeout(20*60*1000),extracted=await extractDocuments(ctx,scope.sources,randomUUID(),{signal,progress:async()=>{}});const pages=extracted.pages.slice(0,12);let chars=0;const selected=pages.map(p=>{const value={...p,text:p.text.slice(0,Math.max(0,8000-chars))};chars+=value.text.length;return value;}).filter(p=>p.text);
     const context=`BOZZA (testo da controllare):\n${draft.body.slice(0,8000)}\n\nFONTI:\n${selected.map(p=>`[DOCUMENT_ID=${p.document_id};PAGINA=${p.page};SEZIONE=${p.section}]\n${p.text}`).join('\n')}`;

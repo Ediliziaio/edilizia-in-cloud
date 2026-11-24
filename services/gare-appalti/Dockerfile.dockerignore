@@ -17,3 +17,5 @@ server/**/__pycache__
 !src/modules/gare-appalti/source-current.js
 !src/modules/gare-appalti/reader/
 !src/modules/gare-appalti/reader/text-model.js
+!src/modules/gare-appalti/dossier/
+!src/modules/gare-appalti/dossier/*.js

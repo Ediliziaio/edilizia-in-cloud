@@ -16,7 +16,17 @@ export interface OpenRouterParams {
   tool_choice?: "auto" | "none" | "required";
   temperature?: number;
   max_tokens?: number;
-  response_format?: { type: "json_object" };
+  response_format?: { type: "json_object" } | {
+    type: "json_schema";
+    json_schema: { name: string; strict: true; schema: Record<string, unknown> };
+  };
+  provider?: {
+    data_collection: "deny";
+    zdr: true;
+    require_parameters: true;
+    max_price?: { prompt: number; completion: number };
+  };
+  maxRetries?: 0;
   session_id?: string;
   /**
    * Quanto aspettare la risposta, per questa chiamata sola (16/11/2026).
@@ -91,7 +101,8 @@ async function chiamaOpenRouter(
   const backoff = [500, 2000];
   let lastError: AIProviderError | null = null;
 
-  for (let attempt = 0; attempt <= DEFAULT_RETRIES; attempt++) {
+  const { maxRetries = DEFAULT_RETRIES, ...payload } = params;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const attemptId = metadata.turnControl?.beginAttempt(JSON.stringify([params.messages, params.tools ?? []]).length, params.max_tokens ?? 1500);
     const chiesto = params.timeoutMs && params.timeoutMs > 0 ? params.timeoutMs : DEFAULT_TIMEOUT_MS;
     const timeoutMs = Math.min(chiesto, metadata.turnControl?.remainingMs() ?? chiesto);
@@ -114,7 +125,7 @@ async function chiamaOpenRouter(
         },
         // `usage: { include: true }`: senza, OpenRouter non manda il costo vero
         // (`usage.cost`) e si ricade nella stima fissa 1,5/6 $ per milione di token.
-        body: JSON.stringify({ ...params, usage: { include: true } }),
+        body: JSON.stringify({ ...payload, usage: { include: true } }),
         signal: controller.signal,
       });
       if (resp.status === 429) {
@@ -125,7 +136,7 @@ async function chiamaOpenRouter(
           true,
           429,
         );
-        if (attempt < DEFAULT_RETRIES) {
+        if (attempt < maxRetries) {
           await sleep(backoff[attempt] ?? 2000);
           continue;
         }

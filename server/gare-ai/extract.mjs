@@ -7,7 +7,7 @@ import {runtimeDir} from '../gare-ai/runtime.mjs';
 import {checkDocxArchive} from '../gare-templates/docx_fields.mjs';
 import {nativeOCR,normalizeSource} from '../gare-intake/formats.mjs';
 import {archiveInventory} from '../gare-intake/archive.mjs';
-import {visionText} from './inference.mjs';
+import {visionText,privateInference} from './inference.mjs';
 const exec=promisify(execFile);
 export const READER_REVISION=2;
 const locks=new Map();
@@ -54,11 +54,23 @@ export async function extractDocuments(ctx,documents,jobId,{signal=new AbortCont
     const normalized=await normalizeSource(buffer,doc.name,dir,{signal});buffer=normalized.buffer;ext=normalized.ext;docWarnings.push(...normalized.warnings);
     const file=path.join(dir,`${doc.id}${ext}`);await writeFile(file,buffer);
     const readVisual=async(page,isPDF)=>{
-     try{const r=await nativeOCR(file,page,{signal});visionPages++;return{text:r.text,confidence:r.confidence,method:'OCR locale Apple Vision · da verificare',needs_visual_review:true};}
-     catch(e){if(signal.aborted)throw e;if(process.platform==='darwin')throw Error(`OCR locale non riuscito: ${e.message}`);}
-     if(visionPages>=40)throw Error('Limite di 40 pagine del lettore visivo alternativo raggiunto: riprendi la lettura per completare le pagine restanti');
-     let bytes=buffer;if(isPDF){const prefix=path.join(dir,`${doc.id}-${page}`);await exec('pdftoppm',['-f',String(page),'-l',String(page),'-scale-to','1600','-singlefile','-png',file,prefix],{signal,timeout:30000,maxBuffer:100000});bytes=await readFile(`${prefix}.png`);}
-     const text=await visionText(bytes,{signal});visionPages++;return{text,method:'trascrizione visiva AI locale · da verificare',needs_visual_review:true};
+     if(visionPages>=40)throw Error('Limite di 40 pagine OCR raggiunto: riprendi la lettura per completare le pagine restanti');
+     let image=file;
+     if(isPDF&&process.platform!=='darwin'){
+      const prefix=path.join(dir,`${doc.id}-${page}`);
+      await exec('pdftoppm',['-f',String(page),'-l',String(page),'-scale-to','1600','-singlefile','-png',file,prefix],{signal,timeout:30000,maxBuffer:100000});
+      image=prefix+'.png';
+     }
+     try{
+      const r=await nativeOCR(image,page,{signal});
+      visionPages++;
+      return{text:r.text,confidence:r.confidence,method:`OCR ${process.platform==='darwin'?'Apple Vision':'Tesseract'} · da verificare`,needs_visual_review:true};
+     }catch(error){
+      if(signal.aborted||!privateInference||process.platform==='darwin')throw error;
+      const text=await visionText(await readFile(image),{signal});
+      visionPages++;
+      return{text,method:'trascrizione visiva con il motore privato · da verificare',needs_visual_review:true};
+     }
     };
     if(ext==='.pdf'){
      const info=await exec('pdfinfo',[file],{signal,timeout:15000,maxBuffer:100000});totalPages=Number(info.stdout.match(/^Pages:\s*(\d+)/m)?.[1]||0);

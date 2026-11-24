@@ -1,10 +1,33 @@
 import {execFile} from '../gare-ai/runtime.mjs';
 import {promisify} from 'node:util';
-import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {readFile,writeFile,mkdir,mkdtemp,rm} from 'node:fs/promises';
 import {randomUUID} from 'node:crypto';
 import path from 'node:path';
+import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 const exec=promisify(execFile);
+let visionBinary;
+async function compileVision() {
+ const folder = await mkdtemp(path.join(tmpdir(), 'gare-vision-'));
+ const output = path.join(folder, 'vision');
+ const source = fileURLToPath(new URL('./ocr.swift', import.meta.url));
+ const cache = path.join(folder, 'modules');
+ try {
+  await exec('/usr/bin/swiftc', ['-O', source, '-module-cache-path', cache, '-o', output], { timeout: 120_000, maxBuffer: 500_000 });
+ } finally {
+  await rm(cache, { recursive: true, force: true });
+ }
+ return output;
+}
+
 export async function nativeOCR(file, page, { signal } = {}) {
+ if (process.platform === 'darwin') {
+  visionBinary ??= compileVision().catch(error => { visionBinary = undefined; throw error; });
+  const { stdout } = await exec(await visionBinary, [file, String(page)], { signal, timeout: 90_000, maxBuffer: 2_000_000 });
+  const result = JSON.parse(stdout);
+  if (typeof result.text !== 'string') throw Error('Risposta Apple Vision non valida.');
+  return result;
+ }
  const { stdout } = await exec('tesseract', [file, 'stdout', '-l', 'ita+eng'], {
   signal, timeout: 90_000, maxBuffer: 2_000_000,
  });
