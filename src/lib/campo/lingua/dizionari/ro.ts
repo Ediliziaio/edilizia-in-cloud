@@ -68820,5 +68820,9 @@ const dizionario: Dizionario = {
   // Fatture: collega dalla commessa (lotto 3), 24/11/2026.
   "Solo alcune bolle di questa fattura sono della commessa: le righe delle bolle caricate sono già assegnate alla loro commessa, le altre scegli tu. Quello che non assegni resta da collegare.": "Doar unele avize din această factură sunt ale lucrării: rândurile avizelor încărcate sunt deja atribuite lucrării lor, pe celelalte le alegi tu. Ce nu atribui rămâne de asociat.",
   "La fattura è già in parte su altre commesse: qui sotto c’è anche questa, col resto da assegnare. Correggi l’importo se è solo una parte.": "Factura este deja parțial pe alte lucrări: mai jos este și aceasta, cu restul de atribuit. Corectează suma dacă este doar o parte.",
+  "{fatti} di {n} passi fatti": "{fatti} din {n} pași făcuți",
+  "Mostra i passi": "Arată pașii",
+  "Nascondi i passi": "Ascunde pașii",
+  "Ricezione e detraibilità degli acquisti": "Primirea și deductibilitatea achizițiilor",
 };
 export default dizionario;

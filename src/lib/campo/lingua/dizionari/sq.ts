@@ -68820,5 +68820,9 @@ const dizionario: Dizionario = {
   // Fatture: collega dalla commessa (lotto 3), 24/11/2026.
   "Solo alcune bolle di questa fattura sono della commessa: le righe delle bolle caricate sono già assegnate alla loro commessa, le altre scegli tu. Quello che non assegni resta da collegare.": "Vetëm disa fletëdërgesa të kësaj fature janë të punës: rreshtat e fletëdërgesave të ngarkuara janë caktuar tashmë te puna e tyre, të tjerat i zgjedh ti. Ajo që nuk e cakton mbetet për t'u lidhur.",
   "La fattura è già in parte su altre commesse: qui sotto c’è anche questa, col resto da assegnare. Correggi l’importo se è solo una parte.": "Fatura është tashmë pjesërisht në punë të tjera: më poshtë është edhe kjo, me pjesën që mbetet për t'u caktuar. Korrigjo shumën nëse është vetëm një pjesë.",
+  "{fatti} di {n} passi fatti": "{fatti} nga {n} hapa të bëra",
+  "Mostra i passi": "Shfaq hapat",
+  "Nascondi i passi": "Fshih hapat",
+  "Ricezione e detraibilità degli acquisti": "Marrja dhe zbritshmëria e blerjeve",
 };
 export default dizionario;

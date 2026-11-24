@@ -1,3 +1,4 @@
+import { useState } from "react";
 /**
  * Il percorso guidato dell'IVA in testa alla vista IVA della Contabilità generale (23/11/2026):
  * i passi nell'ordine in cui si fanno, con lo stato di ciascuno e il pulsante che porta dove si fa.
@@ -26,20 +27,31 @@ export function PercorsoIva({ stato, anno, oggi, onVai }: {
   onVai: (dove: DestinazionePasso) => void;
 }) {
   const t = useT();
+  const [aperto, setAperto] = useState(false);
   if (!stato) return null;
   const passi = percorsoIva(stato, anno, oggi);
   const attuale = passoAttuale(passi);
   const completo = !attuale && passi.every((p) => p.stato === "fatto");
+  const fatti = passi.filter((p) => p.stato === "fatto").length;
+  // Una riga sola, i sei passi a richiesta (24/11/2026): aperto sempre occupava mezza pagina sopra ogni
+  // scheda dell'IVA, e la cliente trovava la pagina «troppo incasinata».
   return (
-    <section aria-label={t("Percorso IVA {anno}", { anno: String(anno ?? "") })} className="rounded-xl border bg-card p-3">
-      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold">{t("Percorso IVA {anno}", { anno: String(anno ?? "") })}</h2>
-        <p className="text-xs text-muted-foreground">
+    <section aria-label={t("Percorso IVA {anno}", { anno: String(anno ?? "") })} className="rounded-xl border bg-card px-3 py-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+        <span className="font-semibold">{t("Percorso IVA {anno}", { anno: String(anno ?? "") })}</span>
+        <span className="text-xs text-muted-foreground">{t("{fatti} di {n} passi fatti", { fatti: String(fatti), n: String(passi.length) })}</span>
+        <span className="min-w-0 flex-1 truncate text-xs">
           {completo ? t("Tutto in ordine: liquidazioni confermate, registrate e versate.")
-            : attuale ? t("Da fare adesso: {titolo}", { titolo: String(attuale.titolo ?? "") }) : t("Niente da fare adesso")}
-        </p>
+            : attuale ? <span className="font-medium">{t("Da fare adesso: {titolo}", { titolo: String(attuale.titolo ?? "") })}</span> : t("Niente da fare adesso")}
+        </span>
+        {attuale?.azione && !aperto && (
+          <Button size="sm" className="h-7 px-2 text-xs" onClick={() => onVai(attuale.azione!.vai)}>{attuale.azione.etichetta}</Button>
+        )}
+        <button type="button" aria-expanded={aperto} className="text-xs text-primary hover:underline" onClick={() => setAperto((v) => !v)}>
+          {aperto ? t("Nascondi i passi") : t("Mostra i passi")}
+        </button>
       </div>
-      <ol className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+      {aperto && <ol className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         {passi.map((p, i) => (
           <li key={p.chiave} aria-current={p === attuale ? "step" : undefined}
             className={`flex gap-2 rounded-lg border p-2 ${p === attuale ? "border-primary ring-1 ring-primary/30" : ""} ${p.stato === "in_attesa" ? "opacity-70" : ""}`}>
@@ -55,7 +67,7 @@ export function PercorsoIva({ stato, anno, oggi, onVai }: {
             </div>
           </li>
         ))}
-      </ol>
+      </ol>}
     </section>
   );
 }

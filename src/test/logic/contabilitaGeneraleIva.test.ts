@@ -125,7 +125,9 @@ describe("Contabilità generale: l'IVA con gli stessi strumenti di Fatture → F
   it("dentro la Contabilità generale i pannelli non scrivono «vista», che è la linguetta della pagina", () => {
     expect(fiscale).not.toMatch(/p\.set\(\{ vista: "(iva|f24|ritenute_bancarie|impostazioni_iva)" \}\)/);
     expect(fiscale).toContain("p.params.get(chiaveVista)");
-    expect(registro).toContain('onApriLiquidazione ?? (() => p.set({ sezione: "contabilita", vista: "iva" }))');
+    // Dentro la contabilità generale il pulsante non c'è (la liquidazione è la linguetta accanto); fuori porta a Fiscalità.
+    expect(registro).toContain("dentroContabilita ? undefined");
+    expect(registro).toContain('p.set({ sezione: "contabilita", vista: "iva" })');
   });
 
   it("l'elenco delle scritture ha la colonna del documento accanto al numero di scrittura", () => {
