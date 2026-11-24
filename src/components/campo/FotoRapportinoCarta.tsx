@@ -60,7 +60,7 @@ export function FotoRapportinoCarta({ orderId, companyId, workDay, disabilitato,
 
   return (
     <div className="space-y-1.5">
-      <label className={cn(PILLOLA, "w-full cursor-pointer", (disabilitato || legge) && "pointer-events-none opacity-60")}>
+      <label className={cn(PILLOLA, "relative w-full cursor-pointer", (disabilitato || legge) && "pointer-events-none opacity-60")}>
         <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={disabilitato || legge}
           aria-label={t("Fotografa il rapportino di carta")}
           onChange={e => { void leggi(e.target.files); e.target.value = ""; }} />

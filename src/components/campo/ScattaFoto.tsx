@@ -29,7 +29,7 @@ export function ScattaFoto({ orderId, nomeCantiere, galleria = false, className,
   };
   return (
     <>
-    <label className={cn("flex cursor-pointer items-center justify-center gap-2 font-semibold", isUploading && "opacity-60", className)}>
+    <label className={cn("relative flex cursor-pointer items-center justify-center gap-2 font-semibold", isUploading && "opacity-60", className)}>
       <input
         type="file"
         accept="image/*"

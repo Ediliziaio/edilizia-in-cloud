@@ -2162,14 +2162,14 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <label className={cn(
-                  "flex min-h-12 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-2 text-sm font-semibold text-primary focus-within:ring-2 focus-within:ring-primary",
+                  "relative flex min-h-12 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-2 text-sm font-semibold text-primary focus-within:ring-2 focus-within:ring-primary",
                   bloccaFoto && "cursor-not-allowed opacity-60",
                 )}>
                   <input type="file" aria-label={t("Scatta una foto")} accept="image/*" capture="environment" className="sr-only"
                     onChange={handleFotoChange} disabled={bloccaFoto} />
                   <Camera className="size-5 shrink-0" aria-hidden="true" />{t(fotoUrls.length ? "Altra foto" : "Scatta foto")}
                 </label>
-                <label className={cn("flex min-h-12 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-2 text-sm font-semibold focus-within:ring-2 focus-within:ring-primary", bloccaFoto && "cursor-not-allowed opacity-60")}>
+                <label className={cn("relative flex min-h-12 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-2 text-sm font-semibold focus-within:ring-2 focus-within:ring-primary", bloccaFoto && "cursor-not-allowed opacity-60")}>
                   <input type="file" aria-label={t("Scegli foto dalla galleria")} accept="image/*" multiple className="sr-only"
                     onChange={handleFotoChange} disabled={bloccaFoto} />
                   <Images className="size-4 shrink-0" aria-hidden="true" /> {t("Galleria")}

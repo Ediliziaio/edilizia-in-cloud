@@ -357,7 +357,7 @@ export default function CampoLayout() {
           {/* Page Content — id «main-content» come nell'area azienda: da qui valgono la scala dei
               testi del telefono (index.css) e il ripristino dello scorrimento all'indietro
               (ScrollToTop). L'area campo non sta mai dentro CompanyLayout: l'id resta unico. */}
-          <main id="main-content" aria-label={t("Contenuto principale")} className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden md:overflow-visible px-3 py-3 sm:px-4 md:p-6 ${inFlussoCompilazione || isTecnico ? "pb-4" : "pb-28"} md:pb-6`}>
+          <main id="main-content" aria-label={t("Contenuto principale")} className={`relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden md:overflow-visible px-3 py-3 sm:px-4 md:p-6 ${inFlussoCompilazione || isTecnico ? "pb-4" : "pb-28"} md:pb-6`}>
             {isTecnico && location.pathname === home && <CompanyContextSwitcher showSecurityNote={false}
               className="mx-auto mb-3 max-w-3xl md:hidden" />}
             <PreviewSessionContext.Provider value={previewSession}>

@@ -591,6 +591,11 @@ html.capacitor [role="button"] {
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { scrollbar-width: none; }
 
+/* 24/11/2026: un input nascosto (sr-only = position:absolute) dentro un'etichetta senza «relative» si posizionava
+   rispetto alla pagina: nel rapportino i due input delle foto allungavano la pagina di 1.200 px di bianco sotto
+   l'app. L'etichetta che contiene un input nascosto fa da riferimento. */
+label:has(> input.sr-only) { position: relative; }
+
 /* Una tabella larga da scorrere a mano (09/11/2026). La barra si vede dove il
  * sistema la disegna sempre (Windows, Linux, e il Mac impostato su «Mostra
  * barre di scorrimento: sempre»); sul Mac di serie resta «a sovrapposizione»
