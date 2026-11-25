@@ -139,6 +139,22 @@ async function getSignedUrl(filePath: string): Promise<string | null> {
   return data.signedUrl;
 }
 
+/** Ogni sezione ha il suo accento: l'ufficio sul colore dell'app, il cantiere sull'ambra. */
+const ACCENTI = {
+  commessa: {
+    linguetta: "border-primary text-primary",
+    targhetta: "bg-primary/10 text-primary",
+    pannello: "border-primary/20 bg-primary/[0.03]",
+    bordo: "border-primary/25",
+  },
+  cantiere: {
+    linguetta: "border-amber-500 text-amber-700 dark:text-amber-400",
+    targhetta: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300",
+    pannello: "border-amber-300/60 bg-amber-50/50 dark:border-amber-900/60 dark:bg-amber-950/20",
+    bordo: "border-amber-300/70 dark:border-amber-900/70",
+  },
+} as const;
+
 /** Selezione nel pannello: tutte, una cartella, o i file senza cartella. */
 const TUTTI = TUTTI_DOCUMENTI;
 const SENZA = SENZA_CARTELLA;
@@ -223,6 +239,7 @@ function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, d
   const documentiCantiere = useMemo(() => attachments.filter(a => a.cantiere_tipo), [attachments]);
   const documentiGenerali = useMemo(() => [...attachments.filter(a => !a.cantiere_tipo), ...documentiCliente], [attachments, documentiCliente]);
   const inCantiere = sezione === "cantiere";
+  const accento = ACCENTI[sezione];
   const tutti = inCantiere ? documentiCantiere : documentiGenerali;
 
   const invalida = () => {
@@ -426,7 +443,7 @@ function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, d
       } : {})}
       className={`relative transition-colors ${editable && isDragging ? "border-dashed border-2 border-primary/50" : ""}`}
     >
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 pb-3 space-y-0">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 pb-4 space-y-0">
         <CardTitle className="flex items-center gap-2 min-w-0 text-base sm:text-lg">
           <Paperclip className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
           <span className="truncate">{t("Documenti commessa")}</span>
@@ -455,31 +472,125 @@ function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, d
         )}
       </CardHeader>
 
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-4">
         {documentiCollegati}
-        <div role="group" aria-label={t("Sezioni documenti")} className="flex flex-wrap items-center gap-1 rounded-lg border bg-muted/40 p-1">
-          <Button type="button" size="sm" variant={!inCantiere ? "secondary" : "ghost"} aria-pressed={!inCantiere}
-            className="gap-2" onClick={() => { setSezione("commessa"); azzeraFiltri(); }}>
-            <Paperclip className="h-4 w-4" aria-hidden="true" /> {t("Allegati commessa")} <span className="tabular-nums text-muted-foreground">{documentiGenerali.length}</span>
-          </Button>
-          <Button type="button" size="sm" variant={inCantiere ? "secondary" : "ghost"} aria-pressed={inCantiere}
-            className="gap-2" onClick={() => { setSezione("cantiere"); azzeraFiltri(); }}>
-            <HardHat className="h-4 w-4" aria-hidden="true" /> {t("Documenti di cantiere")} <span className="tabular-nums text-muted-foreground">{documentiCantiere.length}</span>
-          </Button>
+        {/* Due aree distinte, stessa struttura: l'ufficio (cartelle dell'azienda) e il cantiere (tipi di documento). */}
+        <div role="group" aria-label={t("Sezioni documenti")} className="-mx-3 flex items-stretch gap-2 overflow-x-auto border-b px-3 sm:-mx-6 sm:gap-5 sm:px-6">
+          {([
+            ["commessa", Paperclip, t("Allegati commessa"), documentiGenerali.length],
+            ["cantiere", HardHat, t("Documenti di cantiere"), documentiCantiere.length],
+          ] as const).map(([id, Icona, etichetta, conteggio]) => {
+            const attiva = sezione === id;
+            const stile = ACCENTI[id];
+            return (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={attiva}
+                onClick={() => { setSezione(id); azzeraFiltri(); }}
+                className={`-mb-px flex min-h-11 shrink-0 items-center gap-2 border-b-2 px-1 pb-2.5 text-sm font-medium transition-colors ${attiva ? stile.linguetta : "border-transparent text-muted-foreground hover:text-foreground"}`}
+              >
+                <Icona className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>{etichetta}</span>
+                <span className={`rounded-full px-1.5 py-0.5 text-xs tabular-nums ${attiva ? stile.targhetta : "bg-muted text-muted-foreground"}`}>{conteggio}</span>
+              </button>
+            );
+          })}
         </div>
-        {inCantiere && editable && <p className="text-xs text-muted-foreground">
-          {t("I documenti operativi approvati compaiono nell’app per il capocantiere e le persone abilitate alla scheda.")}
-        </p>}
-        {inCantiere && editable && permissions.isAdmin && <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-primary/5 px-4 py-3">
-          <div><p className="text-sm font-medium">{t("QR documenti di cantiere")}</p><p className="text-xs text-muted-foreground">{t("Scegli i documenti consultabili sul posto e stampa il QR della commessa.")}</p></div>
-          <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => setQrAperto(true)}><QrCode className="h-4 w-4" /> {t("Gestisci QR")}</Button>
-        </div>}
-        {editable && <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}
-          className={`h-auto w-full justify-center gap-2 whitespace-normal border-dashed py-3 ${isDragging ? "border-primary bg-primary/10" : "bg-muted/20"}`}>
-          <Upload className="h-4 w-4 shrink-0" aria-hidden="true" />
-          {isDragging ? (sopraCartella ? t("Rilascia in «{nome}»", { nome: sopraCartella === SENZA ? t("Senza cartella") : nomeCartella(sopraCartella) }) : t("Rilascia i file qui"))
-            : <><span className="hidden sm:inline">{t("Trascina qui i file o selezionali")}</span><span className="sm:hidden">{t("Seleziona i file")}</span><span className="text-xs font-normal text-muted-foreground">{t("Fino a 50 MB per file")}</span></>}
-        </Button>}
+
+        {/* Il pannello della sezione: descrizione, caricamento e filtri di quella sola area. */}
+        <div className={`space-y-3 rounded-xl border p-3 sm:p-4 ${accento.pannello}`}>
+          <p className="max-w-prose text-xs text-muted-foreground">
+            {inCantiere
+              ? t("I documenti operativi approvati compaiono nell’app per il capocantiere e le persone abilitate alla scheda.")
+              : t("Contratti, pratiche, fatture e allegati d’ufficio: ogni file nella sua cartella.")}
+          </p>
+
+          {inCantiere && editable && permissions.isAdmin && (
+            <div className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-background/70 px-3 py-2.5 ${accento.bordo}`}>
+              <div className="min-w-0">
+                <p className="text-sm font-medium">{t("QR documenti di cantiere")}</p>
+                <p className="text-xs text-muted-foreground">{t("Scegli i documenti consultabili sul posto e stampa il QR della commessa.")}</p>
+              </div>
+              <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => setQrAperto(true)}><QrCode className="h-4 w-4" /> {t("Gestisci QR")}</Button>
+            </div>
+          )}
+
+          {editable && <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}
+            className={`h-auto w-full justify-center gap-2 whitespace-normal border-dashed bg-background/60 py-3 ${isDragging ? "border-primary bg-primary/10" : accento.bordo}`}>
+            <Upload className="h-4 w-4 shrink-0" aria-hidden="true" />
+            {isDragging ? (sopraCartella ? t("Rilascia in «{nome}»", { nome: sopraCartella === SENZA ? t("Senza cartella") : nomeCartella(sopraCartella) }) : t("Rilascia i file qui"))
+              : <><span className="hidden sm:inline">{t("Trascina qui i file o selezionali")}</span><span className="sm:hidden">{t("Seleziona i file")}</span><span className="text-xs font-normal text-muted-foreground">{t("Fino a 50 MB per file")}</span></>}
+          </Button>}
+
+          <div className="flex flex-col gap-2 xl:flex-row xl:items-start">
+            {inCantiere
+              ? <label className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium xl:flex-none">{t("Tipo")}
+                  <OfficeSelect label={t("Tipo di documento di cantiere")} value={tipoCantiere} onValueChange={setTipoCantiere}
+                    className="h-11 min-w-0 flex-1 text-sm font-normal sm:w-72 sm:flex-none"
+                    options={[{ value: TUTTI, label: t("Tutti i tipi") }, ...Object.entries(TIPI_DOCUMENTO_CANTIERE).map(([value, label]) => ({ value, label: t(label) }))]} />
+                </label>
+              : <DocumentFoldersNavigation
+                  compact
+                  cartelle={cartelle} conteggi={conteggi} totale={tutti.length} senzaCartella={senzaCartella}
+                  mancanti={mancanti.map((c) => c.id)} loading={caricoCartelle}
+                  selezione={selezione} onSelect={setSelezione} puoGestireCartelle={puoGestireCartelle}
+                  sopraCartella={sopraCartella}
+                  onDragOverCartella={editable ? (_e, id) => setSopraCartella(id) : undefined}
+                  onDropCartella={editable ? handleDrop : undefined}
+                />}
+
+            {tutti.length > 0 && (
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <div className="relative flex-1 min-w-0">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id={`cerca-documenti-${orderId}`}
+                    value={ricerca}
+                    aria-label={t("Cerca documenti")}
+                    onChange={(e) => setRicerca(e.target.value)}
+                    placeholder={inCantiere || selezione === TUTTI ? t("Cerca nei documenti…") : t("Cerca in «{nome}»…", { nome: selezione === SENZA ? t("Senza cartella") : nomeCartella(selezione) })}
+                    className="h-11 bg-background pl-8"
+                  />
+                </div>
+                <div className="flex shrink-0 rounded-md border bg-background p-0.5" role="group" aria-label={t("Vista documenti")}>
+                  <Button
+                    type="button" size="icon" variant={vista === "griglia" ? "secondary" : "ghost"} className="h-10 w-10"
+                    onClick={() => cambiaVista("griglia")} aria-pressed={vista === "griglia"} aria-label={t("Vista con anteprime")}
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button" size="icon" variant={vista === "elenco" ? "secondary" : "ghost"} className="h-10 w-10"
+                    onClick={() => cambiaVista("elenco")} aria-pressed={vista === "elenco"} aria-label={t("Vista elenco")}
+                  >
+                    <List className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {tutti.length > 0 && <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+            <div role="group" aria-label={t("Visibilità documenti")} className="flex flex-wrap gap-1">
+              {([
+                ["tutti", t("Tutti"), tutti.length],
+                ["interni", t("Interni"), tutti.length - condivisi],
+                ["condivisi", t("Condivisi con cliente"), condivisi],
+              ] as const).map(([value, label, count]) => <Button key={value} type="button" size="sm"
+                variant={visibilita === value ? "secondary" : "ghost"} className="min-h-10 gap-2"
+                aria-label={t("{etichetta}: {n} documenti", { etichetta: label, n: count })}
+                aria-pressed={visibilita === value} onClick={() => setVisibilita(value)}>
+                {value === "condivisi" ? <><span className="sm:hidden">{t("Condivisi")}</span><span className="hidden sm:inline">{label}</span></> : label}
+                <span className="text-xs tabular-nums text-muted-foreground">{count}</span>
+              </Button>)}
+            </div>
+            {filtriAttivi && <Button type="button" variant="ghost" size="sm" onClick={azzeraFiltri}>
+              <X className="mr-1 h-3.5 w-3.5" aria-hidden="true" />{t("Azzera filtri")}
+            </Button>}
+          </div>}
+        </div>
+
         {!inCantiere && erroreCliente && <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm"><span>{t("Documenti del cliente non disponibili. L'elenco mostra solo gli allegati della commessa.")}</span><Button type="button" variant="outline" size="sm" onClick={() => { void rileggiCliente(); }}>{t("Riprova documenti cliente")}</Button></div>}
         {!inCantiere && caricoCliente && <p role="status" className="text-xs text-muted-foreground">{t("Verifica documenti del cliente…")}</p>}
         {!inCantiere && mancanti.length > 0 && (
@@ -500,68 +611,6 @@ function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, d
         )}
 
         <div className="space-y-3">
-          {tutti.length > 0 && <div className="flex flex-wrap items-center justify-between gap-2">
-            <div role="group" aria-label={t("Visibilità documenti")} className="flex flex-wrap gap-1">
-              {([
-                ["tutti", t("Tutti"), tutti.length],
-                ["interni", t("Interni"), tutti.length - condivisi],
-                ["condivisi", t("Condivisi con cliente"), condivisi],
-              ] as const).map(([value, label, count]) => <Button key={value} type="button" size="sm"
-                variant={visibilita === value ? "secondary" : "ghost"} className="min-h-10 gap-2"
-                aria-label={t("{etichetta}: {n} documenti", { etichetta: label, n: count })}
-                aria-pressed={visibilita === value} onClick={() => setVisibilita(value)}>
-                {value === "condivisi" ? <><span className="sm:hidden">{t("Condivisi")}</span><span className="hidden sm:inline">{label}</span></> : label}
-                <span className="text-xs tabular-nums text-muted-foreground">{count}</span>
-              </Button>)}
-            </div>
-            {filtriAttivi && <Button type="button" variant="ghost" size="sm" onClick={azzeraFiltri}>
-              <X className="mr-1 h-3.5 w-3.5" aria-hidden="true" />{t("Azzera filtri")}
-            </Button>}
-          </div>}
-          <div className="flex flex-col gap-2 xl:flex-row xl:items-start">
-          {inCantiere ? <OfficeSelect label={t("Tipo di documento di cantiere")} value={tipoCantiere} onValueChange={setTipoCantiere} className="h-11 sm:w-72"
-            options={[{ value: TUTTI, label: t("Tutti i tipi") }, ...Object.entries(TIPI_DOCUMENTO_CANTIERE).map(([value, label]) => ({ value, label: t(label) }))]} />
-          : <DocumentFoldersNavigation
-            compact
-            cartelle={cartelle} conteggi={conteggi} totale={tutti.length} senzaCartella={senzaCartella}
-            mancanti={mancanti.map((c) => c.id)} loading={caricoCartelle}
-            selezione={selezione} onSelect={setSelezione} puoGestireCartelle={puoGestireCartelle}
-            sopraCartella={sopraCartella}
-            onDragOverCartella={editable ? (_e, id) => setSopraCartella(id) : undefined}
-            onDropCartella={editable ? handleDrop : undefined}
-          />}
-
-            {tutti.length > 0 && (
-              <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <div className="relative flex-1 min-w-0">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id={`cerca-documenti-${orderId}`}
-                      value={ricerca}
-                      aria-label={t("Cerca documenti")}
-                      onChange={(e) => setRicerca(e.target.value)}
-                      placeholder={inCantiere || selezione === TUTTI ? t("Cerca nei documenti…") : t("Cerca in «{nome}»…", { nome: selezione === SENZA ? t("Senza cartella") : nomeCartella(selezione) })}
-                      className="h-11 pl-8"
-                    />
-                  </div>
-                <div className="flex shrink-0 rounded-md border p-0.5" role="group" aria-label={t("Vista documenti")}>
-                  <Button
-                    type="button" size="icon" variant={vista === "griglia" ? "secondary" : "ghost"} className="h-10 w-10"
-                    onClick={() => cambiaVista("griglia")} aria-pressed={vista === "griglia"} aria-label={t("Vista con anteprime")}
-                  >
-                    <LayoutGrid className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button" size="icon" variant={vista === "elenco" ? "secondary" : "ghost"} className="h-10 w-10"
-                    onClick={() => cambiaVista("elenco")} aria-pressed={vista === "elenco"} aria-label={t("Vista elenco")}
-                  >
-                    <List className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-
           <div className="min-w-0 space-y-2">
             {visibili.length === 0 ? (
               <div className="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground max-sm:py-4 max-sm:text-xs">

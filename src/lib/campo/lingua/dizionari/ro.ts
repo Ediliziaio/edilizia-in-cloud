@@ -2097,6 +2097,7 @@ const dizionario: Dizionario = {
   "Canale: {nome}": "Canal: {nome}",
   "Vai alla chat": "Mergi la chat",
   "Il canale {nome} verrà creato automaticamente quando l'ufficio ti assegna a questo cantiere.": "Canalul {nome} va fi creat automat când biroul te atribuie la acest șantier.",
+  "Contratti, pratiche, fatture e allegati d’ufficio: ogni file nella sua cartella.": "Contracte, practici, facturi și anexe de birou: fiecare fișier în dosarul lui.",
   "Contratti, certificazioni e documenti caricati dall'ufficio.": "Contracte, certificări și documente încărcate de birou.",
   "Caricamento documenti...": "Se încarcă documentele...",
   "Se la connessione in cantiere e' lenta, ti mostro un messaggio invece di lasciare la pagina vuota.": "Dacă conexiunea pe șantier e lentă, îți arăt un mesaj în loc să las pagina goală.",

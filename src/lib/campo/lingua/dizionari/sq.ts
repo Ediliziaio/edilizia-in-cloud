@@ -2097,6 +2097,7 @@ const dizionario: Dizionario = {
   "Canale: {nome}": "Kanali: {nome}",
   "Vai alla chat": "Shko te chat-i",
   "Il canale {nome} verrà creato automaticamente quando l'ufficio ti assegna a questo cantiere.": "Kanali {nome} do të krijohet automatikisht kur zyra të cakton në këtë kantier.",
+  "Contratti, pratiche, fatture e allegati d’ufficio: ogni file nella sua cartella.": "Kontrata, praktika, fatura dhe bashkëngjitje zyre: çdo skedar në dosjen e vet.",
   "Contratti, certificazioni e documenti caricati dall'ufficio.": "Kontrata, certifikata dhe dokumente të ngarkuara nga zyra.",
   "Caricamento documenti...": "Duke ngarkuar dokumentet...",
   "Se la connessione in cantiere e' lenta, ti mostro un messaggio invece di lasciare la pagina vuota.": "Nëse lidhja në kantier është e ngadaltë, të tregoj një mesazh në vend që ta lë faqen bosh.",
