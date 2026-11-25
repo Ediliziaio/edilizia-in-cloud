@@ -52,7 +52,8 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete, disabled = f
       ref={setNodeRef}
       style={style}
       className={cn(
-        "flex flex-wrap items-center gap-x-1 gap-y-2 p-3 rounded-lg border bg-card sm:gap-x-3",
+        // Da computer tutto su una riga (25/11/2026): il cestino andava a capo e ogni fase occupava due righe.
+        "flex flex-wrap items-center gap-x-1 gap-y-2 rounded-lg border bg-card p-3 sm:flex-nowrap sm:gap-x-2 sm:px-2.5 sm:py-2",
         isDragging && "shadow-lg opacity-90 z-50",
         isSupportPhase && "border-amber-400/60 bg-amber-50/50 dark:bg-amber-950/20"
       )}
@@ -82,13 +83,13 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete, disabled = f
         disabled={disabled}
         value={status.name}
         onChange={(e) => onUpdate(status.id, { name: e.target.value })}
-        className="min-w-[8rem] flex-1 basis-32 sm:basis-40"
+        className="min-w-[8rem] flex-1 basis-32 sm:min-w-0 sm:basis-40"
         placeholder={t("Nome stato")}
         aria-label={t("Nome dello stato {n}", { n: (status.position ?? 0) + 1 })}
         maxLength={maxNameLength}
       />
 
-      {usedBy != null && <Badge variant="secondary" className="text-[11px] font-normal">{usedBy} {usedBy === 1 ? t("commessa") : t("commesse")}</Badge>}
+      {usedBy != null && <Badge variant="secondary" className="shrink-0 whitespace-nowrap text-[11px] font-normal">{usedBy} {usedBy === 1 ? t("commessa") : t("commesse")}</Badge>}
 
       {onMove && <div className="flex items-center gap-0.5">
         <Button size="icon" variant="ghost" className="h-8 w-8" disabled={disabled || isFirst} onClick={() => onMove(status.id, -1)} aria-label={t("Sposta su {name}", { name: String(status.name ?? "") })}><ArrowUp className="h-3.5 w-3.5" /></Button>
@@ -139,7 +140,7 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete, disabled = f
                 disabled={!deleteEnabled}
               aria-label={isSupportPhase ? t("Lo stato Assistenza non si può eliminare") : t("Elimina lo stato {name}", { name: String(status.name ?? "") })}
                 className={cn(
-                  "h-8 w-8 text-muted-foreground hover:text-destructive sm:h-10 sm:w-10",
+                  "h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive",
                   !deleteEnabled && "opacity-50 cursor-not-allowed"
                 )}
               >

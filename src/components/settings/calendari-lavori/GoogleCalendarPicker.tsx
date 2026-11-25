@@ -66,6 +66,7 @@ export function GoogleCalendarPicker({
   }
 
   return (
+    // Le due tendine affiancate (176 + 192px): a 224 + 256px andavano una sotto l'altra nelle schede delle squadre.
     <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
       <Select
         value={connectionId ?? ""}
@@ -75,7 +76,7 @@ export function GoogleCalendarPicker({
           // Scegliere un account prepara la scelta: non scollega il calendario salvato.
         }}
       >
-        <SelectTrigger className="min-w-0 sm:w-56" aria-label={t("Account Google")}>
+        <SelectTrigger className="min-w-0 sm:w-44" aria-label={t("Account Google")}>
           <SelectValue placeholder={t("Account Google")} />
         </SelectTrigger>
         <SelectContent>
@@ -92,7 +93,7 @@ export function GoogleCalendarPicker({
         disabled={disabled || !connectionId || caricoCalendari || !!error}
         onValueChange={(v) => onChange({ google_connection_id: connectionId, google_calendar_id: v })}
       >
-        <SelectTrigger className="min-w-0 sm:w-64" aria-label={t("Calendario Google")}>
+        <SelectTrigger className="min-w-0 sm:w-48" aria-label={t("Calendario Google")}>
           {caricoCalendari ? (
             <span className="flex items-center gap-2 text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("Leggo i calendari…")}
