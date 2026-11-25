@@ -67,7 +67,9 @@ interface OrdersFiltersProps {
 export function OrderSearch({value, onChange, expand = false}: {value: string; onChange: (text: string) => void; expand?: boolean}) {
   const t = useT();
   // Stessa misura della ricerca nelle altre schede di Commesse (25/11/2026): era 116-150px.
-  return (<div className={expand ? "relative min-w-32 flex-1" : cn(RICERCA_BARRA, "col-span-2 max-sm:w-full")}>
+  // Da 1400px la riga dei filtri non va più a capo: qui la ricerca cede spazio (fino a 140px) invece di mandare
+  // ordinamento e conteggio su una seconda riga (25/11/2026).
+  return (<div className={expand ? "relative min-w-32 flex-1" : cn(RICERCA_BARRA, "col-span-2 max-sm:w-full min-[1400px]:min-w-[140px] min-[1400px]:shrink")}>
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             placeholder={t("Cerca…")}
@@ -113,7 +115,7 @@ export function OrdersFilters({
       role="group"
       aria-label={t("Filtri commesse")}
     >
-      <div className={panel ? "grid grid-cols-2 items-end gap-3" : "grid min-w-0 flex-1 grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap sm:gap-1.5 xl:gap-1"}>
+      <div className={panel ? "grid grid-cols-2 items-end gap-3" : "grid min-w-0 flex-1 grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap sm:gap-1.5 xl:gap-1 min-[1400px]:flex-nowrap"}>
         {!panel && <OrderSearch value={searchQuery} onChange={onSearchChange} />}
 
         <FilterField panel={panel} title={t("Stato commessa")}><Select value={statusFilter} onValueChange={onStatusFilterChange}>
