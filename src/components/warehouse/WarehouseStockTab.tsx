@@ -802,7 +802,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div className="space-y-4">
+      <div className="space-y-3">
         {arriviError && <Alert><AlertTriangle className="h-4 w-4" /><AlertTitle>{t("Arrivi non disponibili")}</AlertTitle><AlertDescription>{t("Le giacenze sono separate dagli ordini in arrivo, che non è stato possibile verificare.")} <Button variant="outline" size="sm" onClick={() => void refetchArrivi()}>{t("Riprova arrivi")}</Button></AlertDescription></Alert>}
         <Dialog open={!readOnly && zonesDialogOpen} onOpenChange={setZonesDialogOpen}>
           <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto p-0">
@@ -830,7 +830,8 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
           </DialogContent>
         </Dialog>
 
-        <div className="rounded-xl border bg-white p-2.5 shadow-sm" aria-label={t("Strumenti giacenze")} role="region">
+        {/* Barra senza riquadro attorno (25/11/2026): 32px invece di 54, come le schede di Commesse. */}
+        <div aria-label={t("Strumenti giacenze")} role="region">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:flex-wrap">
             <div className={cn(RICERCA_BARRA, "col-span-2 max-sm:w-full")}>
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />

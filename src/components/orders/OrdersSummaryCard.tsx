@@ -4,17 +4,39 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
-export function OrdersSummaryCard({ id, title, value, note, icon: Icon, loading, ring, info, alternateValue, children }: {
+export function OrdersSummaryCard({ id, title, value, note, icon: Icon, loading, ring, info, alternateValue, children, compatto = false }: {
   id: string; title: string; value: string; note: string; icon: LucideIcon; loading: boolean;
   ring?: { value: number; label: string; color: "green" | "amber" };
   info?: string;
   alternateValue?: string;
   children?: ReactNode;
+  /** Riquadro basso (25/11/2026, solo Marginalità): titolo e percentuale su una riga, cifra e nota sulla seconda; niente cerchio. */
+  compatto?: boolean;
 }) {
   const t = useT();
   const [infoOpen, setInfoOpen] = useState(false);
   const details = Children.toArray(children);
   const circle = 2 * Math.PI * 23;
+  if (compatto) {
+    const percento = !loading && ring && Number.isFinite(ring.value) ? ring.value.toLocaleString(intlCampo(), { maximumFractionDigits: 1 }) : null;
+    return <section data-riquadro={id} aria-label={title} aria-busy={loading || undefined} className="min-w-0 rounded-lg border border-white/15 bg-white/[0.06] px-2.5 py-1">
+      <div className="flex items-center gap-1.5">
+        <Icon aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-orange-100" />
+        <h3 className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-wide text-blue-100 sm:text-[11px]">{title}</h3>
+        {percento !== null && ring && <span role="img" aria-label={`${ring.label}: ${percento}%`} className={`ml-auto shrink-0 rounded px-1.5 text-[11px] font-semibold tabular-nums ${ring.color === "green" ? "bg-emerald-400/15 text-emerald-300" : "bg-amber-300/15 text-amber-200"}`}>{percento}%</span>}
+      </div>
+      <div className="flex min-w-0 items-baseline gap-2">
+        {loading ? <Skeleton className="my-0.5 h-5 w-24 bg-white/20" /> : info ? <Tooltip open={infoOpen} onOpenChange={setInfoOpen}>
+          <TooltipTrigger asChild><button type="button" onClick={() => setInfoOpen(open => !open)} aria-label={t("Note su {titolo}", { titolo: title })} className="inline-flex shrink-0 items-center gap-1 rounded text-left text-sm font-semibold tabular-nums tracking-tight text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-300">
+            <span>{value}</span><Info aria-hidden="true" className="h-3 w-3 shrink-0 text-blue-200/80" />
+          </button></TooltipTrigger>
+          <TooltipContent side="top" className="max-w-72 text-xs font-normal leading-5">{info}</TooltipContent>
+        </Tooltip> : <p className="shrink-0 text-sm font-semibold tabular-nums tracking-tight text-white">{value}</p>}
+        <p title={note} className="min-w-0 truncate text-[11px] leading-4 text-blue-100/80 max-sm:hidden">{note}</p>
+      </div>
+      {details.length > 0 && <div className="mt-1 border-t border-white/15 pt-1">{details}</div>}
+    </section>;
+  }
   return <section data-riquadro={id} aria-label={title} aria-busy={loading || undefined} className="min-w-0 rounded-lg border border-white/15 bg-white/[0.06] px-2.5 py-1.5">
     <div className="flex items-center gap-2">
       <span className="flex shrink-0 items-center justify-center text-orange-100"><Icon className="h-3.5 w-3.5" /></span>

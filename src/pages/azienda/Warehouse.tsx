@@ -809,7 +809,8 @@ function WarehousePage() {
                 </>;
 
   return (
-    <div className="space-y-3 sm:space-y-4 print:space-y-4">
+    <div className="space-y-3 print:space-y-4">
+      {/* Spazi da 12px anche da tablet in su (25/11/2026): la tabella partiva a 536px dalla testata. */}
       <WarehousePendingOperations />
       <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
         <div>
@@ -858,6 +859,7 @@ function WarehousePage() {
             riga intera sopra i numeri per un bottone. */}
         <OperationalSummary
           compatto
+          inLinea
           label={t("Riepilogo magazzino")}
           title={activeWarehouse?.name ?? t("Tutti i magazzini")}
           icon={WarehouseIcon}
@@ -1039,7 +1041,7 @@ function WarehousePage() {
       <Card className="print:hidden max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
         {/* Riquadro dei filtri più stretto: erano 24px sopra e 16 tra le righe,
             e la lista cominciava sotto la piega. */}
-        <CardContent className="p-3 sm:p-4 max-sm:p-0">
+        <CardContent className="p-2 max-sm:p-0">
           <div className="flex flex-col gap-3 max-sm:gap-2">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               {/* Quattro gruppi invece di undici schede in fila (29/10/2026). */}
