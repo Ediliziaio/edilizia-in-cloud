@@ -97,13 +97,54 @@ function trasportoDa(vettore: Record<string, unknown>): "fornitore" | "noi" | "t
   return null;
 }
 
-/** La targa sta in un campo dedicato o, come dice il prompt, in vettore.note. */
-function targaDa(vettore: Record<string, unknown>, trasporto: Record<string, unknown>): string | null {
+// Targa italiana: due lettere, tre cifre, due lettere (dal 1994) oppure il
+// formato vecchio con la sigla della provincia. Gli spazi li mette l'OCR.
+const TARGA = /\b([A-Z]{2})[\s-]?(\d{3})[\s-]?([A-Z]{2})\b|\b([A-Z]{2})[\s-]?(\d{5,6})\b/i;
+const ETICHETTA_TARGA = /\b(?:targ(?:a|he)|autoveicolo|rimorchio|automezzo)\b[\s:n°.=-]*/i;
+
+/** La targa dentro un testo libero, in forma compatta e maiuscola. */
+function targaInTesto(testo: string | null, etichettaObbligatoria: boolean): string | null {
+  if (!testo) return null;
+  let da = testo;
+  if (etichettaObbligatoria) {
+    const etichetta = ETICHETTA_TARGA.exec(testo);
+    // In una nota libera senza la parola «targa» qualunque sigla sarebbe un indovinello.
+    if (!etichetta) return null;
+    da = testo.slice(etichetta.index + etichetta[0].length, etichetta.index + etichetta[0].length + 40);
+  }
+  const trovata = TARGA.exec(da);
+  if (trovata) return trovata.slice(1).filter(Boolean).join("").toUpperCase();
+  // Targhe estere (CMR) e formati che non riconosciamo: si tiene quello che c'è scritto.
+  return etichettaObbligatoria ? null : testoONull(testo);
+}
+
+/**
+ * La targa sta in un campo dedicato, o nel testo libero dove la mette il modello.
+ * 25/11/2026: in due letture su due Gemini l'ha messa in `riferimenti.note_libere`
+ * invece che in `vettore.note` come chiede la regola 12 del prompt, e la bolla
+ * registrata restava senza targa. Qui si guarda in tutti e due i posti; nella nota
+ * libera, che contiene di tutto, solo se c'è scritto «targa».
+ *
+ * **È la targa di chi ha portato la merce, non per forza una dei nostri mezzi:**
+ * quasi sempre è il camion del fornitore o di un corriere. Resta un dato del
+ * documento (`ddt_ricezione.targa_mezzo`), si mostra sulla bolla e basta. È nostra
+ * solo quando `trasporto_a_cura_di` vale «noi», cioè siamo andati a ritirare.
+ * Non va MAI abbinata ai mezzi aziendali: l'abbinamento per targa esiste
+ * (`filtroRicercaMezzo`) ma lavora sulle righe delle fatture, dove la spesa è
+ * davvero del nostro mezzo. Agganciarci questa targa attribuirebbe a un nostro
+ * veicolo il viaggio di un camion altrui.
+ */
+function targaDa(
+  vettore: Record<string, unknown>,
+  trasporto: Record<string, unknown>,
+  riferimenti: Record<string, unknown>,
+): string | null {
   return (
     testoONull(vettore.targa) ??
     testoONull(vettore.targa_mezzo) ??
     testoONull(trasporto.targa_mezzo) ??
-    testoONull(vettore.note)
+    targaInTesto(testoONull(vettore.note), false) ??
+    targaInTesto(testoONull(riferimenti.note_libere), true)
   );
 }
 
@@ -175,7 +216,7 @@ export function leggiDDTdaAI(grezzo: unknown): LetturaDDT {
       const v = testoONull(trasporto.porto)?.toLowerCase();
       return v === "franco" || v === "assegnato" ? v : null;
     })(),
-    targaMezzo: targaDa(vettore, trasporto),
+    targaMezzo: targaDa(vettore, trasporto, riferimenti),
     autistaNome: testoONull(vettore.autista) ?? testoONull(trasporto.autista_nome),
     oraInizioTrasporto: testoONull(intestazione.ora_inizio_trasporto)?.slice(0, 5) ?? null,
     colli: numeroONull(trasporto.n_colli),
