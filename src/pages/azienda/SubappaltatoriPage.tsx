@@ -1,5 +1,4 @@
 import { RICERCA_BARRA, TENDINA_STATO_BARRA, BOTTONE_NUOVO } from "@/components/orders/TestataScheda";
-import { cn } from "@/lib/utils";
 import { useState, useMemo } from 'react';
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
