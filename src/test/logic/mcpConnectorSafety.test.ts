@@ -93,6 +93,7 @@ function server(options: { companyId?: string | null; superAdmin?: boolean; emai
     emailSuperAdminConsentita: () => options.emailAmmessa === true,
     ruoloPrincipaleSilvio: (ruoli: string[]) => ruoli[0] ?? "company_staff",
     STRUMENTI_SILVIO: {},
+    avvisaSuperAdmin: async (_admin: unknown, p: Record<string, any>) => { calls.push({ name: "avvisaSuperAdmin", args: p }); return { destinatari: 0, push_inviate: 0, push_fallite: 0, email_inviate: 0 }; },
     planimetriaDaSopralluogo: () => { throw new Error("Plan drawing is not exercised here"); },
     calcolaQuantita: () => ({}),
     fetch: () => { throw new Error("Network calls are forbidden in this test"); },
@@ -245,6 +246,8 @@ describe("MCP area superadmin", () => {
     const res = await s.call("aziende_piattaforma");
     expect(res.body.result.isError).toBeUndefined();
     expect(s.calls.find(c => c.name === "mcp_superadmin_chiama")?.args).toMatchObject({ p_actor: ACTOR, p_cosa: "home_aziende" });
+    // Primo uso del collegamento all'area superadmin: avviso al titolare.
+    expect(s.calls.find(c => c.name === "avvisaSuperAdmin")?.args).toMatchObject({ tipo: "sicurezza_assistente_ai", url: "/admin/impostazioni/integrazioni" });
   });
   it("refuses platform tools when the e-mail is not allowlisted or the role is gone", async () => {
     for (const s of [server({ companyId: null, scopes: ["*"], superAdmin: true, emailAmmessa: false }),

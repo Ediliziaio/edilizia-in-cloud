@@ -16,6 +16,8 @@ export interface KeyCtx {
   /** Token OAuth dell'utente (solo collegamenti OAuth): per le funzioni che
    *  devono applicare le sue regole sulle righe. Mai registrato né restituito. */
   tokenUtente?: string;
+  /** request_id della chiamata in corso: chiave contro i doppioni per gli invii verso l'esterno. */
+  requestId?: string;
   /** Chi ha collegato e cosa può fare nell'app (caricato a ogni richiesta). */
   attore?: Attore;
   name: string;

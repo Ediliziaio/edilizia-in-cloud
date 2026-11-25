@@ -299,7 +299,8 @@ const STRUMENTI: ToolDef[] = [
       if (error) throw new ToolError(error.message);
       const elenco = await Promise.all((conversazioni ?? []).map(async (c) => {
         const { data: ultimi } = await admin.from("support_messages").select("sender_role, message, created_at")
-          .eq("company_id", c.company_id).order("created_at", { ascending: false }).limit(3);
+          // I messaggi non portano la conversazione: si prendono quelli dell'azienda da quando è aperta questa.
+          .eq("company_id", c.company_id).gte("created_at", c.created_at).order("created_at", { ascending: false }).limit(3);
         const ultimo = ultimi?.[0];
         return {
           azienda: (c.companies as { name?: string } | null)?.name ?? c.company_id,
