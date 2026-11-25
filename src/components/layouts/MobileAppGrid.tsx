@@ -57,7 +57,6 @@ const MOBILE_HIDDEN_URLS = new Set<string>([
   "/azienda/previsionale",
   "/azienda/prima-nota",
   "/azienda/corsi",
-  "/azienda/marketing/simulatore",
   "/azienda/marketing/sales-os",
   "/azienda/marketing/reportistica",
   // 2026-09-25: il Portale formazione è la gestione dei corsi, che da

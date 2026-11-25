@@ -102,12 +102,10 @@ const CON_PERMESSO_E_REGISTRO: Record<string, string[]> = {
 const SENZA_RIGHE_DI_CLIENTI: Record<string, string> = {
   "src/pages/azienda/marketing/MarketingDashboard.tsx": "KPI aggregati (metrica e valore), nessuna persona",
   "src/pages/azienda/marketing/QuoteDetail.tsx": "il PDF di un preventivo, non un elenco",
-  "src/components/marketing/simulatore/SimulazionePDF.tsx": "il PDF di una simulazione, non un elenco",
   "src/components/reporting/crm-sales/CrmSalesReportPanel.tsx": "totali per periodo e per fonte, nessuna persona",
   "src/components/reporting/facebook-ads/ExportDialog.tsx": "rendimento delle campagne pubblicitarie, nessuna persona",
   "src/components/reporting/shared/ReportExportMenu.tsx": "chi lo usa esporta una riga per operatore o venditore (vedi il test sotto)",
   "src/components/email-marketing/EmailTopCampaignsTable.tsx": "statistiche per campagna, nessun destinatario",
-  "src/pages/azienda/marketing/simulatore/SimulatoreEditor.tsx": "voci e conti di una simulazione di contratto, nessun elenco di persone",
 };
 
 function sorgenti(percorso: string): string[] {
@@ -126,7 +124,7 @@ describe("esportazioni del CRM: «Esporta Clienti» e registro", () => {
   const conScarico = AREE_CRM.flatMap(sorgenti).filter((f) => scarica(leggi(f)));
 
   it("riconosce anche gli scaricamenti fatti da una funzione comune", () => {
-    for (const nome of ["downloadQuotePdf", "scaricaCsv", "exportToXLSX", "downloadFile", "exportSimulazioneXlsx"]) {
+    for (const nome of ["downloadQuotePdf", "scaricaCsv", "exportToXLSX", "downloadFile"]) {
       expect(FUNZIONI_CHE_SCARICANO, nome).toContain(nome);
     }
     expect(conScarico).toContain("src/pages/azienda/marketing/QuoteDetail.tsx");

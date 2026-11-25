@@ -158,7 +158,6 @@ describe("i rimandi dai posti dove si lavora non ricaricano l'app", () => {
     "src/components/contacts/QuickContactSendDialog.tsx",
     "src/components/marketing/preventivi/ProductPicker.tsx",
     "src/components/marketing/preventivi/QuoteFinancingPanel.tsx",
-    "src/components/marketing/simulatore/SimScenariPanel.tsx",
     "src/components/serramenti/SimulazioneFinanziamento.tsx",
   ];
   it.each(FILE)("%s", (file) => {

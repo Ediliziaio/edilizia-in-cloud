@@ -497,8 +497,6 @@ const FacebookFormsPage = lazy(() => import("@/pages/azienda/marketing/FacebookF
 const AdsManagerBeta = lazy(() => import("@/pages/azienda/marketing/AdsManagerBeta"));
 const SocialManagerBeta = lazy(() => import("@/pages/azienda/marketing/SocialManagerBeta"));
 const Preventivi = lazy(() => import("@/pages/azienda/marketing/Preventivi"));
-const SimulatoreIndex = lazy(() => import("@/pages/azienda/marketing/simulatore/SimulatoreIndex"));
-const SimulatoreEditor = lazy(() => import("@/pages/azienda/marketing/simulatore/SimulatoreEditor"));
 const QuoteBuilder = lazy(() => import("@/pages/azienda/marketing/QuoteBuilder"));
 const ComputoPreventivo = lazy(() => import("@/pages/azienda/marketing/ComputoPreventivo"));
 const QuoteAiSimulationPage = import.meta.env.DEV ? lazy(() => import("@/pages/azienda/marketing/QuoteAiSimulationPage")) : null;
@@ -1314,8 +1312,9 @@ export default function CompanyRoutesContainer() {
         {QuoteAiSimulationPage && <Route path="marketing/preventivi/simulazione-ai" element={withCompanyPermission("canEditPreventivi", <QuoteAiSimulationPage />)} />}
         <Route path="marketing/preventivi/:id" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="preventivi_crm"><QuoteDetail /></FeatureRoute>)} />
         <Route path="marketing/preventivi/:id/modifica" element={withCompanyPermission("canEditPreventivi", <FeatureRoute featureKey="preventivi_crm"><QuoteBuilder /></FeatureRoute>)} />
-        <Route path="marketing/simulatore" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="simulatore"><SimulatoreIndex /></FeatureRoute>)} />
-        <Route path="marketing/simulatore/:id" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="simulatore"><SimulatoreEditor /></FeatureRoute>)} />
+        {/* Il Simulatore contratti è stato tolto il 25/11/2026 (9 simulazioni in tutto, tutte bozze, nessuna trasformata in
+            preventivo): i vecchi link portano alle Opportunità. */}
+        <Route path="marketing/simulatore/*" element={<Navigate to="/azienda/marketing/opportunita" replace />} />
         {/* Route legacy consolidata: la pagina reale vive su /azienda/firma-elettronica.
             Redirect per non rompere vecchi link/segnalibri. */}
         <Route path="marketing/firma-elettronica" element={<Navigate to="/azienda/firma-elettronica" replace />} />
