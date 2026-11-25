@@ -1,3 +1,4 @@
+import { RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { PipelineCardHeading } from "@/components/orders/PipelineDrag";
 import { isPipelineCardControl } from "@/lib/orders/cardInteraction";
 import { useOperationalViewMemory } from "@/hooks/useOperationalViewMemory";
@@ -163,14 +164,14 @@ export function SafetyWorkflow<T extends { id: string }>({
               onChange={(v) => update({ vista: v })}
             />
           )}
-          <div className="relative min-w-48 flex-1">
-            <Search className="absolute left-3 top-2 h-4 w-4 text-muted-foreground" />
+          <div className={RICERCA_BARRA}>
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               aria-label={t("Cerca {cosa}", { cosa: String(label ?? "") })}
               placeholder={t("Cerca documento, commessa o responsabile…")}
               value={search}
               onChange={(e) => update({ cerca: e.target.value })}
-              className="h-8 pl-9 text-xs"
+              className="h-8 pl-8 text-xs"
             />
           </div>
           <Select value={order} onValueChange={(v) => update({ commessa: v })}>

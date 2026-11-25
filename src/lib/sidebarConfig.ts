@@ -125,7 +125,6 @@ export const macroAreas: MacroArea[] = [
         icon: PieChart,
         permissionKey: "canViewControlloGestione",
         featureKey: "controllo_gestione_v1",
-        isBeta: true,
       },
     ],
   },

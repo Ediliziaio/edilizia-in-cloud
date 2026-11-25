@@ -12,8 +12,9 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { useConteggioScadenzeAzienda } from '@/hooks/useDocumentiAzienda';
 import { frasiScadenze } from '@/lib/documentiAzienda/rigaScadenze';
 import { useT } from '@/lib/campo/lingua/LinguaCampo';
+import { PASTIGLIA_DA_SISTEMARE } from '@/components/campo/CantieriTecniciLink';
 
-export function ScadenzeDittaBox() {
+export function ScadenzeDittaBox({ compatto = false }: { compatto?: boolean } = {}) {
   const { effectiveCompany } = useAuth();
   const t = useT();
   const permessi = usePermissions();
@@ -33,6 +34,15 @@ export function ScadenzeDittaBox() {
     : s > 0
       ? (s === 1 ? t('1 carta scaduta') : t('{n} carte scadute', { n: s }))
       : i === 1 ? t('1 carta in scadenza') : t('{n} carte in scadenza', { n: i });
+  if (compatto) return (
+    <Link to="/azienda/impostazioni/documenti-azienda" className={PASTIGLIA_DA_SISTEMARE}>
+      <FileWarning className={urgente ? 'h-3.5 w-3.5 shrink-0 text-red-600' : 'h-3.5 w-3.5 shrink-0 text-amber-600'} aria-hidden />
+      {t('Carte della ditta')}
+      <span className={urgente
+        ? 'rounded-full bg-red-100 px-1.5 text-[11px] font-semibold text-red-800'
+        : 'rounded-full bg-amber-100 px-1.5 text-[11px] font-semibold text-amber-900'}>{testo}</span>
+    </Link>
+  );
   return (
     <Link
       to="/azienda/impostazioni/documenti-azienda"

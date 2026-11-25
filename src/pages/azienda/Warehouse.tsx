@@ -1,3 +1,4 @@
+import { RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { useAuth } from "@/contexts/AuthContext";
 import { useScopedStorage } from "@/hooks/warehouse/useScopedStorage";
 import { useState, useCallback, useMemo, useRef, lazy, Suspense } from "react";
@@ -856,6 +857,7 @@ function WarehousePage() {
         {/* «Personalizza i riquadri» sta nel menu ⋯ della testata: qui era una
             riga intera sopra i numeri per un bottone. */}
         <OperationalSummary
+          compatto
           label={t("Riepilogo magazzino")}
           title={activeWarehouse?.name ?? t("Tutti i magazzini")}
           icon={WarehouseIcon}
@@ -1142,13 +1144,13 @@ function WarehousePage() {
                 I Select (Stato/Ordine/Fornitore/Zona) sono dentro lo Sheet sidebar. */}
             {isOrderView && (
             <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <div className={RICERCA_BARRA}>
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   placeholder={t("Cerca articolo...")}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 max-sm:h-9"
+                  className="h-8 pl-8 text-xs max-sm:h-9"
                 />
               </div>
               <Button

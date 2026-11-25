@@ -1,3 +1,4 @@
+import { RICERCA_BARRA, TENDINA_STATO_BARRA } from "@/components/orders/TestataScheda";
 import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
 import { useEffect, useState, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -555,7 +556,7 @@ export default function FirmaElettronicaHub() {
         label: t(label), valore: String(valore), attivo: statusFilter === filtro, onClick: () => selezionaIndicatore(filtro),
       }))} />
       <div className="max-sm:hidden">
-        <OperationalSummary label={t("Riepilogo firme")} title={t("Dal documento alla firma")} icon={FileStack}
+        <OperationalSummary compatto label={t("Riepilogo firme")} title={t("Dal documento alla firma")} icon={FileStack}
           note={t("Conteggi sulle richieste recenti. Seleziona un indicatore per filtrare l’archivio.")}>
           {indicatori.map(([filtro, label, valore]) =>
             <OperationalSummaryMetric key={filtro} label={t(label)} value={String(valore)}
@@ -607,17 +608,17 @@ export default function FirmaElettronicaHub() {
           </div>
           {/* Filtri in riga sopra la tabella, senza riquadro attorno. */}
           <div className="flex items-center gap-2 rounded-xl border bg-white p-2.5 shadow-sm max-sm:hidden">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <div className={RICERCA_BARRA}>
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 placeholder={t("Cerca per documento, cliente, email o token...")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
+                className="h-8 pl-8 text-xs"
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="sm:w-[180px]">
+              <SelectTrigger className={TENDINA_STATO_BARRA}>
                 <SelectValue placeholder={t("Stato")} />
               </SelectTrigger>
               <SelectContent>
@@ -633,7 +634,7 @@ export default function FirmaElettronicaHub() {
               </SelectContent>
             </Select>
             <Select value={tipoDocFilter} onValueChange={setTipoDocFilter}>
-              <SelectTrigger className="sm:w-[180px]">
+              <SelectTrigger className={TENDINA_STATO_BARRA}>
                 <SelectValue placeholder={t("Tipo documento")} />
               </SelectTrigger>
               <SelectContent>

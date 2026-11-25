@@ -115,6 +115,12 @@ import { COMPANY_APP_HOME } from "@/lib/auth/appHome";
 import { accountingHome, isCompanyPathAvailable } from "@/lib/companyManagementMode";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
+/** Voci del menu laterale (25/11/2026): righe da 28px, testo 11,5px, icone 14px, per
+ *  far stare più voci senza scorrere. Passata al SidebarMenuButton, che la fonde con
+ *  tailwind-merge sopra h-8/text-sm/size-4 di base: sul NavLink figlio non basterebbe,
+ *  perché lo Slot concatena le classi e h-8 resterebbe. */
+const VOCE_MENU_COMPATTA = "h-7 text-[11.5px] [&>svg]:size-3.5";
+
 const SupportChatSheet = lazyWithRetry(() => import("./SupportChatSheet"));
 const SupportChannelDialog = lazyWithRetry(() => import("./SupportChannelDialog"));
 const CommandPalette = lazyWithRetry(() => import("@/components/CommandPalette"));
@@ -191,7 +197,7 @@ const CompanyBrandHeader = memo(function CompanyBrandHeader({
           to={homeTo}
           className={cn(
             "flex min-w-0 items-center rounded-lg text-sidebar-foreground transition-colors hover:bg-sidebar-accent/60",
-            isCollapsed ? "h-11 w-11 justify-center p-1.5" : "h-12 w-full justify-start px-1",
+            isCollapsed ? "h-11 w-11 justify-center p-1.5" : "h-10 w-full justify-start px-1",
           )}
           aria-label={platformName ?? "EdiliziaInCloud"}
         >
@@ -200,7 +206,7 @@ const CompanyBrandHeader = memo(function CompanyBrandHeader({
             alt={logoAlt}
             className={cn(
               "object-contain",
-              isCollapsed ? "max-h-8 max-w-8" : "h-10 max-w-[205px]",
+              isCollapsed ? "max-h-8 max-w-8" : "h-9 max-w-[190px]",
             )}
           />
         </Link>
@@ -516,17 +522,17 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
       <SidebarGroup className="py-0">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
+            <SidebarMenuButton asChild className={VOCE_MENU_COMPATTA}>
               <NavLink
                 to={toHref(item.url)}
                 className={cn(
-                  "flex items-center gap-2.5 rounded-lg mx-1.5 px-3 py-2 text-xs transition-colors",
+                  "flex items-center gap-2.5 rounded-lg mx-1.5 px-3 py-1.5 text-[11.5px] transition-colors",
                   active
                     ? "bg-sidebar-primary/10 text-sidebar-primary font-semibold"
                     : "text-sidebar-foreground/80 hover:bg-sidebar-accent/40 hover:text-sidebar-accent-foreground",
                 )}
               >
-                <ItemIcon className="h-4 w-4 shrink-0" />
+                <ItemIcon className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">{t(item.title)}</span>
                 {item.isBeta && (
                   <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-accent text-accent-foreground border-border">
@@ -590,7 +596,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                           key={item.url}
                           to={toHref(item.url)}
                           className={cn(
-                            "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-xs text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                            "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[11.5px] text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                             active && "bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary",
                             isDemo && "opacity-70"
                           )}
@@ -640,13 +646,13 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
         open ? "bg-sidebar-accent/50" : "hover:bg-sidebar-accent/40"
       )}>
         <CollapsibleTrigger className={cn(
-          "flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-normal transition-all duration-150 group",
+          "flex w-full items-center justify-between px-3 py-1.5 text-[10.5px] font-semibold uppercase tracking-wide transition-all duration-150 group",
           (open || hasActiveChild)
             ? "text-sidebar-primary/80"
             : "text-sidebar-foreground/60 hover:text-sidebar-foreground/90"
         )}>
-          <span className="flex items-center gap-1.5 min-w-0">
-            <AreaIcon className={cn("h-4 w-4 shrink-0 transition-colors duration-150", (open || hasActiveChild) && "text-sidebar-primary")} />
+          <span className="flex items-center gap-2.5 min-w-0">
+            <AreaIcon className={cn("h-3.5 w-3.5 shrink-0 transition-colors duration-150", (open || hasActiveChild) && "text-sidebar-primary")} />
             <span className="truncate">{t(area.title)}</span>
           </span>
           <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform duration-200 opacity-60 group-hover:opacity-100", open && "rotate-180")} />
@@ -674,17 +680,17 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                   const isDemo = isDemoItem(item);
                   return (
                     <SidebarMenuItem key={item.url}>
-                      <SidebarMenuButton asChild>
+                      <SidebarMenuButton asChild className={VOCE_MENU_COMPATTA}>
                         <NavLink
                           to={toHref(item.url)}
                           className={cn(
-                            "flex items-center gap-3 rounded-md px-3 py-2 text-xs text-sidebar-foreground/75 transition-all duration-150 hover:bg-muted hover:text-sidebar-foreground border-l-2 border-l-transparent",
+                            "flex items-center gap-2.5 rounded-md px-3 py-1.5 text-[11.5px] text-sidebar-foreground/75 transition-all duration-150 hover:bg-muted hover:text-sidebar-foreground border-l-2 border-l-transparent",
                             active && "bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary",
                             isLocked && "opacity-50",
                             isDemo && !active && "opacity-75"
                           )}
                         >
-                          <ItemIcon className="h-4 w-4" />
+                          <ItemIcon className="h-3.5 w-3.5" />
                           <span>{t(item.title)}</span>
                           {isLocked ? (
                             <Lock className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
@@ -780,14 +786,14 @@ function CruscottoNavItems({ filterNavItems, badgePronti }: {
 
             return (
               <SidebarMenuItem key={item.url}>
-                <SidebarMenuButton asChild tooltip={tooltip}>
+                <SidebarMenuButton asChild tooltip={tooltip} className={VOCE_MENU_COMPATTA}>
                   <NavLink
                     to={itemUrl}
                     end={itemUrl === "/azienda" || itemUrl === "/azienda/marketing"}
-                    className="flex items-center gap-3 rounded-md px-3 py-2 text-xs text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent"
+                    className="flex items-center gap-2.5 rounded-md px-3 py-1.5 text-[11.5px] text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent"
                     activeClassName="bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary"
                   >
-                    <item.icon className="h-4 w-4" />
+                    <item.icon className="h-3.5 w-3.5" />
                     <span className="font-medium">{voce}</span>
                     {/* «Chat»: due badge di colore diverso, entrambi dai token del tema.
                         - Team interno → navy (secondary): identico ai conteggi di Email/Attività.
@@ -797,7 +803,7 @@ function CruscottoNavItems({ filterNavItems, badgePronti }: {
                         {internalChatUnread > 0 && (
                           <Badge
                             variant="secondary"
-                            className="h-5 min-w-[20px] px-1.5 text-[10px] font-bold"
+                            className="h-[18px] min-w-[18px] px-1.5 text-[10px] font-bold"
                             title={t("{n} messaggi del team da leggere", { n: internalChatUnread })}
                           >
                             {internalChatUnread > 99 ? "99+" : internalChatUnread}
@@ -805,7 +811,7 @@ function CruscottoNavItems({ filterNavItems, badgePronti }: {
                         )}
                         {conversazioniUnread > 0 && (
                           <Badge
-                            className="h-5 min-w-[20px] border-transparent bg-success px-1.5 text-[10px] font-bold text-success-foreground hover:bg-success/80"
+                            className="h-[18px] min-w-[18px] border-transparent bg-success px-1.5 text-[10px] font-bold text-success-foreground hover:bg-success/80"
                             title={t("{n} conversazioni con messaggi da leggere", { n: conversazioniUnread })}
                           >
                             {conversazioniUnread > 99 ? "99+" : conversazioniUnread}
@@ -817,7 +823,7 @@ function CruscottoNavItems({ filterNavItems, badgePronti }: {
                       <Badge
                         variant={badgeVariant === "destructive" ? "destructive" : "secondary"}
                         className={cn(
-                          "ml-auto h-5 min-w-[20px] px-1.5 text-[10px] font-bold",
+                          "ml-auto h-[18px] min-w-[18px] px-1.5 text-[10px] font-bold",
                           badgeVariant === "warning" && "bg-warning/15 text-warning border-warning/30"
                         )}
                       >
@@ -1218,7 +1224,7 @@ const CompanySidebar = memo(function CompanySidebar({ badgePronti }: { badgePron
       <div
         className={cn(
           "border-b border-sidebar-border overflow-hidden bg-sidebar-accent/40",
-          isCollapsed ? "flex flex-col items-center gap-2.5 px-2 py-3" : "space-y-2.5 px-3 py-4",
+          isCollapsed ? "flex flex-col items-center gap-2.5 px-2 py-3" : "space-y-2 px-3 py-3",
         )}
       >
         <CompanyBrandHeader

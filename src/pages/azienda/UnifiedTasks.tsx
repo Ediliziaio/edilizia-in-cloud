@@ -696,7 +696,10 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
         {/* Da sola (super admin, contabile): le approvazioni del cantiere, come in Attività dello staff. */}
         {!embedded && <div className="mt-3"><DaApprovareCantieri /></div>}
         <div className={cn("flex flex-wrap items-center justify-between gap-2", !embedded && "mt-3")}>
-          <TabsList className="h-9 rounded-lg">
+          {/* Dentro «Attività» la giornata personale è già la prima linguetta: qui sopra
+              ripetuta, la Regia aveva due livelli di linguette e sembrava un'altra pagina
+              (25/11/2026). Resta solo «Tutte le attività». */}
+          <TabsList className={cn("h-9 rounded-lg", embedded && "hidden")}>
             <TabsTrigger value="myday"><span className="sm:hidden">{tr("Oggi")}</span><span className="hidden sm:inline">{tr("La mia giornata")}</span></TabsTrigger>
             <TabsTrigger value="all"><span className="sm:hidden">{tr("Tutte")}</span><span className="hidden sm:inline">{tr("Tutte le attività")}</span></TabsTrigger>
           </TabsList>

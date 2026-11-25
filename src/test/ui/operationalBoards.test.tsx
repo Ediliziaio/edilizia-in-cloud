@@ -308,10 +308,15 @@ describe("acquisti: gli stessi filtri nelle due viste", () => {
     expect(screen.getAllByText("ODA-pagina-26")[0]).toBeInTheDocument();
   });
 
-  it("non espone importi o esportazioni economiche senza il permesso sui costi", () => {
+  it("non espone importi o esportazioni economiche senza il permesso sui costi", async () => {
     state.perm.canViewCosts = false;
     apri(<PurchaseOrdersList />, "/azienda/ordini?tab=acquisto");
-    expect(screen.getByRole("button", { name: "Esporta" })).toBeDisabled();
+    // Le esportazioni stanno nel «⋯» della testata comune (25/11/2026): ci sono, ma spente.
+    fireEvent.keyDown(screen.getByRole("button", { name: "Altre azioni" }), { key: "Enter", code: "Enter" });
+    for (const voce of ["CSV", "Excel", "PDF"]) {
+      expect(await screen.findByRole("menuitem", { name: voce })).toHaveAttribute("aria-disabled", "true");
+    }
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape", code: "Escape" });
     expect(screen.queryByText(/€/)).not.toBeInTheDocument();
     fireEvent.click(
       within(screen.getByRole("group", { name: "Vista" })).getByRole("button", {

@@ -131,7 +131,7 @@ describe("Task manager della Dashboard", () => {
   it.each(["company_admin", "company_staff"])("la lista personale di %s esclude le attività altrui anche con permesso team", role => {
     state.role = role; page();
     expect(screen.queryByRole("button", { name: "Attività other" })).toBeNull();
-    expect(screen.getByRole("heading", { name: /^Attività mie e delle mie aree/ })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /^Le mie attività/ })).toBeTruthy();
     expect(screen.queryByRole("combobox", { name: "Di chi" })).toBeNull();
   });
   it("un collegamento ad attività altrui non apre il modulo personale", async () => {
@@ -204,7 +204,6 @@ describe("Priorità team e visibilità", () => {
     state.role = "company_staff"; state.teamPermission = true;
     render(<MemoryRouter><TeamTaskPulse compact /></MemoryRouter>);
     expect(screen.getByRole("region", { name: "Priorità del team" })).toBeTruthy();
-    expect(screen.getByText(/La tua agenda resta personale/)).toBeTruthy();
     expect(screen.getByRole("link", { name: "Apri regia" }).getAttribute("href")).toBe("/azienda/attivita?tab=regia");
     expect(screen.queryByRole("button", { name: /Passa a/ })).toBeNull();
   });

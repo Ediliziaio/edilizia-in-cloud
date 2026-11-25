@@ -10,13 +10,21 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { conteggioCompatto } from "@/lib/email-ai/documentiDaConfermare";
 import { useDocumentiDaConfermareCount } from "@/lib/email-ai/hooks";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { PASTIGLIA_DA_SISTEMARE } from "@/components/campo/CantieriTecniciLink";
 
-export function DocumentiDaConfermareBox() {
+export function DocumentiDaConfermareBox({ compatto = false }: { compatto?: boolean } = {}) {
   const { effectiveCompany } = useAuth();
   const t = useT();
   const puoVedereLeEmail = !!usePermissions().canViewMarketingEmail;
   const numero = useDocumentiDaConfermareCount(effectiveCompany?.id, puoVedereLeEmail);
   if (!puoVedereLeEmail || !numero.data) return null;
+  if (compatto) return (
+    <Link to="/azienda/email/documenti" className={PASTIGLIA_DA_SISTEMARE}>
+      <FileCheck2 className="h-3.5 w-3.5 shrink-0 text-blue-600" aria-hidden />
+      {t("Documenti da confermare")}
+      <span className="rounded-full bg-blue-100 px-1.5 text-[11px] font-semibold tabular-nums text-blue-800">{conteggioCompatto(numero.data)}</span>
+    </Link>
+  );
   return (
     <Link
       to="/azienda/email/documenti"

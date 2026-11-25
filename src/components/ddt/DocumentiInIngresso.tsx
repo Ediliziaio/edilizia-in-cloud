@@ -159,12 +159,12 @@ export function RevisioneDocumento({
   );
 }
 
-export function StatoDocumentoInIngresso({ stato }: { stato: DocumentoPersistente["status"] }) {
+export function StatoDocumentoInIngresso({ stato, piccolo = false }: { stato: DocumentoPersistente["status"]; piccolo?: boolean }) {
   const t = useT();
   const inLettura = stato === "queued" || stato === "processing";
   const daVerificare = ["review", "error", "da_leggere"].includes(stato);
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-semibold ${
+    <span className={`inline-flex items-center gap-1.5 rounded-full border ${piccolo ? "px-1.5 py-0 text-[11px] font-medium" : "px-2 py-0.5 text-xs font-semibold"} ${
       daVerificare ? "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-300"
         : "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-300"
     }`}>
@@ -284,32 +284,34 @@ export function RigaDocumentoInIngresso({
     >
       {colonnaSelezione && <td title={t("Il documento deve essere registrato prima della gestione del DDT")}>—</td>}
       <td className="p-3">
-        <div className="flex items-start gap-2">
-          <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-          <div className="min-w-0 max-w-64">
-            <Link
-              to={`/azienda/ordini?tab=ddt&ddt_documento=${j.id}`}
-              className="block truncate text-sm font-medium text-primary hover:underline"
-              title={j.files.map((f) => f.name).join(", ")}
-            >
-              {nomeTecnico ? t("DDT in ingresso") : nome}
-            </Link>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {j.source === "campo"
-                ? t("App cantiere")
-                : j.source === "whatsapp"
-                  ? "WhatsApp"
-                  : t("Caricamento ufficio")}
-            </p>
-            {duplicato && <AvvisoPossibileDuplicatoDDT duplicato={duplicato} />}
-            {j.whatsapp_voice_message_id && (
-              <VocaleDocumento companyId={j.company_id} messageId={j.whatsapp_voice_message_id} />
-            )}
-          </div>
+        {/* Una riga sola, alta come quella dei DDT registrati (25/11/2026): nome, da dove arriva e,
+            se serve, l'etichetta «Possibile duplicato» che apre il confronto. Prima erano tre righe. */}
+        <div className="flex min-w-0 max-w-80 items-center gap-1.5">
+          <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <Link
+            to={`/azienda/ordini?tab=ddt&ddt_documento=${j.id}`}
+            className="min-w-0 truncate text-xs font-medium text-primary hover:underline"
+            title={j.files.map((f) => f.name).join(", ")}
+          >
+            {nomeTecnico ? t("DDT in ingresso") : nome}
+          </Link>
+          <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground">
+            ·{" "}{j.source === "campo"
+              ? t("App cantiere")
+              : j.source === "whatsapp"
+                ? "WhatsApp"
+                : t("Caricamento ufficio")}
+          </span>
+          {duplicato && <AvvisoPossibileDuplicatoDDT compatto duplicato={duplicato} />}
         </div>
+        {j.whatsapp_voice_message_id && (
+          <div className="min-w-0 max-w-64">
+            <VocaleDocumento companyId={j.company_id} messageId={j.whatsapp_voice_message_id} />
+          </div>
+        )}
       </td>
       <td className="p-3">
-        <StatoDocumentoInIngresso stato={j.status} />
+        <StatoDocumentoInIngresso piccolo stato={j.status} />
       </td>
       <td className="p-3 text-xs text-muted-foreground">
         {new Date(j.created_at).toLocaleDateString(intlCampo())}

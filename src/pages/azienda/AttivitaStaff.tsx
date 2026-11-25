@@ -85,7 +85,7 @@ import { dashboardDateKey, dashboardTasksForAssignee, dashboardTaskStats, dashbo
 import { buildTaskStatusUpdate, getNextTaskStatusForQuickAction, getTaskStatusDefinition, getTaskStatusLabel, isTaskDoneStatus, isTaskBlockedStatus, TASK_STATUS_TONE_CLASSES } from "@/lib/taskStatuses";
 
 import { ConfermaQuantita, useConfermaQuantita } from "@/components/shared/ConfermaQuantita";
-import { DaApprovareCantieri } from "@/components/campo/DaApprovareCantieri";
+import { DaApprovareCantieri, DaApprovareChip } from "@/components/campo/DaApprovareCantieri";
 import { DocumentiDaConfermareBox } from "@/components/email-ai/DocumentiDaConfermareBox";
 import { ScadenzeDittaBox } from "@/components/documentiAzienda/ScadenzeDittaBox";
 import { EccezioniOperative } from "@/components/operazioni/EccezioniOperative";
@@ -888,7 +888,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
               <h2 className="flex items-center gap-2 text-base font-semibold shrink-0 max-md:text-[15px]">
-                <ClipboardCheck className="h-4 w-4 text-primary" /><span className="max-sm:hidden">{tr("Attività mie e delle mie aree")}</span>
+                <ClipboardCheck className="h-4 w-4 text-primary" /><span className="max-sm:hidden">{tr("Le mie attività")}</span>
                 {/* Telefono: titolo corto, così «+ Nuova» resta sulla stessa riga. */}
                 <span className="sm:hidden">{tr("Attività")}</span>
                 {!calendarDate && stats.total > 0 && <Badge variant="secondary" className="text-xs">{stats.total}</Badge>}
@@ -977,6 +977,14 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </button>
             <div className="hidden sm:flex items-center gap-2">
+              {/* «Di chi» accanto alla ricerca (25/11/2026): era una riga intera da sola
+                  tra la ricerca e l'elenco. */}
+              <Select value={areaView} onValueChange={setAreaView}>
+                <SelectTrigger aria-label={tr("Ambito attività")} className="h-9 w-auto max-w-[190px] gap-1 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="all">{tr("Mie e delle mie aree")}</SelectItem><SelectItem value="personal">{tr("Solo individuali")}</SelectItem>
+                  {(offices.data ?? []).filter(o => o.membri.includes(user?.id ?? "")).map(o => <SelectItem key={o.id} value={o.id}>{o.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
               {/* Raggruppa, vista compatta e selezione multipla: tre comandi
                   che si usano di rado, prima tre bottoni. Il pallino dice che
                   la vista non è quella di base. */}
@@ -1006,12 +1014,6 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
         <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0">
           {/* Sul telefono la scelta «di chi» sta nel pannello «Opzioni»: qui era una riga intera
               in più tra la ricerca e l'elenco. */}
-          <Select value={areaView} onValueChange={setAreaView}>
-            <SelectTrigger aria-label={tr("Ambito attività")} className="mb-3 max-sm:hidden"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="all">{tr("Mie e delle mie aree")}</SelectItem><SelectItem value="personal">{tr("Solo individuali")}</SelectItem>
-              {(offices.data ?? []).filter(o => o.membri.includes(user?.id ?? "")).map(o => <SelectItem key={o.id} value={o.id}>{o.nome}</SelectItem>)}
-            </SelectContent>
-          </Select>
           {/* Bulk action bar — visibile in modalità selezione o quando c'è già
               una selezione; su mobile wrap, su desktop 1 riga */}
           {(hasSelection || selectionMode) && (
@@ -1320,6 +1322,7 @@ function TabAttivita() {
   const [openTaskRequest, setOpenTaskRequest] = useState<{ id: string; requestId: number } | null>(null);
   const [mobileAgenda, setMobileAgenda] = useState(false);
   const [mobileTeam, setMobileTeam] = useState(false);
+  const [approvareAperto, setApprovareAperto] = useState(false);
   const requestSequence = useRef(0);
   const permissions = usePermissions();
   const taskQuery = useDashboardTasks();
@@ -1361,26 +1364,18 @@ function TabAttivita() {
           </Fragment>
         ))}
       </p>
-      <div className="flex flex-wrap gap-2 max-sm:hidden" aria-busy={taskQuery.isLoading}>
-        {focusTiles.map((t) => (
-          <button key={t.key} type="button" disabled={taskQuery.isLoading || taskQuery.isError} onClick={t.onClick} className={cn("flex min-w-[88px] flex-1 flex-col rounded-xl border px-3 py-2 text-left transition hover:brightness-[0.97] disabled:cursor-default", t.cls)}>
-            <span className="text-xl font-bold tabular-nums">{taskQuery.isLoading || taskQuery.isError ? "—" : t.n}</span>
-            <span className="text-xs font-medium">{tr(t.label)}</span>
-          </button>
-        ))}
+      {/* «Da sistemare» (25/11/2026): cantieri, approvazioni, documenti e carte della ditta
+          in UNA riga di pastiglie. Prima erano quattro riquadri impilati, più tre riquadri
+          «Scadute · Oggi · 7 giorni» che ripetevano le pillole dell'elenco qui sotto: la
+          lista cominciava a metà schermo. Ogni pastiglia si nasconde da sola se non c'è niente;
+          senza nessuna, la riga sparisce (empty:hidden). Le approvazioni si aprono qui sotto. */}
+      <div className="flex flex-wrap items-center gap-1.5 empty:hidden">
+        <DaApprovareChip aperto={approvareAperto} onToggle={() => setApprovareAperto(v => !v)} />
+        <DocumentiDaConfermareBox compatto />
+        <ScadenzeDittaBox compatto />
+        <CantieriTecniciLink compatto />
       </div>
-
-      {/* Dal cantiere: rapportini, timbrature dimenticate e bolle da approvare, solo per chi può
-          approvarli. Senza niente in attesa non occupa posto. */}
-      <CantieriTecniciLink />
-      <DaApprovareCantieri />
-
-      {/* Documenti letti dalle email che aspettano una conferma: una riga, e solo se ce ne sono. */}
-      <DocumentiDaConfermareBox />
-
-      {/* Le carte della ditta scadute o in scadenza: la pagina sta in Impostazioni e non
-          ci passa nessuno di mattina, Attività invece la guardano tutti. */}
-      <ScadenzeDittaBox />
+      {approvareAperto && <DaApprovareCantieri />}
 
       {/* Sinistra: Meteo + Calendario (integrati) · Destra: le mie attività.
           Da tablet due colonne con le attività a larghezza fissa: a un terzo
@@ -1452,10 +1447,10 @@ export function TeamTaskPulse({ compact = false }: { compact?: boolean }) {
   }, [pulseTasks, statuses, oggi]);
 
   const metrics = [
-    { label: "Scadute", value: pulse.overdue.length, className: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-300" },
-    { label: "Urgenti", value: pulse.urgent.length, className: "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900/40 dark:bg-orange-950/20 dark:text-orange-300" },
-    { label: "Oggi", value: pulse.dueToday.length, className: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300" },
-    { label: "Senza assegnatario", value: pulse.unassigned.length, className: "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-300" },
+    { label: "Scadute", value: pulse.overdue.length },
+    { label: "Urgenti", value: pulse.urgent.length },
+    { label: "Oggi", value: pulse.dueToday.length },
+    { label: "Senza assegnatario", value: pulse.unassigned.length },
   ];
 
   if (!seesTeam) return null;
@@ -1476,7 +1471,6 @@ export function TeamTaskPulse({ compact = false }: { compact?: boolean }) {
         </div>
       </CardHeader>
       <CardContent className="max-sm:p-3">
-        <p className="mb-3 text-xs text-muted-foreground max-sm:hidden">{t("Attività del team che sei autorizzato a consultare. La tua agenda resta personale.")}</p>
         {isError ? (
           <InlineLoadError
             title={t("Errore nel caricamento della regia")}
@@ -1485,30 +1479,21 @@ export function TeamTaskPulse({ compact = false }: { compact?: boolean }) {
           />
         ) : isLoading ? (
           <div className="space-y-4">
-            <div className={cn("grid grid-cols-2 gap-3", !compact && "md:grid-cols-4")}>
-              {[1, 2, 3, 4].map((item) => <Skeleton key={item} className="h-20 w-full" />)}
-            </div>
+            <Skeleton className="h-4 w-2/3" />
             <Skeleton className="h-16 w-full" />
           </div>
         ) : pulse.openCount === 0 ? (
           <p className="text-sm text-muted-foreground">{t("Nessuna attività aperta da gestire")}</p>
         ) : (
           <div className="space-y-4 max-sm:space-y-3">
-            {/* Telefono: i numeri in una riga (solo quelli diversi da zero), non quattro riquadri alti. */}
-            <p className="text-[13px] leading-snug text-muted-foreground sm:hidden">
+            {/* I numeri in una riga (solo quelli diversi da zero), anche da computer (25/11/2026):
+                i quattro riquadri colorati alti 80px erano altri quattro «allarmi» nella colonna. */}
+            <p className="text-[13px] leading-snug text-muted-foreground">
               {metrics.filter((m) => m.value > 0).map((m, i) => (
-                <Fragment key={m.label}>{i > 0 && " · "}<span className={cn("font-semibold tabular-nums", m.label === "Scadute" ? "text-red-700" : "text-foreground")}>{m.value}</span> {m.label.toLowerCase()}</Fragment>
+                <Fragment key={m.label}>{i > 0 && " · "}<span className={cn("font-semibold tabular-nums", m.label === "Scadute" ? "text-red-700" : "text-foreground")}>{m.value}</span> {t(m.label).toLowerCase()}</Fragment>
               ))}
-              {" · "}<Link to="/azienda/attivita?tab=regia" className="font-medium text-primary underline-offset-2 hover:underline">{t("Vai alla regia")}</Link>
+              <span className="sm:hidden">{" · "}<Link to="/azienda/attivita?tab=regia" className="font-medium text-primary underline-offset-2 hover:underline">{t("Vai alla regia")}</Link></span>
             </p>
-            <div className={cn("grid grid-cols-2 gap-3 max-sm:hidden", !compact && "md:grid-cols-4")}>
-              {metrics.map((metric) => (
-                <div key={metric.label} className={`rounded-lg border p-3 ${metric.className}`}>
-                  <p className="text-xs font-medium opacity-80">{t(metric.label)}</p>
-                  <p className="mt-1 text-2xl font-bold tabular-nums">{metric.value}</p>
-                </div>
-              ))}
-            </div>
             {/* Lista senza riquadro proprio: stava in una cornice dentro la
                 card, dentro la pagina. */}
             <div>
@@ -1638,13 +1623,13 @@ function AttivitaAzienda({ companyId }: { companyId: string }) {
           <AttivitaHeader />
           {isAdmin ? (
           <TabsList className="grid w-full max-w-full sm:w-96 grid-cols-3 h-auto">
-            <TabsTrigger value="attivita" className="gap-1.5 text-xs sm:text-sm py-1.5 sm:py-2"><ClipboardCheck className="h-4 w-4" /><span>{t("Dashboard")}</span></TabsTrigger>
-            <TabsTrigger value="regia" className="gap-1.5 text-xs sm:text-sm py-1.5 sm:py-2"><Users className="h-4 w-4" /><span className="truncate">{t("Regia")}<span className="hidden sm:inline"> {t("attività")}</span></span></TabsTrigger>
+            <TabsTrigger value="attivita" className="gap-1.5 text-xs sm:text-sm py-1.5 sm:py-2"><ClipboardCheck className="h-4 w-4" /><span>{t("Le mie attività")}</span></TabsTrigger>
+            <TabsTrigger value="regia" className="gap-1.5 text-xs sm:text-sm py-1.5 sm:py-2"><Users className="h-4 w-4" /><span className="truncate">{t("Regia")}</span></TabsTrigger>
             <TabsTrigger value="eccezioni" className="gap-1.5 text-xs sm:text-sm py-1.5 sm:py-2"><AlertCircle className="h-4 w-4" /><span>{t("Eccezioni")}</span></TabsTrigger>
           </TabsList>
         ) : (
           <TabsList className={cn("grid w-full h-auto", layoutSchede)}>
-            <TabsTrigger value="attivita" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><ClipboardCheck className="h-4 w-4" /><span className="truncate">{t("Attività")}</span></TabsTrigger>
+            <TabsTrigger value="attivita" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><ClipboardCheck className="h-4 w-4" /><span className="truncate">{t("Le mie")}</span></TabsTrigger>
             {seesRegia && (
               <TabsTrigger value="regia" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Users className="h-4 w-4" /><span className="truncate">{t("Regia")}</span></TabsTrigger>
             )}
