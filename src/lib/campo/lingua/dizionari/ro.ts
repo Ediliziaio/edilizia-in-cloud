@@ -68891,5 +68891,10 @@ const dizionario: Dizionario = {
   "Cerca nei lavori, nelle note o per persona…": "Caută în lucrări, în note sau după persoană…",
   "Mese dei rapportini": "Luna rapoartelor",
   "{n} di {totale} rapportini con questi filtri": "{n} din {totale} rapoarte cu aceste filtre",
+  "Mezzo del viaggio": "Vehiculul cursei",
+  "Altro (scrivi)": "Altul (scrie)",
+  "Sede, cantiere o indirizzo": "Sediu, șantier sau adresă",
+  "Questo cantiere": "Acest șantier",
+  "All'approvazione il viaggio entra nel registro del mezzo: mappa, storico e km.": "La aprobare, cursa intră în registrul vehiculului: hartă, istoric și km.",
 };
 export default dizionario;

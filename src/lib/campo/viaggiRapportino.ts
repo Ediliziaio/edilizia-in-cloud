@@ -12,8 +12,14 @@ export const CAMPI_NUMERICI_VIAGGIO = [
 
 type CampoTesto = (typeof CAMPI_TESTO_VIAGGIO)[number][0];
 type CampoNumerico = (typeof CAMPI_NUMERICI_VIAGGIO)[number][0];
-export type DettagliViaggio = Partial<Record<CampoTesto, string> & Record<CampoNumerico, number>>;
-export type BozzaViaggio = Partial<Record<CampoTesto | CampoNumerico, string>>;
+/**
+ * mezzoId (25/11/2026): il mezzo scelto dall'elenco dell'azienda. Col rapportino approvato il viaggio entra
+ * nel registro di quel mezzo (mappa, storico, km, carburante). Senza, resta solo il testo «Mezzo o targa».
+ */
+export type DettagliViaggio = Partial<Record<CampoTesto, string> & Record<CampoNumerico, number> & { mezzoId: string }>;
+export type BozzaViaggio = Partial<Record<CampoTesto | CampoNumerico | "mezzoId", string>>;
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function unitaChilometro(unita?: string | null): boolean {
   return /^(km\.?|chilometr[oi]|kilometr[oi])$/i.test(unita?.trim() ?? "");
@@ -42,6 +48,7 @@ export function dettagliViaggio(v: BozzaViaggio, unita: string, quantita: string
     carico: v.carico?.trim() || undefined,
     scarico: v.scarico?.trim() || undefined,
     mezzo: v.mezzo?.trim() || undefined,
+    mezzoId: v.mezzoId && UUID.test(v.mezzoId) ? v.mezzoId : undefined,
     ddt: v.ddt?.trim() || undefined,
     km: numeroViaggio(unitaChilometro(unita) ? quantita : v.km),
     oreUomo: numeroViaggio(v.oreUomo),
@@ -61,5 +68,6 @@ export function leggiDettagliViaggio(dati: unknown): DettagliViaggio {
     const valore = riga[chiave];
     if (typeof valore === "number" && Number.isFinite(valore) && valore >= 0) dettagli[chiave] = valore;
   }
+  if (typeof riga.mezzoId === "string" && UUID.test(riga.mezzoId)) dettagli.mezzoId = riga.mezzoId;
   return dettagli;
 }

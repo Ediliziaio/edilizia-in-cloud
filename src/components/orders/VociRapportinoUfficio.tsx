@@ -39,7 +39,7 @@ export function VociRapportinoUfficio({ companyId, orderId, giorno, voci, onCamb
           <Input aria-label={t("Vendita voce {n}", { n: i + 1 })} inputMode="decimal" placeholder={v.fonte === "mancante" ? t("Da definire") : t("Vendita €")} className={`col-span-2 sm:col-span-1 ${CAMPO}`} value={v.vendita} onChange={(e) => cambia(v.chiave, { vendita: e.target.value })} />
           {(v.viaggio || voceTrasporto(v.descrizione, v.unita)) && (
             <div className="col-span-full">
-              <CampiViaggioRapportino valore={v.viaggio ?? {}} quantitaInKm={unitaChilometro(v.unita)} onChange={(viaggio) => cambia(v.chiave, { viaggio })} />
+              <CampiViaggioRapportino valore={v.viaggio ?? {}} quantitaInKm={unitaChilometro(v.unita)} orderId={orderId} onChange={(viaggio) => cambia(v.chiave, { viaggio })} />
             </div>
           )}
           {v.fonte && (

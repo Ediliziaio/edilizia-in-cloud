@@ -68891,5 +68891,10 @@ const dizionario: Dizionario = {
   "Cerca nei lavori, nelle note o per persona…": "Kërko te punimet, te shënimet ose sipas personit…",
   "Mese dei rapportini": "Muaji i raporteve",
   "{n} di {totale} rapportini con questi filtri": "{n} nga {totale} raporte me këto filtra",
+  "Mezzo del viaggio": "Mjeti i udhëtimit",
+  "Altro (scrivi)": "Tjetër (shkruaj)",
+  "Sede, cantiere o indirizzo": "Selia, kantieri ose adresa",
+  "Questo cantiere": "Ky kantier",
+  "All'approvazione il viaggio entra nel registro del mezzo: mappa, storico e km.": "Me miratimin, udhëtimi hyn në regjistrin e mjetit: hartë, histori dhe km.",
 };
 export default dizionario;
