@@ -1,6 +1,7 @@
 import { lazy } from "react";
 /**
- * La testata di ogni pagina delle impostazioni: il titolo è il nome che la pagina ha nel menu e la frase dice a cosa
+ * La testata di ogni pagina delle impostazioni: il titolo è il nome che la pagina ha nel menu e la frase (dal 25/11/2026
+ * solo per i lettori di schermo) dice a cosa
  * serve.
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -31,7 +32,7 @@ function apri(percorso: string) {
   );
   return screen.getByRole("heading", { level: 1 }).textContent;
 }
-const frase = () => document.querySelector("p.text-muted-foreground")?.textContent;
+const frase = () => document.querySelector("h1 + p")?.textContent;
 
 describe("testata delle impostazioni", () => {
   it.each([
