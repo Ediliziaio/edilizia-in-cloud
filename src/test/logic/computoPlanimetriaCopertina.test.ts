@@ -14,7 +14,11 @@ const voci = () => vociDaBozza({ ...bozzaVuota(), voci: [{
 
 it.each(["editoriale", "primus", "elenco-prezzi", undefined] as const)("incorpora i due piani sulla prima pagina del formato %s", async impaginazione => {
   const doc = await generaComputoPdf(voci(), { titolo: "Ristrutturazione", impaginazione, planimetria });
-  const [prima, ...altre] = (doc.internal.pages as unknown as string[][]).slice(1).map(p => p.join("\n"));
+  const pagine = (doc.internal.pages as unknown as string[][]).slice(1).map(p => p.join("\n"));
+  // Con la copertina (editoriale) la pianta ha la sua pagina subito dopo: la copertina resta pulita (25/11/2026).
+  const conCopertina = impaginazione === "editoriale";
+  if (conCopertina) expect(pagine[0]).not.toContain("Planimetria della variante");
+  const [prima, ...altre] = conCopertina ? pagine.slice(1) : pagine;
   for (const testo of ["Planimetria della variante", "Versione 3", "Piano terra", "Primo piano", "Misure indicative", "Da demolire"]) {
     expect(prima).toContain(testo);
   }

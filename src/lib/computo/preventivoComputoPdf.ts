@@ -116,6 +116,10 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
   const stileCopertina = veste?.copertina ?? "piena";
   const editoriale = stileCopertina === "editoriale";
   const coperta = haPaginaCopertina(veste, i.sezioni?.copertina !== false);
+  // La planimetria non sta più in copertina (25/11/2026): la copertina resta pulita, titolo e dati;
+  // il progetto ha la sua pagina subito dopo, a tutta larghezza.
+  const piantaProgetto = i.planimetria;
+  const piantaInCopertina = coperta ? undefined : piantaProgetto;
   const logo = veste?.mostraLogo !== false ? veste?.logo : null;
   if (coperta) {
     segnaCopertinaComputoPdf(doc);
@@ -130,7 +134,7 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     const trama = mescola(c.fondo, c.testo, 0.06), tenue = mescola(c.fondo, c.testo, 0.72), filo = mescola(c.fondo, c.testo, 0.3);
     // Con la foto del progetto la parte alta è la foto, a tutta pagina; sotto, il fondo scuro con titolo e dati.
     const foto = i.immagineCopertina;
-    const fotoH = foto || stileCopertina === "fotografica" ? Math.round(H * (i.planimetria ? .22 : .44)) : 0;
+    const fotoH = foto || stileCopertina === "fotografica" ? Math.round(H * (piantaInCopertina ? .22 : .44)) : 0;
     doc.setFillColor(c.fondo); doc.rect(0, 0, W, H, "F");
     // La trama di un foglio millimetrato, appena visibile: è un computo, un documento tecnico.
     doc.setDrawColor(trama); doc.setLineWidth(0.3);
@@ -141,7 +145,7 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
       for (let x = 0; x <= W; x += 24) doc.line(x, 0, x, H);
       for (let r = 0; r <= H; r += 24) doc.line(0, r, W, r);
     }
-    if (foto) { try { disegnaFotoInCopertina(doc, foto, 0, 0, W, fotoH, !!i.planimetria); } catch { /* una foto illeggibile non ferma il preventivo */ } }
+    if (foto) { try { disegnaFotoInCopertina(doc, foto, 0, 0, W, fotoH, !!piantaInCopertina); } catch { /* una foto illeggibile non ferma il preventivo */ } }
     else if (stileCopertina === "fotografica") {
       doc.setFillColor(mescola(t.fondo, "#FFFFFF", .80)); doc.rect(0, 0, W, fotoH, "F");
       doc.setFillColor(mescola(t.fondo, "#FFFFFF", .55)); doc.rect(W * .08, fotoH * .35, W * .33, fotoH * .65, "F");
@@ -172,7 +176,7 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
       font(15, true, c.testo); doc.text(short(i.azienda || "Preventivo con computo metrico", stileCopertina === "diagonale" && !fotoH ? cw * .60 : cw), cm, yc); yc += 15;
       if (i.dettagliAzienda) { font(8, false, tenue); (wrap(i.dettagliAzienda, stileCopertina === "diagonale" && !fotoH ? cw * .60 : cw) as string[]).slice(0, 2).forEach((r, k) => doc.text(r, cm, yc + k * 11 * scalaTesto)); }
     }
-    if (i.planimetria) yc = fotoH ? yc + 29 : Math.max(H * .205, yc + 38);
+    if (piantaInCopertina) yc = fotoH ? yc + 29 : Math.max(H * .205, yc + 38);
     else yc = fotoH ? yc + 44 : H * 0.36;
     const campi = ([
       ["Committente", i.nascondiCliente ? "" : i.committente ?? ""], ["Luogo dei lavori", i.nascondiCliente ? "" : i.indirizzoIntervento ?? ""],
@@ -186,7 +190,7 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     let sizeTitolo = veste?.dimensioneTitolo ?? 34;
     fontCopertina(sizeTitolo, c.testo);
     let righeTitolo = wrap(i.titolo || "Preventivo", cw - 10);
-    const limiteTitolo = i.planimetria
+    const limiteTitolo = piantaInCopertina
       ? fondoPianta - 162 - (i.oggetto?.trim() ? (fotoH ? 55 : 72) : 0)
       : H - 70 - 2 * 46 - 24 - (i.oggetto?.trim() ? 44 : 0);
     while (sizeTitolo > 18 && yc + (righeTitolo.length - 1) * sizeTitolo * 1.15 > limiteTitolo) {
@@ -196,10 +200,10 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
       if (yc > limiteTitolo) break; // Il titolo completo è riportato nei dati del lavoro.
       doc.text(r, cm, yc); yc += sizeTitolo * 1.15;
     }
-    if (i.oggetto?.trim()) { yc += 4; font(12, false, tenue); for (const r of wrap(i.oggetto.trim(), cw - 40).slice(0, fotoH ? 2 : i.planimetria ? 3 : 4)) { doc.text(r, cm, yc); yc += 16; } }
-    if (i.planimetria) {
+    if (i.oggetto?.trim()) { yc += 4; font(12, false, tenue); for (const r of wrap(i.oggetto.trim(), cw - 40).slice(0, fotoH ? 2 : piantaInCopertina ? 3 : 4)) { doc.text(r, cm, yc); yc += 16; } }
+    if (piantaInCopertina) {
       const yPianta = yc + 12;
-      disegnaPlanimetriaComputo(doc, i.planimetria, cm, yPianta, cw, Math.min(fotoH ? 218 : 272, fondoPianta - yPianta));
+      disegnaPlanimetriaComputo(doc, piantaInCopertina, cm, yPianta, cw, Math.min(fotoH ? 218 : 272, fondoPianta - yPianta));
     }
     if (campi.length) {
       const col = (cw - 30) / 3, righe = Math.ceil(campi.length / 3);
@@ -214,6 +218,11 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     }
     if (stato) { font(7.5, false, tenue); doc.text(stato, cm, H - 34); }
     doc.addPage(); y = cm; testataContinua(6);
+    if (piantaProgetto) {
+      paragraph("Il progetto", 16, t.inchiostro, true); y += 6;
+      y += disegnaPlanimetriaComputo(doc, piantaProgetto, m, y, width, bottom - y - 12);
+      doc.addPage(); y = cm; testataContinua(6);
+    }
     paragraph("Dati del lavoro", 16, t.inchiostro, true); y += 6;
   } else {
   // Prima pagina: identità e perimetro, senza ripetere il prezzo finale. La copertina la sceglie il modello
