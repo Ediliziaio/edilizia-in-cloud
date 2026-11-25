@@ -157,6 +157,19 @@ const StageColumn = memo(function StageColumn({
   const allSelected = totale > 0 && selectedInStage >= totale;
   const someSelected = selectedInStage > 0 && !allSelected;
 
+  // Fase vuota (25/11/2026): la colonna è alta quanto la testata più una
+  // riga «—», non tutto lo schermo. Resta droppabile per intero: il bersaglio
+  // diventa la colonna stessa (testata compresa), così non è più piccolo.
+  const vuota = totale === 0 && opportunities.length === 0 && !isError;
+  const refColonna = useCallback((node: HTMLDivElement | null) => {
+    setRadice(node);
+    if (vuota) setNodeRef(node);
+  }, [vuota, setNodeRef]);
+  const refSchede = useCallback((node: HTMLDivElement | null) => {
+    if (!vuota) setNodeRef(node);
+    (scrollRef as any).current = node;
+  }, [vuota, setNodeRef]);
+
   // Colonna collassata: barra verticale sottile stile GHL. Resta droppabile:
   // trascinando una card sopra si sposta comunque in questa fase.
   if (collapsed) {
@@ -192,8 +205,8 @@ const StageColumn = memo(function StageColumn({
   // vedono di piu' senza dover scorrere in orizzontale.
   return (
     <div
-      ref={setRadice}
-      className={cn("flex flex-col shrink-0 h-full min-h-0", layout === "mini" ? "min-w-[184px] md:min-w-[200px] max-w-[216px] md:max-w-[234px]" : "min-w-[216px] md:min-w-[252px] max-w-[244px] md:max-w-[270px]")}
+      ref={refColonna}
+      className={cn("flex flex-col shrink-0 min-h-0", vuota ? "self-start" : "h-full", layout === "mini" ? "min-w-[184px] md:min-w-[200px] max-w-[216px] md:max-w-[234px]" : "min-w-[216px] md:min-w-[252px] max-w-[244px] md:max-w-[270px]")}
     >
       <div className="px-3 py-2.5 border-b bg-muted/60 rounded-t-lg shrink-0" style={{ borderTopWidth: 3, borderTopColor: hashColor(stage.name) }}>
         <div className="flex items-center justify-between gap-1">
@@ -254,12 +267,10 @@ const StageColumn = memo(function StageColumn({
         )}
       </div>
       <div
-        ref={(node) => {
-          setNodeRef(node);
-          (scrollRef as any).current = node;
-        }}
+        ref={refSchede}
         className={cn(
-          "flex-1 p-2 rounded-b-lg border-2 border-t-0 transition-all overflow-y-auto",
+          "p-2 rounded-b-lg border-2 border-t-0 transition-all overflow-y-auto",
+          !vuota && "flex-1",
           "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40",
           // Visual aggressivo durante drag-over: ring colorato + bg blu + scale leggero
           isOver
@@ -299,7 +310,7 @@ const StageColumn = memo(function StageColumn({
             })}
           </div>
         </SortableContext>
-        {(isLoading || (!vista && totale > 0)) && opportunities.length === 0 && (
+        {!vuota && (isLoading || (!vista && totale > 0)) && opportunities.length === 0 && (
           <div className="space-y-2" aria-busy="true" aria-label={t("Caricamento {name}", { name: String(stage.name ?? "") })}>
             {Array.from({ length: Math.min(3, Math.max(1, totale)) }).map((_, i) => (
               <Skeleton key={i} className={cn("w-full rounded-lg", layout === "mini" ? "h-11" : "h-28")} />
@@ -318,8 +329,13 @@ const StageColumn = memo(function StageColumn({
             </button>
           </div>
         )}
-        {!isLoading && !isError && vista && totale === 0 && opportunities.length === 0 && (
-          <p className="text-xs text-muted-foreground text-center py-8">{t("Nessuna opportunità")}</p>
+        {vuota && (
+          <p
+            className={cn("text-xs text-center py-2 transition-colors", isOver ? "font-medium text-primary" : "text-muted-foreground/60")}
+            title={t("Nessuna opportunità")}
+          >
+            {isOver ? t("Rilascia qui") : "—"}
+          </p>
         )}
         {opportunities.length > 0 && (hasNextPage || isFetchingNextPage) && (
           <div className="flex items-center justify-center gap-2 py-2 text-[11px] text-muted-foreground">

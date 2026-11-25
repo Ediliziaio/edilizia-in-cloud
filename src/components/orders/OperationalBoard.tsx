@@ -45,6 +45,7 @@ export function OperationalColumnFrame({
   color,
   accent = "",
   alert,
+  larga = false,
   children,
 }: {
   id: string;
@@ -54,6 +55,9 @@ export function OperationalColumnFrame({
   color?: string;
   accent?: string;
   alert?: string;
+  /** Senza tetto di 360px: le colonne aperte si dividono tutta la larghezza
+   *  (come la bacheca Commesse). Usata dalla bacheca Acquisti. */
+  larga?: boolean;
   children: ReactNode;
 }) {
   const t = useT();
@@ -69,7 +73,7 @@ export function OperationalColumnFrame({
       label={label}
       className={cn(
         "shrink-0 overflow-hidden rounded-lg border bg-muted/20 transition-[width]",
-        collapsed ? "w-11" : "w-[280px] max-w-[360px] flex-1",
+        collapsed ? "w-11" : larga ? "w-[280px] flex-1" : "w-[280px] max-w-[360px] flex-1",
       )}
     >
       <header

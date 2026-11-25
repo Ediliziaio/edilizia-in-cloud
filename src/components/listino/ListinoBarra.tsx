@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { BOTTONE_SECONDARIO } from "@/components/orders/TestataScheda";
 import {
   FILTRI_LISTINO_INIZIALI,
   MODALITA_PREZZO,
@@ -86,14 +87,17 @@ export function ListinoBarra({
   const quantiFiltri = filtriAttivi(filtri);
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="relative w-full sm:w-auto sm:min-w-[220px] sm:max-w-sm sm:flex-1">
+    // Da computer su una riga sola (25/11/2026): a 1600px le azioni andavano a
+    // capo (barra di 78px). Comandi da 32px come nelle testate, la ricerca si
+    // stringe per fare posto (non sotto i 180px).
+    <div className="flex flex-wrap items-center gap-2 xl:flex-nowrap">
+      <div className="relative w-full sm:w-auto sm:min-w-[180px] sm:max-w-sm sm:flex-1">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
         <Input
           value={cerca}
           onChange={(e) => onCerca(e.target.value)}
           placeholder={t("Cerca in tutto il listino…")}
-          className="h-9 pl-9 pr-8"
+          className="h-8 pl-9 pr-8 text-xs"
           aria-label={t("Cerca in tutto il listino")}
         />
         {cerca && (
@@ -110,7 +114,7 @@ export function ListinoBarra({
 
       <Popover>
         <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className="h-9 gap-1.5">
+          <Button variant="outline" size="sm" className={cn(BOTTONE_SECONDARIO, "shrink-0")}>
             <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
             {t("Filtri")}
             {quantiFiltri > 0 && (
@@ -190,7 +194,7 @@ export function ListinoBarra({
 
       {/* Altezza libera: da telefono i bottoni diventano 44 px (index.css) e un
           contenitore fisso a 36 li faceva uscire dal bordo. */}
-      <div className="inline-flex items-center rounded-md border border-input bg-background p-0.5 max-md:hidden" role="group" aria-label={t("Vista")}>
+      <div className="inline-flex shrink-0 items-center rounded-md border border-input bg-background p-0.5 max-md:hidden" role="group" aria-label={t("Vista")}>
         {(
           [
             ["cards", LayoutGrid, t("Schede")],
@@ -202,7 +206,7 @@ export function ListinoBarra({
             type="button"
             variant={vista === valore ? "secondary" : "ghost"}
             size="sm"
-            className="h-8 px-2.5"
+            className="h-[26px] px-2"
             onClick={() => onVista(valore)}
             aria-pressed={vista === valore}
             aria-label={t("Vista {nome}", { nome: etichetta.toLowerCase() })}
@@ -214,23 +218,23 @@ export function ListinoBarra({
       </div>
 
       {/* Da telefono solo «Nuovo»: tipologie, modelli, import e cestino sono da scrivania. */}
-      <div className="ml-auto flex flex-wrap items-center gap-2 max-md:[&>*:not(.bg-gradient-to-br)]:hidden">
+      <div className="ml-auto flex flex-wrap items-center gap-2 xl:shrink-0 xl:flex-nowrap max-md:[&>*:not(.bg-gradient-to-br)]:hidden">
         {isAdmin && (
           <>
             {onTipologie && (
-              <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={onTipologie} aria-label={t("Tipologie e linee")}>
+              <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} onClick={onTipologie} aria-label={t("Tipologie e linee")}>
                 <FolderTree className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">{t("Tipologie")}</span>
               </Button>
             )}
             {onModelli && (
-              <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={onModelli} aria-label={t("Modelli di infissi")}>
+              <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} onClick={onModelli} aria-label={t("Modelli di infissi")}>
                 <Layers className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">{t("Modelli")}</span>
               </Button>
             )}
             {onDisegni && (
-              <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={onDisegni} aria-label={t("Assegna i disegni")}>
+              <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} onClick={onDisegni} aria-label={t("Assegna i disegni")}>
                 <Wand2 className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">{t("Disegni")}</span>
               </Button>
@@ -245,7 +249,7 @@ export function ListinoBarra({
               <Button
                 variant="outline"
                 size="icon"
-                className="relative h-9 w-9"
+                className="relative h-8 w-8"
                 onClick={onCestino}
                 aria-label={t(cestino === 1 ? "Cestino ({n} prodotto)" : "Cestino ({n} prodotti)", { n: cestino })}
                 title={cestino > 0 ? t("Cestino ({cestino})", { cestino }) : t("Cestino")}
@@ -261,7 +265,7 @@ export function ListinoBarra({
             {onNuovoProdotto && (
               <Button
                 size="sm"
-                className="h-9 gap-1.5 bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-sm hover:from-orange-600 hover:to-amber-500"
+                className="h-8 gap-1 px-3 text-xs font-semibold bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-sm hover:from-orange-600 hover:to-amber-500"
                 onClick={onNuovoProdotto}
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
@@ -281,7 +285,7 @@ function MenuAzioni({ etichetta, icona: Icona, azioni }: { etichetta: string; ic
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 gap-1.5" aria-label={etichetta}>
+        <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} aria-label={etichetta}>
           <Icona className="h-4 w-4" aria-hidden="true" />
           <span className="hidden sm:inline">{etichetta}</span>
           <ChevronDown className="h-3.5 w-3.5 opacity-60" aria-hidden="true" />
