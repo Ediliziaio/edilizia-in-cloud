@@ -10,6 +10,7 @@ import { unitaDellEdificio } from "./unita";
 import { NOMI_SANITARI, sanitariNelLocale } from "./spostamentoBagno";
 import { percorsiPlanimetrie } from "./render/percorsi";
 import { capitoloRigaStudio, eNuovaCostruzione, righeNuovaCostruzione } from "./nuovaCostruzione";
+import { eVoceDellaSicurezza, RICARICO_PREZZARIO, vociDellaSicurezza } from "./sicurezzaComputo";
 
 const COMUNI = "Parti comuni";
 const SCALA_DA_RISCONTRARE = "Scala del modello da riscontrare";
@@ -493,7 +494,7 @@ export function misuraRigaStudio(r: RigaStudio) {
  * Economia del computo mostra costo e margine. Il listino aziendale no: dice il prezzo all'impresa
  * cliente, il costo lo sa solo l'impresa. Si corregge voce per voce («Costo unitario stimato»).
  */
-export const RICARICO_PREZZARIO = 1.15 * 1.10;
+export { RICARICO_PREZZARIO };
 function costoStimato(p: PrezzoVocePlanimetria): { costo?: string } {
   if (p.fonte === "Listino aziendale" || !(p.importo > 0)) return {};
   return { costo: String(Math.round(p.importo / RICARICO_PREZZARIO * 100) / 100) };
@@ -509,19 +510,24 @@ function inOrdineDiCapitolo(righe: RigaStudio[]): RigaStudio[] {
 
 export function computoStudio(fonte: FonteStudio, titolo: string, righe: RigaStudio[], verificheAperte = true): BozzaComputo {
   return {
-    ...bozzaVuota(), titolo: titolo.slice(0,160), fontePlanimetria: fonte, mostraMisurePdf: true, mostraFontiPdf: true,
+    ...bozzaVuota(), titolo: titolo.slice(0,160), fontePlanimetria: fonte, mostraMisurePdf: true, mostraFontiPdf: true, mostraCodiciPdf: true,
     oggetto: `Computo preliminare · variante ${fonte.varianteId} · planimetria v${fonte.versione}${verificheAperte ? " · verifiche urbanistiche aperte" : ""}`,
     // I capitoli numerati della nuova costruzione («01 Opere provvisionali» … «12 Sistemazioni
     // esterne») escono nell'ordine del cantiere, non in quello in cui le righe sono nate (25/11/2026).
-    voci: inOrdineDiCapitolo(righe).map((r) => ({
+    voci: [...inOrdineDiCapitolo(righe).map((r) => ({
       ...voceVuota(), id:r.id, capitolo:r.gruppo, categoria:r.fase,
       descrizione:`${r.descrizione}\n${r.piano} · ${r.criterio}`,
       ...misuraRigaStudio(r),
       ...(r.prezzo ? { prezzo: String(r.prezzo.importo), fonte: r.prezzo.fonte, tariffa: r.prezzo.tariffa } : {}),
       ...(r.prezzo ? costoStimato(r.prezzo) : {}),
       ...(r.aParte ? { opzionale: true } : {}),
+      // Il ponteggio della parte S del prezzario è un costo della sicurezza: non soggetto a ribasso.
+      ...(eVoceDellaSicurezza(r.prezzo?.tariffa) ? { sicurezza: true } : {}),
       noteMisure:r.stimata ? "Quantità indicativa. Verifica le misure di riferimento." : "",
     })),
+      // Gli oneri della sicurezza della previsione (impianto di cantiere, dispositivi, coordinamento).
+      ...vociDellaSicurezza(righe, righe.some((r) => NUMERO_CAPITOLO.test(r.gruppo)) ? "01 Opere provvisionali" : "Oneri della sicurezza"),
+    ],
   };
 }
 

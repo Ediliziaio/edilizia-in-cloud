@@ -175,6 +175,13 @@ describe("esterni disegnati nel computo della costruzione", () => {
     const capitoli = [...new Set(bozza.voci.map((v) => v.capitolo))];
     expect(capitoli).toEqual([...capitoli].sort());
     expect(capitoli[0]).toBe("01 Opere provvisionali");
+    // Oneri della sicurezza: impianto di cantiere 2,5% e oneri 3% dei lavori (senza le opere a parte), a corpo, «sicurezza».
+    const lavori = righe.reduce((t, r) => t + (!r.aParte && r.prezzo && r.quantita ? r.prezzo.importo * r.quantita : 0), 0);
+    const sicurezza = bozza.voci.filter((v) => v.id.startsWith("sicurezza:"));
+    expect(sicurezza.map((v) => [v.id, v.corpo, v.sicurezza, v.capitolo])).toEqual([
+      ["sicurezza:cantiere_costruzione", true, true, "01 Opere provvisionali"], ["sicurezza:sicurezza", true, true, "01 Opere provvisionali"],
+    ]);
+    expect(Number(sicurezza[1].prezzo)).toBeCloseTo(lavori * 0.03, 1);
     // Costo stimato: il prezzo senza spese generali (15%) e utile (10%).
     const piscina = bozza.voci.find((v) => tipoCostruzione(v.id) === "piscina")!;
     expect(Number(piscina.costo)).toBeCloseTo(Number(piscina.prezzo) / 1.265, 2);
