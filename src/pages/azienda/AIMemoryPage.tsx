@@ -645,7 +645,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
         </div>
 
         <Button
-          variant={showDisabled ? "default" : "outline"}
+          variant={showDisabled ? "default" : "outline"} aria-pressed={showDisabled}
           size="sm"
           onClick={() => setShowDisabled(!showDisabled)}
           className="h-9 gap-2"
@@ -674,7 +674,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
               key={item.value}
               type="button"
               size="sm"
-              variant={qualityFilter === item.value ? "default" : "outline"}
+              variant={qualityFilter === item.value ? "default" : "outline"} aria-pressed={qualityFilter === item.value}
               className="h-8 gap-1.5"
               onClick={() => setQualityFilter(item.value as QualityFilter)}
             >

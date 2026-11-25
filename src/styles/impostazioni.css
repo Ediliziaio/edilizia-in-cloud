@@ -227,3 +227,59 @@
   .settings-workspace :is([data-ui="button"], button).min-h-11:not(.h-auto) { height: 2rem; }
   .settings-workspace :is([data-ui="button"], button):is(.min-h-10, .min-h-11, .md\:min-h-9).text-sm { font-size: .75rem; }
 }
+
+/* Secondo giro del 25/11/2026: 127 viste misurate (ogni pagina e ogni scheda), da computer.
+   Erano sei misure diverse per i titoli di sezione (12-24px), bottoni alti uguali con testo a
+   12, 14 o 16px, la ricerca alta 36px e larga da 224 a 938px, i filtri attivi blu pieni. */
+@media (min-width: 768px) {
+  /* Titoli: sezione 16px, riquadro 15px, in ogni pagina. */
+  .settings-content h2:not(.sr-only) { font-size: 1rem; line-height: 1.4rem; font-weight: 600; }
+  .settings-content h3:not(.sr-only) { font-size: .9375rem; line-height: 1.3rem; font-weight: 600; }
+  .settings-content h4:not(.sr-only) { font-size: .8125rem; line-height: 1.2rem; font-weight: 600; }
+  /* Bottoni da 28-32px: testo sempre 12px. */
+  .settings-content :is([data-ui="button"], button, a.inline-flex):is(.h-8, .h-7, [data-size="sm"]):not([role="tab"]):not([role="switch"]) {
+    font-size: .75rem;
+  }
+  /* Bottoni e campi alti 44px: come gli altri. */
+  .settings-content :is([data-ui="button"], button):is(.h-11, .h-12):not([role="tab"]) { height: 2rem; font-size: .75rem; }
+  .settings-content input:is(.h-11, .h-12):not([type="checkbox"]):not([type="radio"]) { height: 2.25rem; font-size: .8125rem; }
+  /* Ricerca: 288×32 ovunque, testo 12px. */
+  /* Più forte della regola dei campi da 36px qui sopra (.settings-workspace input.h-9…). */
+  .settings-workspace .settings-content input:is([placeholder^="Cerca" i], [type="search"]):not([type="checkbox"]):not([type="radio"]) {
+    height: 2rem;
+    font-size: .75rem;
+    max-width: 18rem;
+  }
+  .settings-content div.relative:has(> input:is([placeholder^="Cerca" i], [type="search"])) {
+    width: 18rem;
+    max-width: 100%;
+    flex: 0 1 18rem;
+  }
+  /* Filtro o pillola selezionata: arancio tenue come nel resto dell'app, non blu pieno (che sembra
+     un bottone d'azione). */
+  .settings-content :is(button, a):is(.rounded-full, [aria-pressed="true"], [aria-current="true"], [aria-current="page"]):is([class~="bg-primary"], [class~="md:bg-primary"], [data-state="on"], [data-variant="secondary"]):not(:has(> svg.lucide-plus)) {
+    background-image: none;
+    background-color: rgb(255 247 237);
+    border-color: rgb(254 215 170);
+    color: rgb(194 65 12);
+  }
+}
+@media (min-width: 768px) {
+  /* Voce scelta di un elenco laterale (es. Cartelle documenti: «Tutti», le cartelle): tinta arancio
+     come le altre scelte, non azzurra. */
+  .settings-content :is(button, a):is([aria-current="true"], [aria-current="page"])[class~="bg-primary/10"] {
+    background-color: rgb(255 247 237);
+    border-color: rgb(254 215 170);
+    color: rgb(194 65 12);
+  }
+  /* Tendine alte 40px scritte a mano: come i campi (36px, testo 13px). */
+  .settings-workspace .settings-content button[role="combobox"]:is(.h-10, .h-11) {
+    height: 2.25rem;
+    font-size: .8125rem;
+  }
+}
+@media (min-width: 768px) {
+  /* Le frasi di spiegazione (in cima alla pagina e nei riquadri) a 12px in tutte le pagine: erano
+     12, 14 o 16px a seconda di chi aveva scritto la pagina. */
+  .settings-content p.text-muted-foreground:is(.text-sm, .text-base) { font-size: .75rem; line-height: 1.4; }
+}

@@ -9,6 +9,8 @@ import { VariationTemplateAttachments } from "@/components/orders/VariationTempl
 import { DiscardDocumentDraft } from "@/components/shared/DiscardDocumentDraft";
 import { DocumentEditorWorkspace, type VistaEditorDocumento } from "@/components/shared/DocumentEditorWorkspace";
 import { Button } from "@/components/ui/button";
+import { BOTTONE_NUOVO } from "@/components/orders/TestataScheda";
+import { Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -60,7 +62,7 @@ export function VariationTemplatesPanel({ companyId, canEdit }: { companyId?: st
   return <section className="space-y-4" aria-label={t("Modelli delle varianti")}>
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><h2 className="text-lg font-semibold">{t("Varianti e lavori extra")}</h2><p className="text-sm text-muted-foreground">{t("Prepara una volta testi e condizioni. Nella commessa compili lavori, prezzo e tempi.")}</p></div>
-      {canEdit && <Button disabled={busy || !companyId} onClick={() => start(blankVariationTemplate())}>{t("Nuovo modello di variante")}</Button>}
+      {canEdit && <Button size="sm" className={BOTTONE_NUOVO} disabled={busy || !companyId} onClick={() => start(blankVariationTemplate())}><Plus className="h-3.5 w-3.5" />{t("Nuovo modello di variante")}</Button>}
     </div>
     {!canEdit && <p className="text-sm text-muted-foreground">{t("Sola lettura: i modelli si possono consultare e provare, non modificare.")}</p>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}

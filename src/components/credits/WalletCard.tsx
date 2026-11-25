@@ -218,7 +218,7 @@ export function WalletCard({
             {onRecharge && (
               <Button
                 size="sm"
-                variant={wallet.blocked || lowBalance ? "default" : "outline"}
+                variant={wallet.blocked || lowBalance ? "default" : "outline"} aria-pressed={wallet.blocked || lowBalance}
                 className="flex-1"
                 onClick={onRecharge}
                 disabled={!wallet.rechargeable}
