@@ -325,3 +325,20 @@ appuntamento; la registrazione del computo falliva (`file_size` obbligatorio) ed
 | Statistiche | KPI, mese, cassa, previsioni, grafici, migliori clienti | — |
 | Magazzino, personale, sicurezza | scorte, fornitori, proposta d'ordine, team, assenze, DURC, documenti | — |
 | Superadmin | numeri, MRR, insoluti, aziende, piani, salute, registro, a rischio, assistenza; crea azienda, stato, prova, piano, regalo, crediti | purga, impersonazione, segreti |
+
+## Completamento (25/11/2026 sera)
+
+Fatto quello che la tabella sopra segnava come «non può»:
+`voci_preventivo`, `modifica_voci_preventivo` (aggiunge, toglie, cambia; le voci non toccate tengono il
+legame col listino), `trasforma_preventivo_in_commessa`, `disegna_planimetria` (dalle stanze, gratis, o
+da una descrizione, 1 credito), `crea_bozza_fattura` ed `emetti_fattura` (con invio SdI facoltativo;
+solo amministratori), `aggiorna_fase_commessa`, `modifica_contatto`, `email_conversazioni`,
+`leggi_email`, `rispondi_email`, `conversazioni_whatsapp`, `leggi_whatsapp`, `invia_whatsapp`
+(testo entro 24 ore, oltre un modello approvato).
+
+Le scritture che nell'app partono dal browser passano col token dell'utente collegato
+(`clienteUtente`, `funzioneComeUtente`): valgono le regole sulle righe e i controlli delle funzioni.
+Per questo funzionano con Claude.ai e ChatGPT collegati con l'accesso, non con le chiavi API.
+Provate nel database come amministratore di Demo Azienda 2, in transazioni annullate.
+
+Restano fuori, di proposito: invio di campagne a una lista, purga, impersonazione, segreti.
