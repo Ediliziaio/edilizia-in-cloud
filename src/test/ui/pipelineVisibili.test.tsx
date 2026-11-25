@@ -38,9 +38,20 @@ function utente(permessi: Partial<StaffPermissions> = {}) {
   };
 }
 
+/**
+ * 25/11/2026: il riquadro è stato riscritto (PipelineVisibilitySelector) — si
+ * chiama «Pipeline CRM visibili», la scelta è a due pallini («Tutte le pipeline,
+ * anche quelle future» / «Solo le pipeline selezionate») e le spunte compaiono
+ * solo quando si restringe, con la regola di tenerne almeno una. I test
+ * cercavano ancora il titolo e le spunte di prima ed erano rossi.
+ */
 function sezione() {
-  const titolo = screen.getByText("Pipeline visibili");
-  return titolo.closest("div.rounded-lg") as HTMLElement;
+  return screen.getByRole("region", { name: "Pipeline CRM visibili" });
+}
+
+/** La spunta di una pipeline, per nome. */
+function spunta(box: HTMLElement, nome: string) {
+  return within(box).getByText(nome).closest("label")!.querySelector('[role="checkbox"]') as HTMLElement;
 }
 
 describe("Scheda utente — Pipeline visibili", () => {
@@ -49,13 +60,16 @@ describe("Scheda utente — Pipeline visibili", () => {
     render(<UserRolesPermissionsTab user={utente()} onSave={onSave} />);
 
     const box = sezione();
-    expect(within(box).getByText("Vede tutte le pipeline. Spunta quelle a cui limitarlo.")).toBeInTheDocument();
+    // Senza restrizione: nessuna spunta, e il motivo scritto sotto.
+    expect(within(box).getByText(/Non ci sono restrizioni sulle pipeline/)).toBeInTheDocument();
+    expect(within(box).queryAllByRole("checkbox")).toHaveLength(0);
     expect(screen.queryByRole("button", { name: /salva permessi/i })).toBeNull();
 
-    const [fase1, fase2] = within(box).getAllByRole("checkbox");
-    fireEvent.click(fase1);
-    fireEvent.click(fase2);
-    expect(within(box).getByText(/Vede solo le pipeline spuntate/)).toBeInTheDocument();
+    // «Solo le pipeline selezionate» parte da tutte spuntate: si restringe togliendo.
+    fireEvent.click(within(box).getByRole("radio", { name: "Solo le pipeline selezionate" }));
+    expect(within(box).getAllByRole("checkbox")).toHaveLength(3);
+    fireEvent.click(spunta(box, "Nutrimento"));
+    expect(within(box).getByText(/Mantieni almeno una pipeline/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /salva permessi/i }));
     expect(onSave).toHaveBeenCalledTimes(1);
@@ -65,10 +79,10 @@ describe("Scheda utente — Pipeline visibili", () => {
   it("spuntare e rispuntare non è una modifica da salvare", () => {
     render(<UserRolesPermissionsTab user={utente({ pipeline_visibili: ["p2"] })} onSave={vi.fn()} />);
     const box = sezione();
-    const fase1 = within(box).getAllByRole("checkbox")[0];
+    const fase1 = spunta(box, "1° Fase - Contatto");
     fireEvent.click(fase1);
     expect(screen.getByRole("button", { name: /salva permessi/i })).toBeEnabled();
-    fireEvent.click(fase1);
+    fireEvent.click(spunta(box, "1° Fase - Contatto"));
     expect(screen.queryByRole("button", { name: /salva permessi/i })).toBeNull();
   }, TIMEOUT_MATRICE_PERMESSI);
 
@@ -76,22 +90,22 @@ describe("Scheda utente — Pipeline visibili", () => {
     const onSave = vi.fn();
     render(<UserRolesPermissionsTab user={utente({ pipeline_visibili: ["cancellata", "p2"] })} onSave={onSave} />);
     const box = sezione();
-    fireEvent.click(within(box).getAllByRole("checkbox")[2]); // Nutrimento
+    fireEvent.click(spunta(box, "Nutrimento"));
     fireEvent.click(screen.getByRole("button", { name: /salva permessi/i }));
     expect(onSave.mock.calls[0][0].pipeline_visibili).toEqual(["p2", "p3"]);
   }, TIMEOUT_MATRICE_PERMESSI);
 
-  it("«Tutti» e «Nessuno» sui moduli non cancellano la scelta delle pipeline", () => {
+  it("«Attiva tutti i moduli» non cancella la scelta delle pipeline", () => {
     const onSave = vi.fn();
     render(<UserRolesPermissionsTab user={utente({ pipeline_visibili: ["p1"] })} onSave={onSave} />);
-    fireEvent.click(screen.getAllByRole("button", { name: /^tutti$/i })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Attiva tutti i moduli" }));
     fireEvent.click(screen.getByRole("button", { name: /salva permessi/i }));
     expect(onSave.mock.calls[0][0].pipeline_visibili).toEqual(["p1"]);
   }, TIMEOUT_MATRICE_PERMESSI);
 
   it("senza accesso alle opportunità la sezione non c'è", () => {
     render(<UserRolesPermissionsTab user={utente({ can_view_marketing_opportunities: false })} onSave={vi.fn()} />);
-    expect(screen.queryByText("Pipeline visibili")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Pipeline CRM visibili" })).toBeNull();
   }, TIMEOUT_MATRICE_PERMESSI);
 
   it("il salvataggio porta il campo fino al database", () => {
