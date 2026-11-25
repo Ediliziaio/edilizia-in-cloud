@@ -10,7 +10,8 @@ type PosizioneTavola = {
   origine: [number, number];
   larghezza: number;
   altezza: number;
-  allineamento: "primo" | "ritaglio" | "assi" | "pareti";
+  /** «correlazione»: piano messo sul terra confrontando le sagome dei muri esterni (24/11/2026). */
+  allineamento: "primo" | "ritaglio" | "assi" | "pareti" | "correlazione";
   contorniDaVerificare?: number;
   scaleDaVerificare?: number;
 };
@@ -91,7 +92,7 @@ export async function ricostruisciModelloDwg(file: File, richiesta: RichiestaMod
     || validato.planimetria.livelli.length !== richiesta.piani.length
     || !esito.piani.every((p) => p && Array.isArray(p.origine) && p.origine.length === 2 && p.origine.every(numeri)
       && numeri(p.larghezza) && p.larghezza > 0 && numeri(p.altezza) && p.altezza > 0
-      && ["primo", "ritaglio", "assi", "pareti"].includes(p.allineamento)
+      && ["primo", "ritaglio", "assi", "pareti", "correlazione"].includes(p.allineamento)
       && conteggio(p.contorniDaVerificare) && conteggio(p.scaleDaVerificare))) {
     throw new Error("Il modello CAD non ha una geometria utilizzabile nell’editor.");
   }

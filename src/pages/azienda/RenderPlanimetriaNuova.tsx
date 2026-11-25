@@ -690,6 +690,11 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
         avvisi.push(messaggio);
         documento.riferimenti.note += " " + messaggio;
       }
+      if (piani.some((p) => p.allineamento === "correlazione")) {
+        const messaggio = "Alcuni piani sono stati messi sopra il piano terra confrontando la sagoma dei muri esterni. Controlla nel 3D che scale e muri portanti cadano uno sull’altro.";
+        avvisi.push(messaggio);
+        documento.riferimenti.note += " " + messaggio;
+      }
       const contorniDaVerificare = piani.reduce((tot, piano) => tot + (piano.contorniDaVerificare ?? 0), 0);
       if (contorniDaVerificare > 0) {
         const trovati = contorniDaVerificare === 1 ? "Un contorno di locale stimato" : `${contorniDaVerificare} contorni di locali stimati`;
