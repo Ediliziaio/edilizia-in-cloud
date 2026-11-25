@@ -2,6 +2,10 @@ import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Caricare il listino di un contratto: da un foglio o da un altro contratto.
  * Prima si vede riga per riga cosa entra e cosa no, poi si conferma.
+ *
+ * Il contratto puo' non esserci (25/11/2026): il listino arriva prima
+ * dell'accordo scritto, quindi al salvataggio l'accordo nasce da solo con i
+ * valori predefiniti e l'esito lo dice — vedi `lib/appalto/contrattoPredefinito`.
  */
 import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -9,6 +13,7 @@ import { AlertTriangle, Copy, Download, FileSpreadsheet, Loader2, Upload } from 
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { euro } from "@/lib/clienti/schedaCliente";
+import { assicuraContratto, nomeContrattoPredefinito } from "@/lib/appalto/contrattoPredefinito";
 import {
   interpretaListino, leggiFoglio, scaricaModelloListino, vociGiaPresenti, LIMITE_RIGHE, TIPI_VOCE,
   type RigaListino, type VoceEsistente,
@@ -27,13 +32,17 @@ const db = supabase as any;
 const UNITA_ETICHETTA: Record<string, string> = { uomo_giorno: "uomo/giorno", mq: "m²", ml: "m", mc: "m³", corpo: "a corpo" };
 
 export function CaricaListinoDialog({
-  aperto, onChiudi, contratto, altriContratti, esistenti,
+  aperto, onChiudi, contratto, companyId, committenteId, altriContratti, esistenti, onContrattoCreato,
 }: {
   aperto: boolean;
   onChiudi: () => void;
-  contratto: { id: string; nome: string };
+  /** Null se il committente non ha ancora un contratto: lo creiamo al salvataggio. */
+  contratto: { id: string; nome: string } | null;
+  companyId: string;
+  committenteId: string;
   altriContratti: Array<{ id: string; nome: string }>;
   esistenti: VoceEsistente[];
+  onContrattoCreato?: (contratto: { id: string; nome: string }) => void;
 }) {
   const t = useT();
   const qc = useQueryClient();
@@ -89,17 +98,25 @@ export function CaricaListinoDialog({
 
   const carica = useMutation({
     mutationFn: async () => {
+      const dove = await assicuraContratto(db, { companyId, committenteId, contratto });
       const { data, error } = await db.rpc("appalto_listino_carica", {
-        p_contratto_id: contratto.id,
+        p_contratto_id: dove.id,
         p_sostituisci: sostituisci,
         p_righe: buone.map(({ tipo, codice, descrizione, unita_misura, prezzo_unitario, qualifica, note }) => ({ tipo, codice, descrizione, unita_misura, prezzo_unitario, qualifica, note })),
       });
       if (error) throw error;
-      return data as number;
+      return { n: data as number, dove };
     },
-    onSuccess: (n) => {
-      void qc.invalidateQueries({ queryKey: ["appalto-tariffe", contratto.id] });
-      toast.success(n === 1 ? t("1 voce caricata") : t("{n} voci caricate", { n: String(n ?? "") }));
+    onSuccess: ({ n, dove }) => {
+      void qc.invalidateQueries({ queryKey: ["appalto-tariffe", dove.id] });
+      void qc.invalidateQueries({ queryKey: ["appalto-contratti", companyId, committenteId] });
+      if (dove.creato) onContrattoCreato?.({ id: dove.id, nome: dove.nome });
+      const voci = n === 1 ? t("1 voce caricata") : t("{n} voci caricate", { n: String(n ?? "") });
+      toast.success(voci, {
+        description: dove.creato
+          ? t("Sono in «{nome}», il contratto aperto adesso: condizioni predefinite (30 giorni, ritenuta 0, per commessa), da completare quando vuoi.", { nome: dove.nome })
+          : undefined,
+      });
       chiudi();
     },
     onError: () => toast.error(t("Listino non caricato: non è cambiato niente. Riprova.")),
@@ -110,7 +127,9 @@ export function CaricaListinoDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{t("Carica listino")}</DialogTitle>
-          <DialogDescription>{contratto.nome}</DialogDescription>
+          <DialogDescription>
+            {contratto?.nome ?? t("Nessun contratto: le voci entrano in «{nome}», che nasce al salvataggio.", { nome: nomeContrattoPredefinito() })}
+          </DialogDescription>
         </DialogHeader>
 
         {!righe ? (

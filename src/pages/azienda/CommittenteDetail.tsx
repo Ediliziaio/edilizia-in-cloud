@@ -37,6 +37,7 @@ import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
 import { euro, oggiRoma, type SchedaCliente } from "@/lib/clienti/schedaCliente";
 import { azioniCommittente, type NumeriCommittente } from "@/lib/appalto/numeriScheda";
 import { contrattoDiOggi } from "@/lib/appalto/contratti";
+import { assicuraContratto, nomeContrattoPredefinito } from "@/lib/appalto/contrattoPredefinito";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -373,9 +374,13 @@ export default function CommittenteDetail() {
 
   const salvaTariffa = useMutation({
     mutationFn: async (f: Partial<Tariffa>) => {
+      const dove = await assicuraContratto(supabase as any, {
+        companyId: companyId!, committenteId: id!,
+        contratto: contrattoAttivo ? { id: contrattoAttivo.id, nome: contrattoAttivo.nome } : null,
+      });
       const riga = {
         company_id: companyId,
-        contratto_id: contrattoAttivo!.id,
+        contratto_id: dove.id,
         tipo: f.tipo ?? "manodopera",
         codice: f.codice?.trim() || null,
         descrizione: (f.descrizione ?? "").trim(),
@@ -391,16 +396,26 @@ export default function CommittenteDetail() {
       if (f.id) {
         const { error } = await (supabase as any).from("appalto_tariffe").update(riga).eq("id", f.id);
         if (error) throw error;
-        return;
+        return dove;
       }
       const { error } = await (supabase as any).from("appalto_tariffe").insert(riga);
       if (error) throw error;
+      return dove;
     },
-    onSuccess: () => {
+    onSuccess: (dove) => {
       setTariffaForm(null);
       setPrezzoGrezzo("");
-      queryClient.invalidateQueries({ queryKey: ["appalto-tariffe", contrattoAttivo?.id] });
-      toast({ title: tr("Tariffa salvata") });
+      if (dove.creato) {
+        setContrattoSelId(dove.id);
+        queryClient.invalidateQueries({ queryKey: ["appalto-contratti", companyId, id] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["appalto-tariffe", dove.id] });
+      toast({
+        title: tr("Tariffa salvata"),
+        description: dove.creato
+          ? tr("È in «{nome}», il contratto aperto adesso: condizioni predefinite, da completare quando vuoi.", { nome: dove.nome })
+          : undefined,
+      });
     },
     onError: (e) => {
       logger.error("salvaTariffa", e);
@@ -552,7 +567,7 @@ export default function CommittenteDetail() {
         <Skeleton className="h-28 w-full" />
       ) : elencoContratti.length === 0 ? (
         <p className="text-sm text-slate-500">
-          {tr("Nessun contratto. È qui che si scrivono le condizioni concordate e il listino: senza, una commessa in appalto non sa a quanto fatturarti il lavoro.")}
+          {tr("Nessun contratto. È qui che si scrivono le condizioni concordate: giorni di pagamento, ritenuta, maggiorazioni, come si fattura. Il listino puoi caricarlo subito nella sua sezione: l'accordo nasce da solo e lo completi poi.")}
         </p>
       ) : (
         <>
@@ -629,12 +644,14 @@ export default function CommittenteDetail() {
           <Lock className="h-4 w-4 shrink-0" />
           {tr("I prezzi concordati col committente li vede chi ha il permesso «Importi delle commesse».")}
         </p>
-      ) : !contrattoAttivo ? (
-        <p className="text-sm text-slate-500">{tr("Prima serve un contratto: il listino appartiene a quello.")}</p>
       ) : (
         <>
           <div className="flex items-center justify-between gap-2">
-            <p className="min-w-0 truncate text-xs text-slate-500">{contrattoAttivo.nome}</p>
+            {/* Senza contratto il listino si carica comunque (25/11/2026): l'accordo
+                nasce al salvataggio, e qui si legge con che nome. */}
+            <p className="min-w-0 truncate text-xs text-slate-500">
+              {contrattoAttivo?.nome ?? tr("In «{nome}», il contratto che nasce al primo salvataggio", { nome: nomeContrattoPredefinito() })}
+            </p>
             {puoModificare && (
               <div className="flex shrink-0 gap-1">
               <Button size="sm" variant="outline" onClick={() => setCaricaListino(true)}>
@@ -1083,13 +1100,16 @@ export default function CommittenteDetail() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {caricaListino && contrattoAttivo && (
+      {caricaListino && companyId && id && (
         <CaricaListinoDialog
           aperto={caricaListino}
           onChiudi={() => setCaricaListino(false)}
-          contratto={{ id: contrattoAttivo.id, nome: contrattoAttivo.nome }}
-          altriContratti={elencoContratti.filter((k) => k.id !== contrattoAttivo.id).map((k) => ({ id: k.id, nome: k.nome }))}
+          contratto={contrattoAttivo ? { id: contrattoAttivo.id, nome: contrattoAttivo.nome } : null}
+          companyId={companyId}
+          committenteId={id}
+          altriContratti={elencoContratti.filter((k) => k.id !== contrattoAttivo?.id).map((k) => ({ id: k.id, nome: k.nome }))}
           esistenti={tariffe.data ?? []}
+          onContrattoCreato={(c) => setContrattoSelId(c.id)}
         />
       )}
 
