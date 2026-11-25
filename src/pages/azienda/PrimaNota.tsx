@@ -1,4 +1,4 @@
-import { BOTTONE_NUOVO, RICERCA_BARRA } from "@/components/orders/TestataScheda";
+import { BOTTONE_NUOVO, BOTTONE_SECONDARIO, RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { cn } from "@/lib/utils";
 import { Suspense, useState, useMemo } from "react";
 import { etichettaMetodo } from "@/lib/finance/metodoScadenza";
@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { ArrowDownLeft, ArrowUpRight, BookOpen, Bot, ChevronLeft, ChevronRight, Download, ExternalLink, Landmark, FileSpreadsheet, FileText, Loader2, MoreHorizontal, Pencil, Plus, Printer, RefreshCw, Search, Trash2 } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, BarChart3, BookOpen, Bot, ChevronLeft, ChevronRight, Download, ExternalLink, Landmark, FileSpreadsheet, FileText, Loader2, MoreHorizontal, Pencil, Plus, Printer, RefreshCw, Search, Trash2 } from "lucide-react";
 import { CercaConFiltri, DateFiltro, DettaglioFiltri, GruppoFiltri, KpiMobili, PannelloFiltri, SceltaFiltro } from "@/components/mobile/FiltriMobile";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { perchePrimaNotaNonModificabile, usePrimaNota, type PrimaNotaEntry } from "@/hooks/usePrimaNota";
@@ -47,6 +47,9 @@ import { StornaPagamentiCosto } from "@/components/prima-nota/StornaPagamentiCos
 import { QuoteDelMovimento, etichettaQuota } from "@/components/prima-nota/QuoteDelMovimento";
 import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
+// Il grafico dei mesi si apre a richiesta (25/11/2026): chiuso, l'elenco parte sotto i numeri.
+const CHIAVE_GRAFICO_MESI = "primaNota.graficoMesiAperto";
+const leggiGraficoAperto = () => { try { return localStorage.getItem(CHIAVE_GRAFICO_MESI) === "1"; } catch { return false; } };
 const GraficoEntrateUscite = lazyWithRetry(() => import("@/components/charts/grafici/GraficoEntrateUscite"));
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -74,6 +77,11 @@ function PrimaNotaInner() {
   const navigate = useNavigate();
   const vistaCompatta = useIsMobile(1024);
   const [tabella, setTabella] = useState(false);
+  const [graficoAperto, setGraficoAperto] = useState(leggiGraficoAperto);
+  const alternaGrafico = () => setGraficoAperto((v) => {
+    try { localStorage.setItem(CHIAVE_GRAFICO_MESI, v ? "0" : "1"); } catch { /* solo comodità */ }
+    return !v;
+  });
   const { effectiveCompany } = useAuth();
   const contiPrimaNota = useContiPrimaNota(effectiveCompany?.id);
   const [contoFiltro, setContoFiltro] = useState("tutti");
@@ -213,6 +221,7 @@ function PrimaNotaInner() {
     }
     return rows;
   }, [monthlyChart]);
+  const conGrafico = !vistaCompatta && chartData.some((d) => d.entrate > 0 || d.uscite > 0);
 
   // Esporta TUTTE le righe filtrate (non solo la pagina visibile): prima il CSV
   // conteneva solo i 50 movimenti della pagina corrente → export incompleto.
@@ -334,7 +343,7 @@ function PrimaNotaInner() {
   const eurTondo = (v: number) => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v);
   const testoSaldo = isSaldoLoading ? "…" : saldoError && !saldo ? "—" : undefined;
   return (
-    <div className="space-y-6 max-sm:space-y-3">
+    <div className="space-y-3">
       <AllineamentoPrimaNota company={effectiveCompany?.id} open={allineaAperto} onOpenChange={setAllineaAperto} />
       {/* Header */}
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
@@ -435,7 +444,7 @@ function PrimaNotaInner() {
       {/* Entrate e uscite degli ultimi 6 mesi (16/11/2026): stessa veste dei grafici del
           Controllo di Gestione e delle fatture (fondo a puntini, barre sfumate, tooltip a
           scheda, totali sopra). Vetrina → non su mobile (bastano i numeri sopra). */}
-      {!vistaCompatta && chartData.some((d) => d.entrate > 0 || d.uscite > 0) && (
+      {graficoAperto && conGrafico && (
         <ErrorBoundary fallback={<p role="alert" className="text-sm text-muted-foreground">{t("Grafico non disponibile.")}</p>}>
           <Suspense fallback={null}>
             <GraficoEntrateUscite dati={chartData} />
@@ -477,7 +486,7 @@ function PrimaNotaInner() {
       {/* Una riga di filtri senza riquadro attorno; la ricerca non scende sotto
           i 220px (a 1024 si riduceva a «C…») e, se non c'è posto, gli altri
           filtri vanno a capo. */}
-      <div className="hidden flex-wrap items-center gap-3 lg:flex">
+      <div className="hidden flex-wrap items-center gap-2 lg:flex">
         {filtroConto}
         {/* Search — full width on mobile, flexible on desktop */}
         <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
@@ -498,11 +507,11 @@ function PrimaNotaInner() {
             onValueChange={(v) => { if (v) { setAutoView(v as typeof autoView); setPage(1); } }}
             className="border rounded-md"
           >
-            <ToggleGroupItem value="tutte" className="text-xs h-9 px-3">{t("Tutte")}</ToggleGroupItem>
-            <ToggleGroupItem value="auto" className="text-xs h-9 px-3">
+            <ToggleGroupItem value="tutte" className="text-xs h-8 px-3">{t("Tutte")}</ToggleGroupItem>
+            <ToggleGroupItem value="auto" className="text-xs h-8 px-3">
               <Bot className="h-3 w-3 mr-1" /> {t("Auto")}
             </ToggleGroupItem>
-            <ToggleGroupItem value="manuali" className="text-xs h-9 px-3">{t("Manuali")}</ToggleGroupItem>
+            <ToggleGroupItem value="manuali" className="text-xs h-8 px-3">{t("Manuali")}</ToggleGroupItem>
           </ToggleGroup>
           <Select
             value={direction || "all"}
@@ -521,14 +530,22 @@ function PrimaNotaInner() {
         </div>
         {/* Date range */}
         <div className="flex items-center gap-2">
-          <Input type="date" aria-label={t("Movimenti dal")} value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} className="h-9 w-full sm:w-36" />
+          <Input type="date" aria-label={t("Movimenti dal")} value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} className="h-8 w-full text-xs sm:w-36" />
           <span className="text-muted-foreground text-sm shrink-0">→</span>
-          <Input type="date" aria-label={t("Movimenti al")} value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} className="h-9 w-full sm:w-36" />
+          <Input type="date" aria-label={t("Movimenti al")} value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} className="h-8 w-full text-xs sm:w-36" />
         </div>
+        {conGrafico && (
+          <Button size="sm" variant={graficoAperto ? "secondary" : "outline"} className={cn(BOTTONE_SECONDARIO, "ml-auto shrink-0")}
+            aria-expanded={graficoAperto} title={t("Andamento nei mesi")} onClick={alternaGrafico}>
+            <BarChart3 aria-hidden="true" />{t("Grafico")}
+          </Button>
+        )}
       </div>
 
       {/* Sul telefono niente selezione multipla: le eliminazioni in blocco si fanno da computer. */}
-      {permessi.isAdmin && entries.length > 0 && <div className="max-sm:hidden"><BarraSelezioneRighe
+      {/* Da computer la casella «tutta la pagina» sta nell'intestazione della tabella (25/11/2026):
+          la barra compare quando c'è qualcosa di selezionato. */}
+      {permessi.isAdmin && entries.length > 0 && (selezione.selezionate.length > 0 || (vistaCompatta && !tabella)) && <div className="max-sm:hidden"><BarraSelezioneRighe
         nome={t("i movimenti")} selezionate={selezione.selezionate.length} consentite={eliminabili.length}
         tutte={selezione.tutte} parziale={selezione.parziale}
         entrate={eliminabili.filter((e) => e.direction === "entrata").reduce((n, e) => n + Number(e.amount), 0)}
@@ -614,7 +631,10 @@ function PrimaNotaInner() {
           <table aria-label={t("Movimenti di prima nota")} className="w-full whitespace-nowrap text-sm [&_td]:px-3 [&_td]:py-2">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="w-9 px-3"><span className="sr-only">{t("Selezione")}</span></th>
+                <th className="w-9 px-3">{permessi.isAdmin
+                  ? <Checkbox aria-label={t("Seleziona {nome} di questa pagina", { nome: t("i movimenti") })} checked={selezione.tutte ? true : selezione.parziale ? "indeterminate" : false}
+                    disabled={removeMany.isPending} onCheckedChange={(v) => selezione.pagina(v === true)} />
+                  : <span className="sr-only">{t("Selezione")}</span>}</th>
                 <th className="text-left p-3 font-medium">{t("Data")}</th>
                 <th className="text-left p-3 font-medium">{t("Categoria")}</th>
                 <th className="text-left p-3 font-medium">{t("Descrizione")}</th>

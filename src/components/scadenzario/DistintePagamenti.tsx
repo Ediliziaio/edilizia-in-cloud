@@ -239,8 +239,8 @@ export function DistintePagamenti({ companyId }: { companyId: string }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   return <>
-    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setOpen(true)} aria-label={t("Distinte pagamenti")}>
-      <ClipboardList className="h-4 w-4" aria-hidden="true" />
+    <Button variant="outline" size="sm" className="gap-1.5 lg:h-8 lg:px-2.5 lg:text-xs" onClick={() => setOpen(true)} aria-label={t("Distinte pagamenti")}>
+      <ClipboardList className="h-4 w-4 lg:h-3.5 lg:w-3.5" aria-hidden="true" />
       <span>{t("Distinte")}<span className="max-sm:hidden"> {t("pagamenti")}</span></span>
     </Button>
     <Dialog open={open} onOpenChange={setOpen}>
