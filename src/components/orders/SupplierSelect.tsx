@@ -149,7 +149,9 @@ export function SupplierSelect({
             disabled={isLoading || isError}
             emptyMessage={t("Fornitore non trovato. Usa + per registrarlo.")}
             options={[
-              { value: "none", label: t("Nessun fornitore") },
+              // Senza fornitore scelto la tendina mostra il «placeholder» di chi la usa: nelle bolle è
+              // «Non in rubrica: <nome letto dall'AI>». Prima restava sempre «Nessun fornitore» (25/11/2026).
+              { value: "none", label: placeholder ?? t("Nessun fornitore") },
               ...suppliers
                 .filter((s) => s.is_active !== false || s.id === value)
                 .map((s) => ({ value: s.id, label: [s.name, categorieFornitore(s).join(" · ")].filter(Boolean).join(" — ") })),

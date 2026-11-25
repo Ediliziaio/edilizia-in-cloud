@@ -219,16 +219,34 @@ export function VisoreBolla({ files, compatto = false }: { files: ReadonlyArray<
 const campoNumero = (v: number | null) => (v == null ? "" : String(v));
 
 /** Le righe della merce, modificabili: le stesse in ogni finestra che salva bolle. */
+const CLASSI_RIGA = {
+  intestazione: "lg:grid", riga: "lg:grid-cols-[6.5rem_minmax(0,1fr)_5rem_4rem_6rem_2rem] lg:items-center",
+  descrizione: "lg:order-2 lg:col-span-1", codice: "lg:order-1", quantita: "lg:order-3", um: "lg:order-4",
+  prezzo: "lg:order-5", togli: "lg:order-6 lg:h-8 lg:w-8",
+};
+const CLASSI_RIGA_AFFIANCATA = {
+  intestazione: "xl:grid", riga: "xl:grid-cols-[6.5rem_minmax(0,1fr)_5rem_4rem_6rem_2rem] xl:items-center",
+  descrizione: "xl:order-2 xl:col-span-1", codice: "xl:order-1", quantita: "xl:order-3", um: "xl:order-4",
+  prezzo: "xl:order-5", togli: "xl:order-6 xl:h-8 xl:w-8",
+};
+
 export function RigheBollaEditor({
   righe,
   onChange,
   disabled = false,
+  affiancata = false,
 }: {
   righe: DDTRigaNuova[];
   onChange: (r: DDTRigaNuova[]) => void;
   disabled?: boolean;
+  /** Accanto all'originale la colonna è metà pagina: le sei colonne in riga partono da 1280px
+   *  (xl) invece che da 1024 (lg). A 1280 con l'originale accanto la descrizione restava di 30px
+   *  e si leggevano tre lettere («Rac», «Cav») — 25/11/2026. Le classi sono scritte per intero
+   *  perché Tailwind le trovi. */
+  affiancata?: boolean;
 }) {
   const t = useT();
+  const c = affiancata ? CLASSI_RIGA_AFFIANCATA : CLASSI_RIGA;
   const ultima = useRef<HTMLInputElement>(null);
   const aggiunta = useRef(false);
   useEffect(() => {
@@ -257,7 +275,7 @@ export function RigheBollaEditor({
         )}
       </div>
       {righe.length > 0 && (
-        <div className="hidden grid-cols-[6.5rem_minmax(0,1fr)_5rem_4rem_6rem_2rem] gap-1.5 px-2 pt-2 text-[11px] font-medium text-muted-foreground lg:grid" aria-hidden="true">
+        <div className={cn("hidden grid-cols-[6.5rem_minmax(0,1fr)_5rem_4rem_6rem_2rem] gap-1.5 px-2 pt-2 text-[11px] font-medium text-muted-foreground", c.intestazione)} aria-hidden="true">
           <span>{t("Codice")}</span><span>{t("Descrizione")}</span><span className="text-right">{t("Q.tà")}</span><span>UM</span><span className="text-right">{t("Prezzo €/UM")}</span><span />
         </div>
       )}
@@ -270,7 +288,7 @@ export function RigheBollaEditor({
           {righe.map((r, i) => (
             <li
               key={i}
-              className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1fr)_2.25rem] gap-1.5 px-2 py-2 lg:grid-cols-[6.5rem_minmax(0,1fr)_5rem_4rem_6rem_2rem] lg:items-center"
+              className={cn("grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1fr)_2.25rem] gap-1.5 px-2 py-2", c.riga)}
             >
               <Input
                 ref={i === righe.length - 1 ? ultima : undefined}
@@ -278,14 +296,14 @@ export function RigheBollaEditor({
                 placeholder={t("Descrizione")}
                 value={r.descrizione}
                 onChange={(e) => onChange(correggiRiga(righe, i, { descrizione: e.target.value }))}
-                className="col-span-5 h-9 text-sm lg:order-2 lg:col-span-1"
+                className={cn("col-span-5 h-9 text-sm", c.descrizione)}
               />
               <Input
                 aria-label={t("Codice riga {i}", { i: i + 1 })}
                 placeholder={t("Codice")}
                 value={r.codice_articolo ?? ""}
                 onChange={(e) => onChange(correggiRiga(righe, i, { codice_articolo: e.target.value || null }))}
-                className="h-9 font-mono text-xs lg:order-1"
+                className={cn("h-9 font-mono text-xs", c.codice)}
               />
               <Input
                 aria-label={t("Quantità riga {i}", { i: i + 1 })}
@@ -296,14 +314,14 @@ export function RigheBollaEditor({
                 inputMode="decimal"
                 value={campoNumero(r.quantita)}
                 onChange={(e) => onChange(correggiRiga(righe, i, { quantita: numeroDaCampo(e.target.value) }))}
-                className="h-9 text-right text-sm lg:order-3"
+                className={cn("h-9 text-right text-sm", c.quantita)}
               />
               <Input
                 aria-label={t("UM riga {i}", { i: i + 1 })}
                 placeholder="UM"
                 value={r.unita_misura ?? ""}
                 onChange={(e) => onChange(correggiRiga(righe, i, { unita_misura: e.target.value || null }))}
-                className="h-9 text-sm lg:order-4"
+                className={cn("h-9 text-sm", c.um)}
               />
               <Input
                 aria-label={t("Prezzo riga {i}", { i: i + 1 })}
@@ -314,13 +332,13 @@ export function RigheBollaEditor({
                 inputMode="decimal"
                 value={campoNumero(r.prezzo_unitario)}
                 onChange={(e) => onChange(correggiRiga(righe, i, { prezzo_unitario: numeroDaCampo(e.target.value) }))}
-                className="h-9 text-right text-sm lg:order-5"
+                className={cn("h-9 text-right text-sm", c.prezzo)}
               />
               <Button
                 type="button"
                 size="icon"
                 variant="ghost"
-                className="h-9 w-9 text-rose-600 lg:order-6 lg:h-8 lg:w-8"
+                className={cn("h-9 w-9 text-rose-600", c.togli)}
                 aria-label={t("Elimina riga {i}", { i: i + 1 })}
                 onClick={() => onChange(togliRiga(righe, i))}
               >
@@ -428,7 +446,8 @@ export function FinestraBollaFotoRighe(props: FinestraBollaProps) {
   const contenuto = (
     <>
         <div className={cn("min-h-0 flex-1", !incorporata && "overflow-y-auto",
-          conOriginale && "lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]",
+          // L'originale prende 2/5, i dati 3/5 (25/11/2026: a metà e metà la colonna dei dati era di 300px).
+          conOriginale && "lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]",
           conOriginale && !incorporata && "lg:overflow-hidden")}>
           {conOriginale && (
             <div className={cn("border-b lg:border-b-0 lg:border-r", incorporata ? "h-72 lg:sticky lg:top-4 lg:h-[min(65dvh,42rem)]" : "h-56 lg:h-full")}>
@@ -438,7 +457,9 @@ export function FinestraBollaFotoRighe(props: FinestraBollaProps) {
 
           <div className={cn("min-w-0 space-y-3 p-3 sm:p-4", !incorporata && "lg:overflow-y-auto", !conOriginale && "mx-auto max-w-3xl")}>
             {stato}
-            <fieldset disabled={disabled} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {/* Accanto all'originale due colonne (numero e data, poi fornitore e commessa): a quattro
+                il fornitore si leggeva «N.» e la commessa «Faco…». */}
+            <fieldset disabled={disabled} className={cn("grid grid-cols-2 gap-2", !conOriginale && "sm:grid-cols-4")}>
               <legend className="sr-only">{t("Testata della bolla")}</legend>
               <label className="space-y-1 text-xs font-medium text-muted-foreground">
                 {t("Numero")}
@@ -461,7 +482,7 @@ export function FinestraBollaFotoRighe(props: FinestraBollaProps) {
                       allowCreate={false}
                       value={testata.supplierId ?? undefined}
                       onValueChange={(v) => onTestataChange({ supplierId: v ?? null })}
-                      placeholder={fornitoreLetto ? t("Non in rubrica: {fornitoreLetto}", { fornitoreLetto: String(fornitoreLetto ?? "") }) : t("Fornitore")}
+                      placeholder={fornitoreLetto ? t("Non in rubrica: {fornitoreLetto}", { fornitoreLetto: String(fornitoreLetto ?? "") }) : undefined}
                       fallbackCompanyId={companyId ?? undefined}
                     />
                   </div>
@@ -493,7 +514,7 @@ export function FinestraBollaFotoRighe(props: FinestraBollaProps) {
               )}
               {testataExtra}
               {mostraDestinazione && (
-                <div className="col-span-2 flex items-center gap-1 sm:col-span-4" role="group" aria-label={t("Dove va la merce")}>
+                <div className="col-span-full flex items-center gap-1" role="group" aria-label={t("Dove va la merce")}>
                   <span className="mr-1 text-xs font-medium text-muted-foreground">{t("Va in")}</span>
                   {(["magazzino", "cantiere"] as const).map((d) => (
                     <Button
@@ -512,7 +533,7 @@ export function FinestraBollaFotoRighe(props: FinestraBollaProps) {
               )}
             </fieldset>
 
-            <RigheBollaEditor righe={righe} onChange={onRigheChange} disabled={disabled} />
+            <RigheBollaEditor righe={righe} onChange={onRigheChange} disabled={disabled} affiancata={conOriginale} />
 
             {children}
 

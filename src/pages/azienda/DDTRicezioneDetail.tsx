@@ -533,7 +533,9 @@ function ContenutoDDTRicezioneDetail() {
           HEADER — back + title + status + azioni rapide
           ═══════════════════════════════════════════════════════════ */}
       <div className={cn("commessa-document-header flex items-start justify-between gap-3 flex-wrap", inPopup && isEditingHeader && "sticky top-0 z-20 rounded-lg bg-background p-3 shadow-sm")}>
-        <div className="flex w-full items-center gap-2 min-w-0 sm:w-auto sm:flex-1">
+        {/* Il numero della bolla tiene almeno 18rem: con sei bottoni accanto si leggeva «DDT TES…»;
+            ora sono i bottoni ad andare a capo (25/11/2026). */}
+        <div className="flex w-full items-center gap-2 min-w-0 sm:w-auto sm:flex-1 sm:min-w-[18rem]">
           {!inPopup && !aspettoGenerale && <Button
             variant="ghost"
             size="sm"
@@ -552,7 +554,7 @@ function ContenutoDDTRicezioneDetail() {
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg sm:text-2xl font-bold truncate">
+              <h1 className="text-lg sm:text-xl font-bold truncate">
                 DDT {ddt.numero_ddt}
               </h1>
               <DDTStatusBadge stato={ddt.stato} />

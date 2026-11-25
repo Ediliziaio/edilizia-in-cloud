@@ -627,7 +627,7 @@ export function NewDDTDialog({
         ordineAcquisto={selectedPO ? `${selectedPO.oda_number}${selectedPO.suppliers?.name ? ` · ${selectedPO.suppliers.name}` : ""}` : null}
         testataExtra={<>
           {!prefillPurchaseOrderId && availablePOs.length > 0 && (
-            <div className="col-span-2 space-y-1 text-xs font-medium text-muted-foreground sm:col-span-4">
+            <div className="col-span-full space-y-1 text-xs font-medium text-muted-foreground">
               {tr("Ordine d'acquisto (facoltativo)")}
               <Select value={poId || "nessuno"} onValueChange={(v) => setPoId(v === "nessuno" ? "" : v)}>
                 <SelectTrigger className="h-9 text-sm text-foreground" aria-label={tr("Ordine d'acquisto")}>
@@ -645,18 +645,18 @@ export function NewDDTDialog({
             </div>
           )}
           {bollaGiaRegistrata && (
-            <p role="alert" className="col-span-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200 sm:col-span-4">
+            <p role="alert" className="col-span-full rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
               Questo fornitore ha già la bolla {bollaGiaRegistrata.numero_ddt} del {bollaGiaRegistrata.data_ricezione.split("-").reverse().join("/")}
               {bollaGiaRegistrata.note?.startsWith("Registrata dalla fattura") ? ", registrata dalla fattura" : ""}.{" "}
               <button type="button" className="font-medium underline" onClick={() => { onOpenChange(false); navigate(`/azienda/ddt/${bollaGiaRegistrata.id}`); }}>Aprila e allega lì l’originale</button> invece di registrarne una seconda.
             </p>
           )}
           {propostaCommessa && orderId === propostaCommessa.id && !poId && (
-            <p role="status" className="col-span-2 rounded-md bg-primary/5 px-3 py-2 text-xs sm:col-span-4">
+            <p role="status" className="col-span-full rounded-md bg-primary/5 px-3 py-2 text-xs">
               Commessa {propostaCommessa.codice ?? ""} proposta dall’indirizzo scritto sulla bolla ({propostaCommessa.motivo}). Controlla prima di registrare.
             </p>
           )}
-          <div className="col-span-2 space-y-1 sm:col-span-4">
+          <div className="col-span-full space-y-1">
             <Label htmlFor="ddt-ordini-citati">{tr("Riferimenti ordini d’acquisto")}</Label>
             <Input id="ddt-ordini-citati" value={riferimentiOrdini} onChange={e => setRiferimentiOrdini(e.target.value)}
               placeholder={tr("Numeri degli ordini sulla bolla, separati da virgole")} />
