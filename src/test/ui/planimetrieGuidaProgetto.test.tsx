@@ -26,6 +26,9 @@ describe("guida di Silvio dopo il DWG", () => {
     expect(passiGuidaProgetto(dwg, "fatto").map((p) => p.id)).toEqual(["tipo", "unita", "lotto", "completezza", "consegne"]);
     const conScelte = { ...dwg, costruzione: { piani: {} }, unitaDichiarate: [{ nome: "Int. 01", suMq: 24 }, { nome: "Int. 02", suMq: 12 }],
       livelli: dwg.livelli.map((l, i) => ({ ...l, ...(i === 1 ? { tetto: { tipo: "piano" } } : {}), fatto: { ...l.fatto, aree: [] as unknown[],
+        // la porta d'ingresso di ogni appartamento, sul lato lungo
+        muri: [{ id: `m${i}`, p1: { x: 0, y: 300 }, p2: { x: 800, y: 300 }, spessore: 20, altezza: 300, tipo: "esterno", stato: "esistente" }],
+        aperture: [{ id: `p${i}`, muroId: `m${i}`, tipo: "porta", offset: 100, larghezza: 90, altezza: 210, davanzale: 0, manovra: "battente", stato: "esistente" }],
         elementi: i === 0 ? [{ id: "s", tipo: "scala", posizione: { x: 0, y: 0 }, rotazione: 0, larghezza: 100, profondita: 300 }] : [] } })) } as unknown as Planimetria;
     const [solo] = passiGuidaProgetto(conScelte, "fatto");
     expect(solo.id).toBe("consegne");
@@ -37,9 +40,10 @@ describe("guida di Silvio dopo il DWG", () => {
       fatto: { ...dwg.livelli[0].fatto, locali: [], aree: [], muri: [{ id: "m", p1: { x: 0, y: 0 }, p2: { x: 500, y: 0 }, spessore: 30, altezza: 270 }] } }, ...dwg.livelli] } as unknown as Planimetria;
     expect(mancanzeProgetto(conCantina, "fatto").map((m) => [m.livelloId, m.tipo])).toEqual([
       ["cantina", "stanze"], ["cantina", "scala"], ["Piano terra", "scala"], ["Piano primo", "copertura"],
+      ["Piano terra", "accesso"], ["Piano primo", "accesso"],
     ]);
     const passo = passiGuidaProgetto(conCantina, "fatto").find((p) => p.id === "completezza")!;
-    expect(passo.domanda).toBe("Per un progetto completo mancano 4 cose. La prima: Cantina: nessuna stanza chiusa, quindi niente pavimenti, solai e voci nel computo.");
+    expect(passo.domanda).toBe("Per un progetto completo mancano 6 cose. La prima: Cantina: nessuna stanza chiusa, quindi niente pavimenti, solai e voci nel computo.");
     expect(passo.azioni[0].verso).toEqual({ sezione: "pianta", livello: "cantina" });
     expect(parametriGuida(new URLSearchParams(), passo.azioni[0].verso).params.get("livello")).toBe("cantina");
   });

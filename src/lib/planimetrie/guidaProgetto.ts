@@ -4,6 +4,7 @@
  * Ogni azione porta al punto della scheda dove la cosa si fa, con anteprima e conferma.
  */
 import { ambitiDi, statoDelLivello, type Planimetria } from "../../../shared/planimetrie/modello.ts";
+import { assiDelMuro, puntoNelPoligono } from "../../../shared/planimetrie/geometria.ts";
 import { riepilogoProgetto } from "./riepilogoProgetto";
 
 /** Dove porta un'azione: una sezione della scheda, con l'eventuale punto da raggiungere. */
@@ -81,7 +82,7 @@ export function passiGuidaProgetto(doc: Planimetria, chiave: string): PassoGuida
   return passi;
 }
 
-export interface MancanzaProgetto { livelloId: string; piano: string; tipo: "stanze" | "scala" | "copertura"; testo: string }
+export interface MancanzaProgetto { livelloId: string; piano: string; tipo: "stanze" | "scala" | "copertura" | "accesso"; testo: string }
 
 const SCALE = ["scala", "scala_u", "scala_chiocciola", "ascensore"];
 
@@ -109,7 +110,46 @@ export function mancanzeProgetto(doc: Planimetria, chiave: string): MancanzaProg
       esito.push({ ...base, tipo: "copertura", testo: `${livello.nome}: copertura non impostata (nel 3D resta un tetto piano)` });
     }
   });
+  esito.push(...unitaSenzaIngresso(piani));
   return esito;
+}
+
+/** Si guarda 40 cm oltre ciascuna faccia della porta: abbastanza dentro la stanza anche se il DWG la disegna all'incirca. */
+const SONDA_CM = 40;
+
+/**
+ * Le unità senza una porta d'ingresso (25/11/2026): una porta (o un varco) che da una stanza
+ * dell'unità dà fuori dall'unità, sul vano scala, sul corridoio comune o all'aperto. Le porte
+ * fra due stanze della stessa unità non contano, e nemmeno le portefinestre: da un terrazzo
+ * non si entra in casa. Basta un ingresso su un piano qualunque (un duplex ne ha uno solo).
+ */
+function unitaSenzaIngresso(piani: Array<{ livello: Planimetria["livelli"][number]; stato: Planimetria["livelli"][number]["fatto"] }>): MancanzaProgetto[] {
+  const unita = new Map<string, { livelloId: string; piano: string; conIngresso: boolean }>();
+  for (const { livello, stato } of piani) {
+    const muri = new Map(stato.muri.filter((m) => m.stato !== "da_demolire").map((m) => [m.id, m]));
+    const porte = stato.aperture.filter((a) => a.stato !== "da_demolire" && (a.tipo === "porta" || a.tipo === "varco"));
+    const perUnita = new Map<string, typeof stato.locali>();
+    for (const l of stato.locali) {
+      const nome = l.unita?.trim();
+      if (nome) perUnita.set(nome, [...(perUnita.get(nome) ?? []), l]);
+    }
+    for (const [nome, stanze] of perUnita) {
+      const dentro = (p: { x: number; y: number }) => stanze.some((l) => puntoNelPoligono(p, l.contorno));
+      const ingresso = porte.some((a) => {
+        const m = muri.get(a.muroId);
+        if (!m) return false;
+        const { dir, normale } = assiDelMuro(m);
+        const t = a.offset + a.larghezza / 2, d = m.spessore / 2 + SONDA_CM;
+        const c = { x: m.p1.x + dir.x * t, y: m.p1.y + dir.y * t };
+        return dentro({ x: c.x + normale.x * d, y: c.y + normale.y * d }) !== dentro({ x: c.x - normale.x * d, y: c.y - normale.y * d });
+      });
+      const prima = unita.get(nome);
+      if (!prima) unita.set(nome, { livelloId: livello.id, piano: livello.nome.toLowerCase(), conIngresso: ingresso });
+      else prima.conIngresso ||= ingresso;
+    }
+  }
+  return [...unita].filter(([, u]) => !u.conIngresso).sort(([a], [b]) => a.localeCompare(b, "it", { numeric: true }))
+    .map(([nome, u]) => ({ livelloId: u.livelloId, piano: u.piano, tipo: "accesso", testo: `${nome}: non trovo la porta d'ingresso (dal vano scala o da fuori), controllala o aggiungila` }));
 }
 
 /** I parametri della scheda per arrivare a una destinazione (vedi RenderPlanimetriaScheda). */
