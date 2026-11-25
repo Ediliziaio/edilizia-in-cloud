@@ -85,6 +85,7 @@ export function CollegamentiDDTCard({
   const commessaPrincipaleId = ddt.order_id ?? po?.orders?.id ?? null;
   const commessaPrincipaleCodice = ddt.orders?.order_code ?? po?.orders?.order_code ?? null;
   const fornitoreNome = ddt.suppliers?.name ?? po?.suppliers?.name ?? null;
+  const fornitoreLetto = fornitoreLettoDallaBolla(ddt);
 
   const altreCommesse = [
     ...new Set((consegne.data ?? []).map((c) => c.order_id).filter((id): id is string => !!id && id !== commessaPrincipaleId)),
@@ -267,7 +268,14 @@ export function CollegamentiDDTCard({
               )}
             </Voce>
             <Voce icona={Truck} etichetta={t("Fornitore")}>
-              {fornitoreNome ? <span className="font-medium">{fornitoreNome}</span> : <Vuoto>{t("Da indicare")}</Vuoto>}
+              {fornitoreNome ? <span className="font-medium">{fornitoreNome}</span> : fornitoreLetto ? (
+                // Il nome letto dall'AI resta in vista finché non si sceglie il fornitore (25/11/2026):
+                // prima dopo la registrazione si vedeva solo «Da indicare» e il nome sulla bolla spariva.
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span className="text-amber-800">{t("Non in rubrica: {fornitoreLetto}", { fornitoreLetto })}</span>
+                  {modificabile && datiPronti && qualcosaModificabile && !blocco.fornitore && <button type="button" className="text-xs font-medium text-primary hover:underline" onClick={apriModifica}>{t("Scegli il fornitore")}</button>}
+                </span>
+              ) : <Vuoto>{t("Da indicare")}</Vuoto>}
             </Voce>
             <Voce icona={FileText} etichetta={commesse.length > 1 ? t("Commesse ({n})", { n: commesse.length }) : t("Commessa")}>
               {commesse.length === 0 ? (
@@ -377,6 +385,13 @@ export function CollegamentiDDTCard({
   );
 }
 
+/** Il fornitore come l'ha letto l'AI sulla bolla (ai_lettura.mittente.ragione_sociale), se c'è. */
+function fornitoreLettoDallaBolla(ddt: { ai_lettura?: Record<string, unknown> | null }): string | null {
+  const mittente = ddt.ai_lettura?.mittente as { ragione_sociale?: unknown } | null | undefined;
+  const nome = typeof mittente?.ragione_sociale === "string" ? mittente.ragione_sociale.trim() : "";
+  return nome || null;
+}
+
 function Voce({ icona: Icona, etichetta, children }: { icona: ElementType; etichetta: string; children: ReactNode }) {
   return (
     <div className="flex items-start gap-2 py-2 first:pt-0 last:pb-0">
@@ -426,6 +441,7 @@ function FormCollegamenti({
           <SupplierSelect
             searchable
             value={bozza.supplier_id ?? undefined}
+            placeholder={fornitoreLettoDallaBolla(ddt) ? t("Non in rubrica: {fornitoreLetto}", { fornitoreLetto: fornitoreLettoDallaBolla(ddt)! }) : undefined}
             fallbackCompanyId={ddt.company_id}
             onValueChange={(v) => setBozza({ ...bozza, supplier_id: v ?? null })}
           />
