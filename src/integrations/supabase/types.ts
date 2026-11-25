@@ -49150,6 +49150,8 @@ export type Database = {
           pdf_url: string | null
           piano_pagamento: Json | null
           prima_nota_id: string | null
+          protocollo_commessa_id: string | null
+          protocollo_commessa_numero: number | null
           purchase_order_id: string | null
           rettifica_motivo: string | null
           ricezione_dichiarata_at: string | null
@@ -49233,6 +49235,8 @@ export type Database = {
           pdf_url?: string | null
           piano_pagamento?: Json | null
           prima_nota_id?: string | null
+          protocollo_commessa_id?: string | null
+          protocollo_commessa_numero?: number | null
           purchase_order_id?: string | null
           rettifica_motivo?: string | null
           ricezione_dichiarata_at?: string | null
@@ -49316,6 +49320,8 @@ export type Database = {
           pdf_url?: string | null
           piano_pagamento?: Json | null
           prima_nota_id?: string | null
+          protocollo_commessa_id?: string | null
+          protocollo_commessa_numero?: number | null
           purchase_order_id?: string | null
           rettifica_motivo?: string | null
           ricezione_dichiarata_at?: string | null
@@ -85482,6 +85488,7 @@ export type Database = {
           quote_id: string | null
           quote_number: string | null
           riferimenti_pa_attivi: boolean
+          protocollo_sigla: string | null
           riferimento_committente: string | null
           ritenuta_garanzia: Json | null
           rst_progetto_id: string | null
@@ -85574,6 +85581,7 @@ export type Database = {
           quote_id?: string | null
           quote_number?: string | null
           riferimenti_pa_attivi?: boolean
+          protocollo_sigla?: string | null
           riferimento_committente?: string | null
           ritenuta_garanzia?: Json | null
           rst_progetto_id?: string | null
@@ -85666,6 +85674,7 @@ export type Database = {
           quote_id?: string | null
           quote_number?: string | null
           riferimenti_pa_attivi?: boolean
+          protocollo_sigla?: string | null
           riferimento_committente?: string | null
           ritenuta_garanzia?: Json | null
           rst_progetto_id?: string | null
