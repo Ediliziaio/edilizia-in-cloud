@@ -918,7 +918,7 @@ function DocumentiFiscaliListInner({ sezioni }: { sezioni?: React.ReactNode } = 
       <div className={cn("flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm", soloTabella)}>
         {!isTrash && (
           <Select value={statoFilter} onValueChange={(v) => { setStatoFilter(v); setPage(0); clearSelection(); }}>
-            <SelectTrigger aria-label={tr("Filtra per stato")} className="w-[190px] h-8 text-xs">
+            <SelectTrigger aria-label={tr("Filtra per stato")} className="h-8 w-[160px] text-xs 2xl:w-[190px]">
               <SelectValue placeholder={tr("Stato")} />
             </SelectTrigger>
             <SelectContent>
@@ -939,11 +939,11 @@ function DocumentiFiscaliListInner({ sezioni }: { sezioni?: React.ReactNode } = 
         </div>
 
         {elencoEmesse && <FiltriFattureEmesse valore={filtriEmesse} cambia={cambiaFiltriEmesse} />}
-        {elencoEmesse && !soloBozzeFatture && <Select value={ordinamento} onValueChange={v => { setOrdinamento(v as "progressivo" | "data"); vaiAPagina(0); clearSelection(); }}>
-          <SelectTrigger aria-label={tr("Ordina fatture")} className="h-8 w-[170px] text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="progressivo">{tr("Anno e numero ↓")}</SelectItem><SelectItem value="data">{tr("Data emissione ↓")}</SelectItem></SelectContent>
-        </Select>}
-        {elencoEmesse && <SceltaColonneEmesse {...sceltaColonne} />}
+        {elencoEmesse && <SceltaColonneEmesse {...sceltaColonne} ordinamento={soloBozzeFatture ? undefined : {
+          valore: ordinamento,
+          cambia: v => { setOrdinamento(v as "progressivo" | "data"); vaiAPagina(0); clearSelection(); },
+          voci: [{ value: "progressivo", label: "Anno e numero ↓" }, { value: "data", label: "Data emissione ↓" }],
+        }} />}
 
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 text-xs">

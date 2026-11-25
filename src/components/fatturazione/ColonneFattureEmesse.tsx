@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Columns3, MessageSquare, Paperclip } from "lucide-react";
+import { ArrowUpDown, Columns3, MessageSquare, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TableCell, TableHead } from "@/components/ui/table";
-import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { FaseSdiBadge } from "./FaseSdiBadge";
 import { AllegatiFattura } from "./AllegatiFattura";
@@ -67,11 +67,24 @@ export function useColonneEmesse(companyId?: string, userId?: string) {
   return { colonne, cambia };
 }
 
-export function SceltaColonneEmesse({ colonne, cambia }: ReturnType<typeof useColonneEmesse>) {
+/** Colonne visibili e, se passato, l'ordinamento: stanno in un solo menu così la barra dei filtri
+ *  resta su una riga anche a 1280px (25/11/2026, come in Commesse). */
+export function SceltaColonneEmesse({ colonne, cambia, ordinamento }: ReturnType<typeof useColonneEmesse> & {
+  ordinamento?: { valore: string; cambia: (v: string) => void; voci: { value: string; label: string }[] };
+}) {
   const t = useT();
   return <DropdownMenu>
-    <DropdownMenuTrigger asChild><Button size="sm" variant="outline" className="gap-1.5"><Columns3 className="h-4 w-4" />{t("Colonne")}</Button></DropdownMenuTrigger>
+    <DropdownMenuTrigger asChild><Button size="sm" variant="outline" className="h-8 gap-1.5 px-2.5 text-xs" title={ordinamento ? `${t("Ordina per")} · ${t("Colonne visibili")}` : undefined}>
+      {ordinamento && <ArrowUpDown className="h-3.5 w-3.5" />}<Columns3 className="h-3.5 w-3.5" /><span className={ordinamento ? "max-2xl:sr-only" : undefined}>{t("Colonne")}</span>
+    </Button></DropdownMenuTrigger>
     <DropdownMenuContent align="end" className="max-h-[70vh] overflow-y-auto">
+      {ordinamento && <>
+        <DropdownMenuLabel>{t("Ordina per")}</DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={ordinamento.valore} onValueChange={ordinamento.cambia}>
+          {ordinamento.voci.map(v => <DropdownMenuRadioItem key={v.value} value={v.value}>{t(v.label)}</DropdownMenuRadioItem>)}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+      </>}
       <DropdownMenuLabel>{t("Colonne visibili")}</DropdownMenuLabel>
       {COLONNE_EMESSE.map(c => <DropdownMenuCheckboxItem key={c.id} checked={colonne.includes(c.id)} disabled={"fissa" in c}
         onSelect={e => e.preventDefault()} onCheckedChange={() => cambia(c.id)}>{t(c.label)}</DropdownMenuCheckboxItem>)}

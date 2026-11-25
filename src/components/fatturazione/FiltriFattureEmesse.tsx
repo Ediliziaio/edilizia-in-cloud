@@ -52,10 +52,10 @@ export function FiltriFattureEmesse({ valore, cambia, compatto = false }: PropsF
   const altri = [valore.cliente, valore.commessa, valore.dal, valore.al, valore.conNote, valore.conAllegati].filter(Boolean).length;
   return <>
     {FILTRI_PRINCIPALI.map(([campo, opzioni, titolo]) => <Select key={campo} value={valore[campo]} onValueChange={v => cambia({ [campo]: v })}>
-      <SelectTrigger aria-label={campo === "sdi" ? t("Filtra per SDI") : t("Filtra per incasso")} className="h-9 w-[190px] text-xs"><SelectValue /></SelectTrigger>
+      <SelectTrigger aria-label={campo === "sdi" ? t("Filtra per SDI") : t("Filtra per incasso")} className="h-8 w-[160px] text-xs 2xl:w-[190px]"><SelectValue /></SelectTrigger>
       <SelectContent>{opzioni.map(([v, l]) => <SelectItem key={v} value={v}>{t(l)}</SelectItem>)}</SelectContent>
     </Select>)}
-    <Popover><PopoverTrigger asChild><Button variant="outline" size="sm" className="gap-1.5"><Filter className="h-3.5 w-3.5" />{t("Altri filtri")}{altri > 0 && ` (${altri})`}</Button></PopoverTrigger>
+    <Popover><PopoverTrigger asChild><Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs"><Filter className="h-3.5 w-3.5" />{t("Altri filtri")}{altri > 0 && ` (${altri})`}</Button></PopoverTrigger>
       <PopoverContent className="w-96 max-w-[90vw] space-y-3" align="start">
         <p className="text-sm font-semibold">{t("Filtra le fatture emesse")}</p>
         <CampiAltriFiltri valore={valore} cambia={cambia} compatto={false} />

@@ -1153,7 +1153,8 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       </PannelloFiltri>
 
       {/* ─── Toolbar: search + Filtra + Export + counter ─── */}
-      {/* Barra su una riga (25/11/2026): senza riquadro, con gli stati e «Grafici» accanto alla ricerca. */}
+      {/* Barra su una riga (25/11/2026): senza riquadro, con gli stati e «Grafici» accanto alla ricerca.
+          Sotto i 1536px Excel e Cestino restano solo icona (col nome nel tooltip), se no «Grafici» andava a capo. */}
       <div className="flex flex-wrap items-center gap-2 max-lg:hidden">
           <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -1181,14 +1182,15 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
             onClick={handleExportExcel}
             disabled={exporting || filtered.length === 0}
             aria-label={tr("Esporta Excel")}
+            title={tr("Esporta Excel")}
           >
             {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-            <span className="hidden sm:inline">Excel</span>
+            <span className="hidden 2xl:inline">Excel</span>
           </Button>
           )}
-          {onApriCestino && <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} onClick={onApriCestino} aria-label={tr("Cestino")}>
+          {onApriCestino && <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} onClick={onApriCestino} aria-label={tr("Cestino")} title={tr("Cestino")}>
             <Trash2 className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{tr("Cestino")}</span>
+            <span className="hidden 2xl:inline">{tr("Cestino")}</span>
           </Button>}
           {hasAnyFilter && (
             <Button variant="ghost" size="sm" onClick={reset} className={BOTTONE_SECONDARIO} aria-label={tr("Azzera filtri")}>
@@ -1207,7 +1209,8 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
             )}
           </div>
           <BottoneGrafici aperti={insightsOpen} onCambia={setInsightsOpen} />
-          <span className="text-xs text-muted-foreground ml-auto tabular-nums" title={filtered.length !== allRows.length && valoreFiltrati > 0 ? tr("Valore dei {n} preventivi mostrati: {valoreFiltrati}", { n: filtered.length, valoreFiltrati: formatCurrency(valoreFiltrati) }) : undefined}>
+          {/* Senza filtri il totale lo dice già «Tutti»: sotto i 1536px il contatore lascia la riga. */}
+          <span className={cn("text-xs text-muted-foreground ml-auto tabular-nums", filtered.length === allRows.length && "max-2xl:hidden")} title={filtered.length !== allRows.length && valoreFiltrati > 0 ? tr("Valore dei {n} preventivi mostrati: {valoreFiltrati}", { n: filtered.length, valoreFiltrati: formatCurrency(valoreFiltrati) }) : undefined}>
             {filtered.length === allRows.length
               ? tr("{n} preventivi", { n: allRows.length })
               : tr("{n} di {n2} preventivi", { n: filtered.length, n2: allRows.length })}
