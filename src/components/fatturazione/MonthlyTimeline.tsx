@@ -1,7 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { MonthSummary } from "@/hooks/billing/useMonthlyTimeline";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
@@ -10,6 +10,69 @@ import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 function nomeMese(m: MonthSummary): string {
   const nome = new Date(m.year, m.month - 1, 1).toLocaleDateString(intlCampo(), { month: "long" });
   return nome ? nome.charAt(0).toUpperCase() + nome.slice(1) : m.label;
+}
+
+/**
+ * Striscia dei mesi piegabile (25/11/2026, «troppo spazio vuoto, l'elenco parte troppo in
+ * basso»): 126px sopra la tabella anche quando nessun mese è scelto. Piegata di serie se si
+ * guardano tutti i mesi, aperta se un mese è scelto; la scelta di chi la apre o la chiude
+ * resta in questo browser, per pagina.
+ */
+export function useStrisciaMesi(chiave: string, meseScelto: string | null) {
+  const nome = `strisciaMesi:${chiave}`;
+  // Decisa una volta all'apertura della pagina: se dipendesse dal mese scelto a ogni giro,
+  // togliendo il mese dalla striscia la striscia si chiuderebbe sotto il dito.
+  const [aperta, setAperta] = useState<boolean>(() => {
+    try {
+      const v = window.localStorage.getItem(nome);
+      if (v === "1") return true;
+      if (v === "0") return false;
+    } catch { /* memoria del browser chiusa: si usa la scelta di serie */ }
+    return meseScelto != null;
+  });
+  const cambia = () => {
+    const nuovo = !aperta;
+    setAperta(nuovo);
+    try { window.localStorage.setItem(nome, nuovo ? "1" : "0"); } catch { /* resta per questa visita */ }
+  };
+  return { aperta, cambia };
+}
+
+/** Il bottone «Mesi» che apre e chiude la striscia; con un mese scelto ne mostra il nome. */
+export function BottoneMesi({
+  aperta, onClick, months, selectedMonth, className, idStriscia,
+}: {
+  aperta: boolean;
+  /** L'id della striscia che il bottone apre (aria-controls). */
+  idStriscia?: string;
+  onClick: () => void;
+  months: MonthSummary[];
+  selectedMonth: string | null;
+  className?: string;
+}) {
+  const t = useT();
+  const scelto = selectedMonth ? months.find(m => m.key === selectedMonth) : undefined;
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      aria-expanded={aperta}
+      aria-controls={idStriscia}
+      title={aperta ? t("Nascondi") : t("Mostra")}
+      onClick={onClick}
+      className={cn(
+        "h-8 gap-1.5 px-2.5 text-xs",
+        scelto && "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-300",
+        className,
+      )}
+    >
+      <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
+      {t("Mesi")}
+      {scelto && <span className="font-semibold">· {nomeMese(scelto).substring(0, 3)} {scelto.year}</span>}
+      <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", aperta && "rotate-180")} aria-hidden="true" />
+    </Button>
+  );
 }
 
 interface MonthlyTimelineProps {

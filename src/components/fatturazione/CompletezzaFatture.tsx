@@ -83,7 +83,7 @@ export function CompletezzaFatture({ companyId }: { companyId: string }) {
   if (visto === firma) return null;
   return (
     <Card className={tuttoOk ? undefined : "border-amber-300"}>
-      <CardContent className="flex items-start gap-2 p-3">
+      <CardContent className="flex items-start gap-2 px-3 py-1.5">
         <div className="min-w-0 flex-1">
         <button type="button" className="flex w-full items-center gap-2 text-left text-sm font-medium" aria-expanded={aperto} onClick={() => setAperto((v) => !v)}>
           {tuttoOk ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />}
