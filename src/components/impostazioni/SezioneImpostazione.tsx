@@ -16,7 +16,8 @@ import { useT } from "@/lib/campo/lingua/LinguaCampo";
 /** «Tutti i preventivatori», «Preventivo generico»: a quali preventivi vale quello che c'è sotto. */
 export function AmbitoImpostazione({ children }: { children: ReactNode }) {
   return (
-    <Badge variant="secondary" className="whitespace-nowrap px-2 py-0 text-[11px] font-normal">
+    // Etichetta neutra (25/11/2026): blu notte pieno sembrava una scheda o un filtro selezionato.
+    <Badge variant="outline" className="whitespace-nowrap border-slate-200 bg-slate-50 px-2 py-0 text-[11px] font-normal text-slate-600">
       {children}
     </Badge>
   );

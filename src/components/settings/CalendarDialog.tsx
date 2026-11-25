@@ -700,7 +700,7 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                         <Button
                           key={mins}
                           type="button"
-                          variant={form.duration_minutes === mins ? "default" : "outline"}
+                          variant={form.duration_minutes === mins ? "default" : "outline"} aria-pressed={form.duration_minutes === mins}
                           size="sm"
                           className="h-7 px-2 text-xs max-md:h-11 max-md:px-4"
                           onClick={() => {
