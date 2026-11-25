@@ -901,6 +901,24 @@ def varchi_tra_stipiti(linee, tratti, minimo=130):
                 break
 
 
+def anta_scorrevole(segno, pa, pb, oltre=15):
+    """Il segno degli infissi in un vano è l'anta di una porta scorrevole, non il telaio di una
+    finestra (25/11/2026, Callimaco): corre lungo il vano e prosegue dentro il muro per almeno
+    `oltre` cm, dove l'anta si apre. Il telaio di una finestra resta fra le due spalle. I lati
+    corti del rettangolo dell'anta (lo spessore, pochi cm) non dicono niente: si lasciano passare."""
+    p, q = segno
+    lunghezza = hypot(q[0] - p[0], q[1] - p[1])
+    if lunghezza <= 8:
+        return True
+    vano = (pb[0] - pa[0], pb[1] - pa[1])
+    largo = hypot(*vano) or 1
+    u = (vano[0] / largo, vano[1] / largo)
+    if abs((q[0] - p[0]) * u[1] - (q[1] - p[1]) * u[0]) > lunghezza * 0.05 or not 45 <= lunghezza <= 160:
+        return False
+    s = sorted(((r[0] - pa[0]) * u[0] + (r[1] - pa[1]) * u[1]) for r in (p, q))
+    return s[0] <= -oltre or s[1] >= largo + oltre
+
+
 def vani_senza_segno(tratti, gia_trovati=(), infissi=(), minimo=55, massimo=135):
     """Porte disegnate come semplice interruzione del muro: due spalle affrontate, niente in mezzo.
 
@@ -935,8 +953,10 @@ def vani_senza_segno(tratti, gia_trovati=(), infissi=(), minimo=55, massimo=135)
                     continue
                 if any(v.distance(vano.centroid) < 20 for v in presi):
                     continue
-                if indice_telai is not None and len(indice_telai.query(vano.buffer(6), predicate="intersects")):
-                    continue
+                if indice_telai is not None:
+                    segni = [infissi[k] for k in indice_telai.query(vano.buffer(6), predicate="intersects")]
+                    if segni and not all(anta_scorrevole(s, pa, pb) for s in segni):
+                        continue
                 # Muro pieno fra due finestre: le sue facce, parallele al vano, lo coprono.
                 asse_vano = proietta(pa, pb)
                 fascia = vano.buffer((a.fine - a.inizio) / 2 + 2, cap_style="flat")
@@ -1261,6 +1281,12 @@ def riconosci_locali(muri, tratti, varchi, nomi, aree, aperture, poligoni=None):
             scarto = abs(mq - m2) / mq
             if scarto <= 0.16:
                 risultati.append((scarto - 0.20, [LocaleLetto(spazio.simplify(0.10), etichette, mq)]))
+            elif scarto <= 0.35 and len(etichette) == 1:
+                # Chiusa dai muri, col suo nome e la sua superficie, ma la superficie scritta non
+                # torna (Callimaco, bagno dell'Int. 04: 3,4 m² disegnati, 4,40 scritti). Meglio la
+                # stanza con lo scarto in vista, che l'editor fa correggere, di nessuna stanza.
+                # Perde contro ogni lettura che torna (25/11/2026).
+                risultati.append((0.45 + scarto, [LocaleLetto(spazio.simplify(0.10), etichette, mq)]))
 
     for tolleranza in (9, 24, 35, 50, 65, 90, 115, 125, 135, 145, 155):
         if tolleranza > 50 and not aree:

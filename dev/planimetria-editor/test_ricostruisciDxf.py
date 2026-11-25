@@ -274,6 +274,24 @@ class TavoleSenzaAnteTest(unittest.TestCase):
         telaio = [((150, 6), (240, 6))]
         self.assertEqual(list(vani_senza_segno(self.muro_interrotto(150, 240), infissi=telaio)), [])
 
+    def test_e_una_porta_il_vano_con_l_anta_scorrevole_che_entra_nel_muro(self):
+        # Callimaco: l'anta è un rettangolo sottile sul layer degli infissi, lungo il vano e
+        # per un tratto dentro il muro. Il telaio di una finestra invece resta fra le spalle.
+        anta = [((120, 6), (230, 6)), ((120, 10), (230, 10)), ((120, 6), (120, 10)), ((230, 6), (230, 10))]
+        (asse, _), = vani_senza_segno(self.muro_interrotto(150, 240), infissi=anta)
+        self.assertEqual((round(asse.fine - asse.inizio)), 90)
+        traverso = [((190, -20), (190, 40))]
+        self.assertEqual(list(vani_senza_segno(self.muro_interrotto(150, 240), infissi=anta + traverso)), [])
+
+    def test_stanza_chiusa_con_la_superficie_scritta_che_non_torna_resta_stanza(self):
+        # Bagno di Callimaco: 1,70 × 2,00 disegnato, «4.40 mq.» scritto. Resta una stanza, con lo
+        # scarto in vista; oltre il 35% no.
+        bagno = box(0, 0, 170, 200)
+        nomi = [(Point(85, 120), "bagno", "bagno")]
+        (locale,) = riconosci_locali([], [], [], nomi, [(Point(85, 90), 4.4)], [], [bagno])
+        self.assertEqual((round(locale.contorno.area / 10000, 2), locale.superficie), (3.4, 4.4))
+        self.assertEqual(riconosci_locali([], [], [], nomi, [(Point(85, 90), 6.0)], [], [bagno]), [])
+
     def test_troppo_stretto_o_troppo_largo_per_una_porta(self):
         self.assertEqual(list(vani_senza_segno(self.muro_interrotto(150, 190))), [])
         self.assertEqual(list(vani_senza_segno(self.muro_interrotto(150, 300))), [])
