@@ -22,6 +22,11 @@ export function partiDescrizione(descrizione: string): { lavorazione: string; pi
 
 const arrotonda = (n: number) => Math.round(n * 100) / 100;
 
+/** Una riga di misura che porta solo descrizione e quantità. */
+const SENZA_DIMENSIONI: Pick<MisuraComputo, "parti_uguali" | "lunghezza" | "larghezza" | "altezza_peso" | "formula"> = {
+  parti_uguali: null, lunghezza: null, larghezza: null, altezza_peso: null, formula: null,
+};
+
 export function accorpaVociPerLavorazione(voci: VoceComputo[]): VoceComputo[] {
   const gruppi = new Map<string, VoceComputo[]>();
   const ordine: string[] = [];
@@ -44,13 +49,13 @@ export function accorpaVociPerLavorazione(voci: VoceComputo[]): VoceComputo[] {
       if (!piano || !misura || prima.misure.length !== 1) return { ...prima, ordine: indice + 1, numero_ordine: numero };
       const d = `${lavorazione}\n${piano}`;
       return { ...prima, ordine: indice + 1, numero_ordine: numero, descrizione_breve: d, descrizione_estesa: d,
-        misure: [{ ...prima.misure[0], descrizione: misura, parti_uguali: null, lunghezza: null, larghezza: null, altezza_peso: null, formula: null }] };
+        misure: [{ ...prima.misure[0], descrizione: misura, ...SENZA_DIMENSIONI }] };
     }
     const descrizione = piano ? `${lavorazione}\n${piano}` : lavorazione;
     const misure: MisuraComputo[] = gruppo.map((v, k) => ({
       ordine: k + 1,
       descrizione: partiDescrizione(v.descrizione_estesa || v.descrizione_breve).misura ?? v.misure[0]?.descrizione ?? null,
-      parti_uguali: null, lunghezza: null, larghezza: null, altezza_peso: null, formula: null,
+      ...SENZA_DIMENSIONI,
       quantita: v.quantita,
     }));
     return {
