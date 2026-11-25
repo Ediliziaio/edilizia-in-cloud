@@ -46,7 +46,7 @@ import { RiepilogoFatturaRicevuta } from "@/components/fatturazione/RiepilogoFat
 import { CellaProtocolloRicevuta, NumeraProtocolliRicevute, useProtocolliRicevute } from "@/components/fatturazione/ProtocolloRicevuta";
 import { CellaProtocolloCommessa, NumeraProtocolliCommesse, useProtocolliCommessa } from "@/components/fatturazione/ProtocolloCommessa";
 import { RiepilogoFatture, TESTI_RICEVUTE } from "@/components/fatturazione/RiepilogoFatture";
-import { MonthlyTimeline } from "@/components/fatturazione/MonthlyTimeline";
+import { BottoneMesi, MonthlyTimeline, useStrisciaMesi } from "@/components/fatturazione/MonthlyTimeline";
 import { mesiRicevute } from "@/lib/fatturazione/mesiRicevute";
 import { etichettaTipoFornitore } from "@/lib/fornitori/tipiFornitore";
 import type { QuotaOrdine } from "@/lib/fatturazione/quoteOrdini";
@@ -406,6 +406,10 @@ export default function FattureRicevutePage() {
   const [annoFilter, salvaAnno] = useState(annoCorrente);
   // Il mese scelto nella striscia (16/11/2026): filtra l'elenco e i sei numeri; cambia anno = si toglie.
   const [meseScelto, setMeseScelto] = useState<string | null>(null);
+  // La striscia dei mesi si apre col bottone «Mesi» (25/11/2026), come nelle emesse.
+  const striscia = useStrisciaMesi("ricevute", meseScelto);
+  // Il perché dell'avviso «Le fatture dei fornitori non stanno arrivando»: si apre a richiesta.
+  const [perchePermesso, setPerchePermesso] = useState(false);
   const setAnnoFilter = (anno: string) => {
     if (anno === annoFilter) return;
     salvaAnno(anno);
@@ -706,6 +710,8 @@ export default function FattureRicevutePage() {
     () => annoFilter === "all" ? null : mesiRicevute(fatture, Number(annoFilter), saldi ?? SALDI_IN_ARRIVO, oggiIso),
     [fatture, annoFilter, saldi, oggiIso],
   );
+  // Striscia dei mesi solo da tablet in su, con un anno scelto e i dati letti (come prima).
+  const strisciaVisibile = !erroreFatture && !isMobile;
 
   // ─── Filters ────────────────────────────────────────────
 
@@ -1177,42 +1183,39 @@ export default function FattureRicevutePage() {
       </div>
 
       {/* Mobile: una riga con il problema; la spiegazione e il bottone (che
-          porta a un collegamento da fare al computer) restano al desktop. */}
+          porta a un collegamento da fare al computer) restano al desktop.
+          25/11/2026: anche al desktop è una riga sola (140 → 40px), col bottone accanto al
+          titolo; la spiegazione si apre con «Perché?». */}
       {integrazione?.received_scope_missing && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30 max-sm:px-3 max-sm:py-2">
-          <div className="flex items-start gap-3 max-sm:items-center max-sm:gap-2">
-            <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400 max-sm:h-4 max-sm:w-4" />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200 max-sm:text-xs">
-                {tr("Le fatture dei fornitori non stanno arrivando")}
-              </p>
-              <p className="mt-0.5 text-sm text-amber-800 dark:text-amber-300 max-sm:hidden">
-                {tr("Il collegamento con il gestionale funziona per le fatture che emetti, ma non ha il permesso di leggere quelle che ricevi: il provider risponde «permesso negato». Serve ricollegare l'account una volta, autorizzando anche i documenti ricevuti.")}
-              </p>
-              {/* Da telefono la fatturazione non si imposta (solo computer o tablet). */}
-              {!isMobile && (
-                <Button asChild variant="outline" size="sm" className="mt-3 h-8 px-2.5 text-xs border-amber-400 bg-white hover:bg-amber-100">
-                  <Link to="/azienda/impostazioni/fatturazione">{tr("Ricollega il gestionale")}</Link>
-                </Button>
-              )}
-            </div>
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 dark:border-amber-800 dark:bg-amber-950/30 max-sm:py-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 max-sm:gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <p className="text-sm font-semibold text-amber-900 dark:text-amber-200 max-sm:text-xs">
+              {tr("Le fatture dei fornitori non stanno arrivando")}
+            </p>
+            <button type="button" aria-expanded={perchePermesso} onClick={() => setPerchePermesso(v => !v)}
+              className="text-xs font-medium text-amber-800 underline-offset-2 hover:underline dark:text-amber-300 max-sm:hidden">
+              {tr("Perché?")}
+            </button>
+            {/* Da telefono la fatturazione non si imposta (solo computer o tablet). */}
+            {!isMobile && (
+              <Button asChild variant="outline" size="sm" className="ml-auto h-7 px-2.5 text-xs border-amber-400 bg-white hover:bg-amber-100">
+                <Link to="/azienda/impostazioni/fatturazione">{tr("Ricollega il gestionale")}</Link>
+              </Button>
+            )}
           </div>
+          {perchePermesso && (
+            <p className="mt-1 pb-0.5 pl-7 text-sm text-amber-800 dark:text-amber-300 max-sm:hidden">
+              {tr("Il collegamento con il gestionale funziona per le fatture che emetti, ma non ha il permesso di leggere quelle che ricevi: il provider risponde «permesso negato». Serve ricollegare l'account una volta, autorizzando anche i documenti ricevuti.")}
+            </p>
+          )}
         </div>
       )}
 
       {/* Sei numeri e striscia dei mesi, come nelle emesse (16/11/2026). Con «tutti gli anni»
           resta la testata di prima: la striscia è di un anno. */}
       {!erroreFatture && (mesi && !isMobile ? (
-        <div className="space-y-3">
-          <RiepilogoFatture mesi={mesi} meseScelto={meseScelto} testi={TESTI_RICEVUTE} etichettaDocumenti="fatture ricevute" caricamento={isLoading} />
-          <MonthlyTimeline
-            months={mesi}
-            selectedMonth={meseScelto}
-            onSelectMonth={setMeseScelto}
-            year={Number(annoFilter)}
-            onYearChange={(y) => setAnnoFilter(String(y))}
-          />
-        </div>
+        <RiepilogoFatture mesi={mesi} meseScelto={meseScelto} testi={TESTI_RICEVUTE} etichettaDocumenti="fatture ricevute" caricamento={isLoading} />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-sm:hidden">
         {/* Senza il titoletto «Fatture ricevute — Quello che i fornitori ti
@@ -1291,6 +1294,10 @@ export default function FattureRicevutePage() {
               <SelectItem value="all">{tr("Tutti gli anni")}</SelectItem>
             </SelectContent>
           </Select>
+          {/* La striscia dei mesi è di un anno: con «tutti gli anni» non c'è. */}
+          {strisciaVisibile && mesi && (
+            <BottoneMesi idStriscia="striscia-mesi-ricevute" aperta={striscia.aperta} onClick={striscia.cambia} months={mesi} selectedMonth={meseScelto} />
+          )}
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO}>
@@ -1383,6 +1390,17 @@ export default function FattureRicevutePage() {
             </PopoverContent>
           </Popover>
         </div>
+        {strisciaVisibile && mesi && striscia.aperta && (
+          <div id="striscia-mesi-ricevute">
+            <MonthlyTimeline
+              months={mesi}
+              selectedMonth={meseScelto}
+              onSelectMonth={setMeseScelto}
+              year={Number(annoFilter)}
+              onYearChange={(y) => setAnnoFilter(String(y))}
+            />
+          </div>
+        )}
         {/* Cosa c'è da fare: a zero non serve vederlo. */}
         <div className="flex flex-wrap items-center gap-2">
           <ChipFiltro attivo={filtriAttivi === 0} onClick={azzeraFiltri} conteggio={fatture.length}>

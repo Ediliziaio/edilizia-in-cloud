@@ -499,8 +499,34 @@ export function TabDashboard({ anno }: Props) {
 
   return (
     <div className="space-y-3 sm:flex sm:flex-col sm:gap-3 sm:space-y-0">
-      <div className="flex justify-end">
-        <EsportaMenu anno={anno} sezioni={["ce", "sp", "pfn", "indici", "rating", "bep", "commesse"]} titolo="Riepilogo del controllo di gestione" />
+      {/* 25/11/2026: «Scarica» sulla stessa riga degli avvisi, non su una riga sua (44px in meno). */}
+      {/* Telefono: «Scarica» resta sopra, da solo, come prima. */}
+      <div className="flex flex-col-reverse gap-3 sm:order-1 sm:flex-row sm:items-start">
+        <div className="min-w-0 flex-1 space-y-2 empty:hidden">
+          {hasPartialDataError && (
+            <PartialDataWarning
+              onRetry={() => {
+                void sp.refetch();
+                if (anno >= new Date().getFullYear()) void cf.refetch();
+                void pfn.refetch();
+                void idx.refetch();
+                void com.refetch();
+                void bep.refetch();
+                void bdg.refetch();
+                void rt.refetch();
+              }}
+            />
+          )}
+          {rt.data && rt.data.attendibile !== true && (
+            <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+              <strong>{t("Dati da riconciliare.")}</strong> {t("Il rating è provvisorio.")} {(rt.data.motivi ?? []).map(formatImportiNelTesto).join(" · ")}{" "}
+              <Link className="underline" to="/azienda/controllo-gestione/health">{t("Apri controlli dei dati")}</Link>
+            </div>
+          )}
+        </div>
+        <div className="shrink-0 self-end sm:ml-auto sm:self-start">
+          <EsportaMenu anno={anno} sezioni={["ce", "sp", "pfn", "indici", "rating", "bep", "commesse"]} titolo="Riepilogo del controllo di gestione" />
+        </div>
       </div>
       <div className="sm:order-5">
         <DashboardActionCenter
@@ -514,29 +540,6 @@ export function TabDashboard({ anno }: Props) {
         />
       </div>
 
-      {hasPartialDataError && (
-        <div className="sm:order-1">
-        <PartialDataWarning
-          onRetry={() => {
-            void sp.refetch();
-            if (anno >= new Date().getFullYear()) void cf.refetch();
-            void pfn.refetch();
-            void idx.refetch();
-            void com.refetch();
-            void bep.refetch();
-            void bdg.refetch();
-            void rt.refetch();
-          }}
-        />
-        </div>
-      )}
-
-      {rt.data && rt.data.attendibile !== true && (
-        <div role="alert" className="sm:order-1 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-          <strong>{t("Dati da riconciliare.")}</strong> {t("Il rating è provvisorio.")} {(rt.data.motivi ?? []).map(formatImportiNelTesto).join(" · ")}{" "}
-          <Link className="underline" to="/azienda/controllo-gestione/health">{t("Apri controlli dei dati")}</Link>
-        </div>
-      )}
       {/* Top: 6 KPI macro (tre per riga da 768, sei da 1280) con la variazione */}
       <div className="grid grid-cols-2 gap-2.5 sm:order-2 md:grid-cols-3 xl:grid-cols-6">
         <Comparsa indice={0}>
@@ -622,7 +625,7 @@ export function TabDashboard({ anno }: Props) {
       <div className="grid grid-cols-1 gap-3 sm:order-3 lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_340px]">
         <Comparsa indice={6} className="min-w-0">
         <Card className={CARD_CG}>
-          <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 p-3 pb-2 sm:p-4 sm:pb-2">
+          <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 p-3 pb-2">
             <CardTitle className="flex items-center gap-2 text-sm font-semibold sm:text-base">
               <IconaTitolo><Banknote className="h-3.5 w-3.5" /></IconaTitolo>
               {t("Cassa prevista da oggi a fine {anno}", { anno })}
@@ -631,7 +634,7 @@ export function TabDashboard({ anno }: Props) {
               {t("Cash flow →")}
             </Link>
           </CardHeader>
-          <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0">
+          <CardContent className="p-3 pt-0">
             {cf.isLoading && !cf.data ? (
               <div className="flex h-56 items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
                 {t("Dati cassa in aggiornamento...")}
@@ -663,7 +666,7 @@ export function TabDashboard({ anno }: Props) {
                 nomeSerie={t("Saldo")}
                 lineaZero
                 notaVariazione={t("da oggi a fine anno")}
-                altezza={230}
+                altezza={180}
               />
             )}
           </CardContent>
@@ -686,7 +689,7 @@ export function TabDashboard({ anno }: Props) {
         {!isMobile && (
           <Comparsa indice={9} className="min-w-0">
           <Card className={CARD_CG}>
-            <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 p-4 pb-2">
+            <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 p-3 pb-2">
               <CardTitle className="flex items-center gap-2 text-base font-semibold">
                 <IconaTitolo><BarChart3 className="h-3.5 w-3.5" /></IconaTitolo>
                 {t("Ricavi e costi mese per mese")}
@@ -695,7 +698,7 @@ export function TabDashboard({ anno }: Props) {
                 {t("Conto economico →")}
               </Link>
             </CardHeader>
-            <CardContent className="p-4 pt-0">
+            <CardContent className="p-3 pt-0">
               {mensile.isLoading && !mensile.data ? (
                 <div className="flex h-56 items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
                   {t("Dati mensili in aggiornamento...")}
@@ -791,7 +794,7 @@ interface Obiettivo {
  */
 function CardObiettivo({ obiettivo, anno, caricamento }: { obiettivo: Obiettivo | null; anno: number; caricamento: boolean }) {
   const t = useT();
-  const scura = "rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 p-4 text-slate-50 shadow-sm dark:border-slate-700";
+  const scura = "rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 p-3 text-slate-50 shadow-sm dark:border-slate-700";
   if (!obiettivo) {
     return (
       <div className={scura}>
@@ -842,7 +845,7 @@ function CardObiettivo({ obiettivo, anno, caricamento }: { obiettivo: Obiettivo 
           style={{ width: `${Math.max(2, Math.min(pct, 100))}%` }}
         />
       </div>
-      <dl className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
+      <dl className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
         <div><dt className="text-slate-400">{t("Fatto")}</dt><dd className="font-semibold tabular-nums" title={formatCurrency(obiettivo.fatto)}>{formatEuroRiquadro(obiettivo.fatto)}</dd></div>
         <div><dt className="text-slate-400">{t("Obiettivo")}</dt><dd className="font-semibold tabular-nums" title={formatCurrency(obiettivo.meta)}>{formatEuroRiquadro(obiettivo.meta)}</dd></div>
         <div><dt className="text-slate-400">{t("Manca")}</dt><dd className={cn("font-semibold tabular-nums", manca === 0 && "text-emerald-300")}>{manca === 0 ? t("niente") : formatEuroRiquadro(manca)}</dd></div>
@@ -858,7 +861,7 @@ function CardCantieri({ com }: { com: ReturnType<typeof useMarginalitaCommesse> 
   const k = com.data?.kpi;
   const totale = k ? k.n_in_corso + k.n_completate : 0;
   return (
-    <div className={cn(CARD_CG, "p-4")}>
+    <div className={cn(CARD_CG, "p-3")}>
       <div className="flex items-center justify-between gap-2">
         <p className="flex items-center gap-2 text-sm font-semibold">
           <IconaTitolo tono="green"><Building className="h-3.5 w-3.5" /></IconaTitolo>
@@ -873,26 +876,26 @@ function CardCantieri({ com }: { com: ReturnType<typeof useMarginalitaCommesse> 
       ) : k ? (
         <>
           {totale > 0 && (
-            <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-muted" aria-hidden>
+            <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-muted" aria-hidden>
               <div className="cg-barra-cresce bg-blue-500" style={{ width: `${(k.n_in_corso / totale) * 100}%` }} />
               <div className="cg-barra-cresce bg-emerald-500" style={{ width: `${(k.n_completate / totale) * 100}%` }} />
             </div>
           )}
-          <ul className="mt-3 grid grid-cols-3 gap-2 text-center">
-            <li className="rounded-xl bg-blue-500/10 px-1 py-2">
+          <ul className="mt-2 grid grid-cols-3 gap-2 text-center">
+            <li className="rounded-xl bg-blue-500/10 px-1 py-1.5">
               <p className="text-lg font-bold tabular-nums leading-none text-blue-700 dark:text-blue-300">{k.n_in_corso}</p>
               <p className="mt-1 text-[10px] text-muted-foreground">{t("Da completare")}</p>
             </li>
-            <li className="rounded-xl bg-emerald-500/10 px-1 py-2">
+            <li className="rounded-xl bg-emerald-500/10 px-1 py-1.5">
               <p className="text-lg font-bold tabular-nums leading-none text-emerald-700 dark:text-emerald-300">{k.n_completate}</p>
               <p className="mt-1 text-[10px] text-muted-foreground">{t("Completate")}</p>
             </li>
-            <li className="rounded-xl bg-rose-500/10 px-1 py-2">
+            <li className="rounded-xl bg-rose-500/10 px-1 py-1.5">
               <p className="text-lg font-bold tabular-nums leading-none text-rose-700 dark:text-rose-300">{k.n_in_perdita}</p>
               <p className="mt-1 text-[10px] text-muted-foreground">{t("In perdita")}</p>
             </li>
           </ul>
-          <p className="mt-3 flex items-center justify-between border-t pt-2 text-xs text-muted-foreground">
+          <p className="mt-2 flex items-center justify-between border-t pt-2 text-xs text-muted-foreground">
             {t("Margine atteso totale")}
             <strong className={cn("tabular-nums", k.margine_atteso_totale < 0 ? "text-rose-600 dark:text-rose-400" : "text-foreground")}>
               {formatCurrency(k.margine_atteso_totale)}
@@ -1238,24 +1241,24 @@ function KPIMacro({
   const inner = (
     <Card className="relative h-full overflow-hidden rounded-2xl border bg-card shadow-sm transition-all duration-200 hover:shadow-md motion-safe:hover:-translate-y-0.5">
       <span className={cn("absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r", filo[tone])} aria-hidden />
-      <CardContent className="min-w-0 p-2.5 sm:p-3.5">
+      <CardContent className="min-w-0 p-2.5 sm:px-3 sm:py-2.5">
         <div className="flex items-center justify-between gap-2">
           {/* A capo e non troncata: «Cassa fine anno previs…» a sei per riga. */}
           <p className="line-clamp-2 text-[10px] font-semibold uppercase leading-tight tracking-wide text-muted-foreground sm:text-[11px]" title={spiegazione}>{label}</p>
-          <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-lg", chip[tone])}>{icon}</span>
+          <span className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded-md", chip[tone])}>{icon}</span>
         </div>
         {/* Niente truncate sul numero: «4.655.616,...» non diceva nulla. Sopra il
             milione «4,66 Mln €», l'importo pieno nel tooltip. */}
         <p
           className={cn(
-            "mt-1 break-words text-base font-bold leading-tight tracking-tight tabular-nums sm:text-xl",
+            "mt-0.5 break-words text-base font-bold leading-tight tracking-tight tabular-nums sm:text-lg",
             tone === "red" && "text-rose-600 dark:text-rose-400",
           )}
           title={typeof value === "number" ? formatCurrency(value) : undefined}
         >
           {typeof value === "number" ? formatEuroRiquadro(value) : value ?? "—"}
         </p>
-        <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
           <PillolaVariazione pct={variazione ?? null} titolo={notaVariazione} />
           <p className="hidden text-[10px] leading-snug text-muted-foreground sm:block sm:text-[11px]">{sub}</p>
         </div>
