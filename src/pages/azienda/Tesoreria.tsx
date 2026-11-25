@@ -1,3 +1,4 @@
+import { BOTTONE_NUOVO } from "@/components/orders/TestataScheda";
 import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -219,7 +220,7 @@ export default function Tesoreria() {
               <Landmark className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground sm:text-2xl">{tr("Tesoreria")}</h1>
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground">{tr("Tesoreria")}</h1>
               <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">{tr("Gestisci conti bancari e monitora il cash flow in tempo reale.")}</p>
             </div>
           </div>
@@ -288,7 +289,7 @@ export default function Tesoreria() {
               <Landmark className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground sm:text-2xl">{tr("Tesoreria")}</h1>
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground">{tr("Tesoreria")}</h1>
               <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">
                 {tr("Gestisci conti bancari e monitora il cash flow in tempo reale.")}
               </p>
@@ -298,7 +299,7 @@ export default function Tesoreria() {
           <div className="flex items-center gap-3">
             <Badge variant="outline" className="text-xs max-sm:hidden">{hasConnections ? tr("Open Banking · PSD2") : tr("Gestione manuale")}</Badge>
             {hasConnections && (
-              <Button onClick={handleSync} disabled={syncing} size="sm" aria-label={tr("Sincronizza")} className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:w-8 max-sm:px-0">
+              <Button onClick={handleSync} disabled={syncing} size="sm" aria-label={tr("Sincronizza")} className={cn(BOTTONE_NUOVO, "max-sm:h-8 max-sm:w-8 max-sm:px-0")}>
                 {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin max-sm:mr-0" /> : <RefreshCw className="h-4 w-4 mr-2 max-sm:mr-0" />}
                 <span className="max-sm:hidden">{tr("Sincronizza")}</span>
               </Button>

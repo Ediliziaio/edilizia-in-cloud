@@ -1,3 +1,4 @@
+import { BOTTONE_NUOVO } from "@/components/orders/TestataScheda";
 import { useState, useMemo } from "react";
 import { format, startOfMonth, endOfMonth, isPast } from "date-fns";
 import { useDocumentiFiscali } from "@/hooks/useDocumentiFiscali";
@@ -279,7 +280,7 @@ export default function RegistroIncassi({
               <Wallet className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900">
                 {t("Registro Incassi")}
               </h1>
               <p className="mt-0.5 text-sm text-slate-500">
@@ -291,9 +292,9 @@ export default function RegistroIncassi({
             <SheetTrigger asChild>
               <Button
                 size="sm"
-                className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:px-3 max-sm:text-xs"
+                className={BOTTONE_NUOVO}
               >
-                <Plus className="h-4 w-4 mr-1" />{" "}
+                <Plus className="h-3.5 w-3.5" />
                 <span className="max-sm:hidden">{t("Registra Incasso")}</span>
                 <span className="sm:hidden">{t("Registra")}</span>
               </Button>

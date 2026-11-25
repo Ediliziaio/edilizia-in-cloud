@@ -21,14 +21,14 @@ function PeriodSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1">
       <p aria-hidden="true" className="px-1 text-xs font-medium text-slate-500">
         {caption ?? label.replace(" fiscale", "")}
       </p>
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger
           aria-label={label}
-          className="min-w-24 gap-4 rounded-xl border-slate-200 bg-white text-slate-700 shadow-sm transition-colors hover:border-blue-300 focus:ring-blue-200"
+          className="h-8 min-w-24 gap-3 rounded-lg border-slate-200 bg-white text-xs text-slate-700 shadow-sm transition-colors hover:border-blue-300 focus:ring-blue-200"
         >
           <SelectValue />
         </SelectTrigger>

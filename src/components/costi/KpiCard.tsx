@@ -39,8 +39,8 @@ export function KpiCard({
         </span>
         <Icon className="h-4 w-4 text-muted-foreground" />
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="text-xl font-semibold tabular-nums tracking-tight text-foreground">{value}</span>
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="text-lg font-semibold tabular-nums tracking-tight text-foreground">{value}</span>
         {variazione && (
           <PillolaVariazione pct={variazione.pct} piuEMeglio={variazione.piuEMeglio} neutra={variazione.neutra} titolo={variazione.nota} />
         )}

@@ -1,3 +1,5 @@
+import { RICERCA_BARRA } from "@/components/orders/TestataScheda";
+import { cn } from "@/lib/utils";
 import { TabellaContabile } from "./TabellaContabile";
 /**
  * Contabilità generale in partita doppia (10/11/2026), sezione dell'area fiscale.
@@ -175,7 +177,7 @@ export default function ContabilitaGenerale() {
         title={t("Contabilità generale")}
         actions={
           <Select value={String(p.anno)} onValueChange={(v) => p.set({ anno: v })}>
-            <SelectTrigger className="h-9 w-40" aria-label={t("Esercizio")}><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 w-40 text-xs" aria-label={t("Esercizio")}><SelectValue /></SelectTrigger>
             <SelectContent>
               {Array.from({ length: 6 }, (_, i) => new Date().getFullYear() + 1 - i).map((a) => (
                 <SelectItem key={a} value={String(a)}>{t("Esercizio {a}", { a })}</SelectItem>
@@ -542,12 +544,12 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
       )}
       {elenco.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[220px] flex-1 sm:max-w-sm">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <Input value={cerca} onChange={(e) => { setCerca(e.target.value); setMostra(300); }} placeholder={tTesto("Cerca numero, causale, conto, cliente…")} aria-label={tTesto("Cerca nelle scritture")} className="h-9 pl-8" />
+          <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <Input value={cerca} onChange={(e) => { setCerca(e.target.value); setMostra(300); }} placeholder={tTesto("Cerca numero, causale, conto, cliente…")} aria-label={tTesto("Cerca nelle scritture")} className="h-8 pl-8 text-xs" />
           </div>
           <Select value={mese || "tutti"} onValueChange={(v) => { setMese(v === "tutti" ? "" : v); setMostra(300); }}>
-            <SelectTrigger className="h-9 w-40" aria-label={tTesto("Mese")}><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 w-40 text-xs" aria-label={tTesto("Mese")}><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="tutti">{tTesto("Tutto il {anno}", { anno })}</SelectItem>
               {MESI.map((m, i) => <SelectItem key={m} value={String(i + 1).padStart(2, "0")}>{nomeMese(anno, i, true)}</SelectItem>)}

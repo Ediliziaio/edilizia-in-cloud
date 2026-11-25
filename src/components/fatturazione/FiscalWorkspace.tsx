@@ -134,10 +134,11 @@ export default function FiscalWorkspace({
   const conPeriodo = section === "iva" || (section === "contabilita" && (vista === "f24" || vista === "ritenute_bancarie"));
   return (
     <section className="space-y-4" aria-label={t("Area fiscale")}>
-      <div className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border bg-white p-5 max-md:gap-2 max-md:p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-white px-4 py-3 max-md:gap-2 max-md:p-3">
         <div>
-          <h1 className="text-lg font-bold text-slate-950 max-md:hidden">{t("Fiscalità")}</h1>
-          <p className="mt-1 text-sm text-slate-500 max-md:hidden">
+          <h1 className="text-xl font-bold text-slate-950 max-md:hidden">{t("Fiscalità")}</h1>
+          {/* La frase resta per i lettori di schermo, come nelle altre testate (25/11/2026). */}
+          <p className="sr-only">
             {t("Documenti, prospetti e verifiche della tua azienda. Nessun versamento automatico.")}
           </p>
         </div>

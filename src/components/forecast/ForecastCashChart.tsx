@@ -224,7 +224,7 @@ export function ForecastCashChart({
           </p>
           <p
             className={cn(
-              "mt-0.5 text-2xl font-semibold tracking-tight tabular-nums sm:text-3xl",
+              "mt-0.5 text-lg font-semibold tracking-tight tabular-nums sm:text-xl",
               closing !== null && closing < threshold
                 ? "text-destructive"
                 : "text-primary",

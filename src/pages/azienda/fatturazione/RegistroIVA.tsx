@@ -292,7 +292,7 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
           <>{tr("Dal {dal} al {al} · valori delle fatture presenti, non una liquidazione fiscale approvata.", { dal: String(fiscalDate(p.dal) ?? ""), al: String(fiscalDate(p.al) ?? "") })}</>
         }
         actions={
-          <Button size="sm" onClick={onApriLiquidazione ?? (() => p.set({ sezione: "contabilita", vista: "iva" }))}>
+          <Button size="sm" className="h-8 px-2.5 text-xs" onClick={onApriLiquidazione ?? (() => p.set({ sezione: "contabilita", vista: "iva" }))}>
             {tr("Vai alla liquidazione IVA")}
           </Button>
         }
@@ -367,7 +367,7 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
         {(registri.protocolli.isError || registri.sezionali.isError) && <p role="alert" className="w-full text-sm text-destructive">{tr("Protocolli IVA non disponibili.")} <button className="underline" onClick={() => void registri.ricarica()}>{tr("Riprova")}</button></p>}
         <GestioneSezionaliIva company={company} registri={registri} />
         {registri.puoScrivere && side !== "tutti" && <AssegnaProtocolliIva righe={filtered} lato={side} registri={registri} />}
-        <UniformSelect aria-label={tr("Sezionale IVA")} className="h-9 rounded-md border bg-background px-2 text-sm" value={sezionale} onChange={e => { setSezionale(e.target.value); setPage(0); }}>
+        <UniformSelect aria-label={tr("Sezionale IVA")} className="h-8 rounded-md border bg-background px-2 text-xs" value={sezionale} onChange={e => { setSezionale(e.target.value); setPage(0); }}>
           <option value="tutti">{tr("Tutti i sezionali")}</option><option value="non_assegnato">{tr("Senza protocollo")}</option>{(registri.sezionali.data ?? []).filter(s => side === "tutti" || s.lato === side).map(s => <option key={s.id} value={s.id}>{s.codice} · {s.nome}</option>)}
         </UniformSelect>
         <div role="tablist" aria-label={tr("Registri IVA")} className="flex flex-wrap gap-1">
@@ -390,7 +390,7 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
         </div>
         <UniformSelect
           aria-label={tr("Aliquota")}
-          className="h-9 rounded-md border bg-background px-2 text-sm"
+          className="h-8 rounded-md border bg-background px-2 text-xs"
           value={aliquota}
           onChange={(e) => {
             setAliquota(e.target.value);
@@ -403,7 +403,7 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
           ))}
         </UniformSelect>
         <Input
-          className="h-9 min-w-40 flex-1"
+          className="h-8 w-72 max-w-full text-xs max-sm:w-full"
           aria-label={tr("Cerca nel registro IVA")}
           placeholder={tr("Numero o controparte…")}
           value={search}

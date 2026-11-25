@@ -1,3 +1,4 @@
+import { BOTTONE_SECONDARIO, TENDINA_STATO_BARRA, RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { useState, useMemo } from "react";
 import { formatCurrency } from "@/lib/formatters";
 import { useNavigate } from "react-router-dom";
@@ -77,7 +78,7 @@ export default function AnagraficheList({
               <Users className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900">
                 {t("Clienti fiscali")}
               </h1>
               <p className="mt-0.5 text-sm text-slate-500">
@@ -90,9 +91,10 @@ export default function AnagraficheList({
               <Button
                 variant="outline"
                 size="sm"
+                className={BOTTONE_SECONDARIO}
                 onClick={() => navigate("/azienda/clienti")}
               >
-                <Users className="mr-1 h-4 w-4" />
+                <Users />
                 {t("Clienti dei cantieri")}
               </Button>
             )}
@@ -102,9 +104,10 @@ export default function AnagraficheList({
               <Button
                 variant="outline"
                 size="sm"
+                className={BOTTONE_SECONDARIO}
                 onClick={() => navigate("/azienda/impostazioni/fornitori")}
               >
-                <Truck className="mr-1 h-4 w-4" />
+                <Truck />
                 {t("Fornitori operativi")}
               </Button>
             )}
@@ -211,17 +214,17 @@ function AnagraficheTable() {
 
       {/* Filters */}
       <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder={t("Cerca per nome, P.IVA, email...")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
+            className="h-8 pl-8 text-xs"
           />
         </div>
         <Select value={tipoCliente} onValueChange={setTipoCliente}>
-          <SelectTrigger className="w-36">
+          <SelectTrigger className={TENDINA_STATO_BARRA}>
             <SelectValue placeholder={t("Tipo")} />
           </SelectTrigger>
           <SelectContent>
