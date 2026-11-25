@@ -250,9 +250,15 @@ export const macroAreas: MacroArea[] = [
       // "Cantieri & Lavori". Il commerciale invia comunque preventivi/contratti in firma
       // dal dettaglio preventivo (SendSignatureDialog in QuoteDetail/FotovoltaicoDettaglio),
       // flusso indipendente da questa voce e dal permesso canViewFirmaElettronica.
-      // Un solo «Calendario» (23/11/2026): chi vede anche i lavori lo trova sotto Cantieri,
-      // con la scelta Lavori/Commerciali in alto; qui resta per chi ha solo il CRM.
-      { title: "Calendario", url: "/azienda/calendario?tipo=commerciali", icon: CalendarDays, permissionKey: "canViewMarketingAppointments", hideIfPermissionKey: "canViewCalendar", featureKey: "crm_modulo" },
+      // Su desktop il calendario commerciale resta qui per tutti (25/11/2026, Florin).
+      // Dal 23/11 aveva hideIfPermissionKey: "canViewCalendar", e il risultato era il
+      // contrario di quello che serviva: quel gate lo guarda SOLO la sidebar desktop
+      // (CompanyLayout), mentre il telefono (MobileAppGrid, MobileBottomNav) non lo
+      // legge. Così la voce spariva proprio dove c'è spazio per due aree, e restava sul
+      // telefono. È la stessa pagina di Cantieri aperta sugli appuntamenti commerciali
+      // (?tipo=commerciali, che vince sull'ultima scelta ricordata): chi ha entrambi i
+      // permessi la trova in entrambe le aree e cambia vista dalla scelta in alto.
+      { title: "Calendario", url: "/azienda/calendario?tipo=commerciali", icon: CalendarDays, permissionKey: "canViewMarketingAppointments", featureKey: "crm_modulo" },
       { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Gauge, permissionKey: "canViewSalesOs", featureKey: "sales_os" },
       { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: PieChart, permissionKey: "canViewMarketingReports", featureKey: "marketing_reporting" },
       // ─── Marketing ───
