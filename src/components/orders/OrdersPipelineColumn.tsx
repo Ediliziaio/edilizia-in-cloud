@@ -111,17 +111,17 @@ export function OrdersPipelineColumn({
             )}
           </div>
         </div>
-        <p className="mt-0.5 h-4 truncate text-[11px] leading-4 text-muted-foreground">
-          {orders.length > 0
-            ? showAmounts ? t("{totale} tot · {media} media · IVA incl.", { totale: formatCurrency(totalAmount), media: formatCurrency(mediaAmount) }) : null
-            : t("Nessuna commessa")}
-        </p>
-        {/* Riga sempre presente, anche vuota: così tutte le intestazioni hanno la
-            stessa altezza e le commesse partono alla stessa quota in ogni colonna. */}
-        <div className="mt-1 flex h-5 items-center">
+        {/* Totali e «N in ritardo» sulla stessa riga (25/11/2026): la riga a parte per il ritardo restava vuota
+            quasi sempre, 24px bianchi sotto ogni nome di fase. L'altezza resta uguale in tutte le colonne. */}
+        <div className="mt-0.5 flex h-4 items-center gap-1.5">
+          <p className="min-w-0 flex-1 truncate text-[11px] leading-4 text-muted-foreground">
+            {orders.length > 0
+              ? showAmounts ? t("{totale} tot · {media} media · IVA incl.", { totale: formatCurrency(totalAmount), media: formatCurrency(mediaAmount) }) : null
+              : t("Nessuna commessa")}
+          </p>
           {urgentCount > 0 && (
             <span
-              className="rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-medium leading-none text-orange-700 ring-1 ring-orange-200"
+              className="shrink-0 rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-medium leading-none text-orange-700 ring-1 ring-orange-200"
               title={t("Commesse oltre la scadenza prevista")}
             >
               {t("{n} in ritardo", { n: urgentCount })}
