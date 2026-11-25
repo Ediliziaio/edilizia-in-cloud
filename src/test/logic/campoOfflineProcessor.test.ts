@@ -123,7 +123,7 @@ describe("Sincronizzazione con API simulate", () => {
 
   // 25/11/2026 — Il gestore della coda non inoltrava i dati letti dal telefono:
   // dal campo partivano, e si perdevano qui. Nessuno se ne accorgeva.
-  it("inoltra alla bolla i riferimenti e il conteggio delle righe letti dal telefono", async () => {
+  it("inoltra alla bolla i riferimenti, il conteggio e il testo delle righe letti dal telefono", async () => {
     inviaDocumento.mockReset().mockResolvedValue(undefined);
     await processCampoOffline(item({
       type: "documento_ddt",
@@ -132,12 +132,14 @@ describe("Sincronizzazione con API simulate", () => {
         user_id: "u", company_id: "c", order_id: "o", destinazione: "cantiere", source: "campo",
         riferimenti_telefono: { numero: "4471/26", data: "2026-11-24" },
         righe_telefono: 4,
+        righe_viste_telefono: ["GUA13 Isolante guaina 13mm m 60"],
       },
     }));
     expect(inviaDocumento).toHaveBeenCalledWith(expect.objectContaining({
       companyId: "c", orderId: "o", source: "campo",
       riferimentiTelefono: { numero: "4471/26", data: "2026-11-24" },
       righeTelefono: 4,
+      righeViste: ["GUA13 Isolante guaina 13mm m 60"],
     }));
   });
 });

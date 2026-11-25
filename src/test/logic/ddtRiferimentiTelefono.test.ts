@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { leggiDDTdaAI } from "@/lib/ddt/letturaAI";
-import { completaLetturaConTelefono, contaRigheArticolo, proponiRiferimentiTelefono, riferimentiTelefonoValidi, righeTelefonoValide } from "@/lib/ddt/riferimentiTelefono";
+import { completaLetturaConTelefono, proponiRiferimentiTelefono, riferimentiTelefonoValidi } from "@/lib/ddt/riferimentiTelefono";
+import { contaRigheArticolo, righeTelefonoValide } from "@/lib/ddt/righeViste";
 
 describe("Riferimenti DDT letti sul telefono", () => {
   it("mantiene zeri iniziali e sezionale, riconosce l'emissione e distingue mittente e destinatario", () => {

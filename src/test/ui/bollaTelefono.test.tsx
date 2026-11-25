@@ -172,3 +172,44 @@ it("l'AI ha letto tutte le righe che il telefono vedeva: nessun avviso", async (
   expect(await screen.findByDisplayValue("Sabbia")).toBeInTheDocument();
   expect(screen.queryByText(/righe di merce/)).not.toBeInTheDocument();
 });
+
+it("la riga che l'AI non ha reso si aggiunge dal testo che il telefono aveva già letto, senza richiamare il modello", async () => {
+  m.leggi.mockResolvedValue({
+    files: [{
+      path: "p", name: "b.jpg", mime: "image/jpeg", size: 1,
+      righe_telefono: 4,
+      righe_viste_telefono: [
+        "RET20 Rete elettrosaldata 20x20 pz 40 8,50 340,00",
+        "VTE440 Vite TSP 4x40 pz 500 0,04 20,00",
+        "TAS08 Tassello nylon 8mm pz 250 0,06 15,00",
+        "GUA13 Isolante guaina 13mm m 60 1,20 72,00",
+      ],
+    }],
+    result: {
+      intestazione: { numero_ddt: "4471/26", data_ddt: "2026-11-24" },
+      righe_merce: [
+        { codice_articolo: "RET20", descrizione: "Rete elettrosaldata", unita_misura: "pz", quantita: 40 },
+        { codice_articolo: "VTE440", descrizione: "Vite TSP", unita_misura: "pz", quantita: 500 },
+        { codice_articolo: "TAS08", descrizione: "Tassello nylon", unita_misura: "pz", quantita: 250 },
+      ],
+    },
+  });
+  conClient(
+    <RevisioneBollaTelefono
+      documento={{ id: "j6", company_id: "c", order_id: "o1", status: "review", files: [], created_by: "u", source: "campo", result: null, last_error: null, ddt_id: null, created_at: "", updated_at: "x" }}
+      etichettaCantiere="SIM-1 · Via Roma"
+      onChiudi={vi.fn()}
+    />,
+  );
+  // Solo quella che manca: le tre rese dall'AI non si ripropongono.
+  expect(await screen.findByText("Sul foglio si vedevano anche queste righe")).toBeInTheDocument();
+  expect(screen.getByText("GUA13 Isolante guaina 13mm m 60 1,20 72,00")).toBeInTheDocument();
+  expect(screen.queryByText(/Rete elettrosaldata 20x20/)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Aggiungi" }));
+  // Quantità e unità arrivano dalla stessa riga di testo.
+  expect(await screen.findByDisplayValue("Isolante guaina 13mm")).toBeInTheDocument();
+  expect(screen.getByLabelText("Quantità riga 4")).toHaveValue(60);
+  expect(screen.getByLabelText("UM riga 4")).toHaveValue("m");
+  expect(screen.queryByText("Sul foglio si vedevano anche queste righe")).not.toBeInTheDocument();
+  expect(screen.queryByText(/si vedevano 4 righe/)).not.toBeInTheDocument();
+});

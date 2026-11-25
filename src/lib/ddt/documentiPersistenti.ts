@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { syncQueue } from "@/lib/campo/sync-queue";
-import { riferimentiTelefonoValidi, righeTelefonoValide, type RiferimentiTelefono } from "./riferimentiTelefono";
+import { riferimentiTelefonoValidi, type RiferimentiTelefono } from "./riferimentiTelefono";
+import { righeTelefonoValide, righeVisteValide } from "./righeViste";
 import {
   preparaDocumento,
   improntaDocumenti,
@@ -22,6 +23,8 @@ export interface FileDocumento {
   riferimenti_telefono?: RiferimentiTelefono;
   /** Quante righe di merce si vedevano nel testo letto dal telefono. */
   righe_telefono?: number;
+  /** Il testo di quelle righe: serve all'ufficio per aggiungere quella che l'AI non ha reso. */
+  righe_viste_telefono?: string[];
 }
 export interface DocumentoPersistente {
   id: string;
@@ -96,6 +99,7 @@ export async function inviaDocumentoPersistente(input: {
   salvaCopiaLocale?: boolean;
   riferimentiTelefono?: unknown;
   righeTelefono?: unknown;
+  righeViste?: unknown;
 }): Promise<{ id: string | null; duplicate: boolean }> {
   const { files, companyId, userId, orderId, source } = input;
   if (!companyId || !userId) throw new Error("Accedi per salvare il documento");
@@ -109,6 +113,7 @@ export async function inviaDocumentoPersistente(input: {
   const riferimenti = source === "campo" ? riferimentiTelefonoValidi(input.riferimentiTelefono) : undefined;
   // Il conteggio non lo conferma nessuno: è una misura, e parte anche senza i riferimenti.
   const righeTelefono = source === "campo" ? righeTelefonoValide(input.righeTelefono) : undefined;
+  const righeViste = source === "campo" ? righeVisteValide(input.righeViste) : undefined;
   // Anche il desktop conserva la ripresa PRIMA della rete. Il processore offline
   // richiama questa funzione senza salvaCopiaLocale, evitando di ricreare la coda.
   const copiaLocale = input.salvaCopiaLocale
@@ -127,6 +132,7 @@ export async function inviaDocumentoPersistente(input: {
           warehouse_id: input.warehouseId ?? null,
           ...(riferimenti && { riferimenti_telefono: riferimenti }),
           ...(righeTelefono && { righe_telefono: righeTelefono }),
+          ...(righeViste && { righe_viste_telefono: righeViste }),
         },
       })
     : null;
@@ -169,6 +175,7 @@ export async function inviaDocumentoPersistente(input: {
       size: originale.size,
       ...(i === 0 && riferimenti && { riferimenti_telefono: riferimenti }),
       ...(i === 0 && righeTelefono && { righe_telefono: righeTelefono }),
+      ...(i === 0 && righeViste && { righe_viste_telefono: righeViste }),
     };
     // Il server sa convertire HEIC: un browser che fallisce la conversione non perde l'originale.
     const { lettura } = await preparaDocumento(originale).catch(() => ({

@@ -92,6 +92,7 @@ export async function processCampoOffline(item: SyncItem) {
       // Letti dal telefono quando la bolla è stata scansionata: li ricontrolla `salvaDocumento`.
       riferimentiTelefono: payload.riferimenti_telefono,
       righeTelefono: payload.righe_telefono,
+      righeViste: payload.righe_viste_telefono,
       operationId: await syncOperationId(item),
     });
     return;

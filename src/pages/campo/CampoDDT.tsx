@@ -12,7 +12,8 @@ import { AnteprimaFotoCampo } from "@/components/campo/AnteprimaFotoCampo";
 import { cantiereBolla } from "@/lib/campo/cantiereBolla";
 import { leggiByte } from "@/lib/files/leggiByte";
 import { leggiScansioneBolla, scannerBolleDisponibile, scansionaBolla } from "@/lib/mobile/scannerBolle";
-import { contaRigheArticolo, MAX_FORNITORE_DDT, MAX_NUMERO_DDT, proponiRiferimentiTelefono, riferimentiTelefonoValidi, type RiferimentiTelefono } from "@/lib/ddt/riferimentiTelefono";
+import { MAX_FORNITORE_DDT, MAX_NUMERO_DDT, proponiRiferimentiTelefono, riferimentiTelefonoValidi, type RiferimentiTelefono } from "@/lib/ddt/riferimentiTelefono";
+import { MAX_RIGHE_VISTE, righeArticoloViste } from "@/lib/ddt/righeViste";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Switch } from "@/components/ui/switch";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -206,9 +207,10 @@ export function CampoDDTEditor({ companyId, cantiereFisso }: { companyId?: strin
     [haScansione, files, testiPagine],
   );
   const letti = useMemo(() => haScansione ? proponiRiferimentiTelefono(testiLetti) : {}, [haScansione, testiLetti]);
-  // Quante righe di merce si vedevano: serve all'ufficio per accorgersi se l'AI ne perde una.
-  const righeLette = useMemo(
-    () => haScansione && !ocrInCorso ? contaRigheArticolo(testiLetti) || undefined : undefined,
+  // Le righe di merce che si vedevano sul foglio: servono all'ufficio per accorgersi
+  // se l'AI ne perde una e per aggiungerla senza richiamare il modello.
+  const righeViste = useMemo(
+    () => haScansione && !ocrInCorso ? righeArticoloViste(testiLetti) : [],
     [haScansione, ocrInCorso, testiLetti],
   );
   const riferimenti: RiferimentiTelefono = haScansione ? { ...letti, ...correzioni } : {};
@@ -374,7 +376,7 @@ export function CampoDDTEditor({ companyId, cantiereFisso }: { companyId?: strin
     return new File([foto], `${pagina.name.replace(/\.[^.]+$/, "")}.jpg`, { type: foto.type });
   });
 
-  const preparaInvio = async (pagine: File[], dati?: RiferimentiTelefono, righe?: number) => {
+  const preparaInvio = async (pagine: File[], dati?: RiferimentiTelefono, viste?: readonly string[]) => {
     if (!user?.id || !companyId || !cantierePronto)
       throw new Error("Scegli prima il cantiere");
     return {
@@ -389,7 +391,10 @@ export function CampoDDTEditor({ companyId, cantiereFisso }: { companyId?: strin
         destinazione,
         source: "campo" as const,
         ...(dati && { riferimenti_telefono: dati }),
-        ...(righe && { righe_telefono: righe }),
+        ...(viste && viste.length > 0 && {
+          righe_telefono: viste.length,
+          righe_viste_telefono: viste.slice(0, MAX_RIGHE_VISTE),
+        }),
       },
     };
   };
@@ -417,7 +422,7 @@ export function CampoDDTEditor({ companyId, cantiereFisso }: { companyId?: strin
         return;
       }
       // Prima IndexedDB, poi rete: la lettura AI non trattiene la pagina aperta.
-      const id = await syncQueue.enqueue(await preparaInvio(files, riferimentiConfermati, righeLette));
+      const id = await syncQueue.enqueue(await preparaInvio(files, riferimentiConfermati, righeViste));
       svuotaBolla();
       // Chi può registrare rivede subito quello che l'AI ha letto.
       if (puoRegistrare && typeof id === "string") setAttesa(id);
