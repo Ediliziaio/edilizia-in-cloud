@@ -258,7 +258,10 @@ export const macroAreas: MacroArea[] = [
       // telefono. È la stessa pagina di Cantieri aperta sugli appuntamenti commerciali
       // (?tipo=commerciali, che vince sull'ultima scelta ricordata): chi ha entrambi i
       // permessi la trova in entrambe le aree e cambia vista dalla scelta in alto.
-      { title: "Calendario", url: "/azienda/calendario?tipo=commerciali", icon: CalendarDays, permissionKey: "canViewMarketingAppointments", featureKey: "crm_modulo" },
+      // «Calendario commerciale» e non «Calendario» (25/11/2026): la griglia delle app
+      // sul telefono (MobileAppGrid) non accorpa per nome, e due riquadri con la stessa
+      // icona e lo stesso nome finivano affiancati in «Recenti», indistinguibili.
+      { title: "Calendario commerciale", url: "/azienda/calendario?tipo=commerciali", icon: CalendarDays, permissionKey: "canViewMarketingAppointments", featureKey: "crm_modulo" },
       { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Gauge, permissionKey: "canViewSalesOs", featureKey: "sales_os" },
       { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: PieChart, permissionKey: "canViewMarketingReports", featureKey: "marketing_reporting" },
       // ─── Marketing ───

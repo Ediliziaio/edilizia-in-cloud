@@ -4244,6 +4244,7 @@ const dizionario: Dizionario = {
   "Apri attività: {titolo}": "Deschide activitatea: {titolo}",
   "I tuoi impegni e le tue scadenze. Seleziona un giorno per filtrare le tue attività.": "Angajamentele și termenele tale. Selectează o zi ca să-ți filtrezi activitățile.",
   "Calendario lavori": "Calendarul lucrărilor",
+  "Calendario commerciale": "Calendar comercial",
   "Vista dell’agenda": "Vedere agendă",
   "Periodo precedente": "Perioada anterioară",
   "Periodo successivo": "Perioada următoare",

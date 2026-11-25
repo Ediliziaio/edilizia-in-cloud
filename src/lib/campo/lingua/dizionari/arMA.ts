@@ -4034,6 +4034,7 @@ const dizionario: Dizionario = {
   "Apri attività: {titolo}": "حل الخدمة: {titolo}",
   "I tuoi impegni e le tue scadenze. Seleziona un giorno per filtrare le tue attività.": "المواعيد والآجال ديالك. ختار نهار باش تفلتر الخدمات ديالك.",
   "Calendario lavori": "كاليندري الخدمة",
+  "Calendario commerciale": "الكاليندري ديال البيع",
   "Vista dell’agenda": "عرض الأجندة",
   "Periodo precedente": "المدة اللي فاتت",
   "Periodo successivo": "المدة الجاية",

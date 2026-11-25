@@ -4034,6 +4034,7 @@ const dizionario: Dizionario = {
   "Apri attività: {titolo}": "Open task: {titolo}",
   "I tuoi impegni e le tue scadenze. Seleziona un giorno per filtrare le tue attività.": "Your commitments and deadlines. Select a day to filter your tasks.",
   "Calendario lavori": "Work calendar",
+  "Calendario commerciale": "Sales calendar",
   "Vista dell’agenda": "Agenda view",
   "Periodo precedente": "Previous period",
   "Periodo successivo": "Next period",

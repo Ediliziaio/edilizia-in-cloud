@@ -4034,6 +4034,7 @@ const dizionario: Dizionario = {
   "Apri attività: {titolo}": "Aufgabe öffnen: {titolo}",
   "I tuoi impegni e le tue scadenze. Seleziona un giorno per filtrare le tue attività.": "Deine Termine und Fristen. Wähl einen Tag, um deine Aufgaben zu filtern.",
   "Calendario lavori": "Arbeitskalender",
+  "Calendario commerciale": "Vertriebskalender",
   "Vista dell’agenda": "Kalenderansicht",
   "Periodo precedente": "Vorheriger Zeitraum",
   "Periodo successivo": "Nächster Zeitraum",

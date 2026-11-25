@@ -199,7 +199,7 @@ export const CANTIERI_SECTIONS: PermissionSectionDef[] = [
   { label: "Magazzino",              viewKey: "can_view_warehouse",          editKey: null, description: "Inventario e movimenti: chi lo vede li registra, salvo «Sola lettura»" },
   { label: "Operai",                 viewKey: "can_view_operai",             editKey: null, description: "Operai di cantiere: chi è al lavoro oggi, elenco, scheda e costo orario. Chi li vede li gestisce, salvo «Sola lettura»" },
   { label: "Mezzi e attrezzature",   viewKey: "can_view_mezzi",              editKey: null, description: "Furgoni, mezzi e attrezzi con scadenze, tagliandi e foto: chi li vede li gestisce, salvo «Sola lettura»" },
-  { label: "Calendario lavori",      viewKey: "can_view_calendar",           editKey: null, description: "Pose, cantieri e lavori pianificati (il calendario CRM è «Appuntamenti», in Marketing & Vendita)" },
+  { label: "Calendario lavori",      viewKey: "can_view_calendar",           editKey: null, description: "Pose, cantieri e lavori pianificati (il calendario CRM è «Calendario commerciale», in Marketing & Vendita)" },
   { label: "Clienti",                viewKey: "can_view_customers",          editKey: null, description: "Anagrafica clienti: chi la vede crea e modifica, salvo «Sola lettura»" },
   { label: "Esporta Clienti",        viewKey: "can_export_clients",          editKey: null, description: "Scarica in CSV/Excel clienti, contatti, opportunità e preventivi. L'archivio completo (Esporta i dati) chiede anche «Sicurezza & Privacy». Ogni esportazione resta nel registro." },
   { label: "Ticket Assistenza",      viewKey: "can_view_tickets",            editKey: null, description: "Ticket di supporto: chi li vede li apre e li gestisce, salvo «Sola lettura»" },
