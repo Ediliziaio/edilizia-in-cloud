@@ -486,11 +486,21 @@ export function misuraRigaStudio(r: RigaStudio) {
   };
 }
 
+const NUMERO_CAPITOLO = /^(\d{2}) /;
+/** Ordine stabile: prima i capitoli numerati, per numero; gli altri dopo, come sono arrivati. */
+function inOrdineDiCapitolo(righe: RigaStudio[]): RigaStudio[] {
+  if (!righe.some((r) => NUMERO_CAPITOLO.test(r.gruppo))) return righe;
+  const numero = (r: RigaStudio) => Number(NUMERO_CAPITOLO.exec(r.gruppo)?.[1] ?? 100);
+  return righe.map((r, i) => ({ r, i })).sort((a, b) => numero(a.r) - numero(b.r) || a.i - b.i).map(({ r }) => r);
+}
+
 export function computoStudio(fonte: FonteStudio, titolo: string, righe: RigaStudio[], verificheAperte = true): BozzaComputo {
   return {
     ...bozzaVuota(), titolo: titolo.slice(0,160), fontePlanimetria: fonte, mostraMisurePdf: true, mostraFontiPdf: true,
     oggetto: `Computo preliminare · variante ${fonte.varianteId} · planimetria v${fonte.versione}${verificheAperte ? " · verifiche urbanistiche aperte" : ""}`,
-    voci: righe.map((r) => ({
+    // I capitoli numerati della nuova costruzione («01 Opere provvisionali» … «12 Sistemazioni
+    // esterne») escono nell'ordine del cantiere, non in quello in cui le righe sono nate (25/11/2026).
+    voci: inOrdineDiCapitolo(righe).map((r) => ({
       ...voceVuota(), id:r.id, capitolo:r.gruppo, categoria:r.fase,
       descrizione:`${r.descrizione}\n${r.piano} · ${r.criterio}`,
       ...misuraRigaStudio(r),

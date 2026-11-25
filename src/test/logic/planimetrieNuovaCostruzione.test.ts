@@ -166,10 +166,14 @@ describe("esterni disegnati nel computo della costruzione", () => {
     expect(tipi).not.toContain("marciapiede");
     expect(righe.find((r) => tipoCostruzione(r.id) === "recinzione")?.quantita ?? 0).toBe(0);
     expect(righe.find((r) => tipoCostruzione(r.id) === "vialetto")!.quantita).toBe(5);
-    expect(righe.find((r) => tipoCostruzione(r.id) === "piscina")).toMatchObject({ quantita: 40, gruppo: "12 Sistemazioni esterne", aParte: true });
+    expect(righe.find((r) => tipoCostruzione(r.id) === "piscina")).toMatchObject({ quantita: 40, gruppo: "12 Sistemazioni esterne", aParte: true, piano: "Esterni" });
     // Nel computo: piscina e vialetto a parte, fuori dal totale; gli allacciamenti restano nei lavori.
     const bozza = computoStudio({ planimetriaId: "p", varianteId: "A", versione: 1 }, "Sopraelevazione", righe);
     expect(bozza.voci.filter((v) => v.opzionale).map((v) => tipoCostruzione(v.id)).sort()).toEqual(["piscina", "vialetto"]);
     expect(bozza.voci.find((v) => tipoCostruzione(v.id) === "allacciamenti")!.opzionale).toBe(false);
+    // I capitoli escono nell'ordine del cantiere.
+    const capitoli = [...new Set(bozza.voci.map((v) => v.capitolo))];
+    expect(capitoli).toEqual([...capitoli].sort());
+    expect(capitoli[0]).toBe("01 Opere provvisionali");
   });
 });

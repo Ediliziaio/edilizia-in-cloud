@@ -305,7 +305,11 @@ export function righeNuovaCostruzione(doc: Planimetria, variante: string | null,
     e.larghezza * e.profondita / 10_000, `Vasca ${it(e.larghezza / 100)} × ${it(e.profondita / 100)} m`, n + 1));
   voce(base, "pergola", "Pergola in legno o alluminio, fornitura e posa", "cad", elementi.filter((e) => e.tipo === "pergola").length, "Pergole disegnate");
   voce(base, "idromassaggio", "Minipiscina idromassaggio, fornitura e posa", "cad", elementi.filter((e) => e.tipo === "idromassaggio").length, "Minipiscine disegnate");
-  if (lottoEsistente) for (const r of righe.slice(primaDegliEsterni)) r.aParte = true;
+  // Gli esterni non sono di un piano: con il nome del più basso finivano «Cantina · Vasca 8 × 5».
+  for (const r of righe.slice(primaDegliEsterni)) {
+    r.piano = "Esterni";
+    if (lottoEsistente) r.aParte = true;
+  }
   return { righe, perimetro };
 }
 
