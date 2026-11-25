@@ -1,4 +1,4 @@
-import { RICERCA_BARRA, TENDINA_STATO_BARRA } from "@/components/orders/TestataScheda";
+import { BOTTONE_NUOVO, BOTTONE_SECONDARIO, RICERCA_BARRA, TENDINA_STATO_BARRA } from "@/components/orders/TestataScheda";
 import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
 import { useEffect, useState, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -512,12 +512,12 @@ export default function FirmaElettronicaHub() {
       {/* Mobile: solo il titolo. Le firme partono dal documento (preventivo,
           commessa), i template si creano al computer: qui su telefono si guarda
           l'archivio e si rimanda il link. */}
-      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-4 sm:p-5 shadow-sm">
+      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 px-3 py-2.5 sm:px-4 sm:py-3 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
             <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-950">{t("Firma Elettronica")}</h1>
-              <p className="text-sm text-slate-600">
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-950">{t("Firma Elettronica")}</h1>
+              <p className="sr-only">
                 {isMarketingContext
                   ? t("Preventivi e contratti firmati dal cliente, collegati a CRM e opportunità.")
                   : t("Contratti, DDT, collaudi e moduli operativi firmati, collegati a clienti e commesse.")}
@@ -537,13 +537,14 @@ export default function FirmaElettronicaHub() {
             )}
             <Button
               variant="outline"
-              className="gap-2"
+              size="sm"
+              className={BOTTONE_SECONDARIO}
               onClick={() => navigate(isMarketingContext ? '/azienda/marketing/preventivi' : '/azienda/ordini')}
             >
-              <FileText className="h-4 w-4" />
+              <FileText />
               {isMarketingContext ? t("Apri preventivi") : t("Apri commesse")}
             </Button>
-            <Button onClick={() => setScegliDocumento(true)}><Send className="mr-2 h-4 w-4" />{t("Richiedi firma")}</Button>
+            <Button size="sm" className={BOTTONE_NUOVO} onClick={() => setScegliDocumento(true)}><Send className="h-3.5 w-3.5" />{t("Richiedi firma")}</Button>
           </div>
         </div>
       </div>

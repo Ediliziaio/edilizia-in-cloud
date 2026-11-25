@@ -56,8 +56,10 @@ export default function AssistenzaPage() {
 
   return (
     <Tabs value={attiva} onValueChange={(value) => vaiA(value as "assistenza" | "manutenzioni")} className="space-y-4 max-sm:space-y-3">
-      <h1 className="sr-only">{t("Assistenza e manutenzioni")}</h1>
       <div className="flex flex-wrap items-center justify-between gap-2 max-sm:flex-nowrap">
+        <div className="flex min-w-0 flex-wrap items-center gap-3 max-sm:flex-nowrap">
+        {/* Titolo come le altre pagine (20px); su telefono resta per i lettori di schermo. */}
+        <h1 className="text-xl font-bold tracking-tight max-sm:sr-only">{t("Assistenza e manutenzioni")}</h1>
         <TabsList className="h-auto gap-2 bg-transparent p-0 max-sm:gap-1.5" aria-label={t("Assistenza e Manutenzione")}>
           {[
             { key: "assistenza" as const, label: t("Assistenza"), icon: LifeBuoy },
@@ -70,18 +72,19 @@ export default function AssistenzaPage() {
                 key={s.key}
                 value={s.key}
                 className={cn(
-                  "inline-flex items-center gap-2 rounded-xl border px-5 py-2.5 text-base font-semibold transition-colors max-sm:h-9 max-sm:rounded-full max-sm:px-3.5 max-sm:py-0 max-sm:text-sm max-sm:font-medium max-sm:shadow-none",
+                  "inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 py-0 text-xs font-semibold transition-colors max-sm:h-9 max-sm:rounded-full max-sm:px-3.5 max-sm:py-0 max-sm:text-sm max-sm:font-medium max-sm:shadow-none",
                   on
                     ? "border-orange-300 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-800 shadow-sm dark:border-orange-800 dark:data-[state=active]:bg-orange-950/40 dark:data-[state=active]:text-orange-200"
                     : "border-border bg-background text-muted-foreground hover:bg-accent",
                 )}
               >
-                <Icona className="h-4 w-4 max-sm:hidden" aria-hidden="true" />
+                <Icona className="h-3.5 w-3.5 max-sm:hidden" aria-hidden="true" />
                 {s.label}
               </TabsTrigger>
             );
           })}
         </TabsList>
+        </div>
         {/* Qui atterrano i pulsanti della pagina attiva (portal dal figlio). Telefono: sulla
             stessa riga delle schede, tondi, invece della barra arancio a tutta larghezza
             (decisione del founder, 23/11/2026: un solo disegno, tondo). */}

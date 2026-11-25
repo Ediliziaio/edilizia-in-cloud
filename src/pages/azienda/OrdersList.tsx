@@ -1590,7 +1590,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5 lg:flex-wrap lg:justify-end">
-          {canDeleteOrders && <Button variant="outline" size="sm" className="max-lg:hidden" onClick={() => setTrashOpen(true)}>{t("Cestino")}</Button>}
+          {canDeleteOrders && <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs max-lg:hidden" onClick={() => setTrashOpen(true)}>{t("Cestino")}</Button>}
           {/* Qui c'era anche il selettore dell'anno: lo stesso della riga dei
               filtri sotto (dove ora ha anche «{anno} + precedenti da gestire»). */}
           {/* Filtri avanzati */}
