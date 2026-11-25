@@ -13,7 +13,8 @@ import { useSediAnalytics } from '@/hooks/useSediAnalytics'
 import { useSedeFilter } from '@/store/sedeFilterStore'
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
-export function LeadPerSedeChart() {
+/** `vuotoInRiga`: senza dati una riga grigia invece di un riquadro alto 250px. */
+export function LeadPerSedeChart({ vuotoInRiga = false }: { vuotoInRiga?: boolean } = {}) {
   const t = useT();
   const { sediSelezionate, periodo, tipoSede } = useSedeFilter()
   const { data, isLoading } = useSediAnalytics({
@@ -36,6 +37,9 @@ export function LeadPerSedeChart() {
   if (isLoading) return <div className="h-64 animate-pulse bg-muted rounded-lg" />
 
   if (chartData.length === 0) {
+    if (vuotoInRiga) {
+      return <p className="text-xs text-muted-foreground">{t("Lead & CPL per Sede")} — {t("Nessun dato disponibile")}</p>
+    }
     return (
       <Card>
         <CardHeader>

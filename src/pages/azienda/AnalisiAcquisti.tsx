@@ -54,6 +54,8 @@ import {
   X,
 } from "lucide-react";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { useGraficiRicordati } from "@/hooks/useGraficiRicordati";
+import { BottoneGrafici } from "@/components/shared/BottoneGrafici";
 
 const eur0 = (v: number) =>
   new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v);
@@ -566,6 +568,8 @@ function TabellaCommesse({ dati, compatta = false }: { dati: AnalisiAcquistiDati
 export default function AnalisiAcquisti() {
   const tr = useT();
   const isMobile = useIsMobile();
+  // Grafici chiusi di partenza: in cima i numeri, poi fornitori e commesse (25/11/2026).
+  const [graficiAperti, setGraficiAperti] = useGraficiRicordati("analisi-acquisti");
   const [params, setParams] = useSearchParams();
   const permessi = usePermissions();
 
@@ -702,6 +706,7 @@ export default function AnalisiAcquisti() {
       )}
 
       <Tabs value={scheda} onValueChange={(v) => imposta({ scheda: v === "panoramica" ? null : v })}>
+        <div className="flex items-center gap-2">
         <TabsList className="h-auto w-full justify-start overflow-x-auto sm:w-auto [&::-webkit-scrollbar]:hidden">
           <TabsTrigger value="panoramica">{tr("Panoramica")}</TabsTrigger>
           <TabsTrigger value="fornitori">{tr("Fornitori")}</TabsTrigger>
@@ -713,18 +718,21 @@ export default function AnalisiAcquisti() {
           </TabsTrigger>
           <TabsTrigger value="da-sistemare">Da sistemare</TabsTrigger>
         </TabsList>
+        {scheda === "panoramica" && !isMobile && <BottoneGrafici aperti={graficiAperti} onCambia={setGraficiAperti} className="ml-auto" />}
+        </div>
 
         {/* ── Panoramica ── */}
-        <TabsContent value="panoramica" className="mt-4 space-y-4">
+        <TabsContent value="panoramica" className="mt-3 space-y-3">
           {analisiQuery.isError ? (
             <Errore onRiprova={() => analisiQuery.refetch()} />
           ) : (
             <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
               {analisiQuery.isLoading || !t ? (
-                Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[92px] rounded-xl" />)
+                Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[62px] rounded-xl" />)
               ) : (
                 <>
                   <KpiCard
+                    compatta
                     label={tr("Ordinato")}
                     value={eur0(t.ordinato)}
                     sub={formatVariazione(variazione(t.ordinato, t.annoPrima.ordinato)) ?? tr("{n} ordini", { n: t.numeroOrdini })}
@@ -733,6 +741,7 @@ export default function AnalisiAcquisti() {
                     variazione={{ pct: pctVar(t.ordinato, t.annoPrima.ordinato), neutra: true, nota: tr("Rispetto allo stesso periodo dell'anno prima") }}
                   />
                   <KpiCard
+                    compatta
                     label={tr("Fatturato")}
                     value={eur0(t.fatturato)}
                     sub={formatVariazione(variazione(t.fatturato, t.annoPrima.fatturato)) ?? tr("{n} fatture", { n: t.numeroFatture })}
@@ -741,6 +750,7 @@ export default function AnalisiAcquisti() {
                     variazione={{ pct: pctVar(t.fatturato, t.annoPrima.fatturato), neutra: true, nota: tr("Rispetto allo stesso periodo dell'anno prima") }}
                   />
                   <KpiCard
+                    compatta
                     label={tr("Scaduto")}
                     value={eur0(t.scaduto)}
                     sub={t.scadutoConteggio > 0 ? tr("{n} rate · IVA compresa", { n: t.scadutoConteggio }) : tr("Nessuna voce scaduta nello scadenzario")}
@@ -749,6 +759,7 @@ export default function AnalisiAcquisti() {
                     onClick={() => imposta({ scheda: "scadenze" })}
                   />
                   <KpiCard
+                    compatta
                     label={tr("In scadenza 30 gg")}
                     value={eur0(t.inScadenza30)}
                     sub={t.inScadenza30Conteggio > 0 ? tr("{n} rate · IVA compresa", { n: t.inScadenza30Conteggio }) : tr("Nessuna voce nello scadenzario")}
@@ -778,19 +789,8 @@ export default function AnalisiAcquisti() {
             </p>
           )}
 
-          {/* Spesa mese per mese grande, accanto il riquadro scuro di quanto c'è da pagare. */}
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
-            <Comparsa indice={0} className="min-w-0">{caricaAnalisi((d) => <GraficoMesi dati={d} />, "h-72")}</Comparsa>
-            {t && (
-              <Comparsa indice={1}>
-                <DaPagare scaduto={t.scaduto} scadutoN={t.scadutoConteggio} prossimi={t.inScadenza30} prossimiN={t.inScadenza30Conteggio} onApri={() => imposta({ scheda: "scadenze" })} fornitori={dati?.fornitori ?? []} />
-              </Comparsa>
-            )}
-          </div>
-
-          {!isMobile && dati && <Comparsa indice={2}><DoveVaLaSpesa dati={dati} /></Comparsa>}
-
-          <div className="grid gap-4 lg:grid-cols-2">
+          {/* 25/11/2026: prima le tabelle, poi i grafici (col bottone «Grafici»). */}
+          <div className="grid gap-3 lg:grid-cols-2">
             <Sezione titolo={tr("Primi 5 fornitori")} destra={<Button variant="link" size="sm" className="h-auto p-0" onClick={() => imposta({ scheda: "fornitori" })}>{tr("Tutti")}</Button>}>
               {caricaAnalisi((d) =>
                 d.fornitori.length === 0 ? (
@@ -810,6 +810,20 @@ export default function AnalisiAcquisti() {
               )}
             </Sezione>
           </div>
+
+          {/* Spesa mese per mese grande, accanto il riquadro scuro di quanto c'è da pagare.
+              Sul telefono restano tutti e due, come prima; da computer col bottone «Grafici». */}
+          {(graficiAperti || isMobile) && (
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+            <Comparsa indice={0} className="min-w-0">{caricaAnalisi((d) => <GraficoMesi dati={d} />, "h-72")}</Comparsa>
+            {t && (
+              <Comparsa indice={1}>
+                <DaPagare scaduto={t.scaduto} scadutoN={t.scadutoConteggio} prossimi={t.inScadenza30} prossimiN={t.inScadenza30Conteggio} onApri={() => imposta({ scheda: "scadenze" })} fornitori={dati?.fornitori ?? []} />
+              </Comparsa>
+            )}
+          </div>
+          )}
+          {graficiAperti && !isMobile && dati && <Comparsa indice={2}><DoveVaLaSpesa dati={dati} /></Comparsa>}
         </TabsContent>
 
         {/* ── Fornitori ── */}

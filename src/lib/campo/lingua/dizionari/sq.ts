@@ -24648,6 +24648,7 @@ const dizionario: Dizionario = {
   "Perdita dell'esercizio": "Humbja e vitit financiar",
   "Utile progressivo mese per mese": "Fitimi progresiv muaj pas muaji",
   "Grafici di bilancio": "Grafikët e bilancit",
+  "Grafici": "Grafikë",
   "Com'è fatto l'attivo": "Si përbëhet aktivi",
   "Com'è fatto il passivo e netto": "Si përbëhet pasivi dhe kapitali neto",
   "Ricavi e costi mese per mese": "Të ardhura dhe kosto muaj pas muaji",
