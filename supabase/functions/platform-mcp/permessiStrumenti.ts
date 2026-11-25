@@ -108,12 +108,31 @@ export const REGOLE_STRUMENTI: Record<string, RegolaStrumento> = {
   invia_messaggio: { permessi: [POSTA] },
   invia_followup_preventivo: { permessi: ["can_edit_preventivi"] },
   invia_sollecito_pagamento: { permessi: ["can_manage_payments", "can_view_billing"] },
+  // Fatture, commesse e rapportini (ponte verso Silvio). quadro_commessa, report_commessa,
+  // approva_rapportini, registra_incasso_commessa e ore_assenze_dipendente non sono qui:
+  // Silvio li riserva agli amministratori, e così resta.
+  fatture_emesse: { permessi: ["can_view_billing"], ampio: true },
+  fatture_ricevute: { permessi: ["can_view_billing"], ampio: true },
+  fatture_da_registrare: { permessi: ["can_view_billing"], ampio: true },
+  rate_da_incassare: { permessi: ["can_view_orders", "importi"], ampio: true },
+  rate_commessa: { permessi: ["can_view_orders", "importi"], ampio: true },
+  registra_rapportino: { permessi: [["can_edit_giornale_lavori", "can_edit_orders"]] },
+  genera_giornale_cantiere: { permessi: ["can_edit_giornale_lavori"] },
+  aggiorna_stato_commessa: { permessi: ["can_edit_orders"], ampio: true },
+  aggiungi_nota_commessa: { permessi: ["can_view_orders"], ampio: true },
+  agenda: { permessi: [CALENDARIO], ampio: true },
+  blocca_slot_calendario: { permessi: [CALENDARIO] },
   // File dall'assistente
   link_caricamento: { permessi: [["can_edit_preventivi", "can_edit_orders"]] },
   carica_file_dalla_chat: { permessi: [["can_edit_preventivi", "can_edit_orders"]] },
   leggi_file_caricato: { permessi: [["can_edit_preventivi", "can_edit_orders"]] },
   importa_computo: { permessi: ["can_edit_preventivi"] },
 };
+
+/** Strumenti che restano agli amministratori (come in Silvio): di proposito fuori dalla tabella. */
+export const SOLO_AMMINISTRATORI = [
+  "lista_aziende", "quadro_commessa", "report_commessa", "approva_rapportini", "registra_incasso_commessa", "ore_assenze_dipendente",
+];
 
 function vero(permessi: Record<string, unknown>, chiave: string): boolean {
   if (chiave === "importi") return permessi.can_view_order_amounts !== false;

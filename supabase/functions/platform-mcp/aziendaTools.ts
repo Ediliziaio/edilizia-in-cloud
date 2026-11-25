@@ -324,12 +324,26 @@ export const AZIENDA_TOOLS: ToolDef[] = [
       const ammesse = tipo === "computo" ? ["pdf", "xlsx", "xls", "xpwe", "dcf", "xml", "jpg", "jpeg", "png", "webp"]
         : ["pdf", "jpg", "jpeg", "png", "webp", "dwg", "dxf"];
       if (!ammesse.includes(estensione)) throw new ToolError(`Formato non ammesso per ${tipo}: ${ammesse.join(", ")}`);
-      const risposta = await fetch(url.toString());
-      if (!risposta.ok) throw new ToolError(`File non scaricabile (${risposta.status}): riallegalo e riprova.`);
-      const dichiarati = Number(risposta.headers.get("content-length") ?? 0);
-      if (dichiarati > 50 * 1024 * 1024) throw new ToolError("Il file supera 50 MB.");
-      const byte = new Uint8Array(await risposta.arrayBuffer());
-      if (byte.byteLength > 50 * 1024 * 1024) throw new ToolError("Il file supera 50 MB.");
+      // Niente reindirizzamenti (il dominio controllato è quello vero), 60 secondi al massimo,
+      // e la lettura si ferma a 50 MB anche se il server non dichiara la dimensione.
+      const MASSIMO = 50 * 1024 * 1024;
+      const risposta = await fetch(url.toString(), { redirect: "error", signal: AbortSignal.timeout(60_000) })
+        .catch(() => { throw new ToolError("File non scaricabile: riallegalo e riprova."); });
+      if (!risposta.ok || !risposta.body) throw new ToolError(`File non scaricabile (${risposta.status}): riallegalo e riprova.`);
+      if (Number(risposta.headers.get("content-length") ?? 0) > MASSIMO) throw new ToolError("Il file supera 50 MB.");
+      const pezzi: Uint8Array[] = [];
+      let totale = 0;
+      const lettore = risposta.body.getReader();
+      for (;;) {
+        const { done, value } = await lettore.read();
+        if (done) break;
+        totale += value.byteLength;
+        if (totale > MASSIMO) { await lettore.cancel(); throw new ToolError("Il file supera 50 MB."); }
+        pezzi.push(value);
+      }
+      const byte = new Uint8Array(totale);
+      let posizione = 0;
+      for (const pezzo of pezzi) { byte.set(pezzo, posizione); posizione += pezzo.byteLength; }
       const bucket = tipo === "computo" ? "computi" : "planimetrie";
       const percorso = tipo === "computo" ? `${az.id}/${Date.now()}-${nome}` : `${az.id}/assistente/${crypto.randomUUID()}-${nome}`;
       const { error } = await admin.storage.from(bucket).upload(percorso, byte, {
@@ -378,9 +392,16 @@ export const AZIENDA_TOOLS: ToolDef[] = [
       const estensione = nome.split(".").pop()?.toLowerCase() ?? "";
       const tipi: Record<string, string> = { pdf: "pdf", xlsx: "xlsx", xls: "xls", xpwe: "xpwe", dcf: "xpwe", xml: "xpwe", jpg: "image", jpeg: "image", png: "image", webp: "image" };
       if (!tipi[estensione]) throw new ToolError("Formato non supportato: PDF, Excel, XPWE o immagini.");
+      // file_size è obbligatorio: si legge dall'archivio (il file c'è già, caricato prima).
+      const cartella = percorso.slice(0, percorso.lastIndexOf("/"));
+      const nomeNelBucket = percorso.slice(percorso.lastIndexOf("/") + 1);
+      const { data: elenco } = await admin.storage.from("computi").list(cartella, { search: nomeNelBucket, limit: 5 });
+      const oggetto = (elenco ?? []).find((o) => o.name === nomeNelBucket);
+      if (!oggetto) throw new ToolError("Il file non c'è ancora: caricalo con link_caricamento o carica_file_dalla_chat (tipo computo).");
+      const dimensione = Number((oggetto.metadata as Record<string, unknown> | null)?.size ?? 0);
       const { data: upload, error } = await admin.from("computo_uploads").insert({
         company_id: az.id, uploaded_by: ctx.created_by, file_name: nome, file_type: tipi[estensione],
-        storage_path: percorso, extraction_status: "uploading",
+        file_size: dimensione, storage_path: percorso, extraction_status: "uploading",
       }).select("id").single();
       if (error) throw new ToolError(`Computo non registrato: ${error.message}`);
       await funzioneComeUtente(ctx, "computo-ai-extract", { computoUploadId: upload.id });
@@ -391,6 +412,132 @@ export const AZIENDA_TOOLS: ToolDef[] = [
         computo_id: upload.id, voci: voci ?? [],
         nota: "prezzo_unitario_impresa = prezzo dal listino dell'azienda quando trovato.",
       };
+    },
+  },
+];
+
+// ── Ponte verso gli strumenti di Silvio (25/11/2026) ─────────────────────────
+// Fatture, rapportini, giornale, commessa: Silvio li fa già. Qui si espongono i
+// suoi esecutori con la sua descrizione dei parametri. Chi può usarli lo dice
+// permessiStrumenti.ts (quelli che Silvio riserva agli amministratori lì non ci
+// sono: per i dipendenti restano chiusi).
+interface Ponte { mcp: string; silvio: string; scope: string; conferma?: boolean; descrizione: string }
+const PONTI: Ponte[] = [
+  { mcp: "fatture_ricevute", silvio: "get_received_invoices", scope: "stats:read",
+    descrizione: "Fatture passive dei fornitori, da pagare e pagate, con scadenze." },
+  { mcp: "fatture_da_registrare", silvio: "fatture_da_registrare", scope: "stats:read",
+    descrizione: "Fatture e DDT dei fornitori letti dalle email, in attesa di essere registrati." },
+  { mcp: "rate_da_incassare", silvio: "lista_fatture_restanti", scope: "stats:read",
+    descrizione: "Rate e importi residui delle commesse (una rata non è una fattura)." },
+  { mcp: "quadro_commessa", silvio: "quadro_commessa", scope: "orders:read",
+    descrizione: "Quadro operativo di una commessa: fasi, date, avanzamento, ritardi, chi lavora." },
+  { mcp: "report_commessa", silvio: "report_commessa", scope: "orders:read",
+    descrizione: "Report economico di una commessa (venduto, costi, margine) dal consuntivo ufficiale." },
+  { mcp: "rate_commessa", silvio: "rate_commessa", scope: "orders:read",
+    descrizione: "Piano rate di una commessa: incassato, residuo, scaduto, rate agganciate agli eventi." },
+  { mcp: "registra_rapportino", silvio: "registra_rapportino", scope: "orders:write", conferma: true,
+    descrizione: "Registra un rapportino su una commessa (ore e lavori). Chiedi conferma prima." },
+  { mcp: "approva_rapportini", silvio: "approva_rapportini", scope: "orders:write", conferma: true,
+    descrizione: "Approva o rifiuta i rapportini inviati dagli operai. Chiedi conferma prima." },
+  { mcp: "genera_giornale_cantiere", silvio: "genera_giornale_cantiere", scope: "orders:write",
+    descrizione: "Genera il giornale di cantiere di un giorno (rapportini, foto, DDT, presenze, meteo)." },
+  { mcp: "aggiorna_stato_commessa", silvio: "aggiorna_stato_commessa", scope: "orders:write", conferma: true,
+    descrizione: "Cambia lo stato di una commessa con la procedura dell'app. Chiedi conferma prima." },
+  { mcp: "aggiungi_nota_commessa", silvio: "aggiungi_nota_commessa", scope: "orders:write",
+    descrizione: "Aggiunge una nota interna al diario della commessa (mai inviata al cliente)." },
+  { mcp: "registra_incasso_commessa", silvio: "registra_pagamento_commessa", scope: "orders:write", conferma: true,
+    descrizione: "Registra un incasso su una commessa (rata pagata). Chiedi conferma con importo e data." },
+  { mcp: "ore_assenze_dipendente", silvio: "calcola_ore_mese_dipendente", scope: "hr:read",
+    descrizione: "Ore di ferie, malattia, permessi e 104 di un dipendente in un mese." },
+  { mcp: "blocca_slot_calendario", silvio: "blocca_slot_calendario", scope: "appointments:write",
+    descrizione: "Blocca uno slot in calendario (es. per un sopralluogo)." },
+];
+
+function schemaSilvio(nome: string): Record<string, unknown> {
+  const parametri = (STRUMENTI_SILVIO[nome] as { schema?: { function?: { parameters?: Record<string, unknown> } } } | undefined)
+    ?.schema?.function?.parameters ?? { type: "object", properties: {} };
+  const proprieta = (parametri.properties as Record<string, unknown> | undefined) ?? {};
+  return { ...parametri, type: "object", properties: { company: { type: "string" }, ...proprieta } };
+}
+
+export const PONTE_SILVIO_TOOLS: ToolDef[] = PONTI.map((p) => ({
+  name: p.mcp,
+  description: p.descrizione,
+  scope: p.scope,
+  conferma: p.conferma,
+  get inputSchema() { return schemaSilvio(p.silvio); },
+  handler: async (admin, ctx, args) => {
+    const az = await resolveCompany(admin, ctx, args);
+    const { company: _c, ...resto } = args;
+    return { azienda: az.name, ...(await eseguiSilvio(admin, ctx, az.id, p.silvio, resto)) };
+  },
+}));
+
+export const ALTRI_TOOLS: ToolDef[] = [
+  {
+    name: "fatture_emesse",
+    description: "Fatture emesse (anche PA, proforma e note di credito): numero, data, cliente, totale, scadenza, pagato, stato SdI. Filtri per periodo, cliente, tipo.",
+    scope: "stats:read",
+    inputSchema: {
+      type: "object",
+      properties: {
+        company: { type: "string" },
+        dal: { type: "string", description: "YYYY-MM-DD" }, al: { type: "string", description: "YYYY-MM-DD" },
+        cliente: { type: "string", description: "Parte del nome del cliente" },
+        tipo: { type: "string", enum: ["fattura", "fattura_pa", "proforma", "nota_credito"] },
+        solo_non_pagate: { type: "boolean" },
+        limite: { type: "integer", minimum: 1, maximum: 200 },
+      },
+      additionalProperties: false,
+    },
+    handler: async (admin, ctx, args) => {
+      const az = await resolveCompany(admin, ctx, args);
+      const giorno = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+      let q = admin.from("documenti_fiscali")
+        .select("numero, tipo, data_emissione, data_scadenza, cliente_snapshot, totale_documento, totale_da_pagare, importo_pagato, pagato_at, stato, sdi_stato")
+        .eq("company_id", az.id).is("deleted_at", null)
+        .in("tipo", str(args.tipo) ? [str(args.tipo)!] : ["fattura", "fattura_pa", "proforma", "nota_credito"])
+        .order("data_emissione", { ascending: false }).limit(intLimit(args.limite, 50, 200));
+      if (giorno(args.dal)) q = q.gte("data_emissione", giorno(args.dal)!);
+      if (giorno(args.al)) q = q.lte("data_emissione", giorno(args.al)!);
+      if (args.solo_non_pagate === true) q = q.is("pagato_at", null);
+      const { data, error } = await q;
+      if (error) throw new ToolError(error.message);
+      const cerca = str(args.cliente)?.toLowerCase();
+      const righe = (data ?? []).map((d) => {
+        const c = (d.cliente_snapshot ?? {}) as Record<string, unknown>;
+        const cliente = String(c.denominazione ?? c.ragione_sociale ?? [c.nome, c.cognome].filter(Boolean).join(" ") ?? "");
+        return { numero: d.numero, tipo: d.tipo, data: d.data_emissione, scadenza: d.data_scadenza, cliente,
+          totale: d.totale_documento, da_pagare: d.totale_da_pagare, pagato: d.importo_pagato, pagata_il: d.pagato_at,
+          stato: d.stato, sdi: d.sdi_stato };
+      }).filter((r) => !cerca || r.cliente.toLowerCase().includes(cerca));
+      return { azienda: az.name, fatture: righe };
+    },
+  },
+  {
+    name: "agenda",
+    description: "Appuntamenti in calendario fra due date (sopralluoghi, riunioni, consegne, visite cantiere).",
+    scope: "appointments:read",
+    inputSchema: {
+      type: "object",
+      properties: {
+        company: { type: "string" },
+        dal: { type: "string", description: "YYYY-MM-DD (default oggi)" },
+        al: { type: "string", description: "YYYY-MM-DD (default fra 7 giorni)" },
+      },
+      additionalProperties: false,
+    },
+    handler: async (admin, ctx, args) => {
+      const az = await resolveCompany(admin, ctx, args);
+      const oggi = new Date().toISOString().slice(0, 10);
+      const fra7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+      const giorno = (v: unknown, def: string) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : def);
+      const { data, error } = await admin.from("appointments")
+        .select("title, appointment_date, appointment_time, appointment_end_time, appointment_type, status, formatted_address, assigned_to")
+        .eq("company_id", az.id).gte("appointment_date", giorno(args.dal, oggi)).lte("appointment_date", giorno(args.al, fra7))
+        .order("appointment_date").order("appointment_time").limit(200);
+      if (error) throw new ToolError(error.message);
+      return { azienda: az.name, appuntamenti: data ?? [] };
     },
   },
 ];

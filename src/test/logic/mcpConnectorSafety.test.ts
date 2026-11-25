@@ -7,7 +7,7 @@ import { TextEncoder, TextDecoder } from "node:util";
 import { createRequire } from "node:module";
 import { argumentError, canonicalJson, domainError, validOAuthClaims, validRpcMessage } from "../../../supabase/functions/platform-mcp/protocol";
 import { assistenteDelClient, statoCollegamentoAi } from "@/lib/aiConnector";
-import { REGOLE_STRUMENTI, motivoNegato } from "../../../supabase/functions/platform-mcp/permessiStrumenti";
+import { REGOLE_STRUMENTI, SOLO_AMMINISTRATORI, motivoNegato } from "../../../supabase/functions/platform-mcp/permessiStrumenti";
 
 const COMPANY = "10000000-0000-4000-8000-000000000001";
 const ACTOR = "20000000-0000-4000-8000-000000000002";
@@ -144,7 +144,7 @@ describe("MCP handler offline integration", () => {
     const s = server();
     expect((await s.post({ jsonrpc: "2.0", id: 1, method: "initialize" }, false)).status).toBe(200);
     const listing = await s.post({ jsonrpc: "2.0", id: 2, method: "tools/list" }, false);
-    expect(listing.body.result.tools).toHaveLength(68); // +3 commesse generali (tappa 7), +10 preventivi, calendario e file (25/11/2026)
+    expect(listing.body.result.tools).toHaveLength(84); // +3 commesse generali (tappa 7), +26 preventivi, fatture, rapportini, calendario e file (25/11/2026)
     for (const tool of listing.body.result.tools) expect(tool.securitySchemes).toEqual([{ type: "oauth2", scopes: [] }]);
     const unauth = await s.post({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "kpi_azienda" } }, false);
     expect(unauth.status).toBe(401);
@@ -265,8 +265,9 @@ describe("MCP permessi dell'utente che collega", () => {
   it("ogni strumento delle aziende ha la sua regola (niente scoperti)", async () => {
     const s = server({ scopes: ["*"] });
     const nomi = ((await s.post({ jsonrpc: "2.0", id: 1, method: "tools/list" })).body.result.tools as { name: string }[]).map(t => t.name);
-    // lista_aziende è solo delle chiavi di piattaforma: per un dipendente resta chiusa.
-    expect(nomi.filter(n => n !== "lista_aziende" && !(n in REGOLE_STRUMENTI))).toEqual([]);
+    // Quelli riservati agli amministratori sono elencati a parte e per un dipendente restano chiusi.
+    expect(nomi.filter(n => !SOLO_AMMINISTRATORI.includes(n) && !(n in REGOLE_STRUMENTI))).toEqual([]);
+    for (const n of SOLO_AMMINISTRATORI) expect(motivoNegato({ admin: false, ruolo: "company_staff", permessi: { can_view_orders: true } }, n, false)).toMatch(/amministratori/);
   });
   it("l'amministratore può tutto, il dipendente senza riga permessi niente", () => {
     expect(motivoNegato({ admin: true, ruolo: "company_admin", permessi: null }, "cashflow", false)).toBeNull();

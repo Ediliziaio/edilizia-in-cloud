@@ -302,3 +302,26 @@ Verificato: si può, senza clic dell'utente.
   anche `caricamento_diretto` (URL firmato per PUT) e Claude lo carica con curl. Serve l'esecuzione del
   codice attiva e il dominio `rsbrguhkodgnqfomrevo.supabase.co` tra i domini consentiti.
 - Altrimenti resta la pagina `/carica-file` per l'utente.
+
+## Verifica completa per area (25/11/2026)
+
+Provate nel database su Demo Azienda 2 tutte le 31 funzioni di lettura usate dall'assistente: 29 con
+dati, 2 vuote perché non c'è niente da mostrare (cantieri a rischio, preventivi da ricontattare).
+Scritture provate in transazioni annullate: preventivo (numero vero, IVA per voce), promemoria,
+appuntamento; la registrazione del computo falliva (`file_size` obbligatorio) ed è corretta.
+
+| Area | L'assistente può | Non può (ancora) |
+|---|---|---|
+| Commesse | cercare, riepilogo, flusso, quadro, report economico, rate, creare, cambiare stato, note, incassi, commesse generali, mezzi | modificare fasi e voci |
+| Fatture | emesse (anche PA, proforma, NC), ricevute, da registrare, scadenze, ritardi, incassi | creare o mandare allo SdI una fattura (Silvio stesso lo rifiuta: si fa dall'app) |
+| Preventivi | voci dal listino, creare, PDF, mandare in firma, riepiloghi, follow-up | modificare un preventivo esistente, trasformarlo in commessa |
+| Computi | portarli dentro (chat o link), leggerli e abbinarli al listino | trasformarli in preventivo in un colpo (si passa da crea_preventivo) |
+| Planimetrie | portarle dentro e leggerne il testo; Claude legge le misure | disegnare la pianta nel modulo Planimetrie |
+| Rapportini | registrare, approvare (amministratori), giornale di cantiere | — |
+| CRM | contatti, lead, opportunità, attività, promemoria, reclami | modificare un contatto |
+| Calendario | agenda, slot liberi, appuntamenti, sopralluoghi, blocchi | — |
+| Email | mandare (con conferma), posta da lavorare, stato dell'invio | leggere le conversazioni complete |
+| WhatsApp | — | mandare o leggere: il motore degli invii fa solo email |
+| Statistiche | KPI, mese, cassa, previsioni, grafici, migliori clienti | — |
+| Magazzino, personale, sicurezza | scorte, fornitori, proposta d'ordine, team, assenze, DURC, documenti | — |
+| Superadmin | numeri, MRR, insoluti, aziende, piani, salute, registro, a rischio, assistenza; crea azienda, stato, prova, piano, regalo, crediti | purga, impersonazione, segreti |
