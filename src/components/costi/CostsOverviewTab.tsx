@@ -338,8 +338,8 @@ export function CostsOverviewTab({
         {/* Senza il titoletto «Panoramica — Dove vanno i soldi · settembre»:
             il periodo è nel selettore sopra e «Dove vanno i soldi» è il titolo
             del riquadro subito sotto. */}
-        <div className="bg-eic-navy-deep p-4 text-white sm:p-5">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
+        <div className="bg-eic-navy-deep px-3 py-2 text-white">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
             <NavyStatCard
               label={tr("Totale {labelPeriodo}", { labelPeriodo })}
               value={formatCurrency(totalePeriodo)}

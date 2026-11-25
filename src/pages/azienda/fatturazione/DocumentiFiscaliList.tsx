@@ -1,4 +1,4 @@
-import { BOTTONE_SECONDARIO, BOTTONE_NUOVO } from "@/components/orders/TestataScheda";
+import { BOTTONE_SECONDARIO, BOTTONE_NUOVO, RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { SoloDaTabletOComputer } from "@/components/shared/SoloDaTabletOComputer";
 import { useContabilitaGeneraleAttiva } from "@/components/contabilita/ContabilitaInCasa";
 import { supabase } from "@/integrations/supabase/client";
@@ -902,14 +902,14 @@ function DocumentiFiscaliListInner() {
           </Select>
         )}
 
-        <div className="relative min-w-[260px] flex-1">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder={tr("Cliente, numero, importo, data o note…")}
             aria-label={tr("Cerca fatture per cliente, numero, importo, data o note")}
             value={searchRaw}
             onChange={(e) => { setSearchRaw(e.target.value); setPage(0); clearSelection(); }}
-            className="pl-8 h-9 text-sm"
+            className="pl-8 h-8 text-xs"
           />
         </div>
 

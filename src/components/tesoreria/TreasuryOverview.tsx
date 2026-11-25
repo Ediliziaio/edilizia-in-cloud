@@ -368,16 +368,16 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
 
       {/* KPI — stesso linguaggio dell'header di pagina: tile gradiente, card
           rounded-2xl con velo tinto, delta vs mese precedente e sparkline. */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 sm:gap-4 max-sm:hidden xl:col-span-2">
+      <div className="grid gap-2 grid-cols-2 lg:grid-cols-4 max-sm:hidden xl:col-span-2">
         {kpis.map((kpi, kpiIdx) => (
-          <div key={kpi.title} className={`relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card via-card ${kpi.tint} p-4 shadow-sm`}>
+          <div key={kpi.title} className={`relative overflow-hidden rounded-xl border border-border bg-gradient-to-br from-card via-card ${kpi.tint} px-3 py-2.5 shadow-sm`}>
             <div className="flex items-center gap-2.5">
-              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${kpi.tile} text-white`}>
-                <kpi.icon className="h-[18px] w-[18px]" />
+              <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${kpi.tile} text-white`}>
+                <kpi.icon className="h-3.5 w-3.5" />
               </div>
               <span className="text-xs font-medium text-muted-foreground leading-tight">{kpi.title}</span>
             </div>
-            <p className={`mt-3 text-xl sm:text-2xl font-bold tabular-nums tracking-tight ${kpi.valueColor}`}>
+            <p className={`mt-1.5 text-lg font-bold tabular-nums tracking-tight ${kpi.valueColor}`}>
               {formatEur(kpi.value)}
             </p>
             <div className="mt-1 flex items-center gap-2 min-h-[18px]">

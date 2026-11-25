@@ -75,7 +75,7 @@ export default function CompanyCosts() {
             <TrendingDown className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground sm:text-2xl">{t("Costi Aziendali")}</h1>
+            <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground">{t("Costi Aziendali")}</h1>
           </div>
         </div>
       </div>

@@ -298,7 +298,7 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
         actions={
           // Dentro Contabilità generale la liquidazione è la linguetta accanto: il pulsante era un doppione.
           dentroContabilita ? undefined : (
-            <Button size="sm" onClick={() => p.set({ sezione: "contabilita", vista: "iva" })}>
+            <Button size="sm" className="h-8 px-2.5 text-xs" onClick={() => p.set({ sezione: "contabilita", vista: "iva" })}>
               {tr("Vai alla liquidazione IVA")}
             </Button>
           )
@@ -393,7 +393,7 @@ function RegistroContent({ onApriLiquidazione }: { onApriLiquidazione?: () => vo
           ))}
         </div>
         <Input
-          className="h-9 min-w-40 flex-1"
+          className="h-8 w-72 max-w-full text-xs max-sm:w-full"
           aria-label={tr("Cerca nel registro IVA")}
           placeholder={tr("Numero o controparte…")}
           value={search}

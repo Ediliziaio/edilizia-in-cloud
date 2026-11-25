@@ -1,3 +1,5 @@
+import { BOTTONE_NUOVO, RICERCA_BARRA } from "@/components/orders/TestataScheda";
+import { cn } from "@/lib/utils";
 import { Suspense, useState, useMemo } from "react";
 import { etichettaMetodo } from "@/lib/finance/metodoScadenza";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
@@ -116,7 +118,7 @@ function PrimaNotaInner() {
   const nAltriFiltri = Number(direction !== "") + Number(autoView !== "tutte");
   const periodoLabel = periodiRapidi.find(p => p.value === periodoScelto)?.label ?? t("Personalizzato");
   const filtroConto = <Select value={contoFiltro} onValueChange={v => { setContoFiltro(v); setPage(1); }}>
-    <SelectTrigger className="h-9 w-full sm:w-56" aria-label={t("Filtra per conto")}><SelectValue /></SelectTrigger>
+    <SelectTrigger className="h-8 w-full text-xs sm:w-56" aria-label={t("Filtra per conto")}><SelectValue /></SelectTrigger>
     <SelectContent>{contiFiltro.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
   </Select>;
 
@@ -342,7 +344,7 @@ function PrimaNotaInner() {
               <BookOpen className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">{t("Prima Nota")}</h1>
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900">{t("Prima Nota")}</h1>
               <p className="mt-0.5 text-sm text-slate-500">{t("Movimenti di cassa e banca, incassi, pagamenti e saldo progressivo.")}</p>
             </div>
           </div>
@@ -351,7 +353,7 @@ function PrimaNotaInner() {
           <span className="max-sm:hidden"><DaVerificareCard companyId={effectiveCompany?.id} variante="pillola" /></span>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="max-lg:size-11" aria-label={t("Altre azioni")} title={t("Altre azioni")}>
+              <Button variant="outline" size="icon" className="h-8 w-8 max-lg:size-11" aria-label={t("Altre azioni")} title={t("Altre azioni")}>
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -364,11 +366,11 @@ function PrimaNotaInner() {
                 <RefreshCw className="h-4 w-4" />
                 {t("Allinea banca e fatture")}
               </DropdownMenuItem>
-              <DropdownMenuItem className="gap-2 sm:hidden" onSelect={() => navigate("/azienda/contabilita-generale?vista=scritture")}>
+              <DropdownMenuItem className="gap-2" onSelect={() => navigate("/azienda/contabilita-generale?vista=scritture")}>
                 <BookOpen className="h-4 w-4" />
                 {t("Scritture Dare/Avere")}
               </DropdownMenuItem>
-              <DropdownMenuItem className="gap-2 sm:hidden" onSelect={() => navigate("/azienda/tesoreria")}>
+              <DropdownMenuItem className="gap-2" onSelect={() => navigate("/azienda/tesoreria")}>
                 <Landmark className="h-4 w-4" />
                 {t("Banca e riconciliazione")}
               </DropdownMenuItem>
@@ -387,7 +389,7 @@ function PrimaNotaInner() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <DropdownMenu><DropdownMenuTrigger asChild><Button className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm max-lg:h-11 max-sm:px-3 max-sm:text-sm"><Plus className="mr-1 h-4 w-4" />{t("Nuova registrazione")}</Button></DropdownMenuTrigger>
+          <DropdownMenu><DropdownMenuTrigger asChild><Button size="sm" className={cn(BOTTONE_NUOVO, "max-lg:h-11 max-sm:px-3 max-sm:text-sm")}><Plus className="h-3.5 w-3.5" />{t("Nuova registrazione")}</Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-72">
               <DropdownMenuItem onSelect={() => setNewOpen(true)}>{t("Movimento di cassa o banca")}</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => navigate(`/azienda/contabilita-generale?vista=scritture&nuova=scrittura&anno=${fromDate.slice(0, 4)}`)}>{t("Scrittura Dare/Avere · stipendi e altri costi")}</DropdownMenuItem>
@@ -397,8 +399,9 @@ function PrimaNotaInner() {
         </div>
       </div>
 
-      {/* Sul telefono questo riquadro (una frase e tre bottoni, ~200 px) sta nel menu «⋯». */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-3 text-sm max-sm:hidden">
+      {/* 25/11/2026: anche da computer i tre comandi stanno nel «⋯» («Allinea banca e fatture» è la
+          verifica dell'allineamento): il riquadro con la frase era una fascia di 60px sopra l'elenco. */}
+      <div className="hidden">
         <p className="text-muted-foreground">{t("Per rilevare un costo prima del pagamento, registrare gli stipendi o gestire più conti usa le scritture Dare/Avere.")}</p>
         <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => navigate("/azienda/contabilita-generale?vista=scritture")}>{t("Scritture Dare/Avere")}</Button><Button size="sm" variant="outline" onClick={() => setAllineaAperto(true)}>{t("Verifica allineamento")}</Button><Button size="sm" variant="outline" onClick={() => navigate("/azienda/tesoreria")}>{t("Banca e riconciliazione")}</Button></div>
       </div>
@@ -477,14 +480,14 @@ function PrimaNotaInner() {
       <div className="hidden flex-wrap items-center gap-3 lg:flex">
         {filtroConto}
         {/* Search — full width on mobile, flexible on desktop */}
-        <div className="relative flex-1 min-w-[220px]">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder={t("Cerca...")}
             aria-label={t("Cerca nella prima nota")}
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="pl-8 h-10"
+            className="pl-8 h-8 text-xs"
           />
         </div>
         {/* Second row on mobile: toggles + direction */}
@@ -508,7 +511,7 @@ function PrimaNotaInner() {
               setPage(1);
             }}
           >
-            <SelectTrigger aria-label={t("Filtra movimenti per direzione")} className="h-9 w-[110px]"><SelectValue placeholder={t("Direzione")} /></SelectTrigger>
+            <SelectTrigger aria-label={t("Filtra movimenti per direzione")} className="h-8 w-[110px] text-xs"><SelectValue placeholder={t("Direzione")} /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t("Tutte")}</SelectItem>
               <SelectItem value="entrata">{t("Entrate")}</SelectItem>

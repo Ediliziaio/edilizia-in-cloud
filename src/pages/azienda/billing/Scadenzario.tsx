@@ -1,3 +1,5 @@
+import { BOTTONE_NUOVO, RICERCA_BARRA } from "@/components/orders/TestataScheda";
+import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { filtraScadenzario, queryFontiScadenzario, linkFonteScadenza } from "@/lib/finance/fontiScadenzario";
 import { useState, useMemo, useCallback, useEffect } from "react";
@@ -362,13 +364,13 @@ export default function Scadenzario() {
     <div className="space-y-4 max-sm:space-y-3">
       <div className="flex items-center justify-between max-sm:gap-2">
         <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-bold max-sm:text-lg">{tr("Scadenzario")}</h1>
+          <h1 className="text-xl font-bold max-sm:text-lg">{tr("Scadenzario")}</h1>
         </div>
         <div className="flex items-center gap-2">
           {/* «Per settimana» guarda avanti e tutto lo scaduto: l'anno lì non conta. */}
           {tab !== "settimane" && tab !== "senza_data" && (
             <Select value={yearFilter} onValueChange={(v) => { setYearFilter(v); setPage(1); }}>
-              <SelectTrigger className="hidden h-9 w-[140px] font-semibold lg:flex" aria-label={tr("Anno")}><SelectValue /></SelectTrigger>
+              <SelectTrigger className="hidden h-8 w-[120px] text-xs font-semibold lg:flex" aria-label={tr("Anno")}><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{tr("Tutti gli anni")}</SelectItem>
                 {anni.map((y) => (
@@ -392,8 +394,8 @@ export default function Scadenzario() {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>}
-          <Button onClick={() => setNewOpen(true)} className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-lg:min-h-11 max-sm:px-3 max-sm:text-sm">
-            <Plus className="h-4 w-4 mr-1" /> <span className="max-sm:hidden">{tr("Nuova Scadenza")}</span><span className="sm:hidden">{tr("Nuova")}</span>
+          <Button size="sm" onClick={() => setNewOpen(true)} className={cn(BOTTONE_NUOVO, "max-lg:min-h-11 max-sm:px-3 max-sm:text-sm")}>
+            <Plus className="h-3.5 w-3.5" /> <span className="max-sm:hidden">{tr("Nuova Scadenza")}</span><span className="sm:hidden">{tr("Nuova")}</span>
           </Button>
         </div>
       </div>
@@ -402,13 +404,13 @@ export default function Scadenzario() {
         <div className="flex flex-wrap items-center gap-2 rounded-lg border text-sm lg:p-3">
           <span className="max-lg:hidden">{tr("{nSenzaData} importi aperti senza data. Completa la data nella commessa o nel costo.", { nSenzaData: String(nSenzaData ?? "") })}</span>
           {tab === "senza_data" ? (
-            <Button size="sm" variant="ghost" className="max-lg:min-h-11 max-lg:w-full max-lg:justify-start"
+            <Button size="sm" variant="ghost" className="lg:h-8 lg:px-2.5 lg:text-xs max-lg:min-h-11 max-lg:w-full max-lg:justify-start"
               onClick={() => { setTab("aperte"); setPage(1); }}>
               <ChevronLeft aria-hidden="true" className="mr-1.5 size-4 lg:hidden" />
               {tr("Torna alle aperte")}
             </Button>
           ) : (
-            <Button size="sm" variant="outline" className="max-lg:min-h-11 max-lg:w-full max-lg:justify-between max-lg:border-0"
+            <Button size="sm" variant="outline" className="lg:h-8 lg:px-2.5 lg:text-xs max-lg:min-h-11 max-lg:w-full max-lg:justify-between max-lg:border-0"
               onClick={() => { clearFilters(); setTab("senza_data"); }}>
               <span className="hidden lg:inline">{tr("Mostra senza data")}</span>
               <span className="flex items-center gap-2 lg:hidden">
@@ -491,22 +493,22 @@ export default function Scadenzario() {
             </TabsList>
           </Tabs>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild><Button variant={vistaElenco ? "outline" : "secondary"} size="sm" className="h-9 shrink-0 gap-1.5" aria-label={tr("Altre viste dello scadenzario")}>
+            <DropdownMenuTrigger asChild><Button variant={vistaElenco ? "outline" : "secondary"} size="sm" className="h-8 shrink-0 gap-1.5 px-2.5 text-xs" aria-label={tr("Altre viste dello scadenzario")}>
               {viste.find(v => v.value === tab)?.label ?? tr("Altre viste")}<ChevronDown className="h-3.5 w-3.5" />
             </Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end">{viste.map(v => <DropdownMenuItem key={v.value} onSelect={() => { setTab(v.value); setPage(1); }}>{v.label}</DropdownMenuItem>)}</DropdownMenuContent>
           </DropdownMenu>
         </div>
         {tab !== "adempimenti" && <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[200px] flex-1">
-            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input aria-label={tr("Cerca nello scadenzario")} placeholder={tr("Cerca cliente, fornitore o descrizione…")} value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-9 pl-8 text-xs" />
+              onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 pl-8 text-xs" />
           </div>
           {vistaElenco && <>
             <FiltriScadenzario valore={valoriFiltri} anno={yearFilter} periodi={periodiRapidi}
               aperto={showFilters} onAperto={setShowFilters} cambia={cambiaFiltri} azzera={clearFilters} />
-            <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={handleExport}
+            <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={handleExport}
               disabled={exportDisabilitato} title={tr("Esporta CSV")} aria-label={tr("Esporta CSV")}>
               {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             </Button>

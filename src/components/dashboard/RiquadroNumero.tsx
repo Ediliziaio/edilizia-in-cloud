@@ -105,7 +105,7 @@ export function RiquadroNumero({
         <div className="mt-1.5 flex items-end justify-between gap-2">
           {/* 15/11/2026: al telefono una cifra lunga («1.715.464,98 €») in due colonne si troncava:
               più piccola, così si legge intera. */}
-          <p className={cn("min-w-0 truncate text-xl font-bold leading-none tracking-tight tabular-nums md:text-2xl", typeof valore === "string" && valore.length > 10 && "max-sm:text-base", stile.valore)} title={typeof valore === "string" ? valore : undefined}>{valore}</p>
+          <p className={cn("min-w-0 truncate text-lg font-bold leading-none tracking-tight tabular-nums", typeof valore === "string" && valore.length > 10 && "max-sm:text-base", stile.valore)} title={typeof valore === "string" ? valore : undefined}>{valore}</p>
           {tendenza && (
             <span className="hidden sm:block">
               <Tendenza valori={tendenza} colore={stile.linea} etichetta={etichettaTendenza ?? t("Andamento di {etichetta}", { etichetta: String(etichetta ?? "") })} />

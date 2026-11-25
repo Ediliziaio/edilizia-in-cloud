@@ -1,3 +1,4 @@
+import { BOTTONE_SECONDARIO } from "@/components/orders/TestataScheda";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
@@ -729,7 +730,7 @@ export function ForecastWorkspace({
         <div>
           {/* Dentro Tesoreria il titolo c'è già nella sua testata: due titoli
               uno sotto l'altro dicevano la stessa cosa. */}
-          {!dentroTesoreria && <h1 className="text-lg font-bold leading-6">{tr("Previsionale di cassa")}</h1>}
+          {!dentroTesoreria && <h1 className="text-lg font-bold leading-6 sm:text-xl">{tr("Previsionale di cassa")}</h1>}
           <p
             className="mt-0.5 text-xs text-muted-foreground"
             role="status"
@@ -744,16 +745,18 @@ export function ForecastWorkspace({
           <Button
             variant="outline"
             size="sm"
+            className={BOTTONE_SECONDARIO}
             onClick={onRefresh}
             disabled={refreshing}
           >
             <RefreshCw
-              className={cn("mr-2 h-4 w-4", refreshing && "animate-spin")}
+              className={cn(refreshing && "animate-spin")}
             />
             {refreshing ? tr("Aggiornamento") : tr("Aggiorna")}
           </Button>
-          <Button size="sm" onClick={exportPlan} className="max-md:hidden">
-            <Download className="mr-2 h-4 w-4" />
+          {/* Esportare è un comando secondario: contorno come gli altri, non blu pieno (25/11/2026). */}
+          <Button size="sm" variant="outline" onClick={exportPlan} className={cn(BOTTONE_SECONDARIO, "max-md:hidden")}>
+            <Download />
             {tr("Esporta piano")}
           </Button>
         </div>

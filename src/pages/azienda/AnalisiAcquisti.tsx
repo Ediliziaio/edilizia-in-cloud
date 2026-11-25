@@ -139,7 +139,7 @@ function SceltaConRicerca({
   return (
     <Popover open={aperto} onOpenChange={setAperto}>
       <PopoverTrigger asChild>
-        <Button variant="outline" role="combobox" aria-expanded={aperto} className="h-9 w-full justify-between font-normal sm:w-[200px]">
+        <Button variant="outline" role="combobox" aria-expanded={aperto} className="h-8 w-full justify-between text-xs font-normal sm:w-[200px]">
           <span className={cn("truncate", !scelta && "text-muted-foreground")}>{scelta ?? tutti}</span>
           <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
         </Button>
@@ -372,7 +372,7 @@ function DaPagare({ scaduto, scadutoN, prossimi, prossimiN, onApri, fornitori }:
         <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t("Da pagare entro 30 giorni")}</p>
         <button type="button" onClick={onApri} className="text-[11px] font-medium text-sky-300 underline-offset-2 hover:underline">{t("Scadenze →")}</button>
       </div>
-      <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight">{formatCurrencyCompact(tot)}</p>
+      <p className="mt-1 text-xl font-bold tabular-nums tracking-tight">{formatCurrencyCompact(tot)}</p>
       <p className="text-xs text-slate-400">{t("IVA compresa, dallo scadenzario")}</p>
       {tot > 0 && (
         <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-white/10" aria-hidden>
@@ -643,7 +643,7 @@ export default function AnalisiAcquisti() {
       {scheda !== "prezzi" && (
       <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-2.5">
         <Select value={sceltaPeriodo} onValueChange={(v) => imposta({ periodo: v === "anno" ? null : v, ...(v === "personalizzato" ? { dal: periodo.dal, al: periodo.al } : { dal: null, al: null }) })}>
-          <SelectTrigger className="h-9 w-full sm:w-[170px]" aria-label={tr("Periodo")}>
+          <SelectTrigger className="h-8 w-full text-xs sm:w-[170px]" aria-label={tr("Periodo")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -654,9 +654,9 @@ export default function AnalisiAcquisti() {
         </Select>
         {sceltaPeriodo === "personalizzato" && (
           <div className="flex w-full items-center gap-1.5 sm:w-auto">
-            <Input type="date" aria-label={tr("Dal")} value={periodo.dal} onChange={(e) => e.target.value && imposta({ dal: e.target.value })} className="h-9 flex-1 sm:w-[150px]" />
+            <Input type="date" aria-label={tr("Dal")} value={periodo.dal} onChange={(e) => e.target.value && imposta({ dal: e.target.value })} className="h-8 flex-1 text-xs sm:w-[150px]" />
             <span className="text-xs text-muted-foreground">→</span>
-            <Input type="date" aria-label={tr("Al")} value={periodo.al} onChange={(e) => e.target.value && imposta({ al: e.target.value })} className="h-9 flex-1 sm:w-[150px]" />
+            <Input type="date" aria-label={tr("Al")} value={periodo.al} onChange={(e) => e.target.value && imposta({ al: e.target.value })} className="h-8 flex-1 text-xs sm:w-[150px]" />
           </div>
         )}
         {/* Da telefono solo il periodo: i filtri fini sono da scrivania. */}
@@ -679,7 +679,7 @@ export default function AnalisiAcquisti() {
         </div>
         {categorie.length > 0 && (
           <Select value={filtri.categoria ?? "__tutte"} onValueChange={(v) => imposta({ categoria: v === "__tutte" ? null : v })}>
-            <SelectTrigger className="h-9 w-full max-md:hidden sm:w-[170px]" aria-label={tr("Categoria")}>
+            <SelectTrigger className="h-8 w-full text-xs max-md:hidden sm:w-[170px]" aria-label={tr("Categoria")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -691,7 +691,7 @@ export default function AnalisiAcquisti() {
           </Select>
         )}
         {filtriAttivi && (
-          <Button variant="ghost" size="sm" className="h-9" onClick={() => imposta({ periodo: null, dal: null, al: null, fornitore: null, commessa: null, categoria: null })}>
+          <Button variant="ghost" size="sm" className="h-8 px-2.5 text-xs" onClick={() => imposta({ periodo: null, dal: null, al: null, fornitore: null, commessa: null, categoria: null })}>
             <X className="mr-1 h-3.5 w-3.5" /> {tr("Azzera filtri")}
           </Button>
         )}

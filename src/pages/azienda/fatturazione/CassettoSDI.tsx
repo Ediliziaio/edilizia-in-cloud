@@ -1,3 +1,5 @@
+import { TENDINA_STATO_BARRA, RICERCA_BARRA } from "@/components/orders/TestataScheda";
+import { cn } from "@/lib/utils";
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -184,13 +186,13 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
               <FileText className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">{t("Cassetto SDI")}</h1>
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900">{t("Cassetto SDI")}</h1>
               <p className="mt-0.5 text-sm text-slate-500">{t("Monitoraggio trasmissioni, ricevute e scarti dal Sistema di Interscambio.")}</p>
             </div>
           </div>
         <div className="flex items-center gap-3">
           <Select value={String(anno)} onValueChange={(v) => setAnno(Number(v))}>
-            <SelectTrigger className="w-[120px]">
+            <SelectTrigger className="h-8 w-[120px] text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -205,27 +207,27 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <OperationalKpiCard icon={FileText} label={t("Trasmesse")} value={kpi.trasmesse} hint={t("documenti inviati")} tone="blue" />
-        <OperationalKpiCard icon={CheckCircle2} label={t("Consegnate")} value={kpi.consegnate} hint={t("ricevute RC")} tone="green" />
-        <OperationalKpiCard icon={AlertTriangle} label={t("Scartate")} value={kpi.scartate} hint={t("da correggere")} tone={kpi.scartate > 0 ? "red" : "green"} />
-        <OperationalKpiCard icon={Clock} label={t("In attesa")} value={kpi.inAttesa} hint={t("in lavorazione SDI")} tone="amber" />
+        <OperationalKpiCard compact icon={FileText} label={t("Trasmesse")} value={kpi.trasmesse} hint={t("documenti inviati")} tone="blue" />
+        <OperationalKpiCard compact icon={CheckCircle2} label={t("Consegnate")} value={kpi.consegnate} hint={t("ricevute RC")} tone="green" />
+        <OperationalKpiCard compact icon={AlertTriangle} label={t("Scartate")} value={kpi.scartate} hint={t("da correggere")} tone={kpi.scartate > 0 ? "red" : "green"} />
+        <OperationalKpiCard compact icon={Clock} label={t("In attesa")} value={kpi.inAttesa} hint={t("in lavorazione SDI")} tone="amber" />
       </div>
 
       {/* Filters */}
       <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardContent className="p-2.5">
           <div className="flex items-center gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder={t("Cerca per numero, cliente, ID SDI...")}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
+                className="h-8 pl-8 text-xs"
               />
             </div>
             <Select value={statoFilter} onValueChange={setStatoFilter}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className={TENDINA_STATO_BARRA}>
                 <SelectValue placeholder={t("Stato SDI")} />
               </SelectTrigger>
               <SelectContent>
