@@ -501,6 +501,13 @@ function costoStimato(p: PrezzoVocePlanimetria): { costo?: string } {
 }
 
 const NUMERO_CAPITOLO = /^(\d{2}) /;
+/** Le voci della sicurezza nascono in fondo: si mettono nel loro capitolo, così la numerazione non salta. */
+function inOrdineDiCapitoloVoci<T extends { capitolo: string }>(voci: T[]): T[] {
+  if (!voci.some((v) => NUMERO_CAPITOLO.test(v.capitolo))) return voci;
+  const numero = (v: T) => Number(NUMERO_CAPITOLO.exec(v.capitolo)?.[1] ?? 100);
+  return voci.map((v, i) => ({ v, i })).sort((a, b) => numero(a.v) - numero(b.v) || a.i - b.i).map(({ v }) => v);
+}
+
 /** Ordine stabile: prima i capitoli numerati, per numero; gli altri dopo, come sono arrivati. */
 function inOrdineDiCapitolo(righe: RigaStudio[]): RigaStudio[] {
   if (!righe.some((r) => NUMERO_CAPITOLO.test(r.gruppo))) return righe;
@@ -514,7 +521,7 @@ export function computoStudio(fonte: FonteStudio, titolo: string, righe: RigaStu
     oggetto: `Computo preliminare · variante ${fonte.varianteId} · planimetria v${fonte.versione}${verificheAperte ? " · verifiche urbanistiche aperte" : ""}`,
     // I capitoli numerati della nuova costruzione («01 Opere provvisionali» … «12 Sistemazioni
     // esterne») escono nell'ordine del cantiere, non in quello in cui le righe sono nate (25/11/2026).
-    voci: [...inOrdineDiCapitolo(righe).map((r) => ({
+    voci: inOrdineDiCapitoloVoci([...inOrdineDiCapitolo(righe).map((r) => ({
       ...voceVuota(), id:r.id, capitolo:r.gruppo, categoria:r.fase,
       descrizione:`${r.descrizione}\n${r.piano} · ${r.criterio}`,
       ...misuraRigaStudio(r),
@@ -527,7 +534,7 @@ export function computoStudio(fonte: FonteStudio, titolo: string, righe: RigaStu
     })),
       // Gli oneri della sicurezza della previsione (impianto di cantiere, dispositivi, coordinamento).
       ...vociDellaSicurezza(righe, righe.some((r) => NUMERO_CAPITOLO.test(r.gruppo)) ? "01 Opere provvisionali" : "Oneri della sicurezza"),
-    ],
+    ]),
   };
 }
 

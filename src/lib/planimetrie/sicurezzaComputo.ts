@@ -31,7 +31,7 @@ export function vociDellaSicurezza(righe: readonly RigaStudio[], capitolo: strin
   const accesi = new Set(extraPredefiniti(righe));
   return COSTI_EXTRA.filter((e) => (DELLA_SICUREZZA as readonly string[]).includes(e.id) && accesi.has(e.id)).map((e) => {
     const importo = e.regola.tipo === "percentuale" ? euro(lavori * e.regola.percento / 100) : e.regola.importo;
-    const criterio = e.regola.tipo === "percentuale" ? `${e.regola.percento}% dei lavori (${formato(lavori)} €)` : "Valore tipico a corpo";
+    const criterio = e.regola.tipo === "percentuale" ? `${e.regola.percento.toLocaleString("it-IT")}% dei lavori (${formato(lavori)} €)` : "Valore tipico a corpo";
     return {
       ...voceVuota(), id: `sicurezza:${e.id}`, capitolo, categoria: "Costi della sicurezza",
       descrizione: `${e.nome}\nEdificio · ${criterio}`,
