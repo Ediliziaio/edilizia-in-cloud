@@ -7,7 +7,7 @@ import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
 import { leggiJsonDalModello } from "../_shared/rispostaModello.ts";
 import { percorsoStorageSicuro } from "../_shared/storageAmmesso.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
-import { parteFileDdt } from "../_shared/lettoreDdt.ts";
+import { parteDocumentoDdt } from "../_shared/lettoreDdt.ts";
 import { tipoFileDdt } from "../_shared/tipoFileDdt.ts";
 import { erroreAiPerUtente } from "../_shared/erroriAi.ts";
 import { avviaAttivitaAi } from "../_shared/aiAttivitaLive.ts";
@@ -194,7 +194,7 @@ export async function processaDocumento(
           type: "text",
           text: `Pagina/allegato ${contenuti.length / 2 + 1}: ${nome}`,
         },
-        parteFileDdt({ base64: bytesToBase64(bytes), mime, fileName: nome }),
+        await parteDocumentoDdt({ bytes, base64: bytesToBase64(bytes), mime, fileName: nome }),
       );
     }
     if (
@@ -218,7 +218,7 @@ export async function processaDocumento(
         return { id: j.id, stato: data?.length ? "review" : "lease_scaduta" };
       }
       contenuti.push({ type: "text", text: `Documento ${j.files[0].name}` },
-        parteFileDdt({ base64: bytesToBase64(pdfWhatsApp), mime: "application/pdf", fileName: j.files[0].name }));
+        await parteDocumentoDdt({ bytes: pdfWhatsApp, base64: bytesToBase64(pdfWhatsApp), mime: "application/pdf", fileName: j.files[0].name }));
     }
     const ai = await attivita.misura("documento_in_lettura", () => aiRouterComplete({
       supabase: db,

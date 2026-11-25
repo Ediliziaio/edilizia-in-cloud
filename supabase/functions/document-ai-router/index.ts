@@ -36,6 +36,7 @@ import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { BUCKET_ANALISI_DOCUMENTI, valutaFile } from "../_shared/storageAmmesso.ts";
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
+import { testoDentroIlPdf } from "../_shared/documentoTestoPrima.ts";
 import { leggiJsonDalModello } from "../_shared/rispostaModello.ts";
 import { erroreAiPerUtente, letturaNonRiuscita } from "../_shared/erroriAi.ts";
 
@@ -271,7 +272,12 @@ Deno.serve(async (req) => {
     const userContent: any[] = [
       { type: "text", text: `Classifica questo documento. Nome file originale: "${file_name}". Restituisci JSON come specificato.` },
     ];
-    if (isImage) {
+    // Per classificare un documento basta leggerlo: se il PDF ha il testo
+    // dentro, la visione non serve (vedi `_shared/documentoTestoPrima.ts`).
+    const testoPdf = isImage ? null : await testoDentroIlPdf(new Uint8Array(buffer));
+    if (testoPdf) {
+      userContent.push({ type: "text", text: testoPdf });
+    } else if (isImage) {
       userContent.push({ type: "image_url", image_url: { url: dataUrl } });
     } else {
       userContent.push({
@@ -292,6 +298,7 @@ Deno.serve(async (req) => {
         file_name,
         mime_type ?? null,
         file_size ?? buffer.byteLength,
+        testoPdf ? "testo" : "file",
       ]);
       aiResult = await aiRouterComplete({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

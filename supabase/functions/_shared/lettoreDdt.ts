@@ -1,4 +1,6 @@
 import { buildStableAiIdempotencyKey } from "./directAiLedger.ts";
+import { base64ToBytes } from "./base64.ts";
+import { testoDentroIlPdf } from "./documentoTestoPrima.ts";
 
 export const PROMPT_LETTORE_DDT = `Sei un assistente esperto di logistica edile che legge i Documenti Di Trasporto (DDT) italiani.
 Estrai i dati in JSON STRUTTURATO. Non inventare: se un dato non è leggibile metti null.
@@ -61,6 +63,27 @@ export function parteFileDdt(input: {
     type: "image_url" as const,
     image_url: { url: source, detail: "high" as const },
   };
+}
+
+/**
+ * Come `parteFileDdt`, ma di un PDF col testo dentro manda il testo invece
+ * delle pagine da guardare: una bolla uscita da un gestionale non ha bisogno
+ * della visione (vedi `_shared/documentoTestoPrima.ts`). Una foto, una
+ * scansione e un PDF di cui abbiamo solo l'URL seguono la strada di prima.
+ */
+export async function parteDocumentoDdt(input: {
+  bytes?: Uint8Array;
+  base64?: string;
+  url?: string;
+  mime?: string;
+  fileName?: string;
+}) {
+  const parte = parteFileDdt(input);
+  if (parte.type !== "file") return parte;
+  const bytes = input.bytes ?? (input.base64 ? base64ToBytes(input.base64) : null);
+  if (!bytes) return parte;
+  const testo = await testoDentroIlPdf(bytes);
+  return testo ? { type: "text" as const, text: testo } : parte;
 }
 
 /** Anche due foto con la stessa intestazione devono avere impronte differenti. */
