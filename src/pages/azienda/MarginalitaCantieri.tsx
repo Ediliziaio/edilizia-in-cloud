@@ -53,6 +53,7 @@ import {
   Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   fasciaMargine,
   margineAffidabile,
@@ -297,6 +298,7 @@ export default function MarginalitaCantieri() {
 
 function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
   const t = useT();
+  const isMobile = useIsMobile();
   const [refreshing, setRefreshing] = useState(false);
   const [showCostColumns, setShowCostColumns] = useState(false);
   const [search, setSearch] = useState("");
@@ -956,79 +958,132 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
         {t("Premi Aggiorna dati per riprovare.")}
       </div>}
 
-      <section aria-label={t("Riepilogo marginalità")} className="rounded-2xl border border-slate-200 bg-eic-navy-deep px-3 py-2 text-white shadow-sm">
-        <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+      {/* Riepilogo basso (25/11/2026): da 1600px titolo e target a sinistra, quattro riquadri compatti a destra (era 121px, ora ~62). */}
+      <section aria-label={t("Riepilogo marginalità")} className="rounded-2xl border border-slate-200 bg-eic-navy-deep px-3 py-2 text-white shadow-sm xl:flex xl:items-center xl:gap-3">
+        <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 xl:mb-0 xl:shrink-0 xl:flex-col xl:items-start xl:gap-1">
           <div className="flex min-w-0 items-baseline gap-2">
-            <h2 className="shrink-0 text-base font-semibold">{t("Marginalità della vista")}</h2>
-            <p className="min-w-0 truncate text-xs text-blue-100/70 max-xl:hidden">· {t("Importi imponibili · percentuali ponderate sui ricavi")}</p>
+            <h2 className="shrink-0 text-base font-semibold" title={t("Importi imponibili · percentuali ponderate sui ricavi")}>{t("Marginalità della vista")}</h2>
+            <p className="min-w-0 truncate text-xs text-blue-100/70 max-xl:hidden xl:sr-only">· {t("Importi imponibili · percentuali ponderate sui ricavi")}</p>
           </div>
           <Badge className="border border-white/20 bg-white/10 text-white hover:bg-white/10">{t("Target dopo struttura {percento}%", { percento: targetMarginPct.toLocaleString(intlCampo(), {maximumFractionDigits:1}) })}</Badge>
         </div>
         {error && <p role="alert" className="mb-3 rounded-lg bg-red-400/10 px-3 py-2 text-sm text-red-100">{t("Dati non caricati: premi Aggiorna dati per riprovare.")}</p>}
         {anomaliesError && <p role="alert" className="mb-2 text-xs text-amber-100">{t("Anomalie non caricate: premi Aggiorna dati per riprovare.")}</p>}
-        <div className="grid gap-1.5 min-[420px]:grid-cols-2 xl:grid-cols-4">
-          <OrdersSummaryCard id="margine-diretto" title={t("Margine diretto")} icon={BarChart3}
+        <div className="grid gap-1.5 min-[420px]:grid-cols-2 xl:min-w-0 xl:flex-1 xl:grid-cols-4">
+          <OrdersSummaryCard compatto id="margine-diretto" title={t("Margine diretto")} icon={BarChart3}
             value={error || kpi.reliableCount === 0 ? "—" : formatCurrency(kpi.totMargine)} loading={isLoading}
             note={t("{n} commesse calcolabili", { n: String(kpi.reliableCount ?? "") })}
             ring={!error && kpi.reliableCount > 0 ? {value:kpi.avgMarginePerc,label:t("Margine diretto ponderato"),color:kpi.avgMarginePerc < 0 ? "amber" : "green"} : undefined}
             info={t("Ricavi contrattuali meno costi diretti registrati, senza IVA. La percentuale è ponderata sui ricavi. Le commesse senza costi completi sono escluse; sulle commesse aperte il dato è provvisorio.")} />
-          <OrdersSummaryCard id="margine-struttura" title={t("Dopo struttura")} icon={HardHat}
+          <OrdersSummaryCard compatto id="margine-struttura" title={t("Dopo struttura")} icon={HardHat}
             value={error || kpi.structuredCount === 0 ? "—" : formatCurrency(kpi.adjustedMarginTotal)} loading={isLoading}
             note={kpi.structuredCount === 0 ? (kpi.reliableCount === 0 ? t("margine non calcolabile") : t("struttura non disponibile")) : t("{n} commesse con quota di struttura", { n: String(kpi.structuredCount ?? "") })}
             ring={!error && kpi.structuredCount > 0 ? {value:kpi.avgMargineNettoPerc,label:t("Margine dopo struttura ponderato"),color:kpi.avgMargineNettoPerc < 0 ? "amber" : "green"} : undefined}
             info={t("Margine diretto meno quota di struttura stimata. Si usano soltanto le commesse con una quota calcolabile. La struttura e i mezzi stimati restano separati dal consuntivo contabile.")} />
-          <OrdersSummaryCard id="gap-target" title={t("Gap dal target")} icon={Target}
+          <OrdersSummaryCard compatto id="gap-target" title={t("Gap dal target")} icon={Target}
             value={error || kpi.reliableCount === 0 ? "—" : formatCurrency(kpi.targetRecovery)} loading={isLoading}
             note={t("da recuperare o compensare")}
             info={t("Somma degli importi da recuperare per raggiungere il target dopo struttura sulle commesse della vista. È una distanza gestionale dal target, non un debito o un costo già sostenuto.")} />
-          <OrdersSummaryCard id="commesse-controllare" title={t("Da controllare")} icon={ShieldAlert}
+          <OrdersSummaryCard compatto id="commesse-controllare" title={t("Da controllare")} icon={ShieldAlert}
             value={error ? "—" : String(kpi.riskCount)} loading={isLoading}
             note={t("{n} con dati incompleti", { n: String(kpi.incompleteCount ?? "") })}
             info={error ? t("Dati non caricati: premi Aggiorna dati per riprovare.") : `${marginControl.insight}${isFetchingAnomalies ? ` ${t("Aggiornamento anomalie in corso.")}` : ""}${anomaliesError ? ` ${t("Anomalie non caricate: premi Aggiorna dati per riprovare.")}` : ""}`} />
         </div>
       </section>
 
-      <details className="group rounded-xl border border-orange-100 bg-orange-50/30">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm font-medium text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-400">
-          <span className="inline-flex items-center gap-2"><Lightbulb className="h-4 w-4 text-orange-600" />{t("Azioni operative")} <span className="rounded bg-orange-100 px-1.5 text-xs text-orange-800">{error || isLoading ? "—" : kpi.riskCount}</span></span>
-          <span className="text-xs font-normal text-slate-500 group-open:hidden">{t("Mostra priorità")}</span><span className="hidden text-xs font-normal text-slate-500 group-open:inline">{t("Nascondi")}</span>
-        </summary>
-        <div className="grid gap-2 border-t border-orange-100 p-3 lg:grid-cols-3">
-          {!isLoading && !error && <p className="text-xs text-slate-600 lg:col-span-3">{marginControl.insight}</p>}
-            {isLoading || error ? (
-              <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
-                {isLoading ? t("Sto caricando le commesse...") : t("Dati non caricati: nessuna indicazione disponibile.")}
-              </div>
-            ) : filtered.length === 0 ? (
-              <p className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-600">{t("Nessuna azione disponibile: la vista non contiene commesse.")}</p>
-            ) : marginControl.riskRows.length === 0 ? (
-              <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-                {t("Nessuna commessa sotto soglia nella vista corrente. Mantieni aggiornati acquisti e anomalie.")}
-              </div>
-            ) : (
-              marginControl.riskRows.slice(0, 3).map(({ row, decision }) => (
-                <button
-                  key={row.id}
-                  type="button"
-                  onClick={() => setDrillRow(row)}
-                  className="w-full rounded-xl border border-orange-100 bg-white p-2.5 text-left transition-all hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-sm"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-950">
-                        {row.order_code ? `#${row.order_code}` : t("Commessa")} · {row.cliente_nome || t("Cliente non indicato")}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-600">{decision.detail}</p>
+      {/* Azioni e dettagli chiusi affiancati (25/11/2026): una riga invece di due; chi si apre prende tutta la larghezza. */}
+      <div className="grid items-start gap-3 lg:grid-cols-2">
+        <details className="group rounded-xl border border-orange-100 bg-orange-50/30 lg:open:col-span-2">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm font-medium text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-400">
+            <span className="inline-flex items-center gap-2"><Lightbulb className="h-4 w-4 text-orange-600" />{t("Azioni operative")} <span className="rounded bg-orange-100 px-1.5 text-xs text-orange-800">{error || isLoading ? "—" : kpi.riskCount}</span></span>
+            <span className="text-xs font-normal text-slate-500 group-open:hidden">{t("Mostra priorità")}</span><span className="hidden text-xs font-normal text-slate-500 group-open:inline">{t("Nascondi")}</span>
+          </summary>
+          <div className="grid gap-2 border-t border-orange-100 p-3 lg:grid-cols-3">
+            {!isLoading && !error && <p className="text-xs text-slate-600 lg:col-span-3">{marginControl.insight}</p>}
+              {isLoading || error ? (
+                <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
+                  {isLoading ? t("Sto caricando le commesse...") : t("Dati non caricati: nessuna indicazione disponibile.")}
+                </div>
+              ) : filtered.length === 0 ? (
+                <p className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-600">{t("Nessuna azione disponibile: la vista non contiene commesse.")}</p>
+              ) : marginControl.riskRows.length === 0 ? (
+                <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                  {t("Nessuna commessa sotto soglia nella vista corrente. Mantieni aggiornati acquisti e anomalie.")}
+                </div>
+              ) : (
+                marginControl.riskRows.slice(0, 3).map(({ row, decision }) => (
+                  <button
+                    key={row.id}
+                    type="button"
+                    onClick={() => setDrillRow(row)}
+                    className="w-full rounded-xl border border-orange-100 bg-white p-2.5 text-left transition-all hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-950">
+                          {row.order_code ? `#${row.order_code}` : t("Commessa")} · {row.cliente_nome || t("Cliente non indicato")}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-600">{decision.detail}</p>
+                      </div>
+                      <Badge className="shrink-0 border border-orange-200 bg-orange-50 text-orange-700">
+                        {!hasReliableMargin(row) ? t("Da completare") : decision.recoveryAmount > 0 ? formatCurrency(decision.recoveryAmount) : decision.label}
+                      </Badge>
                     </div>
-                    <Badge className="shrink-0 border border-orange-200 bg-orange-50 text-orange-700">
-                      {!hasReliableMargin(row) ? t("Da completare") : decision.recoveryAmount > 0 ? formatCurrency(decision.recoveryAmount) : decision.label}
-                    </Badge>
-                  </div>
-                </button>
-              ))
-            )}
-        </div>
-      </details>
+                  </button>
+                ))
+              )}
+          </div>
+        </details>
+        <details className="group rounded-xl border border-slate-200 bg-white lg:open:col-span-2">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-medium text-slate-800">
+            <span>{t("Dettagli economici e ipotesi di calcolo")}</span>
+            <span className="text-xs font-normal text-muted-foreground group-open:hidden">{t("Mostra")}</span>
+            <span className="hidden text-xs font-normal text-muted-foreground group-open:inline">{t("Nascondi")}</span>
+          </summary>
+          <div className="grid gap-4 border-t border-slate-100 p-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
+            <div>
+              <p className="text-xs font-semibold uppercase text-muted-foreground">{t("Ricavi e consuntivo")}</p>
+              <p className="mt-1 font-semibold">{formatCurrency(kpi.totPreventivo)} · {formatCurrency(kpi.totConsuntivo)}</p>
+              <p className="text-xs text-muted-foreground">{t("preventivo totale · costi registrati")}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase text-muted-foreground">{t("Materiali")}</p>
+              <p className="mt-1 font-semibold">{formatCurrency(kpi.purchaseCost)}</p>
+              <p className="text-xs text-muted-foreground">{t("acquisti e prelievi da scorta")}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase text-sky-700">{t("Mezzi stimati")}</p>
+              <p className="mt-1 font-semibold">{isLoadingVehicleEstimates || vehicleDataHidden || vehicleEstimatesError ? "—" : formatCurrency(kpi.vehicleEstimateTotal)}</p>
+              <p className="text-xs text-muted-foreground">
+                {vehicleEstimatesError ? t("dati non caricati: premi Aggiorna dati") : vehicleDataHidden
+                  ? t("non visibili con i tuoi permessi")
+                  : `${t("margine con i mezzi {importo} · {n} assegnazioni", { importo: formatCurrency(kpi.margineConMezzi), n: kpi.vehiclesUsed })}${kpi.vehiclesWithoutCost > 0 ? ` · ${t("{n} senza costo", { n: kpi.vehiclesWithoutCost })}` : ""}`}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase text-red-700">{t("Errori e anomalie")}</p>
+              <p className="mt-1 font-semibold">{formatCurrency(kpi.errorCost)}</p>
+              <p className="text-xs text-muted-foreground">{anomaliesError ? t("Anomalie non caricate") : t("{n} ancora da verificare", { n: String(kpi.openAnomalyCount ?? "") })}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase text-blue-700">{t("Struttura mensile")}</p>
+              <p className="mt-1 font-semibold">{structure.data ? formatCurrency(structure.data.monthlyStructure) : "—"}</p>
+              <p className="text-xs text-muted-foreground">{t("costi fissi e personale d'ufficio")}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase text-blue-700">{t("Quota per commessa")}</p>
+              <p className="mt-1 font-semibold">{structure.data?.monthlyPerActiveOrder ? formatCurrency(structure.data.monthlyPerActiveOrder) : "—"}</p>
+              <p className="text-xs text-muted-foreground">{structure.data?.activeOrders ?? "—"} {t("commesse attive")}</p>
+            </div>
+            <div className="sm:col-span-2">
+              <p className="text-xs font-semibold uppercase text-muted-foreground">{t("Metodo")}</p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                {t("La struttura viene ripartita automaticamente nel tempo.")} {overheadPct === null ? t("Se mancano date o dati la quota non viene calcolata: puoi impostare una percentuale aziendale.") : t("Se mancano date o dati viene applicata la percentuale del {percento}%.", { percento: overheadPct.toFixed(1) })} {t("Mezzi e struttura sono letture gestionali e non modificano il consuntivo contabile.")}
+              </p>
+            </div>
+          </div>
+        </details>
+      </div>
 
       {/* ── Performance per Sede ───────────────────────────── */}
       {sediError && <p role="alert" className="text-sm text-amber-800">{t("Analisi delle sedi non caricata. Premi Aggiorna dati per riprovare.")}</p>}
@@ -1050,56 +1105,6 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
         </section>
       )}
 
-      <details className="group rounded-xl border border-slate-200 bg-white">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-medium text-slate-800">
-          <span>{t("Dettagli economici e ipotesi di calcolo")}</span>
-          <span className="text-xs font-normal text-muted-foreground group-open:hidden">{t("Mostra")}</span>
-          <span className="hidden text-xs font-normal text-muted-foreground group-open:inline">{t("Nascondi")}</span>
-        </summary>
-        <div className="grid gap-4 border-t border-slate-100 p-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
-          <div>
-            <p className="text-xs font-semibold uppercase text-muted-foreground">{t("Ricavi e consuntivo")}</p>
-            <p className="mt-1 font-semibold">{formatCurrency(kpi.totPreventivo)} · {formatCurrency(kpi.totConsuntivo)}</p>
-            <p className="text-xs text-muted-foreground">{t("preventivo totale · costi registrati")}</p>
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase text-muted-foreground">{t("Materiali")}</p>
-            <p className="mt-1 font-semibold">{formatCurrency(kpi.purchaseCost)}</p>
-            <p className="text-xs text-muted-foreground">{t("acquisti e prelievi da scorta")}</p>
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase text-sky-700">{t("Mezzi stimati")}</p>
-            <p className="mt-1 font-semibold">{isLoadingVehicleEstimates || vehicleDataHidden || vehicleEstimatesError ? "—" : formatCurrency(kpi.vehicleEstimateTotal)}</p>
-            <p className="text-xs text-muted-foreground">
-              {vehicleEstimatesError ? t("dati non caricati: premi Aggiorna dati") : vehicleDataHidden
-                ? t("non visibili con i tuoi permessi")
-                : `${t("margine con i mezzi {importo} · {n} assegnazioni", { importo: formatCurrency(kpi.margineConMezzi), n: kpi.vehiclesUsed })}${kpi.vehiclesWithoutCost > 0 ? ` · ${t("{n} senza costo", { n: kpi.vehiclesWithoutCost })}` : ""}`}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase text-red-700">{t("Errori e anomalie")}</p>
-            <p className="mt-1 font-semibold">{formatCurrency(kpi.errorCost)}</p>
-            <p className="text-xs text-muted-foreground">{anomaliesError ? t("Anomalie non caricate") : t("{n} ancora da verificare", { n: String(kpi.openAnomalyCount ?? "") })}</p>
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase text-blue-700">{t("Struttura mensile")}</p>
-            <p className="mt-1 font-semibold">{structure.data ? formatCurrency(structure.data.monthlyStructure) : "—"}</p>
-            <p className="text-xs text-muted-foreground">{t("costi fissi e personale d'ufficio")}</p>
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase text-blue-700">{t("Quota per commessa")}</p>
-            <p className="mt-1 font-semibold">{structure.data?.monthlyPerActiveOrder ? formatCurrency(structure.data.monthlyPerActiveOrder) : "—"}</p>
-            <p className="text-xs text-muted-foreground">{structure.data?.activeOrders ?? "—"} {t("commesse attive")}</p>
-          </div>
-          <div className="sm:col-span-2">
-            <p className="text-xs font-semibold uppercase text-muted-foreground">{t("Metodo")}</p>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              {t("La struttura viene ripartita automaticamente nel tempo.")} {overheadPct === null ? t("Se mancano date o dati la quota non viene calcolata: puoi impostare una percentuale aziendale.") : t("Se mancano date o dati viene applicata la percentuale del {percento}%.", { percento: overheadPct.toFixed(1) })} {t("Mezzi e struttura sono letture gestionali e non modificano il consuntivo contabile.")}
-            </p>
-          </div>
-        </div>
-      </details>
-
       {hasMoreRows && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           {totalRows > rows.length
@@ -1108,8 +1113,8 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
         </div>
       )}
 
-      {/* ── Filtri (25/11/2026): tutto alto 32px, testo 12px; l'anno in una tendina (erano N chip). ── */}
-      <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
+      {/* ── Filtri (25/11/2026): tutto alto 32px, testo 12px; l'anno in una tendina (erano N chip).
+          Su una riga a 1600: niente riquadro attorno, campi % stretti, anno 120px. ── */}
       <div className="flex flex-col flex-wrap gap-2 sm:flex-row sm:items-center">
         <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -1136,7 +1141,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
               aria-pressed={healthFilter === item.key}
               onClick={() => setHealthFilter(item.key as typeof healthFilter)}
               className={cn(
-                "h-7 shrink-0 whitespace-nowrap rounded-md px-2 text-xs transition-colors",
+                "h-7 shrink-0 whitespace-nowrap rounded-md px-1.5 text-xs transition-colors",
                 healthFilter === item.key ? "bg-orange-50 font-semibold text-slate-950 ring-1 ring-orange-100" : "text-muted-foreground hover:bg-slate-50 hover:text-slate-900",
               )}
             >
@@ -1145,7 +1150,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
           ))}
         </div>
         <Select value={annoFilter} onValueChange={setAnnoFilter}>
-          <SelectTrigger aria-label={t("Anno di creazione")} className="h-8 w-full text-xs sm:w-[140px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger aria-label={t("Anno di creazione")} className="h-8 w-full text-xs sm:w-[120px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             {anniDisponibili.map((anno) => <SelectItem key={anno} value={anno}>{anno === "tutti" ? t("Tutti gli anni") : anno}</SelectItem>)}
           </SelectContent>
@@ -1161,7 +1166,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
             value={overheadPct ?? ""}
             placeholder="—"
             onChange={(e) => setOverheadPct(e.target.value === "" ? null : clampPercentage(Number(e.target.value)))}
-            className="w-20 h-8 text-xs"
+            className="w-14 h-8 text-xs"
           />
           <Popover>
             <PopoverTrigger asChild>
@@ -1182,7 +1187,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
             id="marginalita-target"
             value={targetMarginPct}
             onChange={(e) => setTargetMarginPct(clampPercentage(Number(e.target.value)))}
-            className="w-20 h-8 text-xs"
+            className="w-14 h-8 text-xs"
           />
           <Popover>
             <PopoverTrigger asChild>
@@ -1194,9 +1199,8 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
           </Popover>
         </div>
       </div>
-      </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+      {isMobile && <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <p role="status">{t(filtered.length === 1 ? "{n} commessa visualizzata su {totale} caricate" : "{n} commesse visualizzate su {totale} caricate", { n: filtered.length, totale: rows.length })}</p>
         <div className="flex flex-wrap items-center gap-2">
           {(search || annoFilter !== "tutti" || healthFilter !== "tutti") && <Button variant="ghost" size="sm" onClick={() => {setSearch(""); setAnnoFilter("tutti"); setHealthFilter("tutti");}}>{t("Azzera filtri")}</Button>}
@@ -1205,11 +1209,11 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
             <Button variant="outline" size="sm" onClick={() => {setOverheadPct(null); setTargetMarginPct(null);}}>{t("Ripristina valori aziendali")}</Button>
           </>}
         </div>
-      </div>
+      </div>}
 
       {/* ── Tabella Desktop ────────────────────────────────── */}
       <Card className="hidden md:block">
-        <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 px-3 py-2.5">
+        <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0 px-3 py-1.5">
           <CardTitle className="text-base flex items-center gap-2">
             <BarChart3 className="h-4 w-4 text-primary" />
             {t("Dettaglio per cantiere")}
@@ -1217,6 +1221,15 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
               <Badge variant="secondary" className="text-xs">{filtered.length} / {rows.length}</Badge>
             )}
           </CardTitle>
+          {/* Conteggio e azzera nella testata della tabella (25/11/2026): era una riga a sé sopra la tabella. */}
+          {!isMobile && <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <p role="status">{t(filtered.length === 1 ? "{n} commessa visualizzata su {totale} caricate" : "{n} commesse visualizzate su {totale} caricate", { n: filtered.length, totale: rows.length })}</p>
+            {(search || annoFilter !== "tutti" || healthFilter !== "tutti") && <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => {setSearch(""); setAnnoFilter("tutti"); setHealthFilter("tutti");}}>{t("Azzera filtri")}</Button>}
+            {(overheadPctOverride !== null || targetMarginPctOverride !== null) && <>
+              <span>{t("Simulazione locale: le impostazioni aziendali sono invariate.")}</span>
+              <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => {setOverheadPct(null); setTargetMarginPct(null);}}>{t("Ripristina valori aziendali")}</Button>
+            </>}
+          </div>}
           <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-600">
             <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded bg-sky-200" />{t("Diretto: ricavi − costi")}</span>
             <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded bg-amber-200" />{t("Dopo struttura: diretto − quota stimata")}</span>

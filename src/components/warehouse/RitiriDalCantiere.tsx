@@ -70,11 +70,12 @@ export function RitiriDalCantiere() {
     <Card>
       <CardContent className="p-0">
         <button type="button" aria-expanded={aperto} onClick={() => setAperto(v => !v)}
-          className="flex min-h-12 w-full items-center gap-2 px-4 py-3 text-left">
+          className="flex min-h-12 w-full items-center gap-2 px-4 py-3 text-left sm:min-h-10 sm:px-3 sm:py-2">
           <History className="size-4 text-primary" aria-hidden="true" />
-          <span className="flex-1">
-            <span className="block font-semibold">Ritiri dal cantiere</span>
-            <span className="block text-xs text-muted-foreground">Chi ha preso cosa, per quale cantiere, dall’app degli operai</span>
+          {/* Da tablet titolo e frase sulla stessa riga (25/11/2026): la riga chiusa era alta 66px. */}
+          <span className="min-w-0 flex-1 sm:flex sm:items-baseline sm:gap-2">
+            <span className="block font-semibold sm:shrink-0 sm:text-sm">Ritiri dal cantiere</span>
+            <span className="block text-xs text-muted-foreground sm:truncate">Chi ha preso cosa, per quale cantiere, dall’app degli operai</span>
           </span>
           <ChevronDown className={`size-4 text-muted-foreground ${aperto ? "rotate-180" : ""}`} aria-hidden="true" />
         </button>
