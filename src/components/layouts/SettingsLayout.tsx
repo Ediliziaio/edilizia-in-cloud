@@ -58,7 +58,7 @@ export function SettingsLayout() {
     <div className="settings-workspace flex min-w-0 flex-col min-h-full">
       {/* Header contestuale — titolo + descrizione derivati dall'URL corrente.
           Mobile: senza riquadro e senza margini propri (<main> ha già p-3). */}
-      <div className={cn("border-b bg-background px-4 py-4 md:px-6 md:py-5 max-sm:border-0 max-sm:bg-transparent max-sm:px-0 max-sm:pb-2 max-sm:pt-0", haTestataPropria && "max-sm:hidden")}>
+      <div className={cn("border-b bg-background px-4 py-3 md:px-4 md:py-2.5 max-sm:border-0 max-sm:bg-transparent max-sm:px-0 max-sm:pb-2 max-sm:pt-0", haTestataPropria && "max-sm:hidden")}>
         <div className="flex items-start gap-3">
           {/* v8.6.71 — Back arrow mobile: porta all'hub griglia impostazioni.
               Nascosto su desktop (sidebar laterale è la navigazione primaria)
@@ -72,12 +72,14 @@ export function SettingsLayout() {
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             </Link>
           )}
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 flex-1 min-w-0">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 flex-1 min-w-0">
             <div className="min-w-0">
               <h1 className="text-xl font-semibold tracking-tight break-words max-sm:text-lg">{t(title)}</h1>
               {/* Descrizione nascosta su mobile: su 375px occupava fino a 3 righe
                   prima del contenuto in ogni sotto-pagina impostazioni. */}
-              <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">{t(description)}</p>
+              {/* 25/11/2026: anche da computer la frase resta solo per i lettori di schermo, come nelle
+                  testate di tutte le altre pagine. */}
+              <p className="sr-only">{t(description)}</p>
             </div>
             {/* v8.6.71 — Search settings: nascosta su mobile (richiesto), resta su desktop */}
             <div className="hidden md:block">
@@ -88,7 +90,7 @@ export function SettingsLayout() {
         {schede.length > 1 && (
           <nav
             aria-label={t("Schede di {titolo}", { titolo: t(title) })}
-            className={cn("-mb-4 mt-3 flex gap-1 overflow-x-auto md:-mb-5 max-sm:mb-0 max-sm:mt-1 max-sm:border-b", gruppo?.id === "modelli" && "max-md:hidden")}
+            className={cn("-mb-3 mt-2 flex gap-1 overflow-x-auto md:-mb-2.5 max-sm:mb-0 max-sm:mt-1 max-sm:border-b", gruppo?.id === "modelli" && "max-md:hidden")}
           >
             {schede.map((scheda) => {
               const attiva = scheda === schedaAttiva;
@@ -98,7 +100,7 @@ export function SettingsLayout() {
                   to={scheda.to}
                   aria-current={attiva ? "page" : undefined}
                   className={cn(
-                    "whitespace-nowrap border-b-2 px-3 py-2 text-sm transition-colors",
+                    "whitespace-nowrap border-b-2 px-2.5 py-1.5 text-xs transition-colors",
                     attiva
                       ? "border-primary font-semibold text-foreground"
                       : "border-transparent text-muted-foreground hover:text-foreground",
@@ -113,7 +115,7 @@ export function SettingsLayout() {
       </div>
 
       {/* Contenuto della pagina figlia — larghezza piena */}
-      <div className="settings-content min-w-0 flex-1 px-4 py-4 md:px-6 md:py-6 max-sm:px-0 max-sm:py-2">
+      <div className="settings-content min-w-0 flex-1 px-4 py-3 md:px-4 md:py-3 max-sm:px-0 max-sm:py-2">
         {nelPiano ? (
           <Suspense key={pathname} fallback={<p role="status" aria-busy="true">{t("Caricamento della sezione…")}</p>}>
             <Outlet />
