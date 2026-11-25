@@ -2,13 +2,19 @@ import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Caricare il listino di un contratto: da un foglio o da un altro contratto.
  * Prima si vede riga per riga cosa entra e cosa no, poi si conferma.
+ *
+ * Il contratto puo' non esserci (25/11/2026): il listino arriva prima
+ * dell'accordo scritto, quindi al salvataggio l'accordo nasce da solo con i
+ * valori predefiniti e l'esito lo dice — vedi `lib/appalto/contrattoPredefinito`.
  */
 import { useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Copy, Download, FileSpreadsheet, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { euro } from "@/lib/clienti/schedaCliente";
+import { assicuraContratto, nomeContrattoPredefinito } from "@/lib/appalto/contrattoPredefinito";
+import { abbinaListino, chiaveVoce, contaAbbinamenti, type VoceGenerale } from "@/lib/appalto/abbinaListino";
 import {
   interpretaListino, leggiFoglio, scaricaModelloListino, vociGiaPresenti, LIMITE_RIGHE, TIPI_VOCE,
   type RigaListino, type VoceEsistente,
@@ -27,13 +33,17 @@ const db = supabase as any;
 const UNITA_ETICHETTA: Record<string, string> = { uomo_giorno: "uomo/giorno", mq: "m²", ml: "m", mc: "m³", corpo: "a corpo" };
 
 export function CaricaListinoDialog({
-  aperto, onChiudi, contratto, altriContratti, esistenti,
+  aperto, onChiudi, contratto, companyId, committenteId, altriContratti, esistenti, onContrattoCreato,
 }: {
   aperto: boolean;
   onChiudi: () => void;
-  contratto: { id: string; nome: string };
+  /** Null se il committente non ha ancora un contratto: lo creiamo al salvataggio. */
+  contratto: { id: string; nome: string } | null;
+  companyId: string;
+  committenteId: string;
   altriContratti: Array<{ id: string; nome: string }>;
   esistenti: VoceEsistente[];
+  onContrattoCreato?: (contratto: { id: string; nome: string }) => void;
 }) {
   const t = useT();
   const qc = useQueryClient();
@@ -80,7 +90,29 @@ export function CaricaListinoDialog({
   };
 
   const gia = useMemo(() => vociGiaPresenti(righe ?? [], esistenti, sostituisci), [righe, esistenti, sostituisci]);
-  const buone = (righe ?? []).filter((r) => !r.problema && !gia.has(r.riga));
+  const buone = useMemo(() => (righe ?? []).filter((r) => !r.problema && !gia.has(r.riga)), [righe, gia]);
+
+  // Le voci del listino generale servono a collegare le righe: senza il legame il
+  // prezzo del committente non arriva nei rapportini (vedi lib/appalto/abbinaListino).
+  const generali = useQuery({
+    queryKey: ["listino-generale-voci", companyId],
+    enabled: aperto && !!companyId,
+    staleTime: 60_000,
+    queryFn: async (): Promise<VoceGenerale[]> => {
+      const tutte: VoceGenerale[] = [];
+      for (let da = 0; da < 5000; da += 1000) {
+        const { data, error } = await db.from("tariffe_aziendali").select("id, codice, nome")
+          .eq("company_id", companyId).eq("attivo", true).order("nome").order("id").range(da, da + 999);
+        if (error) throw error;
+        tutte.push(...((data ?? []) as VoceGenerale[]));
+        if ((data ?? []).length < 1000) break;
+      }
+      return tutte;
+    },
+  });
+  const abbinamenti = useMemo(() => abbinaListino(buone, generali.data ?? []), [buone, generali.data]);
+  const perRiga = useMemo(() => new Map(buone.map((r, i) => [r.riga, abbinamenti[i]])), [buone, abbinamenti]);
+  const conti = useMemo(() => contaAbbinamenti(abbinamenti), [abbinamenti]);
   const scartate = (righe ?? []).filter((r) => r.problema).length;
   const inUso = esistenti.filter((e) => e.attivo).length;
   const senzaTipo = buone.filter((r) => r.tipoDaScegliere).length;
@@ -89,17 +121,55 @@ export function CaricaListinoDialog({
 
   const carica = useMutation({
     mutationFn: async () => {
+      const dove = await assicuraContratto(db, { companyId, committenteId, contratto });
       const { data, error } = await db.rpc("appalto_listino_carica", {
-        p_contratto_id: contratto.id,
+        p_contratto_id: dove.id,
         p_sostituisci: sostituisci,
         p_righe: buone.map(({ tipo, codice, descrizione, unita_misura, prezzo_unitario, qualifica, note }) => ({ tipo, codice, descrizione, unita_misura, prezzo_unitario, qualifica, note })),
       });
       if (error) throw error;
-      return data as number;
+
+      // I legami si scrivono dopo: `appalto_listino_carica` non li conosce. Una
+      // riga senza legame resta caricata e collegabile a mano: non si perde niente.
+      const daCollegare = buone
+        .map((r, i) => ({ riga: r, abbinamento: abbinamenti[i] }))
+        .filter((x) => x.abbinamento?.tariffaId);
+      let collegate = 0;
+      if (daCollegare.length > 0) {
+        const { data: scritte, error: e2 } = await db.from("appalto_tariffe")
+          .select("id, descrizione, tariffa_id").eq("contratto_id", dove.id).eq("attivo", true);
+        if (!e2) {
+          const perDescrizione = new Map<string, string>();
+          for (const t of (scritte ?? []) as Array<{ id: string; descrizione: string; tariffa_id: string | null }>) {
+            if (!t.tariffa_id) perDescrizione.set(chiaveVoce(t.descrizione), t.id);
+          }
+          const esiti = await Promise.all(daCollegare.map(async (x) => {
+            const id = perDescrizione.get(chiaveVoce(x.riga.descrizione));
+            if (!id) return false;
+            const { error: e3 } = await db.from("appalto_tariffe").update({ tariffa_id: x.abbinamento.tariffaId }).eq("id", id);
+            return !e3;
+          }));
+          collegate = esiti.filter(Boolean).length;
+        }
+      }
+      return { n: data as number, dove, collegate, scollegate: buone.length - collegate };
     },
-    onSuccess: (n) => {
-      void qc.invalidateQueries({ queryKey: ["appalto-tariffe", contratto.id] });
-      toast.success(n === 1 ? t("1 voce caricata") : t("{n} voci caricate", { n: String(n ?? "") }));
+    onSuccess: ({ n, dove, collegate, scollegate }) => {
+      void qc.invalidateQueries({ queryKey: ["appalto-tariffe", dove.id] });
+      void qc.invalidateQueries({ queryKey: ["appalto-contratti", companyId, committenteId] });
+      if (dove.creato) onContrattoCreato?.({ id: dove.id, nome: dove.nome });
+      const voci = n === 1 ? t("1 voce caricata") : t("{n} voci caricate", { n: String(n ?? "") });
+      const legami = collegate > 0
+        ? t("{collegate} collegate al listino generale: il prezzo di questo committente vale anche nei rapportini.", { collegate })
+        : "";
+      const mancanti = scollegate > 0
+        ? t("{scollegate} da collegare a mano dalla pagina del contratto, colonna «Voce del listino».", { scollegate })
+        : "";
+      const nato = dove.creato
+        ? t("Sono in «{nome}», il contratto aperto adesso: condizioni predefinite (30 giorni, ritenuta 0, per commessa), da completare quando vuoi.", { nome: dove.nome })
+        : "";
+      const descrizione = [nato, legami, mancanti].filter(Boolean).join(" ");
+      toast.success(voci, { description: descrizione || undefined });
       chiudi();
     },
     onError: () => toast.error(t("Listino non caricato: non è cambiato niente. Riprova.")),
@@ -110,7 +180,9 @@ export function CaricaListinoDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{t("Carica listino")}</DialogTitle>
-          <DialogDescription>{contratto.nome}</DialogDescription>
+          <DialogDescription>
+            {contratto?.nome ?? t("Nessun contratto: le voci entrano in «{nome}», che nasce al salvataggio.", { nome: nomeContrattoPredefinito() })}
+          </DialogDescription>
         </DialogHeader>
 
         {!righe ? (
@@ -172,6 +244,16 @@ export function CaricaListinoDialog({
               </div>
             )}
 
+            {buone.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {generali.isLoading
+                  ? t("Cerco le voci corrispondenti nel listino generale…")
+                  : conti.scollegate === 0
+                    ? t("Tutte collegate al listino generale: il prezzo di questo committente arriva anche nei rapportini.")
+                    : t("{collegate} su {totale} collegate al listino generale. Le altre si caricano comunque, ma nei rapportini resta il prezzo generale finché non le colleghi.", { collegate: conti.collegate, totale: buone.length })}
+              </p>
+            )}
+
             {senzaTipo > 0 && (
               <p className="flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-900">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -184,7 +266,7 @@ export function CaricaListinoDialog({
             <div className="max-h-[40vh] overflow-y-auto rounded-lg border">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-muted text-left text-xs text-muted-foreground">
-                  <tr><th className="px-2 py-1.5 font-medium">{t("Voce")}</th><th className="px-2 py-1.5 font-medium">{t("Tipo")}</th><th className="px-2 py-1.5 font-medium">{t("Unità")}</th><th className="px-2 py-1.5 text-right font-medium">{t("Prezzo")}</th><th className="px-2 py-1.5 font-medium">{t("Esito")}</th></tr>
+                  <tr><th className="px-2 py-1.5 font-medium">{t("Voce")}</th><th className="px-2 py-1.5 font-medium">{t("Tipo")}</th><th className="px-2 py-1.5 font-medium">{t("Unità")}</th><th className="px-2 py-1.5 text-right font-medium">{t("Prezzo")}</th><th className="px-2 py-1.5 font-medium">{t("Nel listino generale")}</th><th className="px-2 py-1.5 font-medium">{t("Esito")}</th></tr>
                 </thead>
                 <tbody className="divide-y">
                   {righe.map((r) => (
@@ -203,6 +285,12 @@ export function CaricaListinoDialog({
                       </td>
                       <td className="px-2 py-1.5 whitespace-nowrap">{UNITA_ETICHETTA[r.unita_misura] ?? (r.unita_misura || "—")}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums">{/rezzo/.test(r.problema ?? "") ? "—" : euro(r.prezzo_unitario, true)}</td>
+                      <td className="px-2 py-1.5 text-xs">
+                        {r.problema || gia.has(r.riga)
+                          ? "—"
+                          : perRiga.get(r.riga)?.nome
+                            ?? <span className="text-amber-700">{t("da collegare")}</span>}
+                      </td>
                       <td className="px-2 py-1.5 text-xs">{r.problema ? <span className="text-destructive">{t("Riga {riga}: {problema}", { riga: String(r.riga ?? ""), problema: String(r.problema ?? "") })}</span> : gia.has(r.riga) ? t("Già in listino") : t("Entra")}</td>
                     </tr>
                   ))}

@@ -29,7 +29,12 @@ vi.mock("@/hooks/useQuoteCostiComuni", () => ({
 }));
 
 vi.mock("@/hooks/useUnitaDalPiano", () => ({ useUnitaDalPiano: (): null => null }));
-vi.mock("@/hooks/useGeneralePiano", () => ({ useGeneralePianoNumeri: (): { piano: null } => ({ piano: null }) }));
+vi.mock("@/hooks/useGeneralePiano", () => ({
+  useGeneralePianoNumeri: (): { piano: null } => ({ piano: null }),
+  // Il confronto computo / business plan della scheda Progetto: qui nessuna versione del piano.
+  useVersioniPiano: (): { data: [] } => ({ data: [] }),
+  useVociPiano: (): { data: [] } => ({ data: [] }),
+}));
 vi.mock("@/hooks/useGeneraleContratto", () => ({ useDatiContratto: () => ({ data: m.contratto }) }));
 // Il documento originale ha i suoi test in contrattoAppaltoOriginale.test.tsx.
 vi.mock("@/components/orders/generali/contratto/DocumentoContrattoAppalto", () => ({ DocumentoContrattoAppalto: (): null => null }));

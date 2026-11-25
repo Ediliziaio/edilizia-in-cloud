@@ -17,8 +17,9 @@ describe("polyfillBrowserVecchi (Safari < 17.4)", () => {
   });
 
   it("non tocca i browser che le hanno già", () => {
-    const prima = Promise.withResolvers;
+    const P = Promise as unknown as { withResolvers?: unknown };
+    const prima = P.withResolvers;
     installaPolyfillBrowserVecchi();
-    expect(Promise.withResolvers).toBe(prima);
+    expect(P.withResolvers).toBe(prima);
   });
 });

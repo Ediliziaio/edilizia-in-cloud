@@ -25,6 +25,8 @@ const area = (l:Locale) => areaPoligono(l.contorno)/10_000;
 const ALTEZZA_TAVOLA = "h-[clamp(290px,94vw,440px)] lg:h-[clamp(300px,57vh,640px)]";
 export type VistaProgettoPianta = "pianta" | "3d" | "originale";
 
+import type { DestinazioneGuida } from "@/lib/planimetrie/guidaProgetto";
+
 interface Props {
   documento: Planimetria; titolo: string; livello: Livello; ambito: string; nomeAmbito: string;
   companyId: string; planimetriaId: string; versione: number;
@@ -40,11 +42,13 @@ interface Props {
   onVerifica: () => void;
   onSalvato3D: (localeId: string) => void;
   onSalvata: (variante: AnteprimaChatProgetto) => void;
+  /** La guida di Silvio dopo il DWG: porta a tipo di lavori, unità, lotto, tavole, 3D e costi. */
+  onGuida?: (verso: DestinazioneGuida) => void;
 }
 
 export function PiantaProgettoWorkspace({ documento, titolo, livello, ambito, nomeAmbito, companyId, planimetriaId, versione,
   tavola, cercaTavola, selezionato, muroSelezionato, chatAperta, analisiAperta, puoScrivere, vista, puoModificare3D, torna, esplosoIniziale, bozzaInterni, onBozzaInterni,
-  onSeleziona, onApriChat, onChiudiChat, onApriCorrente, onAnalisi, onEsodo, onRiscontro, onVista, onVerifica, onSalvato3D, onSalvata }: Props) {
+  onSeleziona, onApriChat, onChiudiChat, onApriCorrente, onAnalisi, onEsodo, onRiscontro, onVista, onVerifica, onSalvato3D, onSalvata, onGuida }: Props) {
   const t = useT();
   const stato = statoPerAmbito(bozzaInterni ?? documento,livello.id,ambito) ?? livello.fatto;
   const locali = stato.locali;
@@ -208,7 +212,7 @@ export function PiantaProgettoWorkspace({ documento, titolo, livello, ambito, no
       evidenziata={risalto} onMostraSegnalazione={mostraSegnalazione}
       gruppoIniziale={gruppoChat} onGruppo={setGruppoChat}
       onSeleziona={seleziona} onAnteprima={anteprima} onSalva={()=>void salva()} onChiudi={chiudiChat} onVaiAllaCorrente={onApriCorrente}
-      onVista3D={haGeometria ? ()=>onVista("3d") : undefined} muroId={muro?.id}/></div> :
+      onVista3D={haGeometria ? ()=>onVista("3d") : undefined} muroId={muro?.id} onGuida={onGuida}/></div> :
       !studioInterni && <aside aria-label={t("Ambienti del piano")} className="min-w-0 overflow-hidden rounded-2xl border bg-card shadow-sm">
         <div className="flex items-center justify-between gap-2 border-b px-4 py-3.5">
           <h2 className="text-sm font-semibold">{t("Ambienti del piano")}</h2><span className="text-xs tabular-nums text-muted-foreground">{locali.length}</span>

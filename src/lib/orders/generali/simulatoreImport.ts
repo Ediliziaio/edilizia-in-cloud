@@ -12,7 +12,13 @@ const n = (x: unknown, fallback = 0) => typeof x === "number" && Number.isFinite
 const delta = (da: string, a: string) => { const [y, m] = da.split("-").map(Number), [yy, mm] = a.split("-").map(Number); return (yy - y) * 12 + mm - m; };
 
 /** Conserva il dettaglio nei ritocchi e nelle voci aggiunte del simulatore nativo. */
-export function ipotesiDaPiano(voci: VoceNuova[], parametri: Record<string, unknown>, modello: ModelloSimulato, origine: Omit<OrigineIpotesi, "confermata" | "avvisi">): Ipotesi {
+/**
+ * `pianta`: le unità dell'ipotesi aperta, se viene da una planimetria. Un business plan in Excel
+ * di rado ha superfici (Callimaco, 25/11/2026: «Unità 1… 365.000 €», nessun m²): senza, importarlo
+ * sopra l'ipotesi della pianta buttava via le 7 unità e i loro m². Si tengono con le loro superfici
+ * e il prezzo a zero, perché i ricavi restano quelli del piano, voce per voce: niente doppi conteggi.
+ */
+export function ipotesiDaPiano(voci: VoceNuova[], parametri: Record<string, unknown>, modello: ModelloSimulato, origine: Omit<OrigineIpotesi, "confermata" | "avvisi">, pianta?: Pick<Ipotesi, "tipologie" | "planimetria">): Ipotesi {
   if (!voci.length || voci.some(v => !meseImportato(v.mese) || !Number.isFinite(v.importo) || v.importo < 0 || v.nota?.includes(DA_STIMARE))) throw new Error("Completa importi e mesi nell’anteprima prima di trasferire il piano al simulatore.");
   const inizio = [meseImportato(parametri.inizio), ...voci.map(v => v.mese!)].filter((x): x is string => !!x).sort()[0];
   const mutuo = oggetto(parametri.mutuo);
@@ -26,6 +32,11 @@ export function ipotesiDaPiano(voci: VoceNuova[], parametri: Record<string, unkn
     investitori: (Array.isArray(parametri.investitori) ? parametri.investitori : []).map((t, i) => { const p = oggetto(t); return { id: `fonte-import-${i + 1}`, nome: typeof p.nome === "string" ? p.nome : "Investitore", tipo: p.tipo === "prestito" ? "prestito" as const : "capitale" as const, importo: n(p.importo), tassoPct: p.tassoPct == null ? null : n(p.tassoPct), quotaUtilePct: p.quotaUtilePct == null ? null : n(p.quotaUtilePct) }; }),
     ritocchi: {}, aggiunte: [],
   };
+  const dallaPianta = !ip.tipologie.length && !!pianta?.tipologie.length;
+  if (dallaPianta) {
+    ip.tipologie = pianta!.tipologie.map((t) => ({ ...t, prezzoMq: 0 }));
+    if (pianta!.planimetria) ip.planimetria = { ...pianta!.planimetria, confermata: false, computoImportato: false };
+  }
   const mq = ip.tipologie.reduce((s, t) => s + t.quante * t.mq, 0);
   const ricavi = voci.filter(v => v.tipo === "ricavo");
   const totaleRicavi = ricavi.reduce((s, v) => s + v.importo, 0);
@@ -63,6 +74,7 @@ export function ipotesiDaPiano(voci: VoceNuova[], parametri: Record<string, unkn
     "Verifica finanziamenti, tassi, unità e superfici. I dati assenti restano a zero o vuoti, senza esempi precompilati.",
     "Le voci importate conservano importi e mesi nel Dettaglio voci. Togli un ritocco per ricalcolarlo dai parametri.",
     ...(!ip.tipologie.length ? ["Unità e superfici non leggibili: non verranno create unità automaticamente."] : []),
+    ...(dallaPianta ? ["Unità e superfici vengono dalla planimetria; i ricavi restano quelli del business plan, voce per voce."] : []),
     ...(ip.mutuo.importo > 0 && mutuo.tassoPct == null ? ["Tasso del mutuo mancante: completalo prima di confermare."] : []),
   ] };
   return ip;

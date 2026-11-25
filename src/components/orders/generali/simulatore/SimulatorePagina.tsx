@@ -246,7 +246,7 @@ function Editor({ salvate, caricamento, modelliAttivi, puoCreare, puoLeggereComp
     setImportando(true);
     try {
       const originale = await conservaOriginaleAi(origine.file, effectiveCompany.id);
-      const ipotesi = ipotesiDaPiano(voci, origine.simulazione ?? {}, aperta.ipotesi.modello, { originale, hash: origine.hash, scenario: origine.foglio });
+      const ipotesi = ipotesiDaPiano(voci, origine.simulazione ?? {}, aperta.ipotesi.modello, { originale, hash: origine.hash, scenario: origine.foglio }, aperta.ipotesi.planimetria ? aperta.ipotesi : undefined);
       setAperta({ id: null, nome: `${origine.file.name.replace(/\.[^.]+$/, "")} · ${origine.foglio}`.slice(0,200), ipotesi });
       setScheda("ipotesi"); setImportAperto(false);
       toast.success(t("Piano trasferito nell’ipotesi"), { description: t("Verifica unità e fonti, poi salva. Nessuna commessa è stata creata.") });

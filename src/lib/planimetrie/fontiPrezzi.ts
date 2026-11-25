@@ -14,6 +14,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { regioneAzienda } from "@/lib/geo/provinceRegioni";
+import { unitaCompatibili } from "@/lib/prezzario/confronto";
 import { abbinamentiPerRegione, PROVINCE_TOSCANA, regioneDelPrezzario, unitaDelPrezzario } from "../../../shared/planimetrie/abbinamentiPrezzario.ts";
 import { FONTI_VUOTE, REGOLE_LAVORAZIONI, type FontiPrezzi, type TipoLavorazione, type VoceDiPrezzo } from "./prezziProposti";
 
@@ -53,17 +54,26 @@ async function prezzarioAbbinato(companyId: string): Promise<PrezzarioCaricato> 
     ? (nomeProvincia ? elenco.find((f) => (f.nome ?? "").trim().endsWith(nomeProvincia)) : undefined)
     : elenco.length === 1 ? elenco[0] : undefined;
   if (!fonte?.id) return vuoto;
-  const perCodice = new Map(Object.entries(abbinamenti.voci).map(([tipo, v]) => [v.codice, tipo as TipoLavorazione]));
+  // Le voci abbinate, più le «per ogni cm in più» delle voci a spessore (il cappotto).
+  const codici = Object.values(abbinamenti.voci).flatMap((v) => (v.perCm ? [v.codice, v.perCm.codice] : [v.codice]));
   const { data, error } = await sb().from("prezzario_voce").select("codice, descrizione, unita_misura, prezzo")
-    .eq("fonte_id", fonte.id).in("codice", [...perCodice.keys()]).limit(perCodice.size * 2);
+    .eq("fonte_id", fonte.id).in("codice", codici).limit(codici.length * 2);
   if (error || !data?.length) return vuoto;
   const righe = data as { codice: string; descrizione: string; unita_misura: string | null; prezzo: number | string | null }[];
+  // Un codice ripetuto nella fonte non è più un abbinamento sicuro: si scarta.
+  const unica = (codice: string) => { const t = righe.filter((x) => x.codice === codice); return t.length === 1 ? t[0] : undefined; };
   const prezzario: FontiPrezzi["prezzario"] = {};
-  for (const v of righe) {
-    const tipo = perCodice.get(v.codice);
-    // Un codice ripetuto nella fonte non è più un abbinamento sicuro: si scarta.
-    if (!tipo || !(tipo in REGOLE_LAVORAZIONI) || righe.filter((x) => x.codice === v.codice).length > 1) continue;
-    prezzario[tipo] = { codice: v.codice, descrizione: v.descrizione, unita: unitaDelPrezzario(v.unita_misura), prezzo: Number(v.prezzo) };
+  for (const [tipoChiave, abbinata] of Object.entries(abbinamenti.voci)) {
+    const tipo = tipoChiave as TipoLavorazione, v = unica(abbinata.codice);
+    if (!v || !(tipo in REGOLE_LAVORAZIONI)) continue;
+    const voce: VoceDiPrezzo = { codice: v.codice, descrizione: v.descrizione, unita: unitaDelPrezzario(v.unita_misura), prezzo: Number(v.prezzo) };
+    if (abbinata.perCm) {
+      // Senza la voce del centimetro in più, quella a spessore non sa quotare: non si propone.
+      const cm = unica(abbinata.perCm.codice);
+      if (!cm || !unitaCompatibili(unitaDelPrezzario(cm.unita_misura), voce.unita)) continue;
+      voce.perCm = { codice: cm.codice, prezzo: Number(cm.prezzo), daCm: abbinata.perCm.daCm };
+    }
+    prezzario[tipo] = voce;
   }
   const nome = abbinamenti.regione.replace(/^Trentino — /, "");
   return { prezzario, prezzarioNome: `${nome} ${abbinamenti.anno}${nomeProvincia ? ` (${nomeProvincia})` : ""}` };

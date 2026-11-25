@@ -13,6 +13,7 @@ import { geometriaLogo, nomeFontModello } from "./assetModello";
 import { segnaCopertinaComputoPdf, segnaVoceComputoPdf } from "./destinazioniPdf";
 import { haPaginaCopertina } from "./copertineComputo";
 import { disegnaPlanimetriaComputo } from "./stampaPlanimetria";
+import { accorpaVociPerLavorazione, pianoDellaVoce } from "./accorpaVoci";
 
 function disegnaFotoInCopertina(doc: jsPDF, foto: NonNullable<IntestazioneComputo["immagineCopertina"]>, x: number, y: number, w: number, h: number, ritaglia: boolean) {
   if (!ritaglia) {
@@ -30,6 +31,7 @@ function disegnaFotoInCopertina(doc: jsPDF, foto: NonNullable<IntestazioneComput
 
 /** Stesso tema dei preventivi edili; dettaglio metrico mantenuto nel motore comune. */
 export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: IntestazioneComputo): jsPDF {
+  if (i.accorpaPerLavorazione) voci = accorpaVociPerLavorazione(voci);
   // Stato stampato in testa e a piè di pagina: vuoto nel documento definitivo, «Bozza…» nelle anteprime e se non detto.
   const stato = i.stato ?? "Bozza locale - non inviata";
   const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
@@ -85,6 +87,11 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     for (const line of lines) { ensure(passo); font(size, bold, color); doc.text(line, x, y); y += passo; }
   };
   const rule = () => { ensure(9); doc.setDrawColor(t.filetto); doc.setLineWidth(.5); doc.line(m, y, right, y); y += 10; };
+  // «06 Murature e tamponature»: il capitolo ha già il suo numero, non se ne mette un secondo davanti.
+  const numeroCapitolo = (nome: string, posizione: number) => {
+    const m2 = /^(\d{2})\s+(.+)$/.exec(nome);
+    return m2 ? { numero: m2[1], nome: m2[2] } : { numero: String(posizione).padStart(2, "0"), nome };
+  };
   const section = (numero: string, titolo: string, sottotitolo?: string) => {
     font(11, true); const lines = wrap(titolo, width - 27);
     const passo = doc.getFontSize() * 1.3;
@@ -116,6 +123,10 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
   const stileCopertina = veste?.copertina ?? "piena";
   const editoriale = stileCopertina === "editoriale";
   const coperta = haPaginaCopertina(veste, i.sezioni?.copertina !== false);
+  // La planimetria non sta più in copertina (25/11/2026): la copertina resta pulita, titolo e dati;
+  // il progetto ha la sua pagina subito dopo, a tutta larghezza.
+  const piantaProgetto = i.planimetria;
+  const piantaInCopertina = coperta ? undefined : piantaProgetto;
   const logo = veste?.mostraLogo !== false ? veste?.logo : null;
   if (coperta) {
     segnaCopertinaComputoPdf(doc);
@@ -130,7 +141,7 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     const trama = mescola(c.fondo, c.testo, 0.06), tenue = mescola(c.fondo, c.testo, 0.72), filo = mescola(c.fondo, c.testo, 0.3);
     // Con la foto del progetto la parte alta è la foto, a tutta pagina; sotto, il fondo scuro con titolo e dati.
     const foto = i.immagineCopertina;
-    const fotoH = foto || stileCopertina === "fotografica" ? Math.round(H * (i.planimetria ? .22 : .44)) : 0;
+    const fotoH = foto || stileCopertina === "fotografica" ? Math.round(H * (piantaInCopertina ? .22 : .44)) : 0;
     doc.setFillColor(c.fondo); doc.rect(0, 0, W, H, "F");
     // La trama di un foglio millimetrato, appena visibile: è un computo, un documento tecnico.
     doc.setDrawColor(trama); doc.setLineWidth(0.3);
@@ -141,7 +152,7 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
       for (let x = 0; x <= W; x += 24) doc.line(x, 0, x, H);
       for (let r = 0; r <= H; r += 24) doc.line(0, r, W, r);
     }
-    if (foto) { try { disegnaFotoInCopertina(doc, foto, 0, 0, W, fotoH, !!i.planimetria); } catch { /* una foto illeggibile non ferma il preventivo */ } }
+    if (foto) { try { disegnaFotoInCopertina(doc, foto, 0, 0, W, fotoH, !!piantaInCopertina); } catch { /* una foto illeggibile non ferma il preventivo */ } }
     else if (stileCopertina === "fotografica") {
       doc.setFillColor(mescola(t.fondo, "#FFFFFF", .80)); doc.rect(0, 0, W, fotoH, "F");
       doc.setFillColor(mescola(t.fondo, "#FFFFFF", .55)); doc.rect(W * .08, fotoH * .35, W * .33, fotoH * .65, "F");
@@ -172,7 +183,7 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
       font(15, true, c.testo); doc.text(short(i.azienda || "Preventivo con computo metrico", stileCopertina === "diagonale" && !fotoH ? cw * .60 : cw), cm, yc); yc += 15;
       if (i.dettagliAzienda) { font(8, false, tenue); (wrap(i.dettagliAzienda, stileCopertina === "diagonale" && !fotoH ? cw * .60 : cw) as string[]).slice(0, 2).forEach((r, k) => doc.text(r, cm, yc + k * 11 * scalaTesto)); }
     }
-    if (i.planimetria) yc = fotoH ? yc + 29 : Math.max(H * .205, yc + 38);
+    if (piantaInCopertina) yc = fotoH ? yc + 29 : Math.max(H * .205, yc + 38);
     else yc = fotoH ? yc + 44 : H * 0.36;
     const campi = ([
       ["Committente", i.nascondiCliente ? "" : i.committente ?? ""], ["Luogo dei lavori", i.nascondiCliente ? "" : i.indirizzoIntervento ?? ""],
@@ -186,7 +197,7 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     let sizeTitolo = veste?.dimensioneTitolo ?? 34;
     fontCopertina(sizeTitolo, c.testo);
     let righeTitolo = wrap(i.titolo || "Preventivo", cw - 10);
-    const limiteTitolo = i.planimetria
+    const limiteTitolo = piantaInCopertina
       ? fondoPianta - 162 - (i.oggetto?.trim() ? (fotoH ? 55 : 72) : 0)
       : H - 70 - 2 * 46 - 24 - (i.oggetto?.trim() ? 44 : 0);
     while (sizeTitolo > 18 && yc + (righeTitolo.length - 1) * sizeTitolo * 1.15 > limiteTitolo) {
@@ -196,10 +207,10 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
       if (yc > limiteTitolo) break; // Il titolo completo è riportato nei dati del lavoro.
       doc.text(r, cm, yc); yc += sizeTitolo * 1.15;
     }
-    if (i.oggetto?.trim()) { yc += 4; font(12, false, tenue); for (const r of wrap(i.oggetto.trim(), cw - 40).slice(0, fotoH ? 2 : i.planimetria ? 3 : 4)) { doc.text(r, cm, yc); yc += 16; } }
-    if (i.planimetria) {
+    if (i.oggetto?.trim()) { yc += 4; font(12, false, tenue); for (const r of wrap(i.oggetto.trim(), cw - 40).slice(0, fotoH ? 2 : piantaInCopertina ? 3 : 4)) { doc.text(r, cm, yc); yc += 16; } }
+    if (piantaInCopertina) {
       const yPianta = yc + 12;
-      disegnaPlanimetriaComputo(doc, i.planimetria, cm, yPianta, cw, Math.min(fotoH ? 218 : 272, fondoPianta - yPianta));
+      disegnaPlanimetriaComputo(doc, piantaInCopertina, cm, yPianta, cw, Math.min(fotoH ? 218 : 272, fondoPianta - yPianta));
     }
     if (campi.length) {
       const col = (cw - 30) / 3, righe = Math.ceil(campi.length / 3);
@@ -214,6 +225,11 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     }
     if (stato) { font(7.5, false, tenue); doc.text(stato, cm, H - 34); }
     doc.addPage(); y = cm; testataContinua(6);
+    if (piantaProgetto) {
+      paragraph("Il progetto", 16, t.inchiostro, true); y += 6;
+      y += disegnaPlanimetriaComputo(doc, piantaProgetto, m, y, width, bottom - y - 12);
+      doc.addPage(); y = cm; testataContinua(6);
+    }
     paragraph("Dati del lavoro", 16, t.inchiostro, true); y += 6;
   } else {
   // Prima pagina: identità e perimetro, senza ripetere il prezzo finale. La copertina la sceglie il modello
@@ -289,8 +305,9 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
   if (voci.length >= 4 && i.sezioni?.indice !== false) {
     ensure(65); y += 6; paragraph("Il piano dei lavori", 16, t.inchiostro, true); y += 8;
     for (const [index, n] of nodi.entries()) {
-      font(9); const lines = wrap(n.nome, width - 100); ensure(lines.length * 12 + 10);
-      font(8, true, t.inchiostroMarca); doc.text(String(index + 1).padStart(2, "0"), m, y);
+      const cap = numeroCapitolo(n.nome, index + 1);
+      font(9); const lines = wrap(cap.nome, width - 100); ensure(lines.length * 12 + 10);
+      font(8, true, t.inchiostroMarca); doc.text(cap.numero, m, y);
       lines.forEach((l, k) => { font(9); doc.text(l, m + 28, y + k * 12); });
       capitoliPagina.push({ page: doc.getNumberOfPages(), y, nodo: n });
       y += lines.length * 12 + 5;
@@ -324,8 +341,8 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     { label: "DESCRIZIONE DELLA LAVORAZIONE", w: width - numeroW - unitaW - 62 - (mostraUnitari ? 70 : 0) - (mostraImporti ? 82 : 0), destra: false },
     { label: "U.M.", w: unitaW, destra: false },
     { label: "QUANTITÀ", w: 62, destra: true },
-    ...(mostraUnitari ? [{ label: "PREZZO UNITARIO €", w: 70, destra: true }] : []),
-    ...(mostraImporti ? [{ label: "IMPORTO VOCE €", w: 82, destra: true }] : []),
+    ...(mostraUnitari ? [{ label: "PREZZO €", w: 70, destra: true }] : []),
+    ...(mostraImporti ? [{ label: "IMPORTO €", w: 82, destra: true }] : []),
   ];
   const intestazioneTabella = () => {
     if (voceInCorso) { font(6.5, false, t.grigio); doc.text(`Voce ${numeroVoce(voceInCorso)} - continua`, m, y); y += 14; }
@@ -381,11 +398,11 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
       if (offset < lunghezza) continuation();
     }
   };
-  const disegnaRigaVoce = (v: VoceComputo, sottoTitolo: boolean) => {
+  const disegnaRigaVoce = (v: VoceComputo, sottoTitolo: boolean, alterna = false) => {
     const celle = celleVoce(v), lunghezza = Math.max(...celle.map(r => r.length));
     const altezza = lunghezza * passoVoce + 12;
     if (!sottoTitolo && altezza < bottom - m - 110 && y + altezza > bottom) continuation();
-    disegnaCelle(celle, passoVoce, 6, 27, undefined, () => segnaVoceComputoPdf(doc, v.id, y));
+    disegnaCelle(celle, passoVoce, 6, 27, alterna ? "#F8FAFC" : undefined, () => segnaVoceComputoPdf(doc, v.id, y));
   };
   const fattori = ["parti_uguali", "lunghezza", "larghezza", "altezza_peso"] as const;
   const nomiFattori = ["Parti", "Lung.", "Larg.", "H/Peso"];
@@ -393,7 +410,9 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     const formula = misura.formula?.trim() || "";
     const valore = /^[+-]?\d+(?:[.,]\d+)?$/.test(formula) ? Number(formula.replace(",", ".")) : null;
     const ridondante = valore != null && misura.quantita != null && valore === misura.quantita;
-    const dimensioni = fattori.flatMap((campo, k) => misura[campo] == null ? [] : [`${nomiFattori[k]} ${num(misura[campo])}`]).join(" / ");
+    // «Parti 19,79» sotto una misura che vale 19,79 non dice niente: si mostra solo se c'è altro da moltiplicare.
+    const soloParti = misura.parti_uguali != null && misura.parti_uguali === misura.quantita && [misura.lunghezza, misura.larghezza, misura.altezza_peso].every(n => n == null);
+    const dimensioni = soloParti ? "" : fattori.flatMap((campo, k) => misura[campo] == null ? [] : [`${nomiFattori[k]} ${num(misura[campo])}`]).join(" / ");
     return [
       ...righeCella(misura.descrizione || "Misura", colonne[1].w, 7.2),
       ...(dimensioni ? righeCella(dimensioni, colonne[1].w, 6.7, false, true) : []),
@@ -426,19 +445,23 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     return h;
   };
   let comunePrecedente = "";
-  const voce = (v: VoceComputo, sottoTitolo = false) => {
+  let notaPrecedente = "";
+  const voce = (v: VoceComputo, sottoTitolo = false, alterna = false) => {
     ensure(Math.min(altezzaVoce(v), 230)); voceInCorso = v;
     if (v.descrizione_comune && v.descrizione_comune !== comunePrecedente) {
       y += 6; paragraph("DESCRIZIONE COMUNE DELLE LAVORAZIONI SEGUENTI", 6.5, t.grigio, true); y += 4;
       paragraph(v.descrizione_comune, 8); y += 8;
     }
     comunePrecedente = v.descrizione_comune || "";
-    disegnaRigaVoce(v, sottoTitolo);
+    disegnaRigaVoce(v, sottoTitolo, alterna);
     if (v.misure.length && i.dettaglioMisure !== false && !misuraSemplice(v)) {
       const misure = [...v.misure].sort((a, b) => a.ordine - b.ordine);
       misure.forEach((misura, indice) => misuraVoce(misura, indice === misure.length - 1));
     }
-    if (v.note_misure && i.dettaglioMisure !== false) {
+    // La stessa nota sotto ogni voce diventava rumore: si scrive alla prima voce che la porta, nel capitolo.
+    const notaNuova = !!v.note_misure && v.note_misure !== notaPrecedente;
+    notaPrecedente = v.note_misure || notaPrecedente;
+    if (notaNuova && i.dettaglioMisure !== false) {
       y += 5; paragraph("MISURE DI RIFERIMENTO DEL DOCUMENTO ORIGINALE", 6.5, t.grigio, true);
       paragraph(v.note_misure, 7.2, t.grigio, false, width - numeroW - 14, m + numeroW + 7); y += 5;
     }
@@ -454,18 +477,37 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     const titoloH = wrap(n.nome, n.livello === 0 ? width - 27 : width).length * doc.getFontSize() * 1.35 + 15;
     return titoloH + (n.voci.length ? 30 + Math.min(altezzaVoce(n.voci[0]), 230) : n.figli[0] ? avvioNodo(n.figli[0]) : 0);
   };
+  // Il sottocapitolo che ripete il capitolo («05 Solai…» → «Solai…») non si stampa due volte.
+  let capitoloCorrente = "";
   const visit = (n: NodoComputo, index: number) => {
     ripetiIntestazioneTabella = null;
     // La testata di un sottocapitolo ha la baseline sopra il bordo della tabella precedente.
     if (n.livello > 0) y += 16;
     ensure(avvioNodo(n));
     if (n.livello === 0) {
-      section(String(index + 1).padStart(2, "0"), n.nome);
+      const cap = numeroCapitolo(n.nome, index + 1);
+      capitoloCorrente = cap.nome.trim();
+      section(cap.numero, cap.nome);
       pagineCapitoli.set(n, doc.getNumberOfPages());
-    } else { ensure(55); paragraph(n.nome, 12, t.inchiostroMarca, true); y += 10; }
+    } else if (n.nome.trim().toLowerCase() !== capitoloCorrente.toLowerCase()) { ensure(55); paragraph(n.nome, 12, t.inchiostroMarca, true); y += 10; }
     if (n.voci.length) { ensure(55); intestazioneTabella(); ripetiIntestazioneTabella = intestazioneTabella; }
-    n.voci.forEach((v, k) => voce(v, k === 0)); n.figli.forEach(child => visit(child, index));
+    if (n.livello === 0) notaPrecedente = "";
+    n.voci.forEach((v, k) => voce(v, k === 0, k % 2 === 1)); n.figli.forEach(child => visit(child, index));
     ripetiIntestazioneTabella = null;
+    if (mostraImporti && n.livello === 0 && i.accorpaPerLavorazione) {
+      // Di cui per piano: quanto pesa ogni piano nel capitolo (la sopraelevazione si legge piano per piano).
+      const tutte = (x: NodoComputo): VoceComputo[] => [...x.voci, ...x.figli.flatMap(tutte)];
+      const perPiano = new Map<string, number>();
+      for (const v of tutte(n)) { const p = pianoDellaVoce(v); if (p && v.importo_computo != null) perPiano.set(p, (perPiano.get(p) ?? 0) + v.importo_computo); }
+      if (perPiano.size > 1) {
+        y += 10;
+        for (const [p, importo] of perPiano) {
+          ensure(16); font(7.5, false, t.grigio); doc.text(`di cui ${p}`, m + numeroW + 7, y);
+          doc.text(money(Math.round(importo * 100) / 100), right, y, { align: "right" }); y += 13;
+        }
+        y -= 6;
+      }
+    }
     if (mostraImporti && n.livello === 0) {
       y += 10; ensure(24); font(8, true, t.inchiostroMarca); doc.text("SUBTOTALE CAPITOLO", m, y);
       doc.text(money(nodoConImporti(n) ? n.importo : null), right, y, { align: "right" }); y += 20;
@@ -477,7 +519,8 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
   if ((mostraImporti || i.soloRiepilogo) && voci.length && i.sezioni?.riepilogo !== false) {
     const riepilogoH = 130 + nodi.length * 29;
     ensure(Math.min(riepilogoH, bottom - m - 100));
-    section(i.soloRiepilogo ? "01" : String(nodi.length + 1).padStart(2, "0"), mostraImporti ? "Riepilogo economico" : "Riepilogo delle lavorazioni", i.soloRiepilogo ? "Sintesi per capitoli - dettaglio delle singole voci non incluso" : "Importi raggruppati per capitolo di lavorazione");
+    const ultimo = Math.max(nodi.length, ...nodi.map((n, k) => Number(numeroCapitolo(n.nome, k + 1).numero)));
+    section(i.soloRiepilogo ? "01" : String(ultimo + 1).padStart(2, "0"), mostraImporti ? "Riepilogo economico" : "Riepilogo delle lavorazioni", i.soloRiepilogo ? "Sintesi per capitoli - dettaglio delle singole voci non incluso" : "Importi raggruppati per capitolo di lavorazione");
     for (const n of nodi) {
       font(9); const labels = wrap(n.nome, width - 140); ensure(labels.length * 12 + 20);
       if (i.soloRiepilogo) pagineCapitoli.set(n, doc.getNumberOfPages());

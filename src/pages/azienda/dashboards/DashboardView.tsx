@@ -50,7 +50,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const PERIODS: Array<{ value: PeriodPreset; label: string }> = [
   { value: "this_month", label: "Questo mese" },

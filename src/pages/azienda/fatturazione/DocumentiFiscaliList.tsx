@@ -1,5 +1,6 @@
 import { BOTTONE_SECONDARIO, BOTTONE_NUOVO, RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { SoloDaTabletOComputer } from "@/components/shared/SoloDaTabletOComputer";
+import { useContabilitaGeneraleAttiva } from "@/components/contabilita/ContabilitaInCasa";
 import { supabase } from "@/integrations/supabase/client";
 import { nomeCliente } from "@/lib/fatturazione/clienteSnapshot";
 import { CelleEmesse, IntestazioniEmesse, SceltaColonneEmesse, STICKY_SELEZIONE, useColonneEmesse } from "@/components/fatturazione/ColonneFattureEmesse";
@@ -153,23 +154,28 @@ function BillingHubTabs({
   const t = useT();
   // Telefono (decisione del founder, 23/11/2026): Registro incassi e Fiscalità non compaiono.
   const telefono = useIsMobile(640);
-  const sezioni = telefono ? HUB_TABS.filter(({ id }) => !SOLO_DA_TABLET.has(id)) : HUB_TABS;
+  // Con la contabilità generale l'IVA sta là (24/11/2026): qui Fiscalità tiene ritenute di garanzia e archivio.
+  const { attiva: generale } = useContabilitaGeneraleAttiva();
+  const schede = generale ? HUB_TABS.map((h) => (h.id === "fiscalita" ? { ...h, description: "Ritenute di garanzia e archivio" } : h)) : HUB_TABS;
+  const sezioni = telefono ? schede.filter(({ id }) => !SOLO_DA_TABLET.has(id)) : schede;
   return (
     <>
       <SelettoreSezione nome={t("Sezioni documenti")} valore={activeTab} sezioni={sezioni} onScegli={onChange} className="max-sm:-order-1 lg:hidden" />
-      <LinguetteSezioni activeTab={activeTab} onChange={onChange} className={senzaLinguette ? "2xl:hidden" : undefined} />
+      <LinguetteSezioni activeTab={activeTab} onChange={onChange} schede={schede} className={senzaLinguette ? "2xl:hidden" : undefined} />
     </>
   );
 }
 
-function LinguetteSezioni({ activeTab, onChange, className }: { activeTab: BillingHubTab; onChange: (tab: BillingHubTab) => void; className?: string }) {
+// `schede` arriva da chi conosce il contesto (con la contabilità generale la Fiscalità
+// cambia descrizione): senza, le linguette sono quelle di sempre.
+function LinguetteSezioni({ activeTab, onChange, schede = HUB_TABS, className }: { activeTab: BillingHubTab; onChange: (tab: BillingHubTab) => void; schede?: typeof HUB_TABS; className?: string }) {
   const t = useT();
   return (
     <>
       {/* Da computer (25/11/2026): cinque linguette da 32px su una riga, non cinque schede da 53px.
           La descrizione di ogni sezione resta nel titolo della linguetta. */}
       <nav aria-label={t("Sezioni documenti")} className={cn("hidden min-h-0 flex-wrap gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm lg:flex", className)}>
-        {HUB_TABS.map(({ id, icon: Icon, label, description }) => {
+        {schede.map(({ id, icon: Icon, label, description }) => {
           const attiva = activeTab === id;
           return (
             <button key={id} type="button" aria-current={attiva ? "page" : undefined} onClick={() => onChange(id)} title={t(description)}

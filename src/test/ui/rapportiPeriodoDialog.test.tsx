@@ -245,3 +245,20 @@ it("se la commessa non si legge non apre un documento intestato male", async () 
   expect(screen.queryByRole("dialog", { name: "Documento pronto" })).toBeNull();
   expect(screen.getByRole("button", { name: "Crea documento PDF" })).toBeEnabled();
 });
+
+it("senza approvati dice quanti rapportini aspettano l'approvazione, invece di spegnere le voci in silenzio", async () => {
+  apri([{ ...r, id: "r2", stato: "inviato" }, { ...r, id: "r3", stato: "inviato" }]);
+  expect(screen.getByRole("status")).toHaveTextContent("Nessun rapportino approvato: 2 sono ancora da approvare");
+  menu();
+  const rendiconto = await screen.findByRole("menuitem", { name: /Rendiconto trasporti al cliente/ });
+  expect(rendiconto).toHaveAttribute("data-disabled");
+  expect(rendiconto).toHaveTextContent("Nessun rapportino approvato: 2 sono ancora da approvare");
+});
+
+it("la scelta della commessa spiega che compaiono solo quelle con rapportini approvati", async () => {
+  apri([r, { ...r, id: "r4", order_id: "o2", order: { client_name: "Secondo SIM", order_code: "SIM-2" } }, { ...r, id: "r5", order_id: "o3", stato: "inviato" }]);
+  expect(screen.getByRole("status")).toHaveTextContent("2 rapportini approvati per il riepilogo automatico · 1 da approvare");
+  menu();
+  fireEvent.click(await screen.findByRole("menuitem", { name: /Riepilogo lavori approvati/ }));
+  expect(await screen.findByText(/Compaiono solo le commesse con rapportini approvati nel periodo\. 1 rapportino è ancora da approvare/)).toBeInTheDocument();
+});

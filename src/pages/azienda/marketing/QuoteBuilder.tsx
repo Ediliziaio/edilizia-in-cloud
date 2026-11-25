@@ -10,6 +10,7 @@ import { SceltaTipoCliente } from "@/components/preventivatore/DatiFiscaliClient
 import { QuoteCustomFieldsPanel } from "@/components/shared/QuoteCustomFieldsPanel";
 import { QuoteLineKindFields } from "@/components/marketing/preventivi/QuoteLineKindFields";
 import { useState, useId, useEffect, useLayoutEffect, useRef, useCallback, useMemo, lazy, Suspense } from "react";
+import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 const ImportaVociPreventivo = lazy(() => import("@/components/computo/ImportaVociDialog"));
 import type { QuoteWizardProjectContext } from '@/components/quotes/dev/QuoteWizardProjectPanel';
 const QuoteWizardProjectPanel = lazy(() => import('@/components/quotes/dev/QuoteWizardProjectPanel'));
@@ -284,7 +285,6 @@ const CONTACT_SELECT =
 // MP-MKT-001: STEPS estratto in ./QuoteBuilder/constants.ts
 import { STEPS } from "./QuoteBuilder/constants";
 import { SedeSelect } from "@/components/sedi/SedeSelect";
-import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /**
  * Le griglie prezzi delle famiglie «a griglia» scelte dall'AI (05/10/2026):

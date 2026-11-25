@@ -29,6 +29,7 @@ import { letturaAssistitaValida, type LetturaAssistita } from "./letturaAssistit
 import { controlloDwgValido, type RiscontroDwg } from "./controlloDwg.ts";
 import { tavolaDwgValida, type TavolaDwg } from "./tavolaDwg.ts";
 import { urbanisticaValida, type DatiUrbanistici } from "./urbanistica.ts";
+import { costruzioneValida, type Costruzione } from "./costruzione.ts";
 
 export const VERSIONE_SCHEMA = 1 as const;
 
@@ -361,7 +362,7 @@ export interface SpostamentoBagno extends SpostamentoLocale {
 
 export interface PrezzoVocePlanimetria {
   importo: number;
-  unita: "m²" | "m" | "cad" | "a corpo";
+  unita: "m²" | "m³" | "m" | "cad" | "a corpo";
   fonte: string;
   tariffa: string;
   /** Il giorno in cui il prezzo è stato preso (AAAA-MM-GG): dice quando va riguardato. Assente nelle varianti salvate prima del 24/11/2026. */
@@ -495,6 +496,34 @@ export interface Planimetria {
   rilievo?: Rilievo;
   /** Avanzamento: per ogni proposta, le chiavi dei lavori già fatti (vedi chiaveLavoro). */
   lavoriFatti?: Record<string, string[]>;
+  /** Nuova costruzione: l'edificio si fa da zero e il computo comprende scavi, strutture e impianti (costruzione.ts). */
+  costruzione?: Costruzione;
+  /** Le unità come le dichiara la legenda della tavola («INT. 04 - SUL MQ. 55.20 - BILOCALE (S.U. 44.00)»):
+   *  dato del progettista, da confrontare con quello che la pianta misura, mai sostituito. */
+  unitaDichiarate?: UnitaDichiarata[];
+}
+
+export interface UnitaDichiarata {
+  /** «Int. 04»: la stessa sigla che le stanze portano in `unita`. */
+  nome: string;
+  /** Superficie utile lorda dichiarata, m². */
+  sulMq?: number;
+  /** Superficie utile (calpestabile) dichiarata, m². */
+  suMq?: number;
+  /** «Bilocale», «Trilocale»… come scritto in legenda. */
+  tipo?: string;
+  /** «balcone», «terrazzo coperto», «giardino»… */
+  pertinenze?: string[];
+}
+
+function unitaDichiarateValide(dato: unknown): dato is UnitaDichiarata[] {
+  const superficie = (v: unknown) => v === undefined || (typeof v === "number" && Number.isFinite(v) && v >= 0 && v < 100_000);
+  return Array.isArray(dato) && dato.length <= 500 && dato.every((u) => eOggetto(u)
+    && typeof u.nome === "string" && u.nome.length > 0 && u.nome.length <= 80
+    && superficie(u.sulMq) && superficie(u.suMq)
+    && (u.tipo === undefined || (typeof u.tipo === "string" && u.tipo.length <= 80))
+    && (u.pertinenze === undefined || (Array.isArray(u.pertinenze) && u.pertinenze.length <= 20
+      && u.pertinenze.every((p) => typeof p === "string" && p.length <= 120))));
 }
 
 export type StatoVendita = "libera" | "prenotata" | "venduta";
@@ -642,6 +671,8 @@ export function validaPlanimetria(dato: unknown): EsitoValidazione {
     errori.push("La pianta: l'avanzamento dei lavori non è valido.");
   }
   if (dato.rilievo !== undefined && !rilievoValido(dato.rilievo)) errori.push("La pianta: il rilievo del terreno non è valido.");
+  if (dato.costruzione !== undefined && !costruzioneValida(dato.costruzione)) errori.push("La pianta: le scelte della nuova costruzione non sono valide.");
+  if (dato.unitaDichiarate !== undefined && !unitaDichiarateValide(dato.unitaDichiarate)) errori.push("La pianta: la legenda delle unità non è valida.");
   if (dato.vendite !== undefined) {
     if (!eOggetto(dato.vendite)) errori.push("La pianta: il listino delle unità non è valido.");
     else for (const [sigla, v] of Object.entries(dato.vendite)) {
@@ -745,7 +776,7 @@ export function validaPlanimetria(dato: unknown): EsitoValidazione {
       }
       if (pr.prezziLavorazioni !== undefined && (!eOggetto(pr.prezziLavorazioni) || Object.entries(pr.prezziLavorazioni).length > 5000 ||
         Object.entries(pr.prezziLavorazioni).some(([id, p]) => !/^[-\w:.]{1,220}$/.test(id) || !eOggetto(p)
-          || !eNumero(p.importo) || (p.importo as number) < 0 || !["m²", "m", "cad", "a corpo"].includes(p.unita as string)
+          || !eNumero(p.importo) || (p.importo as number) < 0 || !["m²", "m³", "m", "cad", "a corpo"].includes(p.unita as string)
           || typeof p.fonte !== "string" || !p.fonte.trim() || p.fonte.length > 300 || typeof p.tariffa !== "string" || p.tariffa.length > 120
           || (p.data !== undefined && (typeof p.data !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(p.data)))))) {
         errori.push(`${etichetta}: i prezzi delle lavorazioni non sono validi.`);

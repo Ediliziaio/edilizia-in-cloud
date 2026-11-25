@@ -2211,7 +2211,8 @@ function OrderDetailInner() {
             {vistaCantiere === "giornale" && <div id="section-giornale" className="scroll-mt-24"><GiornaleLavoriContenuto key={id} orderIdFisso={id!} /></div>}
             {vistaCantiere === "diario" && <>
             <div id="section-rapportini" className="scroll-mt-24 space-y-4">
-              {permissions.canEditOrders && <div className="flex justify-end"><RapportiniUfficio orderId={id!} className="border" aperta={scriviRapportini} onApertaChange={setScriviRapportini} /></div>}
+              {/* I pulsanti «Rapportino lavori / trasporti» stanno in testa all'elenco; qui resta la finestra che apre Silvio. */}
+              {permissions.canEditOrders && <RapportiniUfficio orderId={id!} senzaPulsante aperta={scriviRapportini} onApertaChange={setScriviRapportini} />}
               <DaApprovareCommessa orderId={id!} onApriRapportini={() => document.getElementById("rapportini-campo-elenco")?.scrollIntoView({ behavior: "smooth", block: "start" })} />
               <div id="rapportini-campo-elenco" className="scroll-mt-24"><OrdineRapportiniCampo orderId={id!} /></div>
             </div>

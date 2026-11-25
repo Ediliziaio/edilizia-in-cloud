@@ -37,3 +37,14 @@ describe("lettura senza prezzi", () => {
     expect(u).toContain("purchase_order_items.purchase_order_id=eq.7");
   });
 });
+
+describe("lo spazio dopo la virgola", () => {
+  it("riscrive gli embed scritti a mano con lo spazio", () => {
+    expect(selectSenzaPrezzi("*, order_items!ddt_righe_order_item_id_fkey(id, description)")).toBe(
+      "*, order_items:order_items_senza_prezzi!ddt_righe_order_item_id_fkey(id, description)",
+    );
+    expect(selectSenzaPrezzi("id, ddt_ricezione_id, order_items(name)")).toBe(
+      "id, ddt_ricezione_id, order_items:order_items_senza_prezzi(name)",
+    );
+  });
+});

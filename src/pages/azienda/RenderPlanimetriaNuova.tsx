@@ -19,6 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { scalaDalleSuperfici } from "@/lib/planimetrie/scalaDalleSuperfici";
 import { EditorConSalvataggio } from "@/components/planimetrie/editor/EditorConSalvataggio";
 import { TestataPlanimetrie } from "@/components/planimetrie/render/TestataPlanimetrie";
 import { leggiMisura } from "@/components/planimetrie/editor/misure";
@@ -645,6 +646,8 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
         fonteCad.originale, validaRichiestaModelloDwg({ ...richiesta, controlloGeometria: true }), controller.signal, { companyId },
       );
       const tavole: Record<string, File> = {};
+      // Senza quote confermate, la scala può provarla il disegno: le superfici scritte nelle stanze.
+      const provaSuperfici = quoteConfermate.length ? null : scalaDalleSuperfici(documento);
       for (const [i, piano] of documento.livelli.entries()) {
         const foglio = await preparaImmagine(file, 0, undefined, ritagli[i], { squadra: false });
         if (!foglio) throw new Error(tr("Il modello è stato letto, ma il ritaglio della tavola non si è preparato. Riprova."));
@@ -654,7 +657,7 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
           percorso, x: posizione.origine[0], y: posizione.origine[1], larghezzaCm: posizione.larghezza,
           proporzione: posizione.altezza / posizione.larghezza, opacita: 0.3, calibrata: true, bloccata: true,
         };
-        if (!quoteConfermate.length) piano.riscontroScala = { stato: "da_verificare" };
+        if (!quoteConfermate.length && !provaSuperfici?.confermata) piano.riscontroScala = { stato: "da_verificare" };
         tavole[percorso] = new File([foglio.file], file.name, { type: foglio.mime });
       }
       if (numero !== sceltaFile.current || controller.signal.aborted) return;
@@ -679,7 +682,9 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
       const scarto = scartoMassimo < 0.1 ? "inferiore a 1 mm" : formatoQuota.format(Math.round(scartoMassimo * 10) / 10) + " cm";
       const scala = quoteConfermate.length
         ? `Scala DWG riscontrata su ${quoteRiscontrate} · ${UNITA_DWG[richiesta.unita]} · scarto massimo ${scarto}.${differenzaUnita}`
-        : "Scala del DWG da riscontrare. Le quantità metriche restano sospese nel computo.";
+        : provaSuperfici?.confermata
+          ? `Scala DWG riscontrata sulle superfici scritte nelle stanze: ${provaSuperfici.tornano} su ${provaSuperfici.stanze} tornano entro il 5% · ${UNITA_DWG[richiesta.unita]}.${differenzaUnita}`
+          : "Scala del DWG da riscontrare. Le quantità metriche restano sospese nel computo.";
       avvisi.push(scala);
       documento.riferimenti.note += " " + scala;
       if (piani.some((p) => p.allineamento === "ritaglio")) {
@@ -687,6 +692,11 @@ function ChiediPianta({ companyId, modo, orderId, sopralluogo, percorsoDisegno, 
       }
       if (piani.some((p) => p.allineamento === "pareti")) {
         const messaggio = "I piani sono stati sovrapposti usando le pareti che coincidono nelle due tavole. Riscontra l’allineamento sul vano scala o su un altro riferimento comune.";
+        avvisi.push(messaggio);
+        documento.riferimenti.note += " " + messaggio;
+      }
+      if (piani.some((p) => p.allineamento === "correlazione")) {
+        const messaggio = "Alcuni piani sono stati messi sopra il piano terra confrontando la sagoma dei muri esterni. Controlla nel 3D che scale e muri portanti cadano uno sull’altro.";
         avvisi.push(messaggio);
         documento.riferimenti.note += " " + messaggio;
       }

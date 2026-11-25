@@ -30,6 +30,7 @@ import { useBrandingByDomain } from "@/hooks/useBrandingByDomain";
 import { isMobileAppRuntime } from "@/lib/mobile/platform";
 import { cn } from "@/lib/utils";
 import { COMPANY_APP_HOME } from "@/lib/auth/appHome";
+import { submitPublicLeadToCrm } from "@/lib/publicLeadSubmit";
 import { messaggioErroreLogin } from "@/lib/auth/erroriLogin";
 import { leggiAccountSenzaAzienda, MESSAGGIO_ACCOUNT_SENZA_AZIENDA, registraContattoSenzaAzienda } from "@/lib/auth/accountSenzaAzienda";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
@@ -59,6 +60,29 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
   const [formError, setFormError] = useState<string | null>(null);
   // Account senza azienda (di solito entrato con Google): messaggio + link demo.
   const [senzaAzienda, setSenzaAzienda] = useState<boolean>(false);
+  // Numero lasciato da chi non ha azienda: lo ricontatta il commerciale.
+  const [telefonoProva, setTelefonoProva] = useState("");
+  const [invioProva, setInvioProva] = useState<"idle" | "invio" | "ok" | "errore">("idle");
+  const inviaTelefonoProva = async () => {
+    const tel = telefonoProva.trim();
+    if (tel.replace(/\D/g, "").length < 6 || invioProva === "invio") return;
+    setInvioProva("invio");
+    try {
+      const em = email.trim().toLowerCase();
+      await submitPublicLeadToCrm({
+        nome: em.split("@")[0] || "Accesso senza azienda",
+        email: em,
+        telefono: tel,
+        azienda: "da chiedere",
+        messaggio: "Ha lasciato il numero dalla pagina di accesso: vuole l'accesso alla prova.",
+        source: "accesso_senza_azienda_telefono",
+        tags: ["richiesta-demo"],
+      });
+      setInvioProva("ok");
+    } catch {
+      setInvioProva("errore");
+    }
+  };
   const { signIn } = useAuth();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
@@ -564,13 +588,43 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     <span>
                       {formError}
-                      {senzaAzienda && (
-                        <>
-                          {" "}
-                          <a href="https://www.ediliziaincloud.com/demo/" className="font-semibold underline">Richiedi la demo</a>
-                        </>
-                      )}
                     </span>
+                  </div>
+                )}
+
+                {/* Account senza azienda: lascia il numero, lo ricontattiamo noi. */}
+                {senzaAzienda && (
+                  <div className="space-y-2 p-3 rounded-lg border bg-muted/40 text-sm">
+                    {invioProva === "ok" ? (
+                      <p className="font-medium text-foreground">Grazie! Ti ricontattiamo a breve per darti l'accesso alla prova.</p>
+                    ) : (
+                      <>
+                        <Label htmlFor="telefono-prova">Inserisci qui il tuo numero: verrai ricontattato per ricevere l'accesso alla prova.</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id="telefono-prova"
+                            type="tel"
+                            inputMode="tel"
+                            autoComplete="tel"
+                            placeholder="Es. 333 123 4567"
+                            value={telefonoProva}
+                            onChange={(e) => { setTelefonoProva(e.target.value); if (invioProva === "errore") setInvioProva("idle"); }}
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void inviaTelefonoProva(); } }}
+                          />
+                          <Button
+                            type="button"
+                            onClick={() => void inviaTelefonoProva()}
+                            disabled={invioProva === "invio" || telefonoProva.replace(/\D/g, "").length < 6}
+                            className="bg-eic-orange hover:bg-eic-orange/90 text-white shrink-0"
+                          >
+                            {invioProva === "invio" ? "Invio…" : "Invia"}
+                          </Button>
+                        </div>
+                        {invioProva === "errore" && (
+                          <p className="text-destructive">Invio non riuscito. Riprova o scrivici dalla pagina della demo.</p>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
 

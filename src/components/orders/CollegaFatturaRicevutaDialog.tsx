@@ -182,3 +182,66 @@ export function CollegaFatturaRicevutaDialog({ open, onOpenChange, orderId, comp
     </Dialog>
   );
 }
+
+/** Le fatture da proporre nella scheda: con un motivo vero oltre al suggerimento dell'AI (che la scheda mostra già a parte), e non già mostrate. */
+export function fattureProbabili(candidate: FatturaCandidata[], giaMostrate: ReadonlySet<string>): FatturaCandidata[] {
+  return candidate.filter((f) => eProbabile(f) && !giaMostrate.has(f.id) && (f.motivi ?? []).some((m) => !m.startsWith("Suggerita")));
+}
+
+/**
+ * Lotto 4: nella scheda della commessa, le fatture ricevute che sembrano sue (bolla della commessa, ordine
+ * citato nell'XML, fornitore della commessa) senza aprire niente. Non collega da solo: «Collega» apre la
+ * divisione già impostata per la commessa (aperturaDallaCommessa), «Vedi tutte» il popup completo.
+ * Le fatture che la scheda mostra già (collegate o suggerite dall'AI) si passano in `giaMostrate`.
+ */
+export function FattureProbabiliCommessa({ orderId, companyId, giaMostrate, mostraImporti = true, onCollega, onVediTutte }: {
+  orderId: string; companyId: string; giaMostrate: ReadonlySet<string>; mostraImporti?: boolean;
+  onCollega: (f: FatturaDaCollegare) => void; onVediTutte: () => void;
+}) {
+  const { data = [] } = useQuery({
+    queryKey: ["fatture-candidate-commessa", companyId, orderId, "probabili"],
+    enabled: !!orderId,
+    staleTime: 60_000,
+    queryFn: async (): Promise<FatturaCandidata[]> => {
+      const { data: righe, error } = await db.rpc("fatture_candidate_commessa", { p_order: orderId, p_cerca: null, p_limit: 20, p_anche_assegnate: false });
+      if (error) throw error;
+      return (righe ?? []) as FatturaCandidata[];
+    },
+  });
+  const probabili = fattureProbabili(data, giaMostrate);
+  if (probabili.length === 0) return null;
+  const prime = probabili.slice(0, 3);
+  return (
+    <div className="rounded-md border border-primary/30 bg-primary/5 p-2.5" role="region" aria-label="Fatture ricevute che sembrano di questa commessa">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <p className="text-[13px] font-medium">
+          {probabili.length === 1 ? "1 fattura ricevuta sembra di questa commessa" : `${probabili.length} fatture ricevute sembrano di questa commessa`}
+        </p>
+        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={onVediTutte}>Vedi tutte</Button>
+      </div>
+      <ul className="space-y-1">
+        {prime.map((f) => {
+          const pct = Number(f.assegnata_pct ?? 0);
+          return (
+            <li key={f.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded bg-background px-2 py-1.5 text-[13px]">
+              <span className="font-medium">{f.fornitore ?? "Fornitore sconosciuto"}</span>
+              <span className="text-muted-foreground">n. {f.numero_fattura ?? "—"}</span>
+              {(f.motivi ?? []).filter((m) => !m.startsWith("Suggerita")).map((m) => (
+                <span key={m} className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">{m}</span>
+              ))}
+              {pct > 0 && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-800">già al {Math.round(pct)}% su altre</span>}
+              <span className="ml-auto flex items-center gap-2">
+                {mostraImporti && f.totale != null && <span className="tabular-nums">{formatCurrency(Math.abs(Number(f.totale)))}</span>}
+                <Button size="sm" variant="outline" className="h-7 px-2 text-xs"
+                  onClick={() => onCollega({ id: f.id, numero: f.numero_fattura, fornitore: f.fornitore, imponibile: f.imponibile, totale: f.totale, companyCostId: f.company_cost_id })}>
+                  <Link2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />Collega
+                </Button>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {probabili.length > prime.length && <p className="mt-1 text-xs text-muted-foreground">e altre {probabili.length - prime.length} in «Vedi tutte».</p>}
+    </div>
+  );
+}

@@ -34,7 +34,7 @@ export function leggiAccountSenzaAzienda(): string | null {
 }
 
 export const MESSAGGIO_ACCOUNT_SENZA_AZIENDA =
-  "Questo account non è collegato a nessuna azienda su Edilizia in Cloud. Se vuoi provare il gestionale, richiedi la demo: ti attiviamo l'accesso noi.";
+  "Questo account non è collegato a nessuna azienda su Edilizia in Cloud. Per provare il gestionale lasciaci il tuo numero qui sotto: ti attiviamo noi l'accesso.";
 
 /**
  * Fa diventare contatto per il commerciale chi è entrato senza azienda, una

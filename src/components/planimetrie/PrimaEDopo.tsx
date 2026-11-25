@@ -218,8 +218,8 @@ export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livello
       <Card>
         <CardContent className="space-y-2 p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <p className="text-sm font-semibold">{tr("Lavori stanza per stanza")}</p>
-            {prezzi && <p className="text-sm">{tr("Totale di massima")} <span className="font-semibold">{eur(lavori.totale)}</span> <span className="text-xs text-muted-foreground">{tr("IVA esclusa")}</span></p>}
+            <p className="text-sm font-semibold">{tr("Lavori del {piano}, stanza per stanza", { piano: livello.nome.toLowerCase() })}</p>
+            {prezzi && <p className="text-sm">{tr("Stima del piano")} <span className="font-semibold">{eur(lavori.totale)}</span> <span className="text-xs text-muted-foreground">{tr("IVA esclusa")}</span></p>}
           </div>
           {lavori.stanze.length > 0 && (
             <div className="space-y-1">
@@ -262,7 +262,7 @@ export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livello
               ))}
             </ul>
           )}
-          <p className="text-[11px] text-muted-foreground">{tr("Prezzi indicativi di mercato, per dare l'ordine di grandezza. Quelli veri si scrivono nel computo, dove le voci restano legate alla pianta.")}</p>
+          <p className="text-[11px] text-muted-foreground">{tr("Stima rapida di questo piano a prezzi indicativi di mercato. Il computo di tutto il progetto, con le stesse quantità e i prezzi del listino o del prezzario, è nello «Studio immobiliare».")}</p>
         </CardContent>
       </Card>
 

@@ -239,6 +239,19 @@ it("il listino si carica da un popup e il contratto firmato si allega al suo con
   expect(screen.getByText("Da un altro contratto")).toBeVisible();
 });
 
+it("senza contratto il listino si carica comunque: l'accordo nasce al salvataggio (25/11/2026)", async () => {
+  stato.tabelle.appalto_contratti = [];
+  stato.tabelle.appalto_tariffe = [];
+  mostra();
+  await apri("Listino concordato");
+  expect(await screen.findByText(/nasce al primo salvataggio/)).toBeVisible();
+  expect(screen.queryByText("Prima serve un contratto: il listino appartiene a quello.")).not.toBeInTheDocument();
+  fireEvent.click(await screen.findByRole("button", { name: "Carica" }));
+  expect(await screen.findByText("Da un foglio Excel")).toBeVisible();
+  // Nel popup si legge dove finiranno le voci: un contratto comparso in silenzio sarebbe peggio del blocco.
+  expect(screen.getByText(/che nasce al salvataggio/)).toBeVisible();
+});
+
 it("senza il permesso sugli importi il contratto firmato non si apre", async () => {
   stato.importi = false;
   mostra();

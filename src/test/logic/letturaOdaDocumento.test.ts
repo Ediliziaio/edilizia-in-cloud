@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dataLetta, normalizzaOrdineFornitore, numeroLetto } from "../../../supabase/functions/_shared/estrazioneOrdineFornitore";
-import { propostaDaLettura } from "@/lib/orders/letturaOdaDocumento";
+import { confrontoTotaleDocumento, fornitoreDaDocumento, propostaDaLettura } from "@/lib/orders/letturaOdaDocumento";
 import { righeDagliArticoli } from "@/lib/orders/nuovoOdaCommessa";
 
 const RISPOSTA: Record<string, unknown> = {
@@ -65,5 +65,22 @@ describe("lettura di un ordine d'acquisto su carta", () => {
     const p = propostaDaLettura(normalizzaOrdineFornitore(RISPOSTA), [{ id: "s9", name: "Altro", vat_number: "11111111111" }], []);
     expect(p.fornitore).toBeNull();
     expect(p.fornitoreLetto).toBe("Edil Forniture S.r.l. · P.IVA IT 01234567890");
+  });
+
+  it("il totale del documento si confronta con quello delle righe, con tolleranza sugli arrotondamenti", () => {
+    expect(confrontoTotaleDocumento({ imponibile: 1000, iva: 220, totale: 1220 }, { imponibile: 999.4, totale: 1219.3 }))
+      .toEqual({ voce: "imponibile", documento: 1000, righe: 999.4, torna: true });
+    expect(confrontoTotaleDocumento({ imponibile: null, iva: 220, totale: 1220 }, { imponibile: 900, totale: 1098 }))
+      .toMatchObject({ voce: "imponibile", documento: 1000, torna: false });
+    expect(confrontoTotaleDocumento({ imponibile: null, iva: null, totale: 1220 }, { imponibile: 1000, totale: 1220 }))
+      .toMatchObject({ voce: "totale", torna: true });
+    expect(confrontoTotaleDocumento({ imponibile: null, iva: null, totale: null }, { imponibile: 1, totale: 1 })).toBeNull();
+  });
+
+  it("il fornitore che manca nasce dai soli dati scritti sul documento", () => {
+    expect(fornitoreDaDocumento(normalizzaOrdineFornitore(RISPOSTA), "co")).toEqual({
+      company_id: "co", name: "Edil Forniture S.r.l.", vat_number: "01234567890", fiscal_code: null,
+    });
+    expect(fornitoreDaDocumento({ fornitore: { nome: null, partita_iva: "123", codice_fiscale: null } }, "co")).toBeNull();
   });
 });

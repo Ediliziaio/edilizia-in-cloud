@@ -58,6 +58,11 @@ export function RapportiPeriodoDialog({
   const operazione = useRef<AbortController | null>(null);
   const qc = useQueryClient();
   const approvati = righe.filter((r) => statoDi(r) === "approvato");
+  // I documenti si compilano dai soli approvati: chi aspetta l'approvazione va detto, se no sembra che manchi (25/11/2026).
+  const daApprovare = righe.filter((r) => statoDi(r) === "inviato").length;
+  const nessunoApprovato = daApprovare
+    ? t(daApprovare === 1 ? "Nessun rapportino approvato: {n} è ancora da approvare" : "Nessun rapportino approvato: {n} sono ancora da approvare", { n: daApprovare })
+    : t("Nessun rapportino approvato in questo periodo");
   const cantieri = [...new Map(approvati.map((r) => [r.order_id, r])).values()];
   const scope = `${companyId}:${orderId ?? ""}:${mese}:${conDatiEconomici}:${approvati.map((r) => `${r.id}:${r.updated_at ?? ""}`).join(",")}`;
   const busy = preparazione === scope;
@@ -179,7 +184,7 @@ export function RapportiPeriodoDialog({
                 {t("Riepilogo lavori approvati")}
               </span>
               <span className="block text-xs text-muted-foreground">
-                {t("Rapporto in economia: compilato dai rapportini del periodo")}
+                {approvati.length ? t("Rapporto in economia: compilato dai rapportini del periodo") : nessunoApprovato}
               </span>
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -191,7 +196,7 @@ export function RapportiPeriodoDialog({
               <span className="block text-xs text-muted-foreground">
                 {!conDatiEconomici
                   ? t("Richiede accesso alle voci e ai costi dei rapportini")
-                  : t("Viaggi dei rapportini approvati nel periodo")}
+                  : approvati.length ? t("Viaggi dei rapportini approvati nel periodo") : nessunoApprovato}
               </span>
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -212,7 +217,8 @@ export function RapportiPeriodoDialog({
             ? t("Preparo il riepilogo con i dati registrati…")
             : approvati.length
               ? t(approvati.length === 1 ? "{n} rapportino approvato per il riepilogo automatico" : "{n} rapportini approvati per il riepilogo automatico", { n: approvati.length })
-              : t("Il riepilogo si prepara dai rapportini approvati")}
+                + (daApprovare ? ` · ${t("{n} da approvare", { n: daApprovare })}` : "")
+              : daApprovare ? nessunoApprovato : t("Il riepilogo si prepara dai rapportini approvati")}
         </span>
       </div>
       <Dialog open={!!scegli} onOpenChange={(open) => {
@@ -230,6 +236,10 @@ export function RapportiPeriodoDialog({
                 : t("Scegli il cantiere per preparare la bozza con cliente, lavori, ore, materiali, mezzi e prezzi di vendita disponibili.")}
             </DialogDescription>
           </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            {t("Compaiono solo le commesse con rapportini approvati nel periodo.")}
+            {daApprovare > 0 && ` ${t(daApprovare === 1 ? "{n} rapportino è ancora da approvare: approvalo per includere la sua commessa." : "{n} rapportini sono ancora da approvare: approvali per includere le loro commesse.", { n: daApprovare })}`}
+          </p>
           <Input
             aria-label={t("Cerca cantiere per il documento")}
             placeholder={t("Cerca per nome o codice…")}

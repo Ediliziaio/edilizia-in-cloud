@@ -39,7 +39,7 @@ describe("percorso guidato IVA", () => {
     const passi = percorsoIva({ ...base, lipe: lipe([1, 2, 3]) }, 2026, OGGI);
     const p = passi.find((x) => x.chiave === "lipe")!;
     expect(p.stato).toBe("da_fare");
-    expect(p.dettaglio).toBe("3 di 10 periodi confermati. Prossimo: aprile 2026.");
+    expect(p.dettaglio).toBe("3 di 10 periodi già finiti confermati. Prossimo: aprile 2026.");
     expect(p.azione).toEqual({ etichetta: "Conferma aprile", vai: "lipe" });
   });
 

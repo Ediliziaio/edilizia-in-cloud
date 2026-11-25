@@ -9,7 +9,7 @@ import re
 import sys
 import unicodedata
 from collections import defaultdict
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from math import atan2, cos, degrees, hypot, isfinite, radians, sin
 from statistics import median
 
@@ -19,6 +19,7 @@ from ezdxf.addons.drawing import Frontend, RenderContext, config, recorder
 from ezdxf.path import Command, make_path
 from shapely import LineString, Point, Polygon, STRtree, box, set_precision, union_all
 from shapely.geometry.polygon import orient
+from shapely.affinity import translate
 from shapely.ops import polygonize, split
 
 
@@ -493,6 +494,8 @@ def leggi_testi(entita, zona, cm):
         if not zona.covers(posizione):
             continue
         testo = " ".join(e.plain_text().split())[:80]
+        if RIGA_LEGENDA.match(testo):
+            continue  # «INT. 07 - SUL … + terrazzo» è la legenda dell'alloggio, non il nome di una stanza
         chiave = semplice(testo)
         posizione_locale = next((valore for pattern, valore in DESTINAZIONI if re.search(pattern, chiave)), None)
         if posizione_locale and not re.search(r"\b(planta|nivel|facade|sezione|elevacion|level)\b", chiave):
@@ -504,6 +507,372 @@ def leggi_testi(entita, zona, cm):
             if 0.8 <= m2 <= 220:
                 aree.append((posizione, m2))
     return nomi, aree
+
+
+SIGLA_INFISSO = re.compile(r"^\s*L\s*(\d{2,3})\b")
+
+
+def leggi_sigle_infissi(entita, zona, cm):
+    """Le sigle degli infissi scritte accanto ai vani: «L 170 / Hf 140 / Hs 94» (larghezza, altezza
+    della finestra, davanzale) o «L 99 / Hp 210» (altezza della porta o portafinestra), in cm."""
+    sigle = []
+    for e in entita:
+        if e.dxftype() not in ("TEXT", "MTEXT"):
+            continue
+        p = e.dxf.insert
+        posizione = Point(p.x * cm, p.y * cm)
+        if not zona.covers(posizione):
+            continue
+        testo = e.plain_text() if e.dxftype() == "MTEXT" else e.dxf.text
+        larghezza = SIGLA_INFISSO.match(testo)
+        if not larghezza:
+            continue
+        valore = lambda nome: (m := re.search(rf"\b{nome}\s*(\d{{2,3}})", testo)) and int(m.group(1))
+        sigle.append({"punto": posizione, "larghezza": int(larghezza.group(1)), "hf": valore("Hf"), "hp": valore("Hp"), "hs": valore("Hs")})
+    return sigle
+
+
+SIGLA_UNITA = re.compile(r"^\s*int\.?\s*0*(\d{1,2})\s*$", re.IGNORECASE)
+COMUNI = re.compile(r"atrio|scal[ae]\b|condomin|androne|parti comuni|pianerottol", re.IGNORECASE)
+
+
+def leggi_sigle_unita(entita, zona, cm):
+    """Le sigle delle unità («int. 04») scritte sulla tavola, di solito accanto all'ingresso."""
+    sigle = []
+    for e in entita:
+        if e.dxftype() not in ("TEXT", "MTEXT"):
+            continue
+        p = e.dxf.insert
+        posizione = Point(p.x * cm, p.y * cm)
+        testo = " ".join((e.plain_text() if e.dxftype() == "MTEXT" else e.dxf.text).split())
+        m = SIGLA_UNITA.match(testo)
+        if m and zona.covers(posizione):
+            sigle.append((posizione, f"Int. {int(m.group(1)):02d}"))
+    return sigle
+
+
+RIGA_LEGENDA = re.compile(
+    r"^\s*int\.?\s*0*(\d{1,2})\s*[-–]\s*S\.?U\.?L\.?\s*(?:mq\.?|m²)?\s*([\d.,]+)\s*[-–]\s*([a-zà]+)\s*"
+    r"\(\s*S\.?\s*U\.?\s*(?:mq\.?|m²)?\s*([\d.,]+)\s*\)\s*(.*)$", re.IGNORECASE)
+
+
+def numero_legenda(testo):
+    """«55.20», «55,20», «1.055,20»: la virgola, se c'è, è il separatore dei decimali."""
+    testo = testo.strip(".,")
+    if "," in testo:
+        testo = testo.replace(".", "").replace(",", ".")
+    return float(testo)
+
+
+def leggi_legenda_unita(entita):
+    """Le righe della legenda degli alloggi, ovunque nella tavola:
+    «INT. 04 - SUL MQ. 55.20 - BILOCALE (S.U.44.00) +balcone+ terrazzo coperto».
+    Sono i dati dichiarati dal progettista: la pianta li deve ritrovare, non sostituire."""
+    unita = {}
+    for e in entita:
+        if e.dxftype() not in ("TEXT", "MTEXT"):
+            continue
+        testo = " ".join((e.plain_text() if e.dxftype() == "MTEXT" else e.dxf.text).split())
+        m = RIGA_LEGENDA.match(testo)
+        if not m:
+            continue
+        try:
+            sul, su = numero_legenda(m.group(2)), numero_legenda(m.group(4))
+        except ValueError:
+            continue
+        pertinenze = [p.strip(" .,;").lower() for p in re.split(r"\+|,", m.group(5)) if p.strip(" .,;")]
+        nome = f"Int. {int(m.group(1)):02d}"
+        unita[nome] = {"nome": nome, "sulMq": sul, "suMq": su, "tipo": m.group(3).capitalize(), "pertinenze": pertinenze}
+    return [unita[k] for k in sorted(unita)]
+
+
+ALTEZZA_LOCALE = re.compile(r"^\s*h\s*[=.:]?\s*(\d{3})\s*\*?\s*$|^\s*h\s*[=.:]?\s*([23][.,]\d{2})\s*m?\s*$", re.IGNORECASE)
+
+
+def leggi_altezze_locali(entita, zona, cm):
+    """Le altezze nette scritte nelle stanze: «H 313», «h = 2,70». Sotto i 2,20 m è una porta o un
+    sottoscala, non un'altezza di stanza; le sigle complete degli infissi («L 99 H 241») non c'entrano."""
+    altezze = []
+    for e in entita:
+        if e.dxftype() not in ("TEXT", "MTEXT"):
+            continue
+        p = e.dxf.insert
+        posizione = Point(p.x * cm, p.y * cm)
+        if not zona.covers(posizione):
+            continue
+        m = ALTEZZA_LOCALE.match(" ".join((e.plain_text() if e.dxftype() == "MTEXT" else e.dxf.text).split()))
+        if not m:
+            continue
+        h = int(m.group(1)) if m.group(1) else round(float(m.group(2).replace(",", ".")) * 100)
+        if 220 <= h <= 600:
+            altezze.append((posizione, h))
+    return altezze
+
+
+def altezza_del_piano(quota, quote, richiesta, solaio=30):
+    """L'altezza netta di un piano dalla quota del piano sopra (interpiano meno il solaio), se è
+    plausibile; altrimenti quella indicata nella richiesta. L'ultimo piano prende quella del
+    piano sotto, se c'è."""
+    sopra = [q for q in quote if q > quota]
+    sotto = [q for q in quote if q < quota]
+    if sopra:
+        netta = min(sopra) - quota - solaio
+    elif sotto:
+        netta = quota - max(sotto) - solaio
+    else:
+        return richiesta
+    return round(netta) if 240 <= netta <= 450 else richiesta
+
+
+def unita_dei_locali(locali, muri, aperture, sigle, sottile=16, distanza=600):
+    """Raggruppa le stanze in unità e dà a ogni gruppo la sigla più vicina.
+
+    Due stanze stanno nella stessa unità se le separa un tramezzo sottile (fino a 16 cm), niente,
+    o una porta; i muri spessi fra unità e i vani comuni (atrio, scala) separano. Una sigla per
+    gruppo, la più vicina, entro 6 m. Un gruppo senza sigla resta da assegnare: attaccarlo al
+    vicino sbagliava (Callimaco, 24/11/2026: la camera dell'int. 04 finiva nell'int. 06).
+    """
+    if not sigle:
+        return {}
+    nomi = [" ".join(n for _, n, _ in l.etichette) for l in locali]
+    privati = [i for i, n in enumerate(nomi) if not COMUNI.search(n)]
+    padre = {i: i for i in privati}
+
+    def radice(i):
+        while padre[i] != i:
+            padre[i] = padre[padre[i]]
+            i = padre[i]
+        return i
+
+    vani = [LineString((punto(a, m.centro, m.angolo), punto(b, m.centro, m.angolo))) for m, a, b, tipo in aperture if tipo != "finestra"]
+    assi = [(LineString(m.estremi()), m.spessore) for m in muri]
+    for x, i in enumerate(privati):
+        for j in privati[x + 1:]:
+            a, b = locali[i].contorno, locali[j].contorno
+            g = a.distance(b)
+            if g > 40:
+                continue
+            fascia = a.buffer(g / 2 + 3).intersection(b.buffer(g / 2 + 3))
+            if fascia.is_empty or fascia.area / (g + 6) < 40:
+                continue
+            spessori = [sp for linea, sp in assi if linea.intersects(fascia)]
+            porta = any(v.intersects(fascia) for v in vani)
+            if porta or not spessori or min(spessori) <= sottile:
+                padre[radice(i)] = radice(j)
+    gruppi = defaultdict(list)
+    for i in privati:
+        gruppi[radice(i)].append(i)
+    poligoni = {r: union_all([locali[i].contorno for i in idx]) for r, idx in gruppi.items()}
+    coppie = sorted((poligoni[r].distance(p), r, k) for r in poligoni for k, (p, _) in enumerate(sigle))
+    presi_g, presi_s, esito = set(), set(), {}
+    for d, r, k in coppie:
+        if d > distanza or r in presi_g or k in presi_s:
+            continue
+        presi_g.add(r)
+        presi_s.add(k)
+        for i in gruppi[r]:
+            esito[i] = sigle[k][1]
+    return esito
+
+
+ESTERNO_UNITA = re.compile(r"balcon|terrazz|loggia|portico|giardin|cortile", re.IGNORECASE)
+
+
+def completa_unita_con_legenda(locali, unita, legenda, vicino=60, tolleranza=0.12):
+    """Le stanze rimaste senza unità vanno all'unità confinante solo se la legenda lo consente:
+    la superficie utile misurata non deve superare quella dichiarata («S.U. 44,00») oltre il 12%.
+
+    Vicine = entro 60 cm: i muri portanti del prefabbricato di Callimaco sono più spessi di 40 cm
+    (con 40 le unità che tornavano erano 3 su 7, con 60 sono 6).
+    Senza questo vincolo la stanza finiva al vicino sbagliato (la camera dell'int. 04 nell'int. 06);
+    col vincolo l'int. 06, già pieno, la rifiuta. Fra più unità possibili vince quella a cui manca
+    la superficie più vicina all'area della stanza; si ripete finché qualcosa cambia.
+    """
+    dichiarata = {u["nome"]: u["suMq"] for u in legenda}
+    if not dichiarata:
+        return unita
+    esito = dict(unita)
+    nomi = [" ".join(n for _, n, _ in l.etichette) for l in locali]
+    privati = [i for i, n in enumerate(nomi) if not COMUNI.search(n) and not ESTERNO_UNITA.search(n)]
+    aree = {i: locali[i].contorno.area / 10_000 for i in privati}
+    misurata = defaultdict(float)
+    for i, u in esito.items():
+        if i in aree:
+            misurata[u] += aree[i]
+    while True:
+        scelte = []
+        for i in privati:
+            if i in esito:
+                continue
+            for j, u in esito.items():
+                if u not in dichiarata or locali[i].contorno.distance(locali[j].contorno) > vicino:
+                    continue
+                manca = dichiarata[u] - misurata[u]
+                if aree[i] <= manca + dichiarata[u] * tolleranza:
+                    scelte.append((abs(manca - aree[i]), i, u))
+        if not scelte:
+            return esito
+        _, i, u = min(scelte)
+        esito[i] = u
+        misurata[u] += aree[i]
+
+
+LAYER_VERDE = re.compile(r"verde|prato|giardin|green|grass|aiuol", re.IGNORECASE)
+LAYER_ALBERI = re.compile(r"alber|tree", re.IGNORECASE)
+LAYER_CONFINE = re.compile(r"lotto|confine|recinz|perimetr|property|boundary", re.IGNORECASE)
+PISCINA = re.compile(r"\bpiscin", re.IGNORECASE)
+
+
+def _contorno_chiuso(e, cm):
+    """I contorni chiusi di una polilinea o di un tratteggio, in cm."""
+    try:
+        if e.dxftype() == "LWPOLYLINE" and e.closed:
+            percorsi = [make_path(e)]
+        elif e.dxftype() == "HATCH":
+            from ezdxf import path as percorso  # noqa: PLC0415
+            percorsi = list(percorso.from_hatch(e))
+        else:
+            return []
+    except (ezdxf.DXFError, ValueError, TypeError, IndexError):
+        return []
+    poligoni = []
+    for p in percorsi:
+        punti = [(v.x * cm, v.y * cm) for v in p.flattening(max(5 / cm, 1e-5))]
+        if len(punti) >= 3:
+            poligono = Polygon(punti).buffer(0)
+            if poligono.geom_type == "Polygon" and poligono.area > 0:
+                poligoni.append(poligono)
+    return poligoni
+
+
+def allinea_blocco_edificio(entita, muri_terra, layer, cm):
+    """Nella planimetria generale l'edificio è spesso un blocco con le stesse pareti del piano
+    terra (Callimaco: A$C3119025d sul layer MRT). Si cerca il blocco le cui pareti, spostate,
+    cadono sulle pareti del piano terra: lo spostamento porta il lotto nelle coordinate della pianta."""
+    if not muri_terra or not layer:
+        return None
+    assi = [LineString(m.estremi()) for m in muri_terra]
+    rete = union_all(assi).buffer(max(m.spessore for m in muri_terra) / 2 + 10)
+    gx0, gy0, gx1, gy1 = union_all(assi).bounds
+    migliore = None
+    for e in entita:
+        if e.dxftype() != "INSERT":
+            continue
+        try:
+            pezzi = [v for v in e.virtual_entities() if v.dxf.layer.casefold() == layer.casefold()]
+        except (ezdxf.DXFError, ValueError, TypeError, AttributeError, IndexError):
+            continue
+        tratti = [s for v in pezzi for s in segmenti(v, cm) or ()]
+        if len(tratti) < 30:
+            continue
+        bx0, by0, bx1, by1 = union_all([LineString(t) for t in tratti]).bounds
+        if abs((bx1 - bx0) - (gx1 - gx0)) > 0.05 * (gx1 - gx0) + 60 or abs((by1 - by0) - (gy1 - gy0)) > 0.05 * (gy1 - gy0) + 60:
+            continue
+        dx, dy = gx0 - bx0, gy0 - by0
+        sopra = sum(rete.covers(Point((p[0] + q[0]) / 2 + dx, (p[1] + q[1]) / 2 + dy)) for p, q in tratti) / len(tratti)
+        if sopra >= 0.7 and (migliore is None or sopra > migliore[2]):
+            migliore = (dx, dy, sopra, (bx0, by0, bx1, by1))
+    return migliore
+
+
+def leggi_sistemazioni(entita, muri_terra, layer, cm, raggio=8000):
+    """Il lotto della planimetria generale nelle coordinate del piano terra: verde, piscine,
+    alberi e confine. Restituisce None se l'edificio non si ritrova nella planimetria."""
+    allineamento = allinea_blocco_edificio(entita, muri_terra, layer, cm)
+    if not allineamento:
+        return None
+    dx, dy, quota, (bx0, by0, bx1, by1) = allineamento
+    zona = box(bx0 - raggio, by0 - raggio, bx1 + raggio, by1 + raggio)
+    edificio = box(bx0, by0, bx1, by1)
+    sposta = lambda g: translate(g, dx, dy)  # noqa: E731
+    verdi, piscine, alberi, confini, testi = [], [], [], [], []
+    chiusi = []
+    for e in entita:
+        tipo = e.dxftype()
+        nome_layer = e.dxf.layer
+        if tipo in ("TEXT", "MTEXT"):
+            p = e.dxf.insert
+            punto_testo = Point(p.x * cm, p.y * cm)
+            if zona.covers(punto_testo):
+                testi.append((punto_testo, " ".join((e.plain_text() if tipo == "MTEXT" else e.dxf.text).split())))
+            continue
+        if tipo == "INSERT" and (LAYER_ALBERI.search(nome_layer) or LAYER_ALBERI.search(e.dxf.name)):
+            p = e.ocs().to_wcs(e.dxf.insert)  # blocchi specchiati: il punto è nel loro sistema
+            punto_albero = Point(p.x * cm, p.y * cm)
+            if zona.covers(punto_albero) and not edificio.covers(punto_albero):
+                alberi.append((punto_albero, 300))
+            continue
+        if tipo == "CIRCLE" and LAYER_ALBERI.search(nome_layer):
+            c = e.ocs().to_wcs(e.dxf.center)
+            punto_albero, r = Point(c.x * cm, c.y * cm), e.dxf.radius * cm
+            # Un cerchio piccolo è il tronco (Callimaco: 25 cm): la chioma la si dà di 3 m.
+            if 10 <= r <= 600 and zona.covers(punto_albero) and not edificio.covers(punto_albero):
+                alberi.append((punto_albero, round(r * 2) if r >= 80 else 300))
+            continue
+        for poligono in _contorno_chiuso(e, cm):
+            if not zona.covers(poligono.representative_point()):
+                continue
+            if LAYER_VERDE.search(nome_layer) and poligono.area >= 20_000:
+                verdi.append(poligono)
+            elif LAYER_CONFINE.search(nome_layer) and poligono.covers(edificio.centroid):
+                confini.append(poligono)
+            else:
+                chiusi.append(poligono)
+    def stessa(a, b):
+        return a.symmetric_difference(b).area <= 0.05 * max(a.area, b.area)
+    for p, testo in testi:
+        if not PISCINA.search(testo):
+            continue
+        vasche = sorted((c for c in chiusi if 80_000 <= c.area <= 1_500_000 and c.distance(p) <= 300), key=lambda c: c.distance(p))
+        if vasche and not any(stessa(v, vasche[0]) for v in piscine):
+            piscine.append(vasche[0])
+    # Una vasca uguale a una già riconosciuta (stessa misura, rettangolare) è un'altra piscina,
+    # anche senza scritta: a Callimaco la scritta c'è su una sola delle due.
+    for vasca in list(piscine):
+        for c in chiusi:
+            rettangolare = c.area >= 0.95 * c.minimum_rotated_rectangle.area
+            if rettangolare and abs(c.area - vasca.area) <= 0.05 * vasca.area and not any(stessa(c, v) or c.intersects(v) for v in piscine):
+                piscine.append(c)
+    # Gli stessi alberi disegnati due volte (cerchio e blocco) restano uno.
+    unici = []
+    for p, d in alberi:
+        if all(p.distance(q) > 60 for q, _ in unici):
+            unici.append((p, d))
+    # Lo stesso verde come polilinea e come tratteggio resta uno; una vasca non è un prato.
+    verdi = [v for i, v in enumerate(verdi) if not any(stessa(v, w) for w in verdi[:i]) and not any(stessa(v, vasca) for vasca in piscine)]
+    if confini:
+        lotto = max(confini, key=lambda c: c.area)
+        stimato = False
+    elif verdi or piscine:
+        # Nessun confine disegnato: il rettangolo che tiene edificio, verde e vasche. Gli alberi no:
+        # quelli del viale stanno fuori (Callimaco: con gli alberi il lotto veniva 8.150 m², non 2.600).
+        lotto = union_all([edificio, *verdi, *piscine]).envelope
+        stimato = True
+    else:
+        return None
+    unici = [(p, d) for p, d in unici if lotto.buffer(200).covers(p)]
+    return {
+        "lotto": sposta(lotto), "lottoStimato": stimato, "verdi": [sposta(v) for v in verdi],
+        "piscine": [sposta(v) for v in piscine], "alberi": [(sposta(p), d) for p, d in unici], "allineamento": round(quota, 3),
+    }
+
+
+def misure_da_sigle(vani, sigle, distanza=250):
+    """A ogni vano la sigla più vicina con una larghezza compatibile, una sigla per vano."""
+    coppie = []
+    for i, (centro, larghezza) in enumerate(vani):
+        for j, s in enumerate(sigle):
+            d = centro.distance(s["punto"])
+            if d <= distanza and abs(s["larghezza"] - larghezza) <= max(20, 0.2 * larghezza):
+                coppie.append((d, i, j))
+    presi_v, presi_s, esito = set(), set(), {}
+    for d, i, j in sorted(coppie):
+        if i in presi_v or j in presi_s:
+            continue
+        presi_v.add(i)
+        presi_s.add(j)
+        esito[i] = sigle[j]
+    return esito
 
 
 def varchi_tra_stipiti(linee, tratti, minimo=130):
@@ -530,6 +899,24 @@ def varchi_tra_stipiti(linee, tratti, minimo=130):
             if any(max(abs(a - b) for a, b in zip(primo, secondo)) <= 3 for secondo in stipiti[1]):
                 yield asse, primo
                 break
+
+
+def anta_scorrevole(segno, pa, pb, oltre=15):
+    """Il segno degli infissi in un vano è l'anta di una porta scorrevole, non il telaio di una
+    finestra (25/11/2026, Callimaco): corre lungo il vano e prosegue dentro il muro per almeno
+    `oltre` cm, dove l'anta si apre. Il telaio di una finestra resta fra le due spalle. I lati
+    corti del rettangolo dell'anta (lo spessore, pochi cm) non dicono niente: si lasciano passare."""
+    p, q = segno
+    lunghezza = hypot(q[0] - p[0], q[1] - p[1])
+    if lunghezza <= 8:
+        return True
+    vano = (pb[0] - pa[0], pb[1] - pa[1])
+    largo = hypot(*vano) or 1
+    u = (vano[0] / largo, vano[1] / largo)
+    if abs((q[0] - p[0]) * u[1] - (q[1] - p[1]) * u[0]) > lunghezza * 0.05 or not 45 <= lunghezza <= 160:
+        return False
+    s = sorted(((r[0] - pa[0]) * u[0] + (r[1] - pa[1]) * u[1]) for r in (p, q))
+    return s[0] <= -oltre or s[1] >= largo + oltre
 
 
 def vani_senza_segno(tratti, gia_trovati=(), infissi=(), minimo=55, massimo=135):
@@ -566,8 +953,10 @@ def vani_senza_segno(tratti, gia_trovati=(), infissi=(), minimo=55, massimo=135)
                     continue
                 if any(v.distance(vano.centroid) < 20 for v in presi):
                     continue
-                if indice_telai is not None and len(indice_telai.query(vano.buffer(6), predicate="intersects")):
-                    continue
+                if indice_telai is not None:
+                    segni = [infissi[k] for k in indice_telai.query(vano.buffer(6), predicate="intersects")]
+                    if segni and not all(anta_scorrevole(s, pa, pb) for s in segni):
+                        continue
                 # Muro pieno fra due finestre: le sue facce, parallele al vano, lo coprono.
                 asse_vano = proietta(pa, pb)
                 fascia = vano.buffer((a.fine - a.inizio) / 2 + 2, cap_style="flat")
@@ -743,6 +1132,54 @@ class LocaleLetto:
     aperto: bool = False
 
 
+def stanze_dai_nomi(muri, aperture, locali, nomi, aree, zona, involucro=100, vicino=80):
+    """Le stanze con un nome e una superficie scritti che il riconoscimento delle facce non ha
+    chiuso (ingressi, disimpegni, ripostigli: contorni con un tratto mancante o un vano senza segno).
+
+    Si riempie lo spazio libero fra le pareti ricostruite, con i vani chiusi, dentro la sagoma
+    dell'edificio (pareti dilatate e riempite: le porte d'ingresso non fanno uscire la stanza),
+    tolte le stanze già trovate. Un pezzo è accettato solo se la sua area torna con quella scritta
+    (±20%, o 0,8 m² per i vani piccoli): se due nomi cadono nello stesso pezzo (un bagno e il suo
+    disimpegno senza la porta disegnata) diventano una stanza sola, con le due superfici sommate.
+    Callimaco, 24/11/2026: ripostiglio, ingresso, bagno e disimpegni del primo piano.
+    """
+    liberi = [(p, n, t) for p, n, t in nomi if not any(l.contorno.covers(p) for l in locali)]
+    if not liberi or not muri:
+        return []
+    pieni = [LineString((punto(m.inizio, m.centro, m.angolo), punto(m.fine, m.centro, m.angolo))).buffer(max(m.spessore, 4) / 2, cap_style=2)
+             for m in muri if m.fine > m.inizio]
+    pieni += [LineString((punto(a, m.centro, m.angolo), punto(b, m.centro, m.angolo))).buffer(max(m.spessore, 4) / 2 + 1, cap_style=2)
+              for m, a, b, _ in aperture if b > a]
+    solido = union_all(pieni)
+    sagoma = solido.buffer(involucro, join_style=2).buffer(-involucro, join_style=2)
+    sagoma = union_all([Polygon(g.exterior) for g in getattr(sagoma, "geoms", [sagoma]) if g.geom_type == "Polygon"])
+    occupato = union_all([l.contorno for l in locali]).buffer(3) if locali else Polygon()
+    libero = sagoma.intersection(zona).difference(solido).difference(occupato)
+    pezzi = [g for g in getattr(libero, "geoms", [libero]) if g.geom_type == "Polygon" and g.area > 0]
+    usate = {id(a) for a, _ in aree if any(l.contorno.covers(a) for l in locali)}
+    nuovi = []
+    for pezzo in pezzi:
+        dentro = [e for e in liberi if pezzo.covers(e[0])]
+        if not dentro:
+            continue
+        superfici = []
+        for p, _, _ in dentro:
+            vicine = sorted((a.distance(p), id(a), mq) for a, mq in aree if id(a) not in usate and a.distance(p) <= vicino)
+            if not vicine:
+                break
+            usate.add(vicine[0][1])
+            superfici.append(vicine[0][2])
+        if len(superfici) != len(dentro):
+            continue
+        attesa = sum(superfici)
+        if abs(pezzo.area / 10_000 - attesa) > max(attesa * 0.2, 0.8):
+            continue
+        # La destinazione della parte più grande dà il tipo alla stanza.
+        ordinate = [e for _, e in sorted(zip(superfici, dentro), key=lambda c: -c[0])]
+        nuovi.append(LocaleLetto(Polygon(pezzo.exterior), ordinate, round(attesa, 2)))
+    return nuovi
+
+
 def separa_ambienti_aperti(spazio, etichette, misure):
     """Extend a drawn wall edge to measure two named open areas without adding a wall."""
     estensione = hypot(spazio.bounds[2] - spazio.bounds[0], spazio.bounds[3] - spazio.bounds[1]) * 2
@@ -844,6 +1281,12 @@ def riconosci_locali(muri, tratti, varchi, nomi, aree, aperture, poligoni=None):
             scarto = abs(mq - m2) / mq
             if scarto <= 0.16:
                 risultati.append((scarto - 0.20, [LocaleLetto(spazio.simplify(0.10), etichette, mq)]))
+            elif scarto <= 0.35 and len(etichette) == 1:
+                # Chiusa dai muri, col suo nome e la sua superficie, ma la superficie scritta non
+                # torna (Callimaco, bagno dell'Int. 04: 3,4 m² disegnati, 4,40 scritti). Meglio la
+                # stanza con lo scarto in vista, che l'editor fa correggere, di nessuna stanza.
+                # Perde contro ogni lettura che torna (25/11/2026).
+                risultati.append((0.45 + scarto, [LocaleLetto(spazio.simplify(0.10), etichette, mq)]))
 
     for tolleranza in (9, 24, 35, 50, 65, 90, 115, 125, 135, 145, 155):
         if tolleranza > 50 and not aree:
@@ -1177,6 +1620,50 @@ def sovrapposizione_scale(a, b):
     return sum(any(min(distanza_alzata(p, q), distanza_alzata(p, q[::-1])) <= 4 for q in b) for p in a)
 
 
+def scale_senza_freccia(linee, gia=()):
+    """Le rampe disegnate senza la freccia della linea di salita (Callimaco, 24/11/2026: su tutti i
+    piani le scale c'erano, pedate da 27-30 cm larghe 90-125, ma nessuna aveva la freccia e il 3D
+    restava senza scale). Una rampa è una fila di almeno 6 linee parallele della stessa lunghezza
+    (70-170 cm) a passo costante fra 22 e 34 cm, su qualunque layer non di muri. Una griglia (piastrelle,
+    grigliati) ha anche le linee nell'altra direzione allo stesso passo: si scarta."""
+    gruppi = []
+    for p, q, layer in linee:
+        gradino = proietta(p, q)
+        if not 70 <= gradino.fine - gradino.inizio <= 170:
+            continue
+        gruppo = next((g for g in gruppi if g[0].angolo == gradino.angolo and
+                       abs(g[0].inizio - gradino.inizio) <= 4 and abs(g[0].fine - gradino.fine) <= 4), None)
+        if gruppo is None:
+            gruppi.append([gradino])
+        elif all(abs(gradino.centro - a.centro) > 2 for a in gruppo):
+            gruppo.append(gradino)
+    trovate = []
+    for gruppo in gruppi:
+        sequenze = []
+        for gradino in sorted(gruppo, key=lambda a: a.centro):
+            if not sequenze or gradino.centro - sequenze[-1][-1].centro > 36:
+                sequenze.append([gradino])
+            elif gradino.centro - sequenze[-1][-1].centro >= 20:
+                sequenze[-1].append(gradino)
+        for serie in sequenze:
+            if not 6 <= len(serie) <= 41:
+                continue
+            passi = [b.centro - a.centro for a, b in zip(serie, serie[1:])]
+            if max(passi) - min(passi) > 4 or not 22 <= median(passi) <= 34:
+                continue
+            alzate = [a.estremi() for a in serie]
+            impronta = LineString([p for alzata in alzate for p in alzata]).convex_hull
+            angolo = serie[0].angolo
+            trasversali = sum(1 for p, q, _ in linee if abs(((proietta(p, q).angolo - angolo) % 180) - 90) < 1
+                              and impronta.contains(LineString((p, q)).interpolate(0.5, normalized=True)))
+            if trasversali >= 3:
+                continue
+            if any(sovrapposizione_scale(alzate, a) >= 4 for a in [*gia, *trovate]):
+                continue
+            trovate.append(alzate)
+    return trovate
+
+
 def scale_da_riscontrare(linee, modellate):
     """Localizza le rampe disegnate sul layer delle scale, anche senza una freccia leggibile."""
     gruppi = []
@@ -1339,11 +1826,79 @@ class PianoLetto:
     archi: list
     riscontri: list
     fonti: list
+    sigle: list = field(default_factory=list)
+    sigle_unita: list = field(default_factory=list)
+    nomi_letti: int = 0
+    altezze: list = field(default_factory=list)
+    tratti_scale: list = field(default_factory=list)
+
+
+def muri_esterni(muri, distanza=60):
+    """Le pareti sul perimetro: quelle vicine all'involucro convesso dell'edificio."""
+    if not muri:
+        return []
+    linee = [LineString(m.estremi()) for m in muri]
+    bordo = union_all(linee).convex_hull.boundary
+    return [m for m, l in zip(muri, linee) if l.interpolate(0.5, normalized=True).distance(bordo) <= distanza]
+
+
+def spostamento_per_correlazione(muri_rif, muri, fisso=None, passo=10):
+    """Lo spostamento d (cm, nel DXF) che porta le pareti esterne di `muri` su quelle di `muri_rif`.
+
+    Si disegnano le due sagome su una griglia di 10 cm e si cerca il massimo della correlazione;
+    `fisso` = "y" o "x" tiene ferma quella componente (piante messe in fila sulla tavola: stessa
+    quota y, si cerca solo x). Restituisce (dx, dy, quota sovrapposta) o None.
+    Callimaco, 24/11/2026: i piani superiori stavano 8 m fuori dal piano terra e nel 3D i muri
+    sembravano scollegati e i muri della cantina spuntavano dal prato.
+    """
+    import numpy as np  # noqa: PLC0415
+    a, b = muri_esterni(muri_rif), muri_esterni(muri)
+    if len(a) < 3 or len(b) < 3:
+        return None
+    ba = union_all([LineString(m.estremi()) for m in a]).bounds
+    bb = union_all([LineString(m.estremi()) for m in b]).bounds
+    lato = int(max(ba[2] - ba[0], ba[3] - ba[1], bb[2] - bb[0], bb[3] - bb[1]) / passo) * 2 + 8
+    if lato > 4000:
+        return None
+
+    def griglia(pareti, x0, y0):
+        g = np.zeros((lato, lato), np.float32)
+        for m in pareti:
+            p, q = m.estremi()
+            n = int(max(abs(q[0] - p[0]), abs(q[1] - p[1])) / passo) + 1
+            for t in np.linspace(0, 1, n + 1):
+                x = int((p[0] + (q[0] - p[0]) * t - x0) / passo) + 4
+                y = int((p[1] + (q[1] - p[1]) * t - y0) / passo) + 4
+                if 0 <= x < lato and 0 <= y < lato:
+                    g[max(0, y - 2):y + 3, max(0, x - 2):x + 3] = 1
+        return g
+    ga, gb = griglia(a, ba[0], ba[1]), griglia(b, bb[0], bb[1])
+    c = np.real(np.fft.ifft2(np.fft.fft2(ga) * np.conj(np.fft.fft2(gb))))
+    base = (ba[0] - bb[0], ba[1] - bb[1])  # spostamento che fa coincidere gli angoli in basso a sinistra
+    if fisso:
+        # La componente fissa resta quasi quella della tavola: entro 3 m (le piante in fila non
+        # sono mai allineate al centimetro; a Callimaco il primo piano scarta di 47 cm).
+        centro = -base[1 if fisso == "y" else 0] / passo
+        fascia = [int(round(centro + j)) % lato for j in range(-30, 31)]
+        sotto = c[fascia, :] if fisso == "y" else c[:, fascia].T
+        j, k = np.unravel_index(int(np.argmax(sotto)), sotto.shape)
+        k = k if k < lato / 2 else k - lato
+        scarto = (fascia[j] if fascia[j] < lato / 2 else fascia[j] - lato)
+        if fisso == "y":
+            dx, dy = base[0] + k * passo, base[1] + scarto * passo
+        else:
+            dx, dy = base[0] + scarto * passo, base[1] + k * passo
+        massimo = float(sotto.max())
+    else:
+        iy, ix = np.unravel_index(int(np.argmax(c)), c.shape)
+        iy, ix = (iy if iy < lato / 2 else iy - lato), (ix if ix < lato / 2 else ix - lato)
+        dx, dy, massimo = base[0] + ix * passo, base[1] + iy * passo, float(c.max())
+    return dx, dy, round(massimo / max(float(gb.sum()), 1), 3)
 
 
 def leggi_piano(entita, regione, cm, layer, controllo=False):
     zona = box(*(x * cm for x in regione["rettangolo"]))
-    tratti, linee, archi, fonti = [], [], [], []
+    tratti, linee, archi, fonti, polilinee = [], [], [], [], []
     for e in entita:
         originale = e.dxf.layer
         gruppo = semplice(originale)
@@ -1357,6 +1912,10 @@ def leggi_piano(entita, regione, cm, layer, controllo=False):
                 archi.append((centro, raggio, e.dxf.start_angle, e.dxf.end_angle))
             continue
         if not parete and e.dxftype() != "LINE" and not FINESTRE.search(gruppo):
+            # Le pedate disegnate come polilinee servono solo a riconoscere le scale.
+            if e.dxftype() in ("LWPOLYLINE", "POLYLINE") and not ASSI.search(gruppo):
+                polilinee.extend((p, q, originale.casefold()) for p, q in segmenti(e, cm)
+                                 if 70 <= hypot(q[0] - p[0], q[1] - p[1]) <= 170 and zona.covers(LineString([p, q])))
             continue
         for p, q in segmenti(e, cm):
             if hypot(q[0] - p[0], q[1] - p[1]) < 3 or not zona.covers(LineString([p, q])):
@@ -1437,12 +1996,16 @@ def leggi_piano(entita, regione, cm, layer, controllo=False):
     if not locali and not nomi and not aree:
         locali = contorni_senza_etichette(muri, pertinenti)
     locali.extend(completa_ingressi_aperti(locali, muri, tratti, stipiti + varchi, nomi, aree, pertinenti))
+    if nomi and aree:
+        locali.extend(stanze_dai_nomi(muri, pertinenti, locali, nomi, aree, zona))
     nomi_usati = {id(p) for l in locali for p, _, _ in l.etichette}
     testi = [(p, nome) for p, nome, _ in nomi if id(p) not in nomi_usati]
     testi.extend((p, f"{mq:g} m²".replace(".", ",")) for p, mq in aree if not any(
         mq == l.superficie and l.contorno.covers(p) for l in locali
     ))
-    return PianoLetto(muri, pertinenti, locali, testi, leggi_quote(entita, zona, cm), assi_vicini(entita, zona, cm), linee, archi, riscontri[:48], fonti)
+    return PianoLetto(muri, pertinenti, locali, testi, leggi_quote(entita, zona, cm), assi_vicini(entita, zona, cm), linee, archi, riscontri[:48], fonti,
+                      leggi_sigle_infissi(entita, zona, cm), leggi_sigle_unita(entita, zona, cm), len(nomi),
+                      leggi_altezze_locali(entita, zona, cm), linee + polilinee)
 
 
 def leggi_scale(letti, altezza):
@@ -1470,6 +2033,14 @@ def leggi_scale(letti, altezza):
             if any(sovrapposizione_scale(relative, a) >= 4 for _, a, _ in scale):
                 continue
             scale.append((nome, relative, interpiano or altezza))
+        # Le rampe senza freccia: il verso di salita non si sa, ma la scala c'è (vano, pedate, ingombro).
+        for alzate in scale_senza_freccia(piano.tratti_scale or piano.linee, [[tuple((p[0] + ox, p[1] + oy) for p in a) for a in r] for _, r, _ in scale]):
+            relative = [tuple((p[0] - ox, p[1] - oy) for p in a) for a in alzate]
+            if any(sovrapposizione_scale(relative, a) >= 4 for a in (precedenti if in_griglia else [])):
+                continue
+            # Senza freccia non si sa se la rampa sale al piano sopra: sale quanto i suoi gradini
+            # (17,5 cm l'uno), al massimo l'interpiano. Gli scalini d'ingresso restano scalini.
+            scale.append(("Scala rettilinea (verso da verificare)", relative, min(interpiano or altezza, round((len(alzate) + 1) * 17.5))))
         riconosciute[n] = scale
         if in_griglia:
             precedenti = [a for _, a, _ in scale]
@@ -1625,16 +2196,51 @@ def ricostruisci(documento, opzioni):
             "origine": [round(x - ox, 3), round(Y - oy, 3)],
             "larghezza": round(X - x, 3), "altezza": round(Y - y, 3), "allineamento": allineamento,
             "contorniDaVerificare": sum(not l.etichette and l.superficie is None for l in piano.locali),
+            # Quanti nomi di stanza scritti sulla tavola sono finiti dentro una stanza chiusa.
+            "nomiScritti": piano.nomi_letti,
+            "nomiInStanze": len({id(p) for l in piano.locali for p, _, _ in l.etichette}),
         })
 
+    # I piani che né gli assi né le pareti hanno allineato si mettono sul piano terra per
+    # correlazione delle pareti esterne. Le piante in fila sulla tavola hanno la stessa y: si cerca
+    # solo x (e viceversa per le piante in colonna).
+    quote = [r["quota"] for _, r, _, _, _ in letti]
+    terra = min((q for q in quote if q >= 0), default=None)
+    if terra is not None:
+        # Dal piano terra verso l'alto e verso il basso: ogni piano si allinea al più vicino già a posto
+        # (il secondo piano di Callimaco è più piccolo del terra, ma sta sopra il primo).
+        a_posto = {k for k, l in enumerate(letti) if l[1]["quota"] == terra or l[4] in ("assi", "pareti")}
+        for k in sorted(range(len(letti)), key=lambda k: abs(letti[k][1]["quota"] - terra)):
+            numero, regione, piano, (ox, oy), allineamento = letti[k]
+            if k in a_posto:
+                continue
+            vicino = min(a_posto, key=lambda j: abs(letti[j][1]["quota"] - regione["quota"]))
+            _, r_rif, p_rif, (ox_r, oy_r), _ = letti[vicino]
+            x_r, y_r, X_r, Y_r = [v * cm for v in r_rif["rettangolo"]]
+            x, y, X, Y = [v * cm for v in regione["rettangolo"]]
+            in_fila = min(Y, Y_r) - max(y, y_r) >= 0.5 * min(Y - y, Y_r - y_r)
+            in_colonna = min(X, X_r) - max(x, x_r) >= 0.5 * min(X - x, X_r - x_r)
+            esito = spostamento_per_correlazione(p_rif.muri, piano.muri, "y" if in_fila else "x" if in_colonna else None)
+            if esito and esito[2] >= 0.3:
+                dx, dy, _ = esito
+                ox, oy = ox_r - dx, oy_r - dy
+                letti[k] = (numero, regione, piano, (ox, oy), "correlazione")
+                riepilogo[numero]["origine"] = [round(x - ox, 3), round(Y - oy, 3)]
+                riepilogo[numero]["allineamento"] = "correlazione"
+                a_posto.add(k)
     scale = leggi_scale(letti, altezza)
     try:
         tavola = registra_tavola(documento)
     except (ezdxf.DXFError, ValueError, IndexError, TypeError, OverflowError):
         tavola = None
+    altezza_richiesta = altezza
+    legenda = leggi_legenda_unita(entita)
+    quote_piani = sorted({r["quota"] for _, r, _, _, _ in letti})
+    piano_terra = min((q for q in quote_piani if q >= 0), default=quote_piani[0] if quote_piani else None)
     for numero, regione, piano, (ox, oy), _ in letti:
         # I riscontri tra piani usano i tratti della tavola prima della normalizzazione per l’editor.
         accorpa_assi_sovrapposti(piano.muri, piano.aperture)
+        altezza = altezza_del_piano(regione["quota"], quote_piani, altezza_richiesta)
 
         def pos(p):
             return {"x": round(p[0] - ox, 2), "y": round(p[1] - oy, 2)}
@@ -1655,18 +2261,28 @@ def ricostruisci(documento, opzioni):
                 "tipo": "esterno" if esterno else "tramezzo", "stato": "esistente", "origine": "da_documento",
                 "origineMisure": {"altezza": "stimata"}, "funzioneDaVerificare": True,
             })
+        # Le sigle scritte accanto ai vani danno altezza e davanzale veri.
+        sigle = misure_da_sigle([(Point(punto((a + b) / 2, m.centro, m.angolo)), b - a) for m, a, b, _ in piano.aperture], piano.sigle)
         for i, (m, a, b, tipo) in enumerate(piano.aperture, 1):
             larghezza = round(b - a, 2)
             if larghezza <= 0:
                 continue
+            sigla = sigle.get(i - 1)
+            alta = sigla and (sigla["hf"] or sigla["hp"])
+            if sigla and tipo == "finestra" and sigla["hp"] and not sigla["hs"]:
+                tipo = "portafinestra"
+            davanzale = (sigla["hs"] if sigla and sigla["hs"] and tipo == "finestra" else None)
+            misure = {k: v for k, v in {"altezza": None if alta else "stimata", "davanzale": None if davanzale is not None or tipo != "finestra" and alta else "stimata"}.items() if v}
             stato["aperture"].append({
                 "id": f"{prefisso}-a{i}", "muroId": id_muri[id(m)], "tipo": "porta" if tipo == "porta_doppia" else tipo,
                 "offset": max(0, round(a - m.inizio, 2)), "larghezza": larghezza,
-                "altezza": min(120, altezza - 90) if tipo == "finestra" else min(210, altezza),
-                "davanzale": 90 if tipo == "finestra" else 0, "manovra": "battente" if tipo in ("porta", "porta_doppia", "portafinestra") else "nessuna",
+                "altezza": min(alta, altezza) if alta else min(120, altezza - 90) if tipo == "finestra" else min(210, altezza),
+                "davanzale": davanzale if davanzale is not None else 90 if tipo == "finestra" else 0,
+                "manovra": "battente" if tipo in ("porta", "porta_doppia", "portafinestra") else "nessuna",
                 **({"ante": 2} if tipo == "porta_doppia" else {}),
-                "stato": "esistente", "origine": "da_documento", "origineMisure": {"altezza": "stimata", "davanzale": "stimata"},
+                "stato": "esistente", "origine": "da_documento", **({"origineMisure": misure} if misure else {}),
             })
+        unita = completa_unita_con_legenda(piano.locali, unita_dei_locali(piano.locali, piano.muri, piano.aperture, piano.sigle_unita), legenda)
         for i, l in enumerate(piano.locali, 1):
             etichette = sorted(l.etichette, key=lambda e: (e[0].x, -e[0].y))
             nome = " / ".join(dict.fromkeys(n for _, n, _ in etichette)) if etichette else (
@@ -1679,6 +2295,12 @@ def ricostruisci(documento, opzioni):
             }
             if l.superficie is not None:
                 locale["superficieDichiarataMq"] = l.superficie
+            # «H 313» scritto nella stanza è la sua altezza netta (anche un controsoffitto).
+            altezza_scritta = next((h for p, h in piano.altezze if l.contorno.covers(p)), None)
+            if altezza_scritta and altezza_scritta <= altezza + 60:
+                locale["altezza"] = altezza_scritta
+            if i - 1 in unita:
+                locale["unita"] = unita[i - 1]
             if l.aperto:
                 locale["aperto"] = True
             stato["locali"].append(locale)
@@ -1701,6 +2323,43 @@ def ricostruisci(documento, opzioni):
             "posizione": pos((p.x, p.y)),
             "testo": "Scala in tavola · verificare quote e verso",
         } for i, p in enumerate(scale_in_tavola, 1))
+        # Il lotto della planimetria generale va sul piano terra, nelle sue coordinate.
+        if regione["quota"] == piano_terra and layer:
+            # Qui servono anche cerchi (alberi) e tratteggi (verde), che la lettura delle piante scarta.
+            esterni = [e for e in documento.modelspace() if e.dxftype() in tipi + ("CIRCLE", "HATCH")
+                       and not e.dxf.get("invisible", 0) and e.dxf.layer.casefold() not in nascosti]
+            sistemazioni = leggi_sistemazioni(esterni, piano.muri, layer, cm)
+            if sistemazioni:
+                def contorno_area(poligono):
+                    return [pos(p) for p in list(orient(poligono, sign=1).exterior.coords)[:-1]]
+                aree = [{"id": f"{prefisso}-lotto", "tipo": "lotto",
+                         "nome": "Lotto (da verificare)" if sistemazioni["lottoStimato"] else "Lotto",
+                         "contorno": contorno_area(sistemazioni["lotto"]), "recinzione": True, "stato": "esistente"}]
+                aree += [{"id": f"{prefisso}-verde{i}", "tipo": "prato", "nome": "Verde", "contorno": contorno_area(v)}
+                         for i, v in enumerate(sistemazioni["verdi"], 1)]
+                stato["aree"] = aree
+                for i, vasca in enumerate(sistemazioni["piscine"], 1):
+                    rettangolo = vasca.minimum_rotated_rectangle
+                    vertici = list(rettangolo.exterior.coords)[:4]
+                    lati = [LineString([vertici[k], vertici[(k + 1) % 4]]) for k in range(2)]
+                    lungo = max(lati, key=lambda l: l.length)
+                    angolo = degrees(atan2(lungo.coords[1][1] - lungo.coords[0][1], lungo.coords[1][0] - lungo.coords[0][0]))
+                    centro = rettangolo.centroid
+                    stato["elementi"].append({
+                        "id": f"{prefisso}-piscina{i}", "tipo": "piscina", "posizione": pos((centro.x, centro.y)),
+                        "rotazione": round(angolo % 180, 1), "larghezza": round(lungo.length), "profondita": round(min(l.length for l in lati)),
+                        # Nello stato di fatto tutto è esistente: la variante decide cosa si costruisce.
+                        "altezza": 140, "origine": "da_documento",
+                    })
+                for i, (punto_albero, diametro) in enumerate(sistemazioni["alberi"], 1):
+                    stato["elementi"].append({
+                        "id": f"{prefisso}-albero{i}", "tipo": "albero", "posizione": pos((punto_albero.x, punto_albero.y)),
+                        "rotazione": 0, "larghezza": diametro, "profondita": diametro, "origine": "da_documento",
+                    })
+                riepilogo[numero]["lotto"] = {
+                    "allineamento": sistemazioni["allineamento"], "stimato": sistemazioni["lottoStimato"], "verdi": len(sistemazioni["verdi"]),
+                    "piscine": len(sistemazioni["piscine"]), "alberi": len(sistemazioni["alberi"]),
+                }
         livello = {
             "id": prefisso, "nome": regione["nome"], "quota": regione["quota"], "fatto": stato, "proposte": [],
         }
@@ -1724,10 +2383,10 @@ def ricostruisci(documento, opzioni):
                 riscontri.append(voce)
             livello["controlloDwg"] = riscontri
         livelli.append(livello)
-    return {
-        "documento": {"schema": 1, "unita": "cm", "scala": 100, "livelli": livelli},
-        "piani": riepilogo,
-    }
+    documento_letto = {"schema": 1, "unita": "cm", "scala": 100, "livelli": livelli}
+    if legenda:
+        documento_letto["unitaDichiarate"] = legenda
+    return {"documento": documento_letto, "piani": riepilogo}
 
 
 def main(source, request, target):

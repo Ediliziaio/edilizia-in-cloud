@@ -99,7 +99,9 @@ function eseguiTsc() {
       process.execPath,
       [COMPILATORE, "--noEmit", "-p", "tsconfig.app.json", "--incremental", "false", "--pretty", "false"],
       { cwd: RADICE, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, NODE_OPTIONS: "--max-old-space-size=12288" } },
+        // 14 GB: il 24/11/2026, con l'app passata a t(), tsc usava 12,4 GB anche senza i dizionari e andava in
+        // crash a 12. ubuntu-latest ha 16 GB: ne restano 2 al sistema.
+        env: { ...process.env, NODE_OPTIONS: "--max-old-space-size=14336" } },
     );
     return "";
   } catch (e) {

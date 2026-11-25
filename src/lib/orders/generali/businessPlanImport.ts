@@ -27,6 +27,30 @@ export interface AnalisiBusinessPlan {
   totaleCosti: number;
   totaleRicavi: number;
   totaleDichiarato: number | null;
+  /** Il periodo dei lavori scritto in testa al foglio, se c'è: «dicembre 2026 - fine agosto 2027». */
+  periodo?: PeriodoLavori | null;
+}
+export interface PeriodoLavori { inizio: string; fine: string; mesi: number; testo: string }
+
+const MESI_IT = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
+/**
+ * «Durata prevista lavori massimo 9 mesi - dicembre 2026 - fine agosto 2027» → 2026-12 … 2027-08.
+ * Serve la parola «lavori», «durata», «inizio» o «fine» e due mesi con l'anno: una data
+ * qualsiasi in testa al foglio («Revisione 10/11/2026») non è un periodo.
+ */
+export function periodoLavori(testi: readonly string[]): PeriodoLavori | null {
+  for (const testo of testi) {
+    if (!/lavori|durata|inizio|fine/i.test(testo)) continue;
+    const date = [...testo.toLowerCase().matchAll(new RegExp(`(${MESI_IT.join("|")})\\s+(\\d{4})`, "g"))]
+      .map((m) => ({ anno: Number(m[2]), mese: MESI_IT.indexOf(m[1]) + 1 }));
+    if (date.length < 2) continue;
+    const [a, b] = [date[0], date[date.length - 1]];
+    const mesi = (b.anno - a.anno) * 12 + b.mese - a.mese + 1;
+    if (mesi < 1 || mesi > 120) continue;
+    const ym = (d: { anno: number; mese: number }) => `${d.anno}-${String(d.mese).padStart(2, "0")}`;
+    return { inizio: ym(a), fine: ym(b), mesi, testo: testo.trim() };
+  }
+  return null;
 }
 const testo = (v: CellaBusinessPlan | undefined) => String(v ?? "").trim();
 const norm = (v: string) =>
@@ -242,5 +266,6 @@ export function analizzaBusinessPlan(
     totaleCosti,
     totaleRicavi,
     totaleDichiarato,
+    periodo: periodoLavori(foglio.righe.slice(0, Math.max(0, headerIndex)).flatMap((r) => r.celle).map(testo)),
   };
 }

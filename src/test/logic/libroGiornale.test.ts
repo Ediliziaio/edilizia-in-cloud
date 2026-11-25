@@ -93,7 +93,8 @@ describe("libro giornale", () => {
     ], conti);
     const teste = g.righe.filter((r) => r.primaDellaScrittura);
     expect(teste.map((r) => [r.numero, r.registrazione])).toEqual([["1/2026", "2/2026"], ["2/2026", "1/2026"]]);
-    expect(teste[0].causale).toContain("reg. n. 2");
+    // Il numero d'inserimento non va più nella causale stampata: confondeva (24/11/2026).
+    expect(teste[0].causale).not.toContain("reg. n.");
   });
   it("il foglio di stampa porta titolo, conti e totali", () => {
     const html = htmlLibroGiornale({
@@ -136,5 +137,14 @@ describe("importo scritto all'italiana", () => {
     expect(importo("1.234,56")).toBe(1234.56);
     expect(importo("12.5")).toBe(12.5);
     expect(importo("250")).toBe(250);
+  });
+});
+
+describe("codice proposto per un conto nuovo", () => {
+  it("il successivo dei figli del mastro, con le stesse cifre; senza figli il mastro + 0001", async () => {
+    const { codiceNuovoConto } = await import("@/lib/contabilita/libroGiornale");
+    const mastro = { id: "m", codice: "4855" };
+    expect(codiceNuovoConto(mastro, [{ codice: "4855000050", mastro_id: "m" }, { codice: "4855001153", mastro_id: "m" }, { codice: "9999999999", mastro_id: "x" }])).toBe("4855001154");
+    expect(codiceNuovoConto(mastro, [])).toBe("48550001");
   });
 });

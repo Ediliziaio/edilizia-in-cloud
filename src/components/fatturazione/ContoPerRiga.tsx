@@ -11,6 +11,7 @@
  * ricorda «conto:<id>» e la scrittura va su quel conto (migrazione 20290219100000). Per le altre
  * aziende restano le categorie.
  */
+import { codiceNuovoConto } from "@/lib/contabilita/libroGiornale";
 import { useMemo, useRef, useState } from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -323,9 +324,14 @@ function NuovoContoDiCosto({ conti, onChiudi, onCrea }: {
   onCrea: (d: { codice: string; descrizione: string; mastroId: string }) => Promise<boolean>;
 }) {
   const t = useT();
-  const [codice, setCodice] = useState("");
+  // Il codice lo propone il mastro (24/11/2026): scritto a mano nasceva «60.21» in un piano a dieci cifre,
+  // fuori ordine nel bilancio di verifica. Si parte dal mastro più specifico (codice più lungo).
+  const tuttiIConti = [...conti.contiDelPiano, ...conti.mastriDelPiano];
+  const proponi = (id: string) => { const m = conti.mastriDelPiano.find((x) => x.id === id); return m ? codiceNuovoConto(m, tuttiIConti) : ""; };
+  const primo = [...conti.mastriDelPiano].sort((a, b) => b.codice.length - a.codice.length || a.codice.localeCompare(b.codice))[0]?.id ?? "";
+  const [mastro, setMastro] = useState(primo);
+  const [codice, setCodice] = useState(() => proponi(primo));
   const [descrizione, setDescrizione] = useState("");
-  const [mastro, setMastro] = useState(conti.mastriDelPiano[0]?.id ?? "");
   const [inCorso, setInCorso] = useState(false);
   const doppio = conti.contiDelPiano.some((c) => c.codice === codice.trim());
   // Il mastro serve: dice dove sta il conto nel bilancio (e la sua voce CEE).
@@ -339,7 +345,7 @@ function NuovoContoDiCosto({ conti, onChiudi, onCrea }: {
           {conti.mastriDelPiano.length > 0 ? (
             <div className="space-y-1">
               <Label>{t("Mastro")}</Label>
-              <Select value={mastro} onValueChange={setMastro}>
+              <Select value={mastro} onValueChange={(id) => { setMastro(id); setCodice(proponi(id)); }}>
                 <SelectTrigger aria-label={t("Mastro")}><SelectValue /></SelectTrigger>
                 <SelectContent>{conti.mastriDelPiano.map((m) => <SelectItem key={m.id} value={m.id}>{m.codice} {m.descrizione}</SelectItem>)}</SelectContent>
               </Select>

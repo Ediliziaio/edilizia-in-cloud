@@ -12,7 +12,7 @@ import { UniformSelect } from "@/components/ui/uniform-select";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { leggiComputoCloud } from "@/lib/computo/cloudComputo";
-import { differenzeLavorazioni, idComputoStudio, importiLavorazioni, percorsoMisuraSullaPianta, studioVariante } from "@/lib/planimetrie/studioImmobiliare";
+import { differenzeLavorazioni, idComputoStudio, importiLavorazioni, percorsoMisuraSullaPianta, studioVariante, type RigaStudio } from "@/lib/planimetrie/studioImmobiliare";
 import { apriComputoDaVariante } from "@/lib/planimetrie/computoDaVariante";
 import { useFontiPrezzi } from "@/lib/planimetrie/fontiPrezzi";
 import { conPrezziProposti, tipiDaCercare } from "@/lib/planimetrie/prezziProposti";
@@ -35,6 +35,17 @@ import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 const num = (n: number) => n.toLocaleString(intlCampo(), {maximumFractionDigits:2});
 const sup = (n: number) => `${num(n)} m²`;
 const euro = () => new Intl.NumberFormat(intlCampo(), {style:"currency",currency:"EUR"});
+
+/** Le righe per capitolo (nuova costruzione: «01 Opere provvisionali»…) o per fase, con l'importo. */
+function capitoliStudio(righe: readonly RigaStudio[]) {
+  const per = new Map<string, RigaStudio[]>();
+  for (const r of righe) {
+    const nome = /^\d\d /.test(r.gruppo) ? r.gruppo : r.fase;
+    per.set(nome, [...(per.get(nome) ?? []), r]);
+  }
+  return [...per].sort(([a], [b]) => (/^\d\d /.test(a) && /^\d\d /.test(b) ? a.localeCompare(b) : 0))
+    .map(([nome, righe]) => ({ nome, righe, importo: righe.reduce((s, r) => s + (r.quantita !== null && r.prezzo ? r.quantita * r.prezzo.importo : 0), 0) }));
+}
 
 export function StudioImmobiliare({ documento, companyId, planimetriaId, versione, livelloId, orderId, varianteIniziale, onApriSilvio, onFascicolo, onVarianteSalvata }: {
   documento: Planimetria; companyId: string; planimetriaId: string; versione: number; livelloId: string; orderId: string | null;
@@ -348,13 +359,27 @@ export function StudioImmobiliare({ documento, companyId, planimetriaId, version
               versione: String(versione), sezione: "verifica", livello: primoRiscontroDwg.livello.id, riscontroDwg: primoRiscontroDwg.riscontro.id,
             })}`}>{t("Controlla sulla tavola")}</Link>
           </p>}
+          <div className="flex flex-wrap gap-2">
+            {permessi.canViewPreventivi && idBozza ? <Button asChild size="sm"><Link to={"/azienda/marketing/preventivi/computo?bozza="+idBozza+"&esistente=1&fase=3"}>{t("Apri il computo modificabile")}</Link></Button> :
+              puoComputo && !!studio.righe.length && (
+              <Button size="sm" disabled={occupato || bozzaEsistente.isPending || !!localiDaRivedere.length} onClick={() => void salva()}>{occupato ? t("Salvataggio…") : t("Crea il computo metrico")}</Button>)}
+            {orderId && idBozza && permessi.canViewOrders && <ComputoStudioInCommessa companyId={companyId} orderId={orderId}
+              bozzaId={idBozza} puoSalvare={abilitata && permessi.canEditOrders && !permessi.solaLettura} />}
+          </div>
           {studio.righe.length ? <>
             {!!badgeQuantita && <p className="text-xs text-muted-foreground">{t("{n} lavorazioni · {quantita} quantità da completare", { n: studio.righe.length, quantita: badgeQuantita })}</p>}
-            <div className="max-h-64 overflow-auto" tabIndex={0} aria-label={t("Lavorazioni e quantità")}><ul className="divide-y">
-              {studio.righe.map(r=>{
+            <div className="max-h-[28rem] overflow-auto" tabIndex={0} aria-label={t("Lavorazioni e quantità")}>
+              {/* Un capitolo per gruppo, con il totale: centinaia di voci in fila non si leggono. */}
+              {capitoliStudio(studio.righe).map(({ nome, righe, importo }) => <details key={nome} className="border-b last:border-b-0" open={capitoliStudio(studio.righe).length === 1}>
+                <summary className="flex cursor-pointer items-baseline justify-between gap-3 py-2 text-sm font-medium">
+                  <span className="min-w-0">{nome} <span className="font-normal text-muted-foreground">· {righe.length === 1 ? t("1 voce") : t("{n} voci", { n: righe.length })}</span></span>
+                  {importo > 0 && <span className="whitespace-nowrap tabular-nums">{euro().format(importo)}</span>}
+                </summary>
+                <ul className="divide-y pl-2">
+              {righe.map(r=>{
                 const percorso = percorsoMisuraSullaPianta(fonte,r);
                 return <li key={r.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 py-2 text-sm">
-                <div><p className="font-medium">{r.descrizione}</p><p className="text-xs text-muted-foreground">{/* senza unità assegnate (un appartamento solo) «Parti comuni» confonde: si omette */}{studio.unita.length ? `${r.gruppo} · ` : ""}{r.fase} · {r.criterio}</p>
+                <div><p className="font-medium">{r.descrizione}</p><p className="text-xs text-muted-foreground">{/* senza unità assegnate (un appartamento solo) «Parti comuni» confonde: si omette */}{studio.unita.length && !/^\d\d /.test(r.gruppo) ? `${r.gruppo} · ` : ""}{r.piano} · {r.criterio}</p>
                   {r.prezzo && <p className="text-xs text-muted-foreground">{euro().format(r.prezzo.importo)}/{r.unita} · {r.prezzo.fonte}{r.prezzo.tariffa && !r.prezzo.fonte.includes(r.prezzo.tariffa) && ` · ${r.prezzo.tariffa}`}</p>}
                   {puoCorreggerePrezzi && <CorreggiPrezzoLavorazione companyId={companyId} riga={r} />}
                   {percorso && <Link to={percorso} className="text-xs font-medium text-primary underline-offset-2 hover:underline">{t("Vedi sulla pianta")}</Link>}</div>
@@ -362,7 +387,9 @@ export function StudioImmobiliare({ documento, companyId, planimetriaId, version
                   {r.quantita === null ? <span className="text-amber-800 dark:text-amber-200">{t("Da completare · {unita}", { unita: String(r.unita ?? "") })}</span> : <>{r.stimata && "≈ "}{num(r.quantita)} {r.unita}</>}
                 </p>
               </li>;})}
-            </ul></div>
+                </ul>
+              </details>)}
+            </div>
           </> : <p className="text-sm text-muted-foreground">{t("La variante non contiene ancora lavorazioni misurabili.")}</p>}
           {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
           {aperte && <p className="text-xs text-amber-800 dark:text-amber-200">{t("Computo preliminare ·")} {onFascicolo ? <button type="button" onClick={()=>onFascicolo("progetto:"+variante)} className="underline underline-offset-2">{t("verifiche aperte nel fascicolo")}</button> : t("verifiche urbanistiche aperte")}</p>}
@@ -394,13 +421,6 @@ export function StudioImmobiliare({ documento, companyId, planimetriaId, version
               </ul>}
             </div>
           </details>}
-          <div className="flex flex-wrap gap-2">
-            {permessi.canViewPreventivi && idBozza ? <Button asChild size="sm"><Link to={"/azienda/marketing/preventivi/computo?bozza="+idBozza+"&esistente=1&fase=3"}>{t("Apri il computo modificabile")}</Link></Button> :
-              puoComputo && !!studio.righe.length && (
-              <Button size="sm" disabled={occupato || bozzaEsistente.isPending || !!localiDaRivedere.length} onClick={() => void salva()}>{occupato ? t("Salvataggio…") : t("Salva bozza di computo")}</Button>)}
-            {orderId && idBozza && permessi.canViewOrders && <ComputoStudioInCommessa companyId={companyId} orderId={orderId}
-              bozzaId={idBozza} puoSalvare={abilitata && permessi.canEditOrders && !permessi.solaLettura} />}
-          </div>
         </div>
       </div>
       {/* Cambia con la variante: frazionare o spostare un tramezzo aggiorna i materiali. */}

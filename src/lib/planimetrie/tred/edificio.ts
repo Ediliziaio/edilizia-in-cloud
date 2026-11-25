@@ -123,6 +123,12 @@ export function scenaEdificio(piani: PianoPer3D[], opzioni: OpzioniEdificio = {}
       else impiantiTot.set(im.linea, { ...gia, metri: Math.round((gia.metri + im.metri) * 10) / 10 });
     }
   });
+  // I soffitti fanno da tetto piano dove il piano sopra non arriva (l'ultimo piano, o un piano più
+  // piccolo sopra): si devono vedere anche da sopra. Il lato si decide sul materiale: erano disegnati
+  // solo verso il basso e da fuori l'edificio restava scoperchiato (Callimaco, 24/11/2026).
+  for (const chiave of new Set(mesh.filter((m) => m.genere === "soffitto").map((m) => m.materiale))) {
+    if (materiali[chiave]) materiali[chiave] = { ...materiali[chiave], doppioLato: true };
+  }
   const limiti = limitiDi(mesh);
   const margineTerreno = opzioni.terreno ?? (scaviPiscine.length ? 2 : 0);
   if (margineTerreno > 0 && mesh.length) {

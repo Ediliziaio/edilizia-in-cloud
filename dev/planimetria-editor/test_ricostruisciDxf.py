@@ -9,7 +9,8 @@ from ricostruisciDxf import (
     Asse, LocaleLetto, abbina_aperture, accorpa_assi_sovrapposti, allinea_pareti, candidato_finestra,
     combina_vani_comunicanti, completa_ingressi_aperti, contorni_facce, contorni_senza_etichette, finestre_tra_stipiti, includi_battuta_portone,
     layer_del_piano, leggi_piano, leggi_quote, portoni_garage, raccordi_muratura, registra_tavola, riconosci_locali, riscontri_chiusure, riscontri_sovrapposizioni,
-    scale_da_riscontrare, vani_senza_segno, varchi_tra_stipiti, leggi_testi,
+    scale_da_riscontrare, vani_senza_segno, varchi_tra_stipiti, leggi_testi, leggi_sigle_infissi, misure_da_sigle, unita_dei_locali, altezza_del_piano,
+    leggi_legenda_unita, stanze_dai_nomi, completa_unita_con_legenda,
 )
 
 
@@ -273,6 +274,24 @@ class TavoleSenzaAnteTest(unittest.TestCase):
         telaio = [((150, 6), (240, 6))]
         self.assertEqual(list(vani_senza_segno(self.muro_interrotto(150, 240), infissi=telaio)), [])
 
+    def test_e_una_porta_il_vano_con_l_anta_scorrevole_che_entra_nel_muro(self):
+        # Callimaco: l'anta è un rettangolo sottile sul layer degli infissi, lungo il vano e
+        # per un tratto dentro il muro. Il telaio di una finestra invece resta fra le spalle.
+        anta = [((120, 6), (230, 6)), ((120, 10), (230, 10)), ((120, 6), (120, 10)), ((230, 6), (230, 10))]
+        (asse, _), = vani_senza_segno(self.muro_interrotto(150, 240), infissi=anta)
+        self.assertEqual((round(asse.fine - asse.inizio)), 90)
+        traverso = [((190, -20), (190, 40))]
+        self.assertEqual(list(vani_senza_segno(self.muro_interrotto(150, 240), infissi=anta + traverso)), [])
+
+    def test_stanza_chiusa_con_la_superficie_scritta_che_non_torna_resta_stanza(self):
+        # Bagno di Callimaco: 1,70 × 2,00 disegnato, «4.40 mq.» scritto. Resta una stanza, con lo
+        # scarto in vista; oltre il 35% no.
+        bagno = box(0, 0, 170, 200)
+        nomi = [(Point(85, 120), "bagno", "bagno")]
+        (locale,) = riconosci_locali([], [], [], nomi, [(Point(85, 90), 4.4)], [], [bagno])
+        self.assertEqual((round(locale.contorno.area / 10000, 2), locale.superficie), (3.4, 4.4))
+        self.assertEqual(riconosci_locali([], [], [], nomi, [(Point(85, 90), 6.0)], [], [bagno]), [])
+
     def test_troppo_stretto_o_troppo_largo_per_una_porta(self):
         self.assertEqual(list(vani_senza_segno(self.muro_interrotto(150, 190))), [])
         self.assertEqual(list(vani_senza_segno(self.muro_interrotto(150, 300))), [])
@@ -285,6 +304,185 @@ class TavoleSenzaAnteTest(unittest.TestCase):
         nomi, aree = leggi_testi(spazio, box(0, 0, 100, 100), 1)
         self.assertEqual([d for _, _, d in nomi], ["soggiorno", "camera", "disimpegno", "ripostiglio", "cantina"])
         self.assertEqual([m for _, m in aree], [27.4])
+
+
+class SigleInfissiTest(unittest.TestCase):
+    def test_legge_le_sigle_e_le_abbina_al_vano_piu_vicino_di_larghezza_compatibile(self):
+        doc = ezdxf.new()
+        spazio = doc.modelspace()
+        spazio.add_mtext("L 170\\PHf 140\\PHs 94", dxfattribs={"insert": (100, 60)})
+        spazio.add_mtext("L 99\\PHp 210", dxfattribs={"insert": (400, 60)})
+        spazio.add_mtext("soggiorno", dxfattribs={"insert": (250, 200)})
+        sigle = leggi_sigle_infissi(spazio, box(0, 0, 600, 300), 1)
+        self.assertEqual([(s["larghezza"], s["hf"], s["hp"], s["hs"]) for s in sigle], [(170, 140, None, 94), (99, None, 210, None)])
+        vani = [(Point(400, 0), 100), (Point(100, 0), 168), (Point(250, 0), 60)]
+        esito = misure_da_sigle(vani, sigle)
+        self.assertEqual(esito[0]["hp"], 210)
+        self.assertEqual(esito[1]["hs"], 94)
+        self.assertNotIn(2, esito)
+
+
+class UnitaDaSigleTest(unittest.TestCase):
+    def test_stanze_di_una_unita_insieme_il_muro_spesso_separa_la_sigla_va_al_gruppo_vicino(self):
+        stanza = lambda x0, x1, nome: LocaleLetto(box(x0, 0, x1, 400), [(Point((x0 + x1) / 2, 200), nome, "altro")])
+        # Soggiorno e camera divisi da un tramezzo da 10 cm; muro da 30 cm verso l'altra unità.
+        locali = [stanza(0, 400, "soggiorno"), stanza(410, 700, "letto"), stanza(730, 1100, "soggiorno")]
+        muri = [Asse(90, -405, 0, 400, 10), Asse(90, -715, 0, 400, 30)]
+        sigle = [(Point(200, -50), "Int. 01"), (Point(900, -50), "Int. 02")]
+        esito = unita_dei_locali(locali, muri, [], sigle)
+        self.assertEqual(esito, {0: "Int. 01", 1: "Int. 01", 2: "Int. 02"})
+
+    def test_i_vani_comuni_non_entrano_in_nessuna_unita(self):
+        locali = [LocaleLetto(box(0, 0, 300, 300), [(Point(150, 150), "atrio condominiale", "ingresso")])]
+        self.assertEqual(unita_dei_locali(locali, [], [], [(Point(150, 150), "Int. 01")]), {})
+
+
+class AltezzaDelPianoTest(unittest.TestCase):
+    def test_dall_interpiano_meno_il_solaio_altrimenti_quella_chiesta(self):
+        quote = [-300, 0, 349, 698]
+        self.assertEqual(altezza_del_piano(0, quote, 300), 319)
+        self.assertEqual(altezza_del_piano(698, quote, 300), 319)
+        self.assertEqual(altezza_del_piano(-300, quote, 300), 270)
+        self.assertEqual(altezza_del_piano(0, [0], 280), 280)
+        self.assertEqual(altezza_del_piano(0, [0, 1000], 280), 280)
+
+
+class LegendaEStanzeDaiNomiTest(unittest.TestCase):
+    def test_legge_la_legenda_degli_alloggi_come_dati(self):
+        doc = ezdxf.new()
+        spazio = doc.modelspace()
+        spazio.add_text("INT. 04  - SUL MQ. 55.20 - BILOCALE (S.U.44.00)  +balcone+ terrazzo coperto")
+        spazio.add_text("INT. 03  - SUL MQ. 85,45 - TRILOCALE (S.U. 64,70) +giardino")
+        spazio.add_text("int. 04")
+        legenda = leggi_legenda_unita(list(spazio))
+        self.assertEqual(legenda, [
+            {"nome": "Int. 03", "sulMq": 85.45, "suMq": 64.7, "tipo": "Trilocale", "pertinenze": ["giardino"]},
+            {"nome": "Int. 04", "sulMq": 55.2, "suMq": 44.0, "tipo": "Bilocale", "pertinenze": ["balcone", "terrazzo coperto"]},
+        ])
+
+    def test_la_riga_di_legenda_non_e_il_nome_di_una_stanza(self):
+        doc = ezdxf.new()
+        spazio = doc.modelspace()
+        spazio.add_text("INT. 07 - SUL MQ. 60.00 - BILOCALE (S.U.44.40) + terrazzo", dxfattribs={"insert": (5, 5)})
+        spazio.add_text("terrazzo", dxfattribs={"insert": (6, 6)})
+        nomi, _ = leggi_testi(list(spazio), box(0, 0, 1000, 1000), 1)
+        self.assertEqual([n for _, n, _ in nomi], ["terrazzo"])
+
+    def test_chiude_la_stanza_dal_nome_e_dalla_superficie_scritti(self):
+        # Ripostiglio 300 × 200 con la porta senza segno sul lato basso: la sagoma la chiude.
+        muri = [Asse(0, 0, -5, 120, 10), Asse(0, 0, 200, 305, 10), Asse(0, 200, -5, 305, 10),
+                Asse(90, 0, 0, 200, 10), Asse(90, -300, 0, 200, 10)]
+        nomi = [(Point(150, 100), "rip.", "ripostiglio")]
+        aree = [(Point(150, 80), 5.7)]
+        (stanza,) = stanze_dai_nomi(muri, [], [], nomi, aree, box(-500, -500, 800, 700))
+        self.assertAlmostEqual(stanza.contorno.area / 10_000, 5.7, delta=0.3)
+        self.assertEqual(stanza.superficie, 5.7)
+        # Se la superficie scritta non torna, la stanza non si inventa.
+        self.assertEqual(stanze_dai_nomi(muri, [], [], nomi, [(Point(150, 80), 12.0)], box(-500, -500, 800, 700)), [])
+
+    def test_la_legenda_rifiuta_la_stanza_all_unita_gia_piena(self):
+        a = LocaleLetto(box(0, 0, 500, 400), [(Point(1, 1), "sogg", "soggiorno")])   # 20 m², int. 06
+        b = LocaleLetto(box(510, 0, 810, 400), [(Point(600, 1), "letto", "camera")])  # 12 m², senza unità
+        c = LocaleLetto(box(820, 0, 1320, 400), [(Point(900, 1), "sogg", "soggiorno")])  # 20 m², int. 04
+        legenda = [{"nome": "Int. 06", "suMq": 20.5}, {"nome": "Int. 04", "suMq": 32.0}]
+        esito = completa_unita_con_legenda([a, b, c], {0: "Int. 06", 2: "Int. 04"}, legenda)
+        self.assertEqual(esito[1], "Int. 04")
+
+
+class ScaleSenzaFrecciaTest(unittest.TestCase):
+    def test_rampa_di_pedate_senza_freccia_e_griglia_scartata(self):
+        from ricostruisciDxf import scale_senza_freccia
+        rampa = [((0, 28 * i), (110, 28 * i), "viste") for i in range(9)]
+        (alzate,) = scale_senza_freccia(rampa)
+        self.assertEqual(len(alzate), 9)
+        # Un pavimento a quadrotti: linee nei due versi allo stesso passo, non è una scala.
+        griglia = [((500, 30 * i), (620, 30 * i), "pav") for i in range(8)] + [((500 + 30 * i, 0), (500 + 30 * i, 210), "pav") for i in range(1, 4)]
+        self.assertEqual(scale_senza_freccia(griglia), [])
+        # Linee a 60 cm (un parcheggio, un grigliato largo) non sono pedate.
+        self.assertEqual(scale_senza_freccia([((0, 60 * i), (110, 60 * i), "x") for i in range(8)]), [])
+
+
+class AllineamentoDeiPianiTest(unittest.TestCase):
+    def test_ritrova_lo_spostamento_fra_due_piante_della_stessa_sagoma(self):
+        from ricostruisciDxf import spostamento_per_correlazione
+        def sagoma(x0, y0):
+            return [Asse(0, y0, x0, x0 + 1200, 30), Asse(0, y0 + 900, x0, x0 + 1200, 30), Asse(0, y0 + 500, x0, x0 + 700, 30),
+                    Asse(90, -x0, y0, y0 + 900, 30), Asse(90, -(x0 + 1200), y0, y0 + 900, 30), Asse(90, -(x0 + 700), y0 + 500, y0 + 900, 30)]
+        # La seconda pianta sta 40 m più a destra sulla tavola e 50 cm più in basso.
+        dx, dy, quota = spostamento_per_correlazione(sagoma(0, 0), sagoma(4000, -50), "y")
+        self.assertAlmostEqual(dx, -4000, delta=10)
+        self.assertAlmostEqual(dy, 50, delta=10)
+        self.assertGreater(quota, .8)
+
+
+class AltezzeDeiLocaliTest(unittest.TestCase):
+    def test_legge_h_nelle_stanze_e_scarta_porte_e_sigle(self):
+        from ricostruisciDxf import leggi_altezze_locali
+        doc = ezdxf.new()
+        spazio = doc.modelspace()
+        for testo, x in (("H 313", 1), ("h = 2,70", 2), ("H 210", 3), ("L 99 H 241 Hs 92", 4), ("H 318*", 5)):
+            spazio.add_text(testo, dxfattribs={"insert": (x, 1)})
+        altezze = leggi_altezze_locali(list(spazio), box(0, 0, 1000, 1000), 100)
+        self.assertEqual([h for _, h in altezze], [313, 270, 318])
+
+
+class SistemazioniDelLottoTest(unittest.TestCase):
+    def test_ritrova_l_edificio_nella_planimetria_e_porta_il_lotto_nella_pianta(self):
+        from ricostruisciDxf import leggi_sistemazioni
+        doc = ezdxf.new()
+        doc.layers.new("MRT")
+        blocco = doc.blocks.new("EDIFICIO")
+        # L'edificio come nella pianta: 12 × 10 m, muri da 30 cm, fatti di tanti tratti.
+        def bordo(spazio, x0, y0, x1, y1):
+            for (ax, ay), (bx, by) in [((x0, y0), (x1, y0)), ((x1, y0), (x1, y1)), ((x1, y1), (x0, y1)), ((x0, y1), (x0, y0))]:
+                for i in range(10):
+                    spazio.add_line((ax + (bx - ax) * i / 10, ay + (by - ay) * i / 10), (ax + (bx - ax) * (i + 1) / 10, ay + (by - ay) * (i + 1) / 10), dxfattribs={"layer": "MRT"})
+        bordo(blocco, 0, 0, 12, 10)
+        bordo(blocco, .3, .3, 11.7, 9.7)
+        spazio = doc.modelspace()
+        spazio.add_blockref("EDIFICIO", (500, 300))  # la planimetria generale sta altrove nel foglio
+        spazio.add_lwpolyline([(495, 295), (520, 295), (520, 299), (495, 299)], close=True, dxfattribs={"layer": "Verde Privato"})
+        spazio.add_lwpolyline([(505, 290), (513, 290), (513, 295), (505, 295)], close=True, dxfattribs={"layer": "sist_est"})
+        spazio.add_text("PISCINA", dxfattribs={"insert": (507, 292)})
+        spazio.add_circle((498, 297), .25, dxfattribs={"layer": "ALBERI"})
+        # Le pareti del piano terra, nella pianta: lo stesso edificio a (0, 0).
+        muri = [Asse(0, 15, 0, 1200, 30), Asse(0, 985, 0, 1200, 30), Asse(90, -15, 0, 1000, 30), Asse(90, -1185, 0, 1000, 30)]  # assi a metà muro
+        esito = leggi_sistemazioni(list(spazio), muri, "MRT", 100)
+        self.assertIsNotNone(esito)
+        self.assertGreaterEqual(esito["allineamento"], .7)
+        (verde,) = esito["verdi"]
+        self.assertAlmostEqual(verde.bounds[0], -500, delta=5)  # 495 m → 5 m a sinistra dell'edificio
+        (vasca,) = esito["piscine"]
+        self.assertAlmostEqual(vasca.area / 10_000, 40, delta=.5)
+        (albero,) = esito["alberi"]
+        self.assertAlmostEqual(albero[0].x, -200, delta=5)
+        self.assertTrue(esito["lottoStimato"])
+
+
+class PianiPropostiTest(unittest.TestCase):
+    def test_trova_le_piante_con_i_nomi_e_scarta_il_prospetto(self):
+        from anteprimaDxf import proponi_piani
+        doc = ezdxf.new()
+        doc.units = 4  # dichiara i millimetri, ma è disegnato in metri
+        spazio = doc.modelspace()
+
+        def rettangolo(x0, y0, x1, y1, passo=0.5):
+            for (ax, ay), (bx, by) in [((x0, y0), (x1, y0)), ((x1, y0), (x1, y1)), ((x1, y1), (x0, y1)), ((x0, y1), (x0, y0))]:
+                n = max(1, int(hypot(bx - ax, by - ay) / passo))
+                for i in range(n):
+                    spazio.add_line((ax + (bx - ax) * i / n, ay + (by - ay) * i / n), (ax + (bx - ax) * (i + 1) / n, ay + (by - ay) * (i + 1) / n), dxfattribs={"layer": "MRT"})
+        for x in (0, 30, 60):  # terra, primo, prospetto
+            rettangolo(x, 0, x + 12, 10)
+            rettangolo(x + 0.3, 0.3, x + 11.7, 9.7)
+        spazio.add_text("soggiorno", dxfattribs={"insert": (4, 5)})
+        spazio.add_text("bagno", dxfattribs={"insert": (9, 5)})
+        spazio.add_text("letto", dxfattribs={"insert": (34, 5)})
+        spazio.add_text("+3.20", dxfattribs={"insert": (36, 2)})
+        esito = proponi_piani(doc)
+        self.assertEqual(esito["unita"], 6)
+        self.assertEqual(esito["layerMuri"], "MRT")
+        self.assertEqual([(p["nome"], p["quota"]) for p in esito["piani"]], [("Piano terra", 0), ("Piano primo", 320)])
+        self.assertLess(esito["piani"][0]["rettangolo"][2], 30)
 
 
 if __name__ == "__main__":

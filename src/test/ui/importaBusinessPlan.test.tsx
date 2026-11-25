@@ -98,8 +98,13 @@ describe("Anteprima del business plan", () => {
     render(<ImportaBusinessPlan onImporta={importa} onAnnulla={vi.fn()} />);
     await carica();
     expect(importa).not.toHaveBeenCalled();
-    expect(screen.getByLabelText("Importa riga 3")).toBeDisabled();
+    // Senza importo resta spuntata ma si può togliere (il simulatore non deve costringere a
+    // inventare un importo); tolta, non si rispunta finché l'importo non c'è, e scriverlo la rispunta.
     expect(screen.getByLabelText("Importa riga 3")).toBeChecked();
+    expect(screen.getByLabelText("Importa riga 3")).toBeEnabled();
+    fireEvent.click(screen.getByLabelText("Importa riga 3"));
+    expect(screen.getByLabelText("Importa riga 3")).not.toBeChecked();
+    expect(screen.getByLabelText("Importa riga 3")).toBeDisabled();
     changeFormControl(screen.getByLabelText("Importo previsto riga 3"), { target: { value: "0" } });
     expect(screen.getByLabelText("Importa riga 3")).toBeChecked();
     expect(screen.getByRole("button", { name: "Aggiungi 3 voci alla bozza" })).toBeDisabled();

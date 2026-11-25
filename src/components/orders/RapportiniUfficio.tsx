@@ -4,8 +4,9 @@ import { ArrivoRapportino } from "@/components/orders/ArrivoRapportino";
 import { ARRIVI_VUOTI, mezzoStradale } from "@/lib/campo/arrivoRapportino";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useMemo, useState, type ReactNode } from "react";
+import { useCatalogoVociRapportino } from "@/hooks/useCatalogoVociRapportino";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarRange, Camera, Check, FileUp, Hammer, Loader2, NotebookPen, Plus, Sparkles, Trash2, Users, X } from "lucide-react";
+import { CalendarRange, Camera, Check, FileUp, Hammer, Loader2, NotebookPen, Plus, Sparkles, Trash2, Truck, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -26,7 +27,7 @@ import { refreshRapportinoQueries } from "@/lib/orders/refreshRapportinoQueries"
 import { messaggioErrore } from "@/lib/orders/sottofasi";
 import { giornoLocale } from "@/lib/orders/cronoprogramma";
 import { compressImage } from "@/lib/campo/compressImage";
-import { applicaParti, fasiDelGiorno,
+import { applicaParti, commessaDeiTrasporti, fasiDelGiorno, senzaViaggiVuoti, voceViaggioNuova, type TipoRapportinoUfficio,
   METEO, caricoRapportini, erroriGiorni, giornoDaLetto, giorniDaPeriodo, giornoVuoto,
   type GiornoUfficio, type PersonaPresenza, type RapportinoLetto,
 } from "@/lib/campo/rapportiniUfficio";
@@ -70,10 +71,12 @@ async function excelInTesto(file: File): Promise<string> {
  * l'app. Entrano da approvare: all'approvazione le ore di ognuno diventano costo
  * col suo costo orario, come per il capocantiere.
  */
-export function RapportiniUfficio({ orderId, className, aperta: apertaFuori, onApertaChange }: {
+export function RapportiniUfficio({ orderId, className, aperta: apertaFuori, onApertaChange, senzaPulsante = false }: {
   orderId: string; className?: string;
   /** Aperto da fuori: il menu «Silvio AI» della commessa porta qui per i rapportini dai documenti. */
   aperta?: boolean; onApertaChange?: (v: boolean) => void;
+  /** Solo la finestra: i pulsanti stanno nell'elenco dei rapportini (NuoviRapportiniUfficio). */
+  senzaPulsante?: boolean;
 }) {
   const t = useT();
   const [apertaDentro, setApertaDentro] = useState(false);
@@ -81,25 +84,59 @@ export function RapportiniUfficio({ orderId, className, aperta: apertaFuori, onA
   const setAperta = (v: boolean) => { setApertaDentro(v); onApertaChange?.(v); };
   return (
     <>
-      <Button variant="ghost" size="sm" className={cn("h-8", className)} onClick={() => setAperta(true)}>
-        <NotebookPen className="mr-1.5 h-4 w-4" />{t("Scrivi rapportini")}
-      </Button>
-      <Dialog open={aperta} onOpenChange={setAperta}>
-        <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>{t("Rapportini dall'ufficio")}</DialogTitle>
-            <DialogDescription>{t("Come quelli del cantiere, anche più giorni insieme. Entrano da approvare: all'approvazione le ore di ognuno diventano costo.")}</DialogDescription>
-          </DialogHeader>
-          {aperta && <Finestra orderId={orderId} onFatto={() => setAperta(false)} />}
-        </DialogContent>
-      </Dialog>
+      {!senzaPulsante && (
+        <Button variant="ghost" size="sm" className={cn("h-8", className)} onClick={() => setAperta(true)}>
+          <NotebookPen className="mr-1.5 h-4 w-4" />{t("Scrivi rapportini")}
+        </Button>
+      )}
+      <FinestraRapportiniUfficio orderId={orderId} aperta={aperta} onApertaChange={setAperta} />
     </>
+  );
+}
+
+/**
+ * I due pulsanti in testa all'elenco dei rapportini della commessa (25/11/2026): si parte già dal tipo giusto,
+ * senza cercare «Scrivi rapportini» e poi la scelta dentro.
+ */
+export function NuoviRapportiniUfficio({ orderId }: { orderId: string }) {
+  const t = useT();
+  const { canViewCosts } = usePermissions();
+  const [tipo, setTipo] = useState<TipoRapportinoUfficio | null>(null);
+  return (
+    <>
+      <Button size="sm" className="h-9" onClick={() => setTipo("lavori")}>
+        <Plus className="mr-1.5 h-4 w-4" />{t("Rapportino lavori")}
+      </Button>
+      <Button size="sm" variant="outline" className="h-9" onClick={() => setTipo("trasporti")} disabled={!canViewCosts}
+        title={canViewCosts ? undefined : t("Serve il permesso Costi o Acquisti")}>
+        <Truck className="mr-1.5 h-4 w-4" />{t("Rapportino trasporti")}
+      </Button>
+      <FinestraRapportiniUfficio key={tipo ?? "chiusa"} orderId={orderId} aperta={!!tipo} tipo={tipo ?? undefined}
+        onApertaChange={(v) => { if (!v) setTipo(null); }} />
+    </>
+  );
+}
+
+function FinestraRapportiniUfficio({ orderId, aperta, onApertaChange, tipo }: {
+  orderId: string; aperta: boolean; onApertaChange: (v: boolean) => void; tipo?: TipoRapportinoUfficio;
+}) {
+  const t = useT();
+  return (
+    <Dialog open={aperta} onOpenChange={onApertaChange}>
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>{t("Rapportini dall'ufficio")}</DialogTitle>
+          <DialogDescription>{t("Come quelli del cantiere, anche più giorni insieme. Entrano da approvare: all'approvazione le ore di ognuno diventano costo.")}</DialogDescription>
+        </DialogHeader>
+        {aperta && <Finestra orderId={orderId} tipoIniziale={tipo} onFatto={() => onApertaChange(false)} />}
+      </DialogContent>
+    </Dialog>
   );
 }
 
 const dbx = supabase as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }) {
+function Finestra({ orderId, onFatto, tipoIniziale }: { orderId: string; onFatto: () => void; tipoIniziale?: TipoRapportinoUfficio }) {
   const tr = useT();
   const qc = useQueryClient();
   const { effectiveCompany } = useAuth();
@@ -157,8 +194,32 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
     .map((m) => ({ id: m.id, nome: `${m.nome}${m.targa ? ` · ${m.targa}` : ""}`, qui: idQui.has(m.id) }));
 
   const [giorni, setGiorni] = useState<GiornoUfficio[]>(() => [giornoVuoto(oggi, "g0")]);
+  // Commessa dei trasporti (24/11/2026): ogni giorno parte con la voce del viaggio, coi prezzi del catalogo.
+  const commessa = useQuery({
+    queryKey: ["rapportini-ufficio-commessa", orderId],
+    queryFn: async () => {
+      const { data, error } = await dbx.from("orders").select("description").eq("id", orderId).maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as { description: string | null } | null;
+    },
+  });
+  const catalogoVoci = useCatalogoVociRapportino(companyId, canViewCosts);
+  // Lavori o trasporti (25/11/2026): si sceglie su ogni commessa; sulle commesse «TRASPORTI…» parte già su trasporti.
+  // Il viaggio è una voce del rapportino: serve chi vede i costi (Costi o Acquisti), come per le altre voci.
+  const [tipoScelto, setTipoScelto] = useState<TipoRapportinoUfficio | null>(tipoIniziale ?? null);
+  const tipo: TipoRapportinoUfficio = tipoScelto ?? (canViewCosts && commessaDeiTrasporti(commessa.data?.description) ? "trasporti" : "lavori");
+  const pronto = canViewCosts && commessa.isFetched && (catalogoVoci.isFetched || catalogoVoci.isError);
+  const trasporti = pronto && tipo === "trasporti";
+  const conViaggio = (g: GiornoUfficio): GiornoUfficio =>
+    trasporti && !(g.voci ?? []).some((v) => v.viaggio) ? { ...g, voci: [voceViaggioNuova(crypto.randomUUID(), catalogoVoci.data?.voci ?? []), ...(g.voci ?? [])] } : g;
+  // A ogni cambio di tipo: con «trasporti» i giorni senza viaggio lo ricevono, con «lavori» si tolgono i viaggi vuoti.
+  const [tipoApplicato, setTipoApplicato] = useState<TipoRapportinoUfficio>("lavori");
   const [tentato, setTentato] = useState(false);
   const [caricando, setCaricando] = useState<string | null>(null);
+  if (pronto && tipoApplicato !== tipo) {
+    setTipoApplicato(tipo);
+    setGiorni((gs) => gs.map(tipo === "trasporti" ? conViaggio : senzaViaggiVuoti));
+  }
   const [periodo, setPeriodo] = useState<{ dal: string; al: string; feriali: boolean } | null>(null);
   const [lettura, setLettura] = useState<{ stato: "legge" } | { stato: "letto"; n: number; avvisi: string[] } | null>(null);
   // Il primo giorno ancora vuoto si sostituisce, invece di restare lì in cima.
@@ -259,6 +320,22 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
 
   return (
     <div className="space-y-4">
+      <div role="radiogroup" aria-label={tr("Tipo di rapportino")} className="grid gap-2 sm:grid-cols-2">
+        {([
+          { v: "lavori" as const, icona: Hammer, titolo: tr("Rapportino lavori"), sotto: tr("Lavori, ore, mezzi e materiali della giornata") },
+          { v: "trasporti" as const, icona: Truck, titolo: tr("Rapportino trasporti"),
+            sotto: canViewCosts ? tr("Ogni giorno un viaggio: carico, scarico, mezzo, DDT, km") : tr("Serve il permesso Costi o Acquisti") },
+        ]).map(({ v, icona: Icona, titolo, sotto }) => (
+          <button key={v} type="button" role="radio" aria-checked={tipo === v} disabled={v === "trasporti" && !canViewCosts}
+            onClick={() => setTipoScelto(v)}
+            className={cn("flex items-start gap-2 rounded-lg border p-2.5 text-left disabled:cursor-not-allowed disabled:opacity-60",
+              tipo === v ? "border-blue-600 bg-blue-50 text-blue-950" : "border-border hover:bg-slate-50")}>
+            <Icona className="mt-0.5 h-4 w-4 shrink-0" />
+            <span className="min-w-0"><span className="block text-sm font-medium">{titolo}</span>
+              <span className="block text-xs text-muted-foreground">{sotto}</span></span>
+          </button>
+        ))}
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant="outline" size="sm" className="h-8" aria-expanded={!!periodo}
           onClick={() => setPeriodo(periodo ? null : { dal: giorni[giorni.length - 1].data, al: oggi, feriali: true })}>
@@ -472,7 +549,7 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
         );
       })}
       <Button variant="outline" size="sm" disabled={giorni.length >= 31}
-        onClick={() => setGiorni((gs) => [...gs, giornoVuoto(oggi, `g${Date.now()}`, gs[gs.length - 1])])}>
+        onClick={() => setGiorni((gs) => [...gs, conViaggio(giornoVuoto(oggi, `g${Date.now()}`, gs[gs.length - 1]))])}>
         <Plus className="mr-1 h-4 w-4" />{tr("Aggiungi un altro giorno")}
       </Button>
       {tentato && errori.length > 0 && <ul role="alert" className="list-disc pl-5 text-xs text-rose-700">{errori.map((e) => <li key={e}>{e}</li>)}</ul>}

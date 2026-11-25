@@ -7,6 +7,7 @@ import { VitePWA } from "vite-plugin-pwa";
 import Beasties from "beasties";
 import { minify as htmlMinify } from "html-minifier-terser";
 import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { join } from "node:path";
 import { viteLocalCacheKey } from "./config/viteLocalCache";
 import { localPlanOcrPlugin } from "./dev/preventivatore-ai/planOcrPlugin.mts";
@@ -15,9 +16,57 @@ import { PERCORSO_MIMIT, rispostaPrezziMimit } from "./shared/carburanti/mimit";
 import { localCadPlugin } from "./dev/preventivatore-ai/cadPlugin.mts";
 import { cadPreviewPlugin } from "./dev/planimetria-editor/cadPreviewPlugin.mts";
 import { renderFotorealisticoPlugin } from "./dev/planimetria-editor/renderFotorealisticoPlugin.mts";
+import { dizionarioDaSorgente } from "./scripts/dizionarioInJson.mjs";
+
+/**
+ * I dizionari delle lingue (10 lingue, 50 MB di TypeScript) nella build si pubblicano come JSON e si
+ * scaricano quando la lingua serve. Il 24/11/2026 Rollup li analizzava come codice e la build di
+ * Cloudflare finiva gli 8 GB di memoria («heap out of memory»): da e938ed5b0 nessun deploy riusciva.
+ * Solo in build: in sviluppo e nei test restano moduli normali. Il JSON è identico al dizionario
+ * (test `dizionariComeJson`); il caricatore è in LinguaCampo.tsx.
+ */
+function dizionariComeJson() {
+  const cartella = path.resolve(__dirname, "src/lib/campo/lingua/dizionari");
+  const leggi = (nome: string) => readFileSync(path.join(cartella, `${nome}.ts`), "utf8");
+  return {
+    name: "dizionari-come-json",
+    apply: "build" as const,
+    enforce: "pre" as const,
+    load(this: { emitFile: (f: { type: "asset"; name: string; source: string }) => string }, id: string) {
+      const file = id.split("?")[0];
+      if (path.dirname(file) !== cartella || !file.endsWith(".ts")) return null;
+      const nome = path.basename(file, ".ts");
+      const dati = dizionarioDaSorgente(leggi(nome), nome, leggi);
+      const ref = this.emitFile({ type: "asset", name: `lingua-${nome}.json`, source: JSON.stringify(dati) });
+      return [
+        `export const carica = () => fetch(import.meta.ROLLUP_FILE_URL_${ref}).then((r) => {`,
+        `  if (!r.ok) throw new Error("Dizionario ${nome} non caricato: " + r.status);`,
+        "  return r.json();",
+        "});",
+        "export default null;",
+      ].join("\n");
+    },
+  };
+}
 
 // https://vitejs.dev/config/
 const isMobile = process.env.VITE_APP_MODE === "mobile";
+
+/**
+ * Quando è stato scritto il codice di questo bundle (data del commit, non dell'ora in cui
+ * si costruisce): è il numero che l'app confronta con `public/versione-minima.json` per
+ * dire all'operaio che la sua app è vecchia. Serve soprattutto all'app installata, che
+ * porta il codice dentro di sé e non si aggiorna con un deploy.
+ * Senza git (o fuori da una copia del repository) resta l'ora della build.
+ */
+const DATA_BUILD = (() => {
+  try {
+    return execSync("git log -1 --format=%cI", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim()
+      || new Date().toISOString();
+  } catch {
+    return new Date().toISOString();
+  }
+})();
 let buildFailed = false;
 export default defineConfig(({ command, mode }) => ({
   // Multiple local terminals/previews otherwise delete chunks still used by
@@ -41,8 +90,10 @@ export default defineConfig(({ command, mode }) => ({
   },
   define: {
     __APP_MODE__: JSON.stringify(process.env.VITE_APP_MODE || "full"),
+    __EIC_BUILD__: JSON.stringify(DATA_BUILD),
   },
   plugins: [
+    dizionariComeJson(),
     localWarehousePlugin(),
     react(),
     pipelineCommesseDev(),

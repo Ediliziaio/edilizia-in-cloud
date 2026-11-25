@@ -93,11 +93,6 @@ function Sezione({ id, titolo, children }: { id: string; titolo: string; childre
   );
 }
 
-const RapportiniUfficio = lazy(() =>
-  import("@/components/orders/RapportiniUfficio").then((m) => ({
-    default: m.RapportiniUfficio,
-  })),
-);
 const Rapportini = lazy(() =>
   import("@/components/orders/OrdineRapportiniCampo").then((m) => ({
     default: m.OrdineRapportiniCampo,
@@ -434,13 +429,6 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
               <TabsContent value="rapportini" className="mt-2.5 space-y-4">
                 <Sezione id="rapportini" titolo={tr("Rapportini")}>
                   <DaApprovare key={`approva-${orderId}`} orderId={orderId} />
-                  {puoModificare && (
-                    <RapportiniUfficio
-                      key={orderId}
-                      orderId={orderId}
-                      className="border"
-                    />
-                  )}
                   <Rapportini
                     key={`${orderId}:${rapportino ?? ""}`}
                     orderId={orderId}

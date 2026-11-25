@@ -1,6 +1,6 @@
 import { CAD_MAX_BYTES, cadSignature } from "@/lib/preventivi/quoteCad";
 import { MASSIMO_DOCUMENTO_BYTES } from "./documentoImmagine";
-import { leggiQuoteDwg, rettangoloDwgValido, unitaDwgValida, type RiferimentoDwg, type RichiestaModelloDwg } from "./coordinateDwg";
+import { leggiPropostaPianiDwg, leggiQuoteDwg, rettangoloDwgValido, unitaDwgValida, type RiferimentoDwg, type RichiestaModelloDwg } from "./coordinateDwg";
 import { validaPlanimetria, type Planimetria } from "../../../shared/planimetrie/modello.ts";
 import { chiamaMotoreOnline, motoreOnlineAttivo } from "./motoreOnline";
 
@@ -10,7 +10,8 @@ type PosizioneTavola = {
   origine: [number, number];
   larghezza: number;
   altezza: number;
-  allineamento: "primo" | "ritaglio" | "assi" | "pareti";
+  /** «correlazione»: piano messo sul terra confrontando le sagome dei muri esterni (24/11/2026). */
+  allineamento: "primo" | "ritaglio" | "assi" | "pareti" | "correlazione";
   contorniDaVerificare?: number;
   scaleDaVerificare?: number;
 };
@@ -45,9 +46,10 @@ async function erroreRisposta(response: Response, fallback: string): Promise<Err
 function riferimentoDwg(header: string | null): RiferimentoDwg | null {
   if (!header) return null;
   try {
-    const dato = JSON.parse(header) as { unita?: unknown; rettangolo?: unknown; quote?: unknown } | null;
+    const dato = JSON.parse(header) as { unita?: unknown; rettangolo?: unknown; quote?: unknown; pianiProposti?: unknown } | null;
+    const proposta = leggiPropostaPianiDwg(dato?.pianiProposti);
     return rettangoloDwgValido(dato?.rettangolo)
-      ? { unita: unitaDwgValida(dato?.unita) ? dato.unita : null, rettangolo: dato.rettangolo, quote: leggiQuoteDwg(dato.quote) }
+      ? { unita: unitaDwgValida(dato?.unita) ? dato.unita : null, rettangolo: dato.rettangolo, quote: leggiQuoteDwg(dato.quote), ...(proposta && { pianiProposti: proposta }) }
       : null;
   } catch { return null; }
 }
@@ -90,7 +92,7 @@ export async function ricostruisciModelloDwg(file: File, richiesta: RichiestaMod
     || validato.planimetria.livelli.length !== richiesta.piani.length
     || !esito.piani.every((p) => p && Array.isArray(p.origine) && p.origine.length === 2 && p.origine.every(numeri)
       && numeri(p.larghezza) && p.larghezza > 0 && numeri(p.altezza) && p.altezza > 0
-      && ["primo", "ritaglio", "assi", "pareti"].includes(p.allineamento)
+      && ["primo", "ritaglio", "assi", "pareti", "correlazione"].includes(p.allineamento)
       && conteggio(p.contorniDaVerificare) && conteggio(p.scaleDaVerificare))) {
     throw new Error("Il modello CAD non ha una geometria utilizzabile nell’editor.");
   }

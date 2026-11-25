@@ -1,6 +1,7 @@
 import { UniformSelect } from "@/components/ui/uniform-select";
 // Voci libere nel modulo dell'ufficio: si salvano insieme al rapportino. Solo per chi vede i costi.
 // Dal 14/11/2026 si cercano nel listino generale, col prezzo della regola (cantiere → committente → generale).
+// Dal 24/11/2026 una voce di trasporto del catalogo (es. «TRASPORTI») apre i campi del viaggio, e «Aggiungi viaggio» la usa coi suoi prezzi.
 import type { ReactElement } from "react";
 import { Plus, Truck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useCatalogoVociRapportino } from "@/hooks/useCatalogoVociRapportino";
 import { avvisoUnita, CercaNelListino, COLORE_FONTE } from "@/components/orders/CercaNelListino";
 import { etichettaPrezzo, type FontePrezzo } from "@/lib/campo/prezzoVoceRapportino";
-import type { VoceUfficio } from "@/lib/campo/rapportiniUfficio";
+import { voceViaggioNuova, type VoceUfficio } from "@/lib/campo/rapportiniUfficio";
 import { unitaChilometro, voceTrasporto } from "@/lib/campo/viaggiRapportino";
 import { CampiViaggioRapportino } from "./CampiViaggioRapportino";
 
@@ -38,7 +39,7 @@ export function VociRapportinoUfficio({ companyId, orderId, giorno, voci, onCamb
           <Input aria-label={t("Vendita voce {n}", { n: i + 1 })} inputMode="decimal" placeholder={v.fonte === "mancante" ? t("Da definire") : t("Vendita €")} className={`col-span-2 sm:col-span-1 ${CAMPO}`} value={v.vendita} onChange={(e) => cambia(v.chiave, { vendita: e.target.value })} />
           {(v.viaggio || voceTrasporto(v.descrizione, v.unita)) && (
             <div className="col-span-full">
-              <CampiViaggioRapportino valore={v.viaggio ?? {}} quantitaInKm={unitaChilometro(v.unita)} onChange={(viaggio) => cambia(v.chiave, { viaggio })} />
+              <CampiViaggioRapportino valore={v.viaggio ?? {}} quantitaInKm={unitaChilometro(v.unita)} orderId={orderId} onChange={(viaggio) => cambia(v.chiave, { viaggio })} />
             </div>
           )}
           {v.fonte && (
@@ -62,14 +63,14 @@ export function VociRapportinoUfficio({ companyId, orderId, giorno, voci, onCamb
           <UniformSelect aria-label={t("Aggiungi una voce")} className="h-8 rounded-md border bg-background px-2 text-[13px]" value=""
             onChange={(e) => {
               const m = pronte.find((x) => x.id === e.target.value);
-              if (m) onCambia([...voci, { chiave: nuovaChiave(), descrizione: m.nome, quantita: unitaChilometro(m.unita) ? "" : "1", unita: m.unita, costo: testo(m.costo_unitario), vendita: testo(m.vendita_unitaria) }]);
+              if (m) onCambia([...voci, { chiave: nuovaChiave(), descrizione: m.nome, quantita: unitaChilometro(m.unita) ? "" : "1", unita: m.unita, costo: testo(m.costo_unitario), vendita: testo(m.vendita_unitaria), ...(voceTrasporto(m.nome, m.unita) ? { viaggio: {} } : {}) }]);
             }}>
             <option value="">{t("Aggiungi una voce")}</option>
             {pronte.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
           </UniformSelect>
         )}
         {aMano && <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => onCambia([...voci, { chiave: nuovaChiave(), descrizione: "", quantita: "1", unita: "cad", costo: "", vendita: "" }])}><Plus className="mr-1 h-3.5 w-3.5" />{t("Scrivi una voce")}</Button>}
-        {aMano && <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => onCambia([...voci, { chiave: nuovaChiave(), descrizione: "Trasporto", quantita: "1", unita: "viaggio", costo: "", vendita: "", viaggio: {} }])}><Truck className="mr-1 h-3.5 w-3.5" />{t("Aggiungi viaggio")}</Button>}
+        {(aMano || pronte.some((m) => voceTrasporto(m.nome, m.unita))) && <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => onCambia([...voci, voceViaggioNuova(nuovaChiave(), pronte)])}><Truck className="mr-1 h-3.5 w-3.5" />{t("Aggiungi viaggio")}</Button>}
       </div>
     </div>
   );

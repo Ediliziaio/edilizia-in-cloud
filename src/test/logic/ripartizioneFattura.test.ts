@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bolleDellaFattura, fatturaVerificata, problemaRipartizione, quoteDaVoci, quoteDelCosto, quoteLordeInNette, residuoDaAssegnare, vociFattura } from "@/lib/fatturazione/ripartizioneFattura";
+import { aperturaDallaCommessa, bolleDellaFattura, fatturaVerificata, problemaRipartizione, quoteDaVoci, quoteDelCosto, quoteLordeInNette, residuoDaAssegnare, vociFattura, type BollaDellaFattura } from "@/lib/fatturazione/ripartizioneFattura";
 
 describe("verifica di una fattura", () => {
   it("chi sceglie vince, in tutti e due i sensi", () => {
@@ -98,5 +98,28 @@ describe("fattura divisa bolla per bolla", () => {
   });
   it("DDT senza righe indicate: niente da raggruppare", () => {
     expect(bolleDellaFattura(voci, [{ testo: "1", data: null, righe: [] }]).bolle).toEqual([]);
+  });
+});
+
+describe("aperturaDallaCommessa (lotto 3: fattura aperta dalla commessa)", () => {
+  const voci = [1, 2, 3, 4].map((numero) => ({ numero, descrizione: `voce ${numero}`, imponibile: 100 }));
+  const bolla = (numero: string, v: number[], commessa: string | null): BollaDellaFattura => ({
+    chiave: numero, numero, data: null, voci: v, imponibile: v.length * 100, ddtId: commessa ? `ddt-${numero}` : null, commessaProposta: commessa,
+  });
+
+  it("solo alcune voci sono di bolle della commessa: bolla per bolla, le altre bolle caricate alla loro commessa", () => {
+    const gruppi = { bolle: [bolla("10", [1, 2], "A"), bolla("11", [3], "B"), bolla("12", [4], null)], vociSenzaBolla: [] as number[] };
+    expect(aperturaDallaCommessa("A", gruppi, [], voci)).toEqual({ modo: "per_bolla", scelte: { 1: "A", 2: "A", 3: "B" } });
+  });
+
+  it("tutte le voci nelle bolle della commessa, o nessuna bolla sua: come sempre", () => {
+    expect(aperturaDallaCommessa("A", { bolle: [bolla("10", [1, 2, 3, 4], "A")], vociSenzaBolla: [] as number[] }, [], voci)).toEqual({ modo: "come_sempre" });
+    expect(aperturaDallaCommessa("A", { bolle: [bolla("11", [3], "B")], vociSenzaBolla: [1, 2, 4] }, [], voci)).toEqual({ modo: "come_sempre" });
+    expect(aperturaDallaCommessa(undefined, { bolle: [bolla("10", [1], "A")], vociSenzaBolla: [] as number[] }, [], voci)).toEqual({ modo: "come_sempre" });
+  });
+
+  it("fattura già divisa su altre commesse: si aggiunge la riga di questa; se c'è già, come sempre", () => {
+    expect(aperturaDallaCommessa("A", { bolle: [], vociSenzaBolla: [] as number[] }, [{ order_id: "B", pct: 40 }], voci)).toEqual({ modo: "aggiungi_riga" });
+    expect(aperturaDallaCommessa("A", { bolle: [], vociSenzaBolla: [] as number[] }, [{ order_id: "A", pct: 40 }], voci)).toEqual({ modo: "come_sempre" });
   });
 });

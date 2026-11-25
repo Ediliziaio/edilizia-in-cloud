@@ -257,7 +257,7 @@ export function StudioBilocaliDialog({ documento, piano, avvio, onChiudi, onCrea
           {selezionata && <div className="space-y-3 rounded-xl border bg-background p-3">
             <div className="flex flex-wrap items-center justify-between gap-2 px-0.5">
               <h3 className="text-sm font-semibold">{tr("Ingressi e bagni per unità")}</h3>
-              <span className="text-xs text-muted-foreground">{selezionata.ingressoComune && `${tr("I · ingresso comune")} `}A, B{unita === 3 ? ", C" : ""} {tr("· porte delle unità")}</span>
+              <span className="text-xs text-muted-foreground">{selezionata.ingressoComune && `${tr("I · ingresso comune")}\u2002`}A, B{unita === 3 ? ", C" : ""} {tr("· porte delle unità")}</span>
             </div>
             <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {selezionata.unita.map(u => <li key={u.sigla} className="space-y-1 rounded-lg border bg-muted/20 p-2.5 text-xs">

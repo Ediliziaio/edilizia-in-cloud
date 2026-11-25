@@ -89,9 +89,11 @@ export function CondizioniContratto({
   // L'anteprima è il PDF vero: le stesse pagine delle condizioni che riceve il cliente, coi colori dell'azienda.
   // Il motore del PDF si carica solo quando la si apre: l'editor del modulo resta leggero.
   const [anteprimaAperta, setAnteprimaAperta] = useState(false);
+  // Il React Compiler non è nella build: la regola è solo del lint. La memoizzazione a mano resta quella che funziona.
   const daMostrare: ModelloArchivio = useMemo(() => dallArchivio ?? {
     id: "modulo", nome: nomeModulo ?? "Condizioni", ambito: "preventivo", attivo: true, versione: 1, predefinito: false,
     clausole: [{ titolo: "", testo: testoDelModulo || condizioniStandard(settore) }],
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   }, [dallArchivio, nomeModulo, testoDelModulo, settore]);
   const bottoneAnteprima = (
     <Button variant="outline" size="sm" className="h-7" onClick={() => setAnteprimaAperta(true)}>

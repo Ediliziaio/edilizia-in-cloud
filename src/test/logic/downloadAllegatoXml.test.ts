@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { scaricaAllegatoXml } from '@/lib/fatturazione/downloadAllegatoXml';
+import { nomeAllegatoDaSalvare, scaricaAllegatoXml } from '@/lib/fatturazione/downloadAllegatoXml';
 
 const BlobOriginale = Blob;
 const UrlOriginale = URL;
@@ -37,4 +37,20 @@ it('non usa il nome del fornitore come percorso e non produce file da base64 ill
   scaricato = null;
   expect(() => scaricaAllegatoXml({ nome: 'x', base64: '%%%INVALIDO', formato: '', compressione: '', descrizione: '' })).toThrow();
   expect(scaricato).toBeNull();
+});
+
+it('un allegato dichiarato compresso si salva con la sua estensione, anche se il mittente lo chiama .PDF', () => {
+  // Aurora Venti: FormatoAttachment PDF, AlgoritmoCompressione ZIP, nome «….PDF» e dentro uno zip.
+  scaricaAllegatoXml({ nome: '1001_20262727_20261031_A_01_001.PDF', base64: btoa('PK'), formato: 'PDF', compressione: 'ZIP', descrizione: '' });
+  expect(scaricato?.nome).toBe('1001_20262727_20261031_A_01_001.PDF.zip');
+});
+
+it('il nome non raddoppia l’estensione, e una compressione strana non la tocca', () => {
+  expect(nomeAllegatoDaSalvare({ nome: 'misure.xlsx.zip', compressione: 'ZIP' })).toBe('misure.xlsx.zip');
+  expect(nomeAllegatoDaSalvare({ nome: 'DATI.ZIP', compressione: 'zip' })).toBe('DATI.ZIP');
+  expect(nomeAllegatoDaSalvare({ nome: 'fattura.pdf', compressione: '' })).toBe('fattura.pdf');
+  expect(nomeAllegatoDaSalvare({ nome: 'fattura.pdf', compressione: 'non so cosa' })).toBe('fattura.pdf');
+  expect(nomeAllegatoDaSalvare({ nome: 'allegato.pdf', compressione: 'RAR' })).toBe('allegato.pdf.rar');
+  // Il percorso del mittente resta fuori anche quando si aggiunge l'estensione.
+  expect(nomeAllegatoDaSalvare({ nome: '../cartella/dati.csv', compressione: 'ZIP' })).toBe('dati.csv.zip');
 });

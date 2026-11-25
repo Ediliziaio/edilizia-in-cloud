@@ -80,10 +80,10 @@ export function percorsoIva(d: DatiPercorsoIva, anno: number, oggi: string): Pas
     const fatte = finiti.filter((p) => confermate.has(p.dal)).length;
     passi.push(prossimo
       ? { chiave: "lipe", titolo: "Liquidazioni periodiche (LIPE)", stato: "da_fare",
-          dettaglio: `${fatte} di ${finiti.length} periodi confermati. Prossimo: ${prossimo.nome}.`,
+          dettaglio: `${fatte} di ${finiti.length} periodi già finiti confermati. Prossimo: ${prossimo.nome}.`,
           azione: { etichetta: `Conferma ${prossimo.nome.replace(` ${anno}`, "")}`, vai: "lipe" } }
       : { chiave: "lipe", titolo: "Liquidazioni periodiche (LIPE)", stato: "fatto",
-          dettaglio: finiti.length ? `${finiti.length} di ${finiti.length} periodi confermati` : "Nessun periodo ancora finito" });
+          dettaglio: finiti.length ? `${finiti.length} di ${finiti.length} periodi già finiti confermati` : "Nessun periodo ancora finito" });
   }
 
   const nLipe = d.lipe?.length ?? 0;

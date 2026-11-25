@@ -18,11 +18,15 @@ describe("fasePrevisioneDi", () => {
   it("abbina i nomi delle fasi della commessa", () => {
     expect(fasePrevisioneDi("Demolizioni e rimozioni")).toBe("Demolizioni");
     expect(fasePrevisioneDi("Posa pavimento radiante")).toBe("Pavimento radiante");
-    expect(fasePrevisioneDi("Massetti")).toBe("Pavimento radiante");
+    // Dal 24/11 i massetti e gli impianti hanno una fase loro (nuova costruzione).
+    expect(fasePrevisioneDi("Massetti")).toBe("Massetti");
     expect(fasePrevisioneDi("Pavimenti e piastrelle")).toBe("Pavimenti e rivestimenti");
     expect(fasePrevisioneDi("Pitture interne")).toBe("Tinteggiature");
     expect(fasePrevisioneDi("Opere murarie")).toBe("Murature");
-    expect(fasePrevisioneDi("Impianto elettrico")).toBeNull();
+    expect(fasePrevisioneDi("Impianto elettrico")).toBe("Impianti");
+    expect(fasePrevisioneDi("Getto delle fondazioni")).toBe("Fondazioni");
+    expect(fasePrevisioneDi("Pilastri e travi in c.a.")).toBe("Strutture");
+    expect(fasePrevisioneDi("Pulizia finale")).toBeNull();
   });
 });
 

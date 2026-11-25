@@ -170,3 +170,12 @@ describe("sottofasi della voce (15/11/2026)", () => {
     expect(sottofasiDellaVoce({ phase_id: "x", ore: 3 }, nomi)).toEqual([]);
   });
 });
+
+describe("riga del viaggio nel PDF (24/11/2026)", () => {
+  it("luoghi, mezzo, DDT, km e ore; «—» dove manca", async () => {
+    const { rigaViaggio } = await import("../../../supabase/functions/genera-pdf-rapportino/model");
+    expect(rigaViaggio({ viaggio: { carico: "Maranello", scarico: "Morengo", mezzo: "MAN HE749NF", km: 182.5, oreUomo: 9, oreMezzo: 9 } }))
+      .toEqual(["Maranello → Morengo", "MAN HE749NF", "—", "182,5", "9 h uomo, 9 h mezzo"]);
+    expect(rigaViaggio({ viaggio: { scarico: "Cantiere" } })).toEqual(["— → Cantiere", "—", "—", "—", "—"]);
+  });
+});

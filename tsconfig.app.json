@@ -37,5 +37,10 @@
   },
   "include": [
     "src"
+  ],
+  // I dizionari delle lingue (567.000 righe di frasi) si importano con «?dizionario» e hanno il tipo in
+  // src/lib/campo/lingua/dizionari.d.ts: analizzarli uno per uno portava il typecheck oltre i 12 GB del CI.
+  "exclude": [
+    "src/lib/campo/lingua/dizionari/**"
   ]
 }

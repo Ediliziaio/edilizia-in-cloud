@@ -35,6 +35,7 @@ import {
   RotateCcw,
   SlidersHorizontal,
   Package,
+  Trash2,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -77,6 +78,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import type { DriveFileRow, DriveFolderMode } from "@/integrations/supabase/appDatabase";
 import { leggiPagineDrive } from "@/lib/leggiPagineDrive";
+import { cartelleDelCliente, clientiDrive, commesseDelCliente, nomeCartellaCliente, nomeCommessa, righeDelCliente, type ClienteDrive, type CommessaDrive, type RigaDriveCliente } from "@/lib/driveClienti";
+import { cartellaArchiviabile, cartellaEliminabile, cartelleInOrdineAlbero, percorsoCartella, sottocartelle } from "@/lib/driveCartelle";
 import type { Database } from "@/integrations/supabase/types";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
@@ -185,7 +188,7 @@ type MediaLibraryFolderRow = Pick<
   | "created_by"
   | "updated_at"
   | "archived_at"
-> & { mode: DriveFolderMode };
+> & { mode: DriveFolderMode; parent_id: string | null };
 
 type EmailAttachmentRow = Pick<
   Database["public"]["Tables"]["email_attachments"]["Row"],
@@ -370,7 +373,23 @@ const TAB_ICONS: Record<DriveTab, LucideIcon> = {
 
 const CARTELLE_PRINCIPALI: DriveTab[] = ["tutti", "cantieri", "foto_media", "da_classificare"];
 const CARTELLE_VUOTE: MediaLibraryFolderRow[] = [];
-const CAMPI_CARTELLA = "id,name,slug,description,match_query,icon,color,sort_order,created_at,created_by,mode,updated_at,archived_at";
+const RIGHE_CLIENTI_VUOTE: RigaDriveCliente[] = [];
+
+/** Una riga delle cartelle dei clienti diventa un documento come gli altri del Drive. */
+function rigaClienteComeDocumento(riga: RigaDriveCliente): MediaLibraryItem {
+  const file = riga.path && !riga.bucket ? attachmentStorage(riga.path) : null;
+  return buildMediaLibraryItem({
+    id: `cliente:${riga.id}`, source: riga.cartella === "foto_cantiere" ? "site_photo" : "attachment",
+    fileName: riga.nome, status: "attached", docType: riga.cartella === "foto_cantiere" ? "foto_cantiere" : "documento_commessa",
+    storageBucket: file?.bucket ?? riga.bucket, storagePath: file?.path ?? riga.path, externalUrl: riga.link,
+    createdAt: riga.data, linkedEntityId: riga.order_id, linkedEntityTable: "orders",
+    linkedEntityLabel: `Commessa ${nomeCommessa({ codice: riga.order_code, descrizione: riga.commessa })}`,
+    integrationLabel: nomeCartellaCliente(riga.cartella),
+    metadataFacts: [riga.cliente],
+  });
+}
+
+const CAMPI_CARTELLA = "id,name,slug,description,match_query,icon,color,sort_order,created_at,created_by,mode,updated_at,archived_at,parent_id";
 
 const EMPTY_MEDIA_LOAD_RESULT: RisultatoDrive = { items: [], warnings: [], altre: false };
 
@@ -1260,6 +1279,11 @@ export default function ContenutiMultimediali() {
   const [modalitaCartella, setModalitaCartella] = useState<DriveFolderMode>("manual");
   const [cercaCartella, setCercaCartella] = useState("");
   const [nuovaCartellaDaArchiviare, setNuovaCartellaDaArchiviare] = useState<MediaLibraryFolderRow | null>(null);
+  // «Clienti»: null = non aperta; cliente/cartella null = livello sopra.
+  const [vistaClienti, setVistaClienti] = useState<VistaClienti | null>(null);
+  const [cartellaDaEliminare, setCartellaDaEliminare] = useState<MediaLibraryFolderRow | null>(null);
+  // Dove nasce la nuova cartella: null = radice, altrimenti dentro questa cartella manuale.
+  const [cartellaMadre, setCartellaMadre] = useState<string | null>(null);
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderMatchQuery, setNewFolderMatchQuery] = useState("");
   const [newFolderDescription, setNewFolderDescription] = useState("");
@@ -1331,7 +1355,12 @@ export default function ContenutiMultimediali() {
 
   const customFolders = useMemo(() => tutteCartelle.filter(folder => !folder.archived_at), [tutteCartelle]);
   const cartelleArchiviate = tutteCartelle.filter(folder => folder.archived_at);
-  const cartelleManuali = customFolders.filter(folder => folder.mode === "manual");
+  // Per le tendine: albero in ordine, col percorso completo («Cantieri / Rossi / Foto»).
+  const cartelleManualiConPercorso = useMemo(
+    () => cartelleInOrdineAlbero(customFolders).filter(folder => folder.mode === "manual").map(folder => ({ id: folder.id, name: folder.percorso })),
+    [customFolders],
+  );
+  const cartelleConPercorso = useMemo(() => cartelleInOrdineAlbero(customFolders), [customFolders]);
   const rawItems = mediaLoadResult.items;
   const isInitialMediaLoading = isLoading && rawItems.length === 0;
   const sourceWarnings = [
@@ -1352,13 +1381,57 @@ export default function ContenutiMultimediali() {
     [activeCustomFolderId, customFolders],
   );
 
+  const percorsoAttivo = useMemo(() => percorsoCartella(customFolders, activeCustomFolder?.id ?? null), [customFolders, activeCustomFolder]);
+  const sottocartelleAttive = useMemo(
+    () => activeCustomFolder?.mode === "manual" ? sottocartelle(customFolders, activeCustomFolder.id) : [],
+    [customFolders, activeCustomFolder],
+  );
+  const cartelleRadice = useMemo(() => sottocartelle(customFolders, null), [customFolders]);
+
+  // Le cartelle dei clienti si leggono solo quando si aprono: la funzione passa
+  // per tutte le commesse dell'azienda.
+  const driveClienti = useQuery({
+    queryKey: ["drive-clienti", companyId, user?.id ?? null],
+    enabled: !!companyId && hasAccess && !permissions.isLoading && vistaClienti !== null,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data, error: rpcError } = await supabase.rpc("drive_documenti_clienti");
+      if (rpcError) throw rpcError;
+      return (data ?? []) as RigaDriveCliente[];
+    },
+  });
+  const righeClienti = driveClienti.data ?? RIGHE_CLIENTI_VUOTE;
+  const clienti = useMemo(() => clientiDrive(righeClienti), [righeClienti]);
+  const clienteAperto = vistaClienti?.cliente ? clienti.find(c => c.chiave === vistaClienti.cliente) ?? null : null;
+  const clienteScelto = vistaClienti?.cliente ?? null;
+  const commessaScelta = vistaClienti?.commessa ?? null;
+  const commesseClienteAperto = useMemo(
+    () => clienteScelto ? commesseDelCliente(righeClienti, clienteScelto) : [],
+    [righeClienti, clienteScelto],
+  );
+  const commessaAperta = commessaScelta ? commesseClienteAperto.find(c => c.id === commessaScelta) ?? null : null;
+  const cartelleClienteAperto = useMemo(
+    () => clienteScelto ? cartelleDelCliente(righeClienti, clienteScelto, commessaScelta) : [],
+    [righeClienti, clienteScelto, commessaScelta],
+  );
+  const itemsClienti = useMemo(() => vistaClienti
+    ? righeDelCliente(righeClienti, vistaClienti.cliente, vistaClienti.cartella, vistaClienti.commessa).map(rigaClienteComeDocumento)
+    : [], [righeClienti, vistaClienti]);
+  const apriClienti = (vista: Partial<VistaClienti> = {}) => {
+    setVistaClienti({ cliente: vista.cliente ?? null, commessa: vista.commessa ?? null, cartella: vista.cartella ?? null });
+    setActiveCustomFolderId(null);
+    azzeraFiltriAggiuntivi();
+    setSelectedId(null);
+  };
+
   const esitiPerCartella = useMemo(() => {
+    if (vistaClienti) return itemsClienti;
     const conCartella = (item: MediaLibraryItem) => activeCustomFolder?.mode === "manual"
       ? item.folderId === activeCustomFolder.id
       : activeCustomFolder ? mediaLibraryItemMatchesCustomFolder(item, { name: activeCustomFolder.name, matchQuery: activeCustomFolder.match_query })
         : mediaLibraryItemMatchesTab(item, activeTab);
     return visibleItems.filter(conCartella);
-  }, [activeCustomFolder, activeTab, visibleItems]);
+  }, [activeCustomFolder, activeTab, visibleItems, vistaClienti, itemsClienti]);
   const origini = useMemo(() => [...new Set(esitiPerCartella.map(item => item.integrationLabel))].sort((a, b) => a.localeCompare(b, "it")), [esitiPerCartella]);
   const tipi = useMemo(() => [...new Set(esitiPerCartella.map(item => item.docType))].sort((a, b) => a.localeCompare(b, "it")), [esitiPerCartella]);
   const filteredItems = useMemo(() => {
@@ -1392,8 +1465,17 @@ export default function ContenutiMultimediali() {
     return counts;
   }, [customFolders, visibleItems]);
 
-  const activeFolderTitle = activeCustomFolder?.name ?? TAB_LABELS[activeTab];
-  const activeFolderDescription = activeCustomFolder
+  const activeFolderTitle = vistaClienti
+    ? vistaClienti.cartella ? t(nomeCartellaCliente(vistaClienti.cartella))
+      : commessaAperta ? nomeCommessa(commessaAperta) : clienteAperto?.nome ?? t("Clienti")
+    : activeCustomFolder?.name ?? TAB_LABELS[activeTab];
+  const activeFolderDescription = vistaClienti
+    ? commessaAperta
+      ? t("{n} documenti di questa commessa, presi dove sono senza copiarli", { n: commessaAperta.documenti })
+      : clienteAperto
+      ? t("{n} documenti da {c} commesse, presi dalle commesse senza copiarli", { n: clienteAperto.documenti, c: clienteAperto.commesse })
+      : t("Una cartella per cliente, con dentro le cartelle standard: i documenti arrivano dalle commesse")
+    : activeCustomFolder
     ? activeCustomFolder.description || (activeCustomFolder.mode === "manual" ? t("File aggiunti a questa cartella") : activeCustomFolder.match_query || t("Raccolta per parole chiave"))
     : t(TAB_DESCRIPTIONS[activeTab]);
   const azzeraFiltriAggiuntivi = () => { setOrigineFiltro(""); setTipoFiltro(""); setDal(""); setAl(""); setPaginaMobile(1); };
@@ -1401,6 +1483,7 @@ export default function ContenutiMultimediali() {
   const [filtriDesktopAperti, setFiltriDesktopAperti] = useState(false);
 
   const selectSystemFolder = (tab: DriveTab) => {
+    setVistaClienti(null);
     setActiveTab(tab);
     azzeraFiltriAggiuntivi();
     setActiveCustomFolderId(null);
@@ -1408,6 +1491,7 @@ export default function ContenutiMultimediali() {
   };
 
   const selectCustomFolder = (folderId: string) => {
+    setVistaClienti(null);
     setActiveCustomFolderId(folderId);
     azzeraFiltriAggiuntivi();
     setSelectedId(null);
@@ -1437,21 +1521,23 @@ export default function ContenutiMultimediali() {
   const pagineMobili = Math.max(1, Math.ceil(filteredItems.length / PER_PAGINA_MOBILE));
   const paginaMobileValida = Math.min(paginaMobile, pagineMobili);
   const righeMobili = filteredItems.slice((paginaMobileValida - 1) * PER_PAGINA_MOBILE, paginaMobileValida * PER_PAGINA_MOBILE);
-  const cartellaMobile = activeCustomFolder ? `c:${activeCustomFolder.id}` : activeTab;
+  const cartellaMobile = vistaClienti ? "clienti" : activeCustomFolder ? `c:${activeCustomFolder.id}` : activeTab;
   const scelteCartelleMobili = [
+    { value: "clienti", label: t("Clienti"), n: vistaClienti ? clienti.length : 0 },
     ...TABS.filter((tab) => tab === "tutti" || tab === activeTab || (countsByTab[tab] ?? 0) > 0).map((tab) => ({
       value: tab as string,
       label: t(TAB_LABELS[tab]),
       n: countsByTab[tab] ?? 0,
     })),
-    ...customFolders.map((folder) => ({
+    ...cartelleConPercorso.map((folder) => ({
       value: `c:${folder.id}`,
-      label: folder.name,
+      label: folder.percorso,
       n: countsByCustomFolder.get(folder.id) ?? 0,
     })),
   ];
   const scegliCartellaMobile = (value: string) => {
-    if (value.startsWith("c:")) selectCustomFolder(value.slice(2));
+    if (value === "clienti") apriClienti();
+    else if (value.startsWith("c:")) selectCustomFolder(value.slice(2));
     else selectSystemFolder(value as DriveTab);
     setPaginaMobile(1);
   };
@@ -1467,15 +1553,19 @@ export default function ContenutiMultimediali() {
 
   const resetNewFolderForm = () => {
     setCartellaInModifica(null);
+    setCartellaMadre(null);
     setModalitaCartella("manual");
     setNewFolderName("");
     setNewFolderMatchQuery("");
     setNewFolderDescription("");
   };
 
-  const apriCartella = (folder?: MediaLibraryFolderRow) => {
+  const apriCartella = (folder?: MediaLibraryFolderRow, dentro?: MediaLibraryFolderRow | null) => {
     if (!puoScrivere) return;
-    if (folder) {
+    if (dentro && !folder) {
+      resetNewFolderForm();
+      setCartellaMadre(dentro.id);
+    } else if (folder) {
       setCartellaInModifica(folder);
       setModalitaCartella(folder.mode);
       setNewFolderName(folder.name);
@@ -1495,7 +1585,7 @@ export default function ContenutiMultimediali() {
       const tabella = supabase.from("media_library_folders");
       const query = cartellaInModifica
         ? tabella.update(values).eq("id", cartellaInModifica.id).eq("company_id", companyId).eq("updated_at", cartellaInModifica.updated_at).is("archived_at", null)
-        : tabella.insert({ ...values, mode: modalitaCartella, slug: createMediaLibraryFolderSlug(name), company_id: companyId, created_by: user?.id ?? null });
+        : tabella.insert({ ...values, mode: cartellaMadre ? "manual" : modalitaCartella, parent_id: cartellaMadre, slug: createMediaLibraryFolderSlug(name), company_id: companyId, created_by: user?.id ?? null });
       const { data, error } = await query.select(CAMPI_CARTELLA).maybeSingle();
       if (error || !data) throw error ?? new Error(t("La cartella è stata modificata nel frattempo."));
       toast.success(cartellaInModifica ? t("Cartella aggiornata") : t("Cartella creata"));
@@ -1506,20 +1596,28 @@ export default function ContenutiMultimediali() {
       setQuery("");
     } catch (err) {
       const error = err as { code?: string; message?: string } | undefined;
-      toast.error(t("Cartella non salvata"), { description: error?.code === "23505" ? t("Esiste già una cartella con questo nome.") : error?.message });
+      toast.error(t("Cartella non salvata"), { description: error?.code === "23505" ? t("Esiste già una cartella con questo nome qui.") : error?.message });
       void refetchFolders();
     } finally { setIsCreatingFolder(false); }
   };
 
   const cambiaArchivioCartella = async (folder: MediaLibraryFolderRow, archivia: boolean) => {
     if (!puoScrivere || !companyId || isCreatingFolder) return;
+    if (archivia && !cartellaArchiviabile(tutteCartelle, folder.id)) {
+      toast.error(t("Archivia prima le sottocartelle"));
+      setNuovaCartellaDaArchiviare(null);
+      return;
+    }
     setIsCreatingFolder(true);
     try {
       const { data, error } = await supabase.from("media_library_folders")
         .update({ archived_at: archivia ? new Date().toISOString() : null, archived_by: archivia ? user?.id : null })
         .eq("company_id", companyId).eq("id", folder.id).eq("updated_at", folder.updated_at).select("id").maybeSingle();
       if (error || !data) throw error ?? new Error(t("La cartella è stata modificata nel frattempo."));
-      if (archivia && activeCustomFolderId === folder.id) mostraTutti();
+      if (archivia && activeCustomFolderId === folder.id) {
+        if (folder.parent_id) selectCustomFolder(folder.parent_id);
+        else mostraTutti();
+      }
       toast.success(archivia ? t("Cartella archiviata") : t("Cartella ripristinata"));
       setNuovaCartellaDaArchiviare(null);
     } catch (err) {
@@ -1528,6 +1626,30 @@ export default function ContenutiMultimediali() {
     } finally {
       void refetchFolders();
       setIsCreatingFolder(false);
+    }
+  };
+
+  const fileDirettiIn = (folderId: string) => visibleItems.filter(item => item.folderId === folderId).length;
+  const eliminaCartella = async (folder: MediaLibraryFolderRow) => {
+    if (!puoScrivere || !companyId || isCreatingFolder) return;
+    setIsCreatingFolder(true);
+    try {
+      // Il database la toglie solo se è davvero vuota (anche dei file che qui non si vedono).
+      const { data, error } = await supabase.from("media_library_folders").delete()
+        .eq("company_id", companyId).eq("id", folder.id).select("id").maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error(t("La cartella non è vuota: contiene sottocartelle o file."));
+      if (activeCustomFolderId === folder.id) {
+        if (folder.parent_id) selectCustomFolder(folder.parent_id);
+        else mostraTutti();
+      }
+      toast.success(t("Cartella eliminata"));
+    } catch (err) {
+      toast.error(t("Cartella non eliminata"), { description: (err as { message?: string })?.message });
+    } finally {
+      setCartellaDaEliminare(null);
+      setIsCreatingFolder(false);
+      void refetchFolders();
     }
   };
 
@@ -1732,13 +1854,17 @@ export default function ContenutiMultimediali() {
           <CardContent className="space-y-3 px-2 pb-3">
             <div className="space-y-0.5">
               {CARTELLE_PRINCIPALI.map(tab => <FolderNavButton key={tab} icon={TAB_ICONS[tab]} label={t(TAB_LABELS[tab])}
-                description={t(TAB_DESCRIPTIONS[tab])} count={countsByTab[tab] ?? 0} active={!activeCustomFolder && activeTab === tab} onClick={() => selectSystemFolder(tab)} />)}
+                description={t(TAB_DESCRIPTIONS[tab])} count={countsByTab[tab] ?? 0} active={!activeCustomFolder && !vistaClienti && activeTab === tab} onClick={() => selectSystemFolder(tab)} />)}
             </div>
             <details className="rounded-md border px-1" open={!activeCustomFolder && !CARTELLE_PRINCIPALI.includes(activeTab) ? true : undefined}>
               <summary className="cursor-pointer px-2 py-2 text-xs font-medium text-muted-foreground">{t("Altre categorie")}</summary>
               {TABS.filter(tab => !CARTELLE_PRINCIPALI.includes(tab)).map(tab => <FolderNavButton key={tab} icon={TAB_ICONS[tab]} label={t(TAB_LABELS[tab])}
-                description={t(TAB_DESCRIPTIONS[tab])} count={countsByTab[tab] ?? 0} active={!activeCustomFolder && activeTab === tab} onClick={() => selectSystemFolder(tab)} />)}
+                description={t(TAB_DESCRIPTIONS[tab])} count={countsByTab[tab] ?? 0} active={!activeCustomFolder && !vistaClienti && activeTab === tab} onClick={() => selectSystemFolder(tab)} />)}
             </details>
+            <div className="border-t pt-3">
+              <FolderNavButton icon={UserRound} label={t("Clienti")} description={t("Una cartella per cliente, dalle commesse")}
+                count={vistaClienti && !driveClienti.isLoading ? clienti.length : 0} active={vistaClienti !== null} onClick={() => apriClienti()} />
+            </div>
             <div className="space-y-1.5 border-t pt-3">
               <div className="flex items-center justify-between px-2">
                 <p className="text-xs font-medium text-muted-foreground">{t("Cartelle personalizzate")}</p>
@@ -1746,10 +1872,15 @@ export default function ContenutiMultimediali() {
               </div>
               {customFolders.length > 5 && <Input aria-label={t("Cerca cartella")} placeholder={t("Cerca cartella…")} value={cercaCartella} onChange={e => setCercaCartella(e.target.value)} className="h-8 text-xs" />}
               {customFolders.length === 0 && puoScrivere && <Button type="button" variant="ghost" size="sm" onClick={() => apriCartella()} className="w-full justify-start text-xs">{t("Crea la prima cartella")}</Button>}
-              {customFolders.filter(folder => folder.name.toLowerCase().includes(cercaCartella.trim().toLowerCase())).map(folder => (
-                <FolderNavButton key={folder.id} icon={folder.mode === "automatic" ? Sparkles : Folder} label={folder.name}
-                  description={folder.description || (folder.mode === "automatic" ? t("Automatica") : t("Manuale"))}
-                  count={countsByCustomFolder.get(folder.id) ?? 0} active={activeCustomFolder?.id === folder.id} onClick={() => selectCustomFolder(folder.id)} />
+              {/* Qui solo le cartelle in radice: le sottocartelle si aprono dentro la madre.
+                  Cercando, invece, compaiono tutte col percorso. */}
+              {(cercaCartella.trim()
+                ? cartelleConPercorso.filter(folder => folder.name.toLowerCase().includes(cercaCartella.trim().toLowerCase())).map(folder => ({ folder, label: folder.percorso }))
+                : cartelleRadice.map(folder => ({ folder, label: folder.name }))
+              ).map(({ folder, label }) => (
+                <FolderNavButton key={folder.id} icon={folder.mode === "automatic" ? Sparkles : Folder} label={label}
+                  description={folder.description || (folder.mode === "automatic" ? t("Automatica") : sottocartelle(customFolders, folder.id).length > 0 ? t("Manuale, con sottocartelle") : t("Manuale"))}
+                  count={countsByCustomFolder.get(folder.id) ?? 0} active={cercaCartella.trim() ? activeCustomFolder?.id === folder.id : percorsoAttivo[0]?.id === folder.id} onClick={() => selectCustomFolder(folder.id)} />
               ))}
               {puoScrivere && cartelleArchiviate.length > 0 && <details className="rounded-md border px-2">
                 <summary className="cursor-pointer py-2 text-xs text-muted-foreground">{t("Archiviate ({n})", { n: cartelleArchiviate.length })}</summary>
@@ -1765,7 +1896,32 @@ export default function ContenutiMultimediali() {
         <Card className={cn("min-w-0", !isLoading && filteredItems.length === 0 && "self-start")}>
           <CardHeader className="gap-3 pb-3">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
+              <div className="min-w-0">
+                {vistaClienti && <nav aria-label={t("Percorso")} className="mb-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+                  <button type="button" className="hover:text-foreground hover:underline" onClick={mostraTutti}>{t("Drive")}</button>
+                  <ChevronRight className="h-3 w-3" />
+                  {vistaClienti.cliente
+                    ? <button type="button" className="hover:text-foreground hover:underline" onClick={() => apriClienti()}>{t("Clienti")}</button>
+                    : <span aria-current="page" className="font-medium text-foreground">{t("Clienti")}</span>}
+                  {vistaClienti.cliente && <><ChevronRight className="h-3 w-3" />
+                    {vistaClienti.commessa || vistaClienti.cartella
+                      ? <button type="button" className="hover:text-foreground hover:underline" onClick={() => apriClienti({ cliente: vistaClienti.cliente })}>{clienteAperto?.nome ?? t("Cliente")}</button>
+                      : <span aria-current="page" className="font-medium text-foreground">{clienteAperto?.nome ?? t("Cliente")}</span>}</>}
+                  {vistaClienti.commessa && <><ChevronRight className="h-3 w-3" />
+                    {vistaClienti.cartella
+                      ? <button type="button" className="max-w-56 truncate hover:text-foreground hover:underline" onClick={() => apriClienti({ cliente: vistaClienti.cliente, commessa: vistaClienti.commessa })}>{commessaAperta ? nomeCommessa(commessaAperta) : t("Commessa")}</button>
+                      : <span aria-current="page" className="max-w-56 truncate font-medium text-foreground">{commessaAperta ? nomeCommessa(commessaAperta) : t("Commessa")}</span>}</>}
+                  {vistaClienti.cartella && <><ChevronRight className="h-3 w-3" /><span aria-current="page" className="font-medium text-foreground">{t(nomeCartellaCliente(vistaClienti.cartella))}</span></>}
+                </nav>}
+                {percorsoAttivo.length > 0 && <nav aria-label={t("Percorso")} className="mb-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+                  <button type="button" className="hover:text-foreground hover:underline" onClick={mostraTutti}>{t("Drive")}</button>
+                  {percorsoAttivo.map((folder, indice) => <span key={folder.id} className="flex items-center gap-1">
+                    <ChevronRight className="h-3 w-3" />
+                    {indice === percorsoAttivo.length - 1
+                      ? <span aria-current="page" className="font-medium text-foreground">{folder.name}</span>
+                      : <button type="button" className="hover:text-foreground hover:underline" onClick={() => selectCustomFolder(folder.id)}>{folder.name}</button>}
+                  </span>)}
+                </nav>}
                 <CardTitle className="text-base">{activeFolderTitle}</CardTitle>
                 <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{activeFolderDescription}</p>
               </div>
@@ -1773,8 +1929,11 @@ export default function ContenutiMultimediali() {
                 {activeCustomFolder && puoScrivere && <DropdownMenu>
                   <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label={t("Gestisci cartella")}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={() => apriCartella(activeCustomFolder)}><Pencil className="mr-2 h-4 w-4" /> {t("Modifica cartella")}</DropdownMenuItem>
+                    {activeCustomFolder.mode === "manual" && <DropdownMenuItem onSelect={() => apriCartella(undefined, activeCustomFolder)}><FolderPlus className="mr-2 h-4 w-4" /> {t("Nuova sottocartella")}</DropdownMenuItem>}
+                    <DropdownMenuItem onSelect={() => apriCartella(activeCustomFolder)}><Pencil className="mr-2 h-4 w-4" /> {t("Rinomina o modifica")}</DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => setNuovaCartellaDaArchiviare(activeCustomFolder)}><Archive className="mr-2 h-4 w-4" /> {t("Archivia cartella")}</DropdownMenuItem>
+                    <DropdownMenuItem disabled={!cartellaEliminabile(tutteCartelle, activeCustomFolder.id, fileDirettiIn(activeCustomFolder.id))}
+                      onSelect={() => setCartellaDaEliminare(activeCustomFolder)}><Trash2 className="mr-2 h-4 w-4" /> {t("Elimina cartella vuota")}</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>}
                 <Button variant="outline" size="icon" onClick={() => { void sincronizzaArchivio(); void refetchFolders(); }}
@@ -1809,6 +1968,17 @@ export default function ContenutiMultimediali() {
             </div>
             {filtriDesktopAperti && <div className="space-y-2 rounded-lg border bg-muted/25 p-3"><FiltriDrive {...impostazioniFiltro} />
               {filtriAggiuntivi > 0 && <Button size="sm" variant="ghost" onClick={azzeraFiltriAggiuntivi}>{t("Azzera filtri")}</Button>}
+            </div>}
+            {vistaClienti && !vistaClienti.cartella && <NavigazioneClienti key={vistaClienti.cliente ?? "clienti"} vista={vistaClienti} clienti={clienti} commesse={commesseClienteAperto} cartelle={cartelleClienteAperto}
+              caricamento={driveClienti.isLoading} errore={driveClienti.error?.message ?? null} onApri={apriClienti} />}
+            {activeCustomFolder?.mode === "manual" && (sottocartelleAttive.length > 0 || puoScrivere) && <div className="flex flex-wrap gap-2" aria-label={t("Sottocartelle")}>
+              {sottocartelleAttive.map(folder => <Button key={folder.id} type="button" variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => selectCustomFolder(folder.id)}>
+                <Folder className="h-4 w-4 text-orange-600" /> {folder.name}
+                <Badge variant="secondary" className="h-5 min-w-6 justify-center text-[10px]">{countsByCustomFolder.get(folder.id) ?? 0}</Badge>
+              </Button>)}
+              {puoScrivere && <Button type="button" variant="ghost" size="sm" className="h-8 gap-1.5 text-muted-foreground" onClick={() => apriCartella(undefined, activeCustomFolder)}>
+                <FolderPlus className="h-4 w-4" /> {t("Nuova cartella qui")}
+              </Button>}
             </div>}
             <p role="status" className="text-xs text-muted-foreground">{estensioneArchivio ? t("Caricamento delle pagine precedenti…") : t(filteredItems.length === 1 ? "{n} risultato" : "{n} risultati", { n: filteredItems.length })}</p>
           </CardHeader>
@@ -2021,8 +2191,10 @@ export default function ContenutiMultimediali() {
         {puoScrivere && <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onClick={() => { setFiltriMobiliAperti(false); apriCartella(); }}>{t("Nuova cartella")}</Button>
           {activeCustomFolder && <>
+            {activeCustomFolder.mode === "manual" && <Button size="sm" variant="outline" onClick={() => { setFiltriMobiliAperti(false); apriCartella(undefined, activeCustomFolder); }}>{t("Nuova sottocartella")}</Button>}
             <Button size="sm" variant="outline" onClick={() => { setFiltriMobiliAperti(false); apriCartella(activeCustomFolder); }}>{t("Modifica cartella")}</Button>
             <Button size="sm" variant="ghost" onClick={() => { setFiltriMobiliAperti(false); setNuovaCartellaDaArchiviare(activeCustomFolder); }}>{t("Archivia cartella")}</Button>
+            {cartellaEliminabile(tutteCartelle, activeCustomFolder.id, fileDirettiIn(activeCustomFolder.id)) && <Button size="sm" variant="ghost" onClick={() => { setFiltriMobiliAperti(false); setCartellaDaEliminare(activeCustomFolder); }}>{t("Elimina cartella vuota")}</Button>}
           </>}
           {cartelleArchiviate.length > 0 && <details className="w-full rounded-md border px-2 py-1"><summary className="text-sm">{t("Cartelle archiviate")}</summary>
             {cartelleArchiviate.map(folder => <Button key={folder.id} size="sm" variant="ghost" onClick={() => void cambiaArchivioCartella(folder, false)} disabled={isCreatingFolder}>{t("Ripristina {nome}", { nome: String(folder.name ?? "") })}</Button>)}
@@ -2105,12 +2277,14 @@ export default function ContenutiMultimediali() {
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{cartellaInModifica ? t("Modifica cartella") : t("Nuova cartella")}</DialogTitle>
-            <DialogDescription>{t("Le cartelle rispettano la visibilità dei singoli documenti.")}</DialogDescription>
+            <DialogTitle>{cartellaInModifica ? t("Modifica cartella") : cartellaMadre ? t("Nuova sottocartella") : t("Nuova cartella")}</DialogTitle>
+            <DialogDescription>{cartellaMadre && !cartellaInModifica
+              ? t("Dentro «{percorso}».", { percorso: percorsoCartella(customFolders, cartellaMadre).map(folder => folder.name).join(" / ") })
+              : t("Le cartelle rispettano la visibilità dei singoli documenti.")}</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
-            {!cartellaInModifica && <div className="space-y-1.5">
+            {!cartellaInModifica && !cartellaMadre && <div className="space-y-1.5">
               <Label htmlFor="media-folder-mode">{t("Tipo di cartella")}</Label>
               <UniformSelect id="media-folder-mode" className="block w-full rounded-md border bg-background p-2 text-sm" value={modalitaCartella} onChange={e => setModalitaCartella(e.target.value as DriveFolderMode)}>
                 <option value="manual">{t("Manuale")}</option><option value="automatic">{t("Automatica per parole chiave")}</option>
@@ -2126,7 +2300,7 @@ export default function ContenutiMultimediali() {
                 placeholder={t("Es. Prodotti premium, Finanziarie, Render cliente Rossi")}
               />
             </div>
-            {modalitaCartella === "automatic" && <div className="space-y-2">
+            {modalitaCartella === "automatic" && !cartellaMadre && <div className="space-y-2">
               <Label htmlFor="media-folder-query">{t("Regole di raccolta")}</Label>
               <Textarea
                 id="media-folder-query"
@@ -2167,11 +2341,17 @@ export default function ContenutiMultimediali() {
             <Button disabled={isCreatingFolder} onClick={() => void cambiaArchivioCartella(nuovaCartellaDaArchiviare, true)}>{t("Archivia cartella")}</Button></DialogFooter></DialogContent>
       </Dialog>}
 
+      {cartellaDaEliminare && <Dialog open onOpenChange={open => { if (!open && !isCreatingFolder) setCartellaDaEliminare(null); }}>
+        <DialogContent><DialogHeader><DialogTitle>{t("Eliminare «{nome}»?", { nome: String(cartellaDaEliminare.name ?? "") })}</DialogTitle><DialogDescription>{t("La cartella è vuota: sparisce del tutto, non va tra le archiviate.")}</DialogDescription></DialogHeader>
+          <DialogFooter><Button variant="outline" disabled={isCreatingFolder} onClick={() => setCartellaDaEliminare(null)}>{t("Annulla")}</Button>
+            <Button variant="destructive" disabled={isCreatingFolder} onClick={() => void eliminaCartella(cartellaDaEliminare)}>{t("Elimina cartella")}</Button></DialogFooter></DialogContent>
+      </Dialog>}
+
       {spostamento && <Dialog open onOpenChange={open => { if (!open && !isCreatingFolder) setSpostamento(null); }}>
         <DialogContent><DialogHeader><DialogTitle>{t("Sposta file")}</DialogTitle><DialogDescription>{spostamento.item.fileName}</DialogDescription></DialogHeader>
           <UniformSelect aria-label={t("Cartella di destinazione")} value={spostamento.cartella} className="w-full rounded-md border bg-background p-2" disabled={isCreatingFolder}
             onChange={e => setSpostamento({ ...spostamento, cartella: e.target.value })}>
-            <option value="">{t("Archivio generale")}</option>{cartelleManuali.map(cartella => <option key={cartella.id} value={cartella.id}>{cartella.name}</option>)}
+            <option value="">{t("Archivio generale")}</option>{cartelleManualiConPercorso.map(cartella => <option key={cartella.id} value={cartella.id}>{cartella.name}</option>)}
           </UniformSelect>
           <DialogFooter><Button variant="outline" disabled={isCreatingFolder} onClick={() => setSpostamento(null)}>{t("Annulla")}</Button>
             <Button disabled={isCreatingFolder || spostamento.cartella === (spostamento.item.folderId ?? "")} onClick={() => void spostaFile()}>{t("Sposta file")}</Button></DialogFooter></DialogContent>
@@ -2185,7 +2365,7 @@ export default function ContenutiMultimediali() {
 
       {caricamento && companyId && user && puoScrivere && <CaricaFileDriveDialog key={`${companyId}:${user.id}`}
         open={!showSmartImport} companyId={companyId} userId={user.id} iniziali={caricamento.file} cartellaIniziale={caricamento.cartellaId}
-        cartelle={cartelleManuali} analizzati={analizzati} onClose={chiudiCaricamento}
+        cartelle={cartelleManualiConPercorso} analizzati={analizzati} onClose={chiudiCaricamento}
         onArchiviati={folderId => {
           void sincronizzaArchivio();
           setQuery("");
@@ -2202,7 +2382,7 @@ export default function ContenutiMultimediali() {
       />}
 
       {puoScrivere && !caricamento && !showSmartImport && !showFolderDialog && !showSmartInbox && !showPdfTools
-        && !nuovaCartellaDaArchiviare && !spostamento && <PageDropOverlay
+        && !nuovaCartellaDaArchiviare && !cartellaDaEliminare && !spostamento && <PageDropOverlay
         active={isDraggingFile} onFilesDropped={apriCaricamento} onDragStateChange={setIsDraggingFile}
       />}
     </div>
@@ -2294,6 +2474,61 @@ function PageDropOverlay({
       </div>
     </div>
   );
+}
+
+type VistaClienti = { cliente: string | null; commessa: string | null; cartella: string | null };
+
+function NavigazioneClienti({ vista, clienti, commesse, cartelle, caricamento, errore, onApri }: {
+  vista: VistaClienti;
+  clienti: ClienteDrive[];
+  commesse: CommessaDrive[];
+  cartelle: { chiave: string; nome: string; documenti: number }[];
+  caricamento: boolean;
+  errore: string | null;
+  onApri: (vista?: Partial<VistaClienti>) => void;
+}) {
+  const t = useT();
+  const [cerca, setCerca] = useState("");
+  if (caricamento) return <p role="status" className="text-xs text-muted-foreground">{t("Raccolgo i documenti delle commesse…")}</p>;
+  if (errore) return <p role="alert" className="text-xs text-destructive">{t("Cartelle dei clienti non caricate: {motivo}", { motivo: errore })}</p>;
+  const filtro = cerca.trim().toLowerCase();
+  const cercaInput = (quanti: number, etichetta: string) => quanti > 8
+    ? <Input aria-label={etichetta} placeholder={`${etichetta}…`} value={cerca} onChange={e => setCerca(e.target.value)} className="h-8 text-xs" />
+    : null;
+  const griglia = cartelle.map(c => <Button key={c.chiave} type="button" variant="outline" size="sm" className="h-9 justify-between gap-1.5"
+    onClick={() => onApri({ cliente: vista.cliente, commessa: vista.commessa, cartella: c.chiave })}>
+    <span className="flex min-w-0 items-center gap-1.5"><Folder className={cn("h-4 w-4 shrink-0", c.documenti ? "text-orange-600" : "text-muted-foreground")} /><span className="truncate">{t(c.nome)}</span></span>
+    <Badge variant="secondary" className="h-5 min-w-6 justify-center text-[10px]">{c.documenti}</Badge>
+  </Button>);
+  if (vista.cliente && vista.commessa) return <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-label={t("Cartelle della commessa")}>{griglia}</div>;
+  if (vista.cliente) return <div className="space-y-3">
+    <div className="space-y-2">
+      <p className="text-xs font-medium text-muted-foreground">{t("Commesse")}</p>
+      {cercaInput(commesse.length, t("Cerca commessa"))}
+      <div className="grid max-h-60 gap-2 overflow-y-auto sm:grid-cols-2" aria-label={t("Commesse del cliente")}>
+        {commesse.filter(c => nomeCommessa(c).toLowerCase().includes(filtro)).map(c => <Button key={c.id} type="button" variant="outline" size="sm" className="h-9 justify-between gap-1.5"
+          onClick={() => onApri({ cliente: vista.cliente, commessa: c.id })}>
+          <span className="flex min-w-0 items-center gap-1.5"><FolderOpen className="h-4 w-4 shrink-0 text-orange-600" /><span className="truncate">{c.codice || c.descrizione ? nomeCommessa(c) : t("Commessa senza codice")}</span></span>
+          <Badge variant="secondary" className="h-5 min-w-6 justify-center text-[10px]">{c.documenti}</Badge>
+        </Button>)}
+      </div>
+    </div>
+    <div className="space-y-2">
+      <p className="text-xs font-medium text-muted-foreground">{t("Cartelle di tutte le commesse")}</p>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-label={t("Cartelle del cliente")}>{griglia}</div>
+    </div>
+  </div>;
+  if (clienti.length === 0) return <p className="text-xs text-muted-foreground">{t("Nessun documento nelle commesse: le cartelle dei clienti si riempiono da sole quando carichi documenti, ordini, DDT o fatture su una commessa.")}</p>;
+  return <div className="space-y-2">
+    {cercaInput(clienti.length, t("Cerca cliente"))}
+    <div className="grid max-h-72 gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3" aria-label={t("Clienti")}>
+      {clienti.filter(c => c.nome.toLowerCase().includes(filtro)).map(c => <Button key={c.chiave} type="button" variant="outline" size="sm" className="h-9 justify-between gap-1.5"
+        onClick={() => onApri({ cliente: c.chiave })}>
+        <span className="flex min-w-0 items-center gap-1.5"><Folder className="h-4 w-4 shrink-0 text-orange-600" /><span className="truncate">{c.nome}</span></span>
+        <Badge variant="secondary" className="h-5 min-w-6 justify-center text-[10px]">{c.documenti}</Badge>
+      </Button>)}
+    </div>
+  </div>;
 }
 
 function FolderNavButton({

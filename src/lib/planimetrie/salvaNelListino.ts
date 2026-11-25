@@ -23,7 +23,7 @@ const sb = () => supabase as any;
 
 /** Dall'unità della pianta a quella del listino. */
 export function unitaListino(u: RigaStudio["unita"]): RstUnitaMisura {
-  return u === "m²" ? "mq" : u === "m" ? "ml" : u === "cad" ? "cad" : "a corpo";
+  return u === "m²" ? "mq" : u === "m³" ? "mc" : u === "m" ? "ml" : u === "cad" ? "cad" : "a corpo";
 }
 
 export interface PrezzoDaSalvare {

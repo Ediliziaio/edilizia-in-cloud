@@ -65,6 +65,8 @@ export interface OpzioniStanza {
   stato?: StatoElemento;
   spessore?: number;
   origine?: Origine;
+  /** La stanza sta già fra pareti (o linee della tavola): non si aggiungono muri sui lati scoperti. */
+  senzaMuri?: boolean;
 }
 
 /**
@@ -127,7 +129,7 @@ function nomeLibero(pianta: Pianta): string {
 export function aggiungiStanza(pianta: Pianta, contorno: Punto[], o: OpzioniStanza = {}): { pianta: Pianta; id: string } {
   const stato = o.stato ?? "esistente";
   const muri = [...pianta.muri];
-  for (let i = 0; i < contorno.length; i++) {
+  for (let i = 0; i < (o.senzaMuri ? 0 : contorno.length); i++) {
     const a = contorno[i];
     const b = contorno[(i + 1) % contorno.length];
     for (const [p1, p2] of trattiScoperti({ ...pianta, muri }, a, b)) {
@@ -315,7 +317,7 @@ export function spostaAngolo(pianta: Pianta, da: Punto, a: Punto): Pianta {
  * traverso (l'angolo di una stanza), si sposta tutta quella parete: la stanza resta
  * dritta e si allunga. Altrimenti si sposta solo l'angolo b.
  */
-function allungaVerso(pianta: Pianta, a: Punto, b: Punto, delta: number): Pianta {
+function allungaVerso(pianta: Pianta, a: Punto, b: Punto, delta: number, seguito?: Punto): Pianta {
   const u = direzione({ p1: a, p2: b });
   const spostamento = { x: u.x * delta, y: u.y * delta };
   const traverso = pianta.muri.find((m) => {
@@ -324,6 +326,15 @@ function allungaVerso(pianta: Pianta, a: Punto, b: Punto, delta: number): Pianta
     return Math.abs(u.x * v.x + u.y * v.y) < 0.2; // circa perpendicolare
   });
   if (traverso) return spostaParete(pianta, traverso.id, spostamento);
+  // Senza una parete attaccata all'angolo (le tavole DWG: muri spezzati, o accostati
+  // senza toccarsi) si sposta tutto il lato in fondo della stanza, non l'angolo solo:
+  // la stanza resta dritta invece di diventare un trapezio (24/11/2026).
+  if (seguito && !uguali(seguito, b)) {
+    const v = direzione({ p1: b, p2: seguito });
+    if (Math.abs(u.x * v.x + u.y * v.y) < 0.2) {
+      return spostaPunti(pianta, (p) => uguali(p, b) || uguali(p, seguito), spostamento);
+    }
+  }
   return spostaAngolo(pianta, b, { x: b.x + spostamento.x, y: b.y + spostamento.y });
 }
 
@@ -367,7 +378,9 @@ export function impostaLatoStanza(pianta: Pianta, localeId: string, lato: number
     ).length;
   };
   const versoA = confinanti(a, b) < confinanti(b, a);
-  let nuova = Math.abs(delta) < 0.05 ? pianta : versoA ? allungaVerso(pianta, b, a, delta) : allungaVerso(pianta, a, b, delta);
+  const prima = c[(lato - 1 + c.length) % c.length];
+  const dopo = c[(lato + 2) % c.length];
+  let nuova = Math.abs(delta) < 0.05 ? pianta : versoA ? allungaVerso(pianta, b, a, delta, prima) : allungaVerso(pianta, a, b, delta, dopo);
   const muro = muroDelLato(pianta, locale, lato);
   if (muro) nuova = confermaMuro(nuova, muro.id);
   return nuova;

@@ -3,6 +3,7 @@ import {
   ArrowRight, RefreshCw, UserCheck, FileText, Activity, Trash2, ArchiveRestore,
 } from "lucide-react";
 import { isToday, isYesterday, format } from "date-fns";
+import { dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 export function getActivityIcon(type: string) {
   switch (type) {
     case "created":
@@ -58,7 +59,6 @@ import {
   CalendarDays, Target as TargetIcon, FileSignature, Bot, Smartphone, Settings as SettingsIcon,
   Radar as RadarIcon, Phone,
 } from "lucide-react";
-import { dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 export const RIGHT_TABS: { key: RightTab; icon: any; label: string }[] = [
   { key: "tracking", icon: RadarIcon, label: "Tracking" },

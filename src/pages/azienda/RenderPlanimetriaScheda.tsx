@@ -2,6 +2,9 @@ import { FabbisognoMateriali } from "@/components/planimetrie/FabbisognoMaterial
 import { StatoVerificaDocumento } from "@/components/planimetrie/ControlloPrimaDellUso";
 import { useControlloPrimaDellUso } from "@/hooks/useVerificaPlanimetria";
 import { MaterialiProgetto } from "@/components/planimetrie/MaterialiProgetto";
+import { NuovaCostruzione } from "@/components/planimetrie/NuovaCostruzione";
+import { parametriGuida, type DestinazioneGuida } from "@/lib/planimetrie/guidaProgetto";
+import { RiepilogoProgetto } from "@/components/planimetrie/RiepilogoProgetto";
 import { AssociazioniPiantaPanel, CollegamentiProgetto } from "@/components/planimetrie/CollegamentiPianta";
 import { accessiCollegamenti, useCollegamentiPiante, type TipoCollegamento } from "@/lib/planimetrie/collegamenti";
 import { controlliDalDocumento } from "../../../shared/planimetrie/letturaDocumento.ts";
@@ -19,7 +22,7 @@ import { ambitoGeometriaDelPiano } from "../../../shared/planimetrie/materialiPr
  */
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
-import { Building2, ClipboardList, Download, Ellipsis, FileText, ImageIcon, Layers2, MapPin, PenLine, Ruler, Sparkles, Trees, Wand2, Wind } from "lucide-react";
+import { Building2, ClipboardList, Download, Ellipsis, FileText, History, ImageIcon, Layers2, MapPin, PenLine, Ruler, Sparkles, Trees, Wand2, Wind } from "lucide-react";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -41,7 +44,8 @@ import { UnitaEdificio } from "@/components/planimetrie/UnitaEdificio";
 import { VerifichePianta } from "@/components/planimetrie/VerifichePianta";
 import { pianiDaPlanimetria, pianteDaPlanimetria } from "@/lib/planimetrie/tred";
 import { fotorealisticoDisponibile } from "@/lib/planimetrie/renderFotorealisticoLocale";
-import { usePlanimetria, useVersionePlanimetria, useVersioniPlanimetria } from "@/lib/planimetrie/archivio";
+import { usePlanimetria, useSalvaVersionePlanimetria, useVersionePlanimetria, useVersioniPlanimetria } from "@/lib/planimetrie/archivio";
+import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { percorsiPlanimetrie, ritornoProgettoValido } from "@/lib/planimetrie/render/percorsi";
@@ -84,6 +88,24 @@ export default function RenderPlanimetriaScheda() {
   const isLoading = corrente.isLoading || (!!corrente.data && storico && revisione.isLoading);
   const error = corrente.error || (storico ? revisione.error : null);
   const sola = permessi.solaLettura || storico || (data && data.riga.company_id !== effectiveCompany?.id);
+  // Tornare a una versione vecchia (24/11/2026): non c'era modo di annullare un salvataggio sbagliato.
+  // Il contenuto della versione scelta diventa una versione nuova; lo storico resta tutto.
+  const ripristino = useSalvaVersionePlanimetria();
+  const [confermaRipristino, setConfermaRipristino] = useState(false);
+  const puoRipristinare = !permessi.solaLettura && !!data && data.riga.company_id === effectiveCompany?.id && !!corrente.data;
+  const ripristina = async () => {
+    if (!data || !corrente.data) return;
+    if (!confermaRipristino) { setConfermaRipristino(true); return; }
+    try {
+      const nuova = await ripristino.mutateAsync({ planimetriaId: id, versioneAttesa: corrente.data.versione.numero, documento: data.versione.documento,
+        nota: `Ripristinata la versione ${data.versione.numero}` });
+      toast.success(t("Ripristinata la versione {n}: ora è la corrente.", { n: data.versione.numero }));
+      setConfermaRipristino(false);
+      apriVersione(String(nuova));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("Il ripristino non è riuscito."));
+    }
+  };
   const apriVersione = (numero: string) => setParams(p=>{
     const n = new URLSearchParams(p);
     if (Number(numero) === corrente.data?.versione.numero) n.delete("versione");
@@ -105,7 +127,7 @@ export default function RenderPlanimetriaScheda() {
   const { primaDi, dialogo: controlloUso } = useControlloPrimaDellUso(documento, percorsoEditor);
   const setLivelloId = (v: string) => setParams((p) => { const n = new URLSearchParams(p); n.set("livello", v); n.delete("locale"); n.delete("muro"); n.delete("apertura"); return n; }, { replace: true });
   const setAmbito = (v: string) => setParams((p) => { const n = new URLSearchParams(p); n.set("ambito", v); n.delete("muro"); n.delete("apertura"); return n; }, { replace: true });
-  const dettaglioDaAncora = ["#materiali-progetto","#prima-e-dopo","#stanze","#verifiche","#unita","#abachi","#render-fatti"].includes(hash);
+  const dettaglioDaAncora = ["#nuova-costruzione","#materiali-progetto","#prima-e-dopo","#stanze","#verifiche","#unita","#abachi","#render-fatti"].includes(hash);
   const sezioneRichiesta=params.get("sezione");
   const tavolaHvac = documento?.letturaDocumento?.verifiche?.some((v) => v.id === "hvac-rete") === true;
   const scheda = params.get("studio")==="1" ? "studio"
@@ -143,6 +165,15 @@ export default function RenderPlanimetriaScheda() {
     return n;
   },{replace:true});
   const chiudiSilvio = () => setParams(p=>{const n=new URLSearchParams(p);n.delete("silvio");n.delete("analisi");return n;},{replace:true});
+  // La guida di Silvio dopo il DWG porta dove la cosa si fa (24/11/2026).
+  const vaiDallaGuida = (verso: DestinazioneGuida) => {
+    const { params: nuovi, ancora } = parametriGuida(params, verso);
+    setParams(nuovi, { replace: false });
+    // Si va dove la cosa si fa: un punto della scheda, oppure in cima alla pianta (la guida sta in
+    // fondo, accanto alla chat, e la pianta cambiata restava fuori dallo schermo).
+    if (ancora) setTimeout(() => document.getElementById(ancora)?.scrollIntoView({ block: "start", behavior: "smooth" }), 250);
+    else setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 150);
+  };
   const sezioneFascicolo = params.get("fascicolo");
   const riscontro = sezioneFascicolo === "verifiche" ? params.get("riscontro") : null;
   const [apriUrbanistica, setApriUrbanistica] = useState(!!sezioneFascicolo && ["urbanistica","pratiche","verifiche","tavole","esodo"].includes(sezioneFascicolo));
@@ -153,7 +184,10 @@ export default function RenderPlanimetriaScheda() {
   // Render in serie: null chiuso, "" tutte le stanze, altrimenti più stili per quella stanza.
   const [serie, setSerie] = useState<string | null>(null);
 
-  const livello = documento?.livelli.find((l) => l.id === livelloId) ?? documento?.livelli[0];
+  // Senza un piano scelto si apre il primo con delle stanze (una cantina vuota non dice niente).
+  const livello = documento?.livelli.find((l) => l.id === livelloId)
+    ?? documento?.livelli.find((l) => l.fatto.locali.length || l.proposte.some((p) => p.locali.length))
+    ?? documento?.livelli[0];
   const percorsoTavola = percorsoTavolaOriginale(data?.riga.company_id,livello,documento);
   const sovrapponibile = !!percorsoTavolaDaRicalcare(data?.riga.company_id,livello,true);
   const { data: urlTavola, isLoading: tavolaInCaricamento } = useUrlTavolaOriginale(data?.riga.company_id,livello,documento);
@@ -273,6 +307,8 @@ export default function RenderPlanimetriaScheda() {
           azioni={<>
             {fascicoloVisibile && <Button size="sm" variant="outline" className="gap-2" onClick={()=>setApriUrbanistica(true)}><MapPin className="h-4 w-4"/>{documento.urbanistica ? t("Fascicolo urbanistico") : t("Regole urbanistiche")}</Button>}
             <Button asChild size="sm" variant="outline" className="gap-2"><Link to={percorsoEditor}><PenLine className="h-4 w-4"/>{storico ? t("Editor versione corrente") : t("Apri editor")}</Link></Button>
+            {storico && puoRipristinare && <Button size="sm" variant={confermaRipristino ? "default" : "outline"} className="gap-2" disabled={ripristino.isPending}
+              onClick={() => void ripristina()}><History className="h-4 w-4"/>{confermaRipristino ? t("Conferma: torna alla versione {n}", { n: data.versione.numero }) : t("Ripristina questa versione")}</Button>}
             <Button size="sm" variant="outline" className="gap-1.5" onClick={() => primaDi("pdf", () => setEsporta(true))}><FileText className="h-4 w-4"/>{t("PDF progetto")}</Button>
             {puoChat && <Button size="sm" className="gap-2 bg-blue-700 text-white hover:bg-blue-800" onClick={()=>chatAperta ? chiudiSilvio() : apriSilvio()} aria-pressed={chatAperta}><Sparkles className="h-4 w-4"/>{t("Chiedi a Silvio")}</Button>}
             <DropdownMenu>
@@ -364,7 +400,8 @@ export default function RenderPlanimetriaScheda() {
         } : undefined}
         onVerifica={()=>setParams(p=>{const n=new URLSearchParams(p);n.set("sezione","verifica");return n;},{replace:true})}
         onSalvato3D={localeId=>setParams(p=>{const n=new URLSearchParams(p);n.delete("versione");n.set("vista","3d");if(localeId)n.set("locale",localeId);return n;},{replace:true})}
-        onSalvata={v=>setParams(p=>{const n=new URLSearchParams(p);n.delete("versione");n.set("ambito",v.ambito);n.set("livello",v.livelloId);n.set("locale",v.localeId);return n;},{replace:true})} />}
+        onSalvata={v=>setParams(p=>{const n=new URLSearchParams(p);n.delete("versione");n.set("ambito",v.ambito);n.set("livello",v.livelloId);n.set("locale",v.localeId);return n;},{replace:true})}
+        onGuida={storico ? undefined : vaiDallaGuida} />}
 
       {scheda==="studio" && <StudioImmobiliare key={data.versione.numero+":"+ambito} documento={documento} companyId={data.riga.company_id} planimetriaId={id}
         versione={data.versione.numero} orderId={data.riga.order_id} livelloId={livello.id} varianteIniziale={ambito.startsWith("progetto:") ? ambito.slice(9) : undefined}
@@ -453,8 +490,13 @@ export default function RenderPlanimetriaScheda() {
 
       {scheda==="dettagli" && <div className="space-y-6">
         <StatoVerificaDocumento documento={documento} modifica={percorsoEditor} />
+        {/* Prima i numeri del progetto, poi le scelte, poi prima e dopo e render (24/11/2026). */}
+        <RiepilogoProgetto documento={documento} ambito={ambito} companyId={data.riga.company_id} onStudio={() => vaiAllaScheda("studio")} />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div id="nuova-costruzione" className="scroll-mt-4"><NuovaCostruzione key={"costruzione:"+data.versione.numero} documento={documento} planimetriaId={id} versione={data.versione.numero} solaLettura={!!sola} /></div>
+          <MaterialiProgetto key={ambito+":"+data.versione.numero} documento={documento} ambito={ambito} planimetriaId={id} versione={data.versione.numero} solaLettura={!!sola} />
+        </div>
         {!storico && <CollegamentiProgetto riga={data.riga} mappa={collegamenti.data} onAssocia={tipo=>setGestisciCollegamenti({tipo})} />}
-        <MaterialiProgetto key={ambito+":"+data.versione.numero} documento={documento} ambito={ambito} planimetriaId={id} versione={data.versione.numero} solaLettura={!!sola} />
         {controlliDalDocumento(documento).length > 0 && <section aria-label={t("Controlli dal documento originale")} className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
           <h2 className="mb-2 font-semibold">{t("Controlli dal documento originale")}</h2>
           <ul className="list-disc space-y-1 pl-5">{controlliDalDocumento(documento).map((s,i)=><li key={i}>{s}</li>)}</ul>

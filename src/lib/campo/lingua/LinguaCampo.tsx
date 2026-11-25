@@ -22,17 +22,28 @@ import "./rtlCampo.css";
 export type Dizionario = Readonly<Record<string, string>>;
 type Valori = Readonly<Record<string, string | number>>;
 
+/**
+ * Nella build ogni dizionario è un file JSON che si scarica con `carica` (plugin `dizionariComeJson` in
+ * vite.config.ts: 50 MB di dizionari come codice mandavano la build fuori memoria); in sviluppo e nei
+ * test è il modulo con l'oggetto in `default`. Qui le due forme diventano la stessa.
+ */
+type ModuloDizionario = { default: Dizionario | null; carica?: () => Promise<Dizionario> };
+const daModulo = async (m: ModuloDizionario): Promise<{ default: Dizionario }> =>
+  ({ default: m.carica ? await m.carica() : (m.default ?? {}) });
+
+// «?dizionario»: Vite toglie il suffisso, TypeScript prende il tipo da dizionari.d.ts senza leggere 567.000
+// righe di frasi (tsconfig.app.json esclude la cartella): il typecheck del CI dal 24/11/2026 andava oltre i 12 GB.
 const CARICA: Record<Exclude<CodiceLingua, "it">, () => Promise<{ default: Dizionario }>> = {
-  ro: () => import("./dizionari/ro"),
-  sq: () => import("./dizionari/sq"),
-  "ar-MA": () => import("./dizionari/arMA"),
-  "ar-EG": () => import("./dizionari/arEG"),
-  de: () => import("./dizionari/de"),
-  fr: () => import("./dizionari/fr"),
-  en: () => import("./dizionari/en"),
-  es: () => import("./dizionari/es"),
-  "es-AR": () => import("./dizionari/esAR"),
-  "es-PE": () => import("./dizionari/esPE"),
+  ro: () => import("./dizionari/ro?dizionario").then(daModulo),
+  sq: () => import("./dizionari/sq?dizionario").then(daModulo),
+  "ar-MA": () => import("./dizionari/arMA?dizionario").then(daModulo),
+  "ar-EG": () => import("./dizionari/arEG?dizionario").then(daModulo),
+  de: () => import("./dizionari/de?dizionario").then(daModulo),
+  fr: () => import("./dizionari/fr?dizionario").then(daModulo),
+  en: () => import("./dizionari/en?dizionario").then(daModulo),
+  es: () => import("./dizionari/es?dizionario").then(daModulo),
+  "es-AR": () => import("./dizionari/esAR?dizionario").then(daModulo),
+  "es-PE": () => import("./dizionari/esPE?dizionario").then(daModulo),
 };
 
 /**

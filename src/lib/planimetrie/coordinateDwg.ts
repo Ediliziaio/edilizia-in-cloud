@@ -11,7 +11,7 @@ export const UNITA_DWG = {
 export type UnitaDwg = keyof typeof UNITA_DWG;
 export type RettangoloDwg = [sinistra: number, basso: number, destra: number, alto: number];
 export type QuotaDwg = { id: string; testo: string; lunghezza: number; angolo: number; punto: [number, number] };
-export type RiferimentoDwg = { unita: UnitaDwg | null; rettangolo: RettangoloDwg; quote?: QuotaDwg[] };
+export type RiferimentoDwg = { unita: UnitaDwg | null; rettangolo: RettangoloDwg; quote?: QuotaDwg[]; pianiProposti?: PropostaPianiDwg };
 export type PianoDwg = { nome: string; quota: number; rettangolo: RettangoloDwg };
 export type RichiestaModelloDwg = { unita: UnitaDwg; altezza: number; layerMuri?: string; piani: PianoDwg[]; controlloGeometria?: boolean };
 export const MASSIMO_PIANI_DWG = 6;
@@ -53,6 +53,27 @@ export function leggiQuoteDwg(dato: unknown): QuotaDwg[] {
     ids.add(q.id);
     return true;
   });
+}
+
+/** Le piante trovate da sole nella tavola (anteprimaDxf.proponi_piani): una proposta da confermare. */
+export type PropostaPianiDwg = { unita: UnitaDwg; layerMuri: string; piani: PianoDwg[] };
+
+export function leggiPropostaPianiDwg(dato: unknown): PropostaPianiDwg | undefined {
+  if (!oggetto(dato) || !unitaDwgValida(dato.unita) || typeof dato.layerMuri !== "string" || dato.layerMuri.length > 120
+    || !Array.isArray(dato.piani) || !dato.piani.length || dato.piani.length > MASSIMO_PIANI_DWG) return undefined;
+  const piani = dato.piani.filter((p): p is PianoDwg => oggetto(p) && typeof p.nome === "string" && !!p.nome.trim() && p.nome.length <= 70
+    && typeof p.quota === "number" && Number.isFinite(p.quota) && p.quota >= -5000 && p.quota <= 30000 && rettangoloDwgValido(p.rettangolo));
+  if (piani.length !== dato.piani.length || new Set(piani.map((p) => p.quota)).size < piani.length) return undefined;
+  return { unita: dato.unita, layerMuri: dato.layerMuri, piani: piani.map((p) => ({ nome: p.nome.trim(), quota: p.quota, rettangolo: p.rettangolo })) };
+}
+
+/** L'inverso di ritaglioInCoordinateDwg: dal rettangolo nel DWG al ritaglio in percentuale dell'anteprima. */
+export function rettangoloInRitaglio(inquadratura: RettangoloDwg, r: RettangoloDwg): RitaglioPianta {
+  const [x0, y0, x1, y1] = inquadratura;
+  const w = x1 - x0, h = y1 - y0;
+  const limita = (v: number) => Math.max(0, Math.min(100, v));
+  const x = limita((r[0] - x0) / w * 100), y = limita((y1 - r[3]) / h * 100);
+  return { x, y, width: limita((r[2] - x0) / w * 100) - x, height: limita((y1 - r[1]) / h * 100) - y };
 }
 
 export function direzioniDistinteDwg(a: QuotaDwg, b: QuotaDwg) {

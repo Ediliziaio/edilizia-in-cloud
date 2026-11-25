@@ -48,7 +48,9 @@ export function DocumentFoldersNavigation({ cartelle, conteggi, totale, senzaCar
           onDrop: (event: DragEvent) => { event.preventDefault(); event.stopPropagation(); onDropCartella(event, dropId); },
         } : {})}
         className={[
-          "tap-compact flex h-10 min-h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-md border px-2.5 py-1.5 text-left text-sm transition-colors md:h-auto md:w-full md:shrink md:whitespace-normal md:border-0",
+          compact
+            ? "tap-compact flex h-10 min-h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border bg-background px-3 text-left text-sm transition-colors"
+            : "tap-compact flex h-10 min-h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-md border px-2.5 py-1.5 text-left text-sm transition-colors md:h-auto md:w-full md:shrink md:whitespace-normal md:border-0",
           active ? "border-primary/30 bg-primary/10 font-medium text-primary" : "text-foreground hover:bg-muted",
           sopraCartella === id ? "bg-primary/5 ring-2 ring-primary/50" : "",
         ].join(" ")}
@@ -69,7 +71,7 @@ export function DocumentFoldersNavigation({ cartelle, conteggi, totale, senzaCar
         value={selezione}
         onValueChange={onSelect}
         disabled={loading}
-        className="h-11 min-w-0 flex-1 text-sm font-normal sm:w-64 sm:flex-none"
+        className="h-11 min-w-0 flex-1 bg-background text-sm font-normal sm:w-64 sm:flex-none"
         options={[
           { value: TUTTI_DOCUMENTI, label: t("Tutti i documenti ({n})", { n: totale }) },
           ...used.map(c => ({
@@ -85,10 +87,10 @@ export function DocumentFoldersNavigation({ cartelle, conteggi, totale, senzaCar
         ]}
       />
     </label>
-    <button type="button" className="hidden min-h-11 rounded-md border px-3 text-xs sm:block" onClick={() => setExplore(true)}>{t("Esplora cartelle")}</button>
-    {puoGestireCartelle && <Link to="/azienda/impostazioni/cartelle-documenti" aria-label={t("Gestisci categorie")} title={t("Gestisci categorie")} className="hidden h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring sm:inline-flex"><Settings2 className="h-4 w-4" aria-hidden="true" /></Link>}
+    <button type="button" className="hidden min-h-11 items-center gap-1.5 rounded-md border bg-background px-3 text-xs sm:inline-flex" onClick={() => setExplore(true)}><FolderOpen className="h-3.5 w-3.5" aria-hidden="true" />{t("Esplora cartelle")}</button>
+    {puoGestireCartelle && <Link to="/azienda/impostazioni/cartelle-documenti" aria-label={t("Gestisci categorie")} title={t("Gestisci categorie")} className="hidden h-11 w-11 items-center justify-center rounded-md border bg-background text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring sm:inline-flex"><Settings2 className="h-4 w-4" aria-hidden="true" /></Link>}
     <DropdownMenu>
-      <DropdownMenuTrigger asChild><Button type="button" variant="outline" size="icon" className="h-11 w-11 shrink-0 sm:hidden" aria-label={t("Opzioni categorie documenti")}><Settings2 className="h-4 w-4" aria-hidden="true" /></Button></DropdownMenuTrigger>
+      <DropdownMenuTrigger asChild><Button type="button" variant="outline" size="icon" className="h-11 w-11 shrink-0 bg-background sm:hidden" aria-label={t("Opzioni categorie documenti")}><Settings2 className="h-4 w-4" aria-hidden="true" /></Button></DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onSelect={() => setExplore(true)}><FolderOpen className="mr-2 h-4 w-4" />{t("Esplora cartelle")}</DropdownMenuItem>
         {puoGestireCartelle && <DropdownMenuItem asChild><Link to="/azienda/impostazioni/cartelle-documenti"><Settings2 className="mr-2 h-4 w-4" />{t("Gestisci categorie")}</Link></DropdownMenuItem>}
@@ -97,8 +99,8 @@ export function DocumentFoldersNavigation({ cartelle, conteggi, totale, senzaCar
   </nav>;
   return (
     <nav aria-label={t("Cartelle documenti")} style={{minHeight: 0}} className="min-w-0">
-      {compact && <button type="button" className="mb-2 min-h-11 rounded-md border px-3 text-xs" onClick={() => setExplore(false)}>{t("Torna al filtro categorie")}</button>}
-      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 md:flex-col md:gap-0.5 md:pb-0">
+      {compact && <button type="button" className="mb-2 inline-flex min-h-11 items-center gap-1.5 rounded-md border bg-background px-3 text-xs" onClick={() => setExplore(false)}><Folder className="h-3.5 w-3.5" aria-hidden="true" />{t("Torna al filtro categorie")}</button>}
+      <div className={compact ? "flex flex-wrap gap-1.5" : "-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 md:flex-col md:gap-0.5 md:pb-0"}>
         {voce(TUTTI_DOCUMENTI, t("Tutti"), totale)}
         {loading && <span role="status" className="m-2 inline-flex items-center gap-2 text-xs text-muted-foreground"><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />{t("Caricamento cartelle…")}</span>}
         {available.map((c) => voce(c.id, `${c.nome}${c.archiviata_at ? ` · ${t("archiviata")}` : ""}`, conteggi[c.id] ?? 0, c.archiviata_at ? undefined : c.id))}

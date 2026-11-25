@@ -37,7 +37,7 @@ export type MisuraPropostaDallaPianta = {
   prezzo?: PrezzoVocePlanimetria;
 };
 
-const UNITA_STUDIO: Record<RigaStudio["unita"], VoceEditor["unita"]> = { "m²": "mq", m: "ml", cad: "pz", "a corpo": "a corpo" };
+const UNITA_STUDIO: Record<RigaStudio["unita"], VoceEditor["unita"]> = { "m²": "mq", "m³": "mc", m: "ml", cad: "pz", "a corpo": "a corpo" };
 
 /** Le righe dello studio che il computo prende dalla pianta: pareti, aperture e ciò che le pareti si portano dietro. */
 const righeOpere = (doc: Planimetria, livelloId: string, propostaId: string) => studioVariante(doc, propostaId).righe

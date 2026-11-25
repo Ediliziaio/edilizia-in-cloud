@@ -2,7 +2,7 @@ import { Suspense, type ReactNode } from "react";
 // Come in App.tsx: dopo una pubblicazione i pezzi vecchi non ci sono più, e senza
 // il nuovo tentativo la sezione finiva su «Errore nel caricamento fiscale».
 import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
-import { useSearchParams, useLocation, Navigate } from "react-router-dom";
+import { useSearchParams, useLocation, Navigate, Link } from "react-router-dom";
 import { ReceiptText, Calculator, ShieldCheck, Archive } from "lucide-react";
 import { RequireCompanyPermission } from "@/components/auth/RequireCompanyPermission";
 import { FeatureRoute } from "@/components/auth/FeatureRoute";
@@ -18,6 +18,7 @@ import {
   type FiscalSection,
 } from "@/lib/fatturazione/fiscalWorkspace";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { useContabilitaGeneraleAttiva } from "@/components/contabilita/ContabilitaInCasa";
 const Registro = lazy(() => import("@/pages/azienda/fatturazione/RegistroIVA"));
 const Contabilita = lazy(() => import("@/pages/azienda/ContabilitaFiscale"));
 const Ritenute = lazy(() => import("@/pages/azienda/RitenuteGaranzia"));
@@ -118,6 +119,7 @@ export default function FiscalWorkspace({
 }: { defaultSection?: FiscalSection } = {}) {
   const t = useT();
   const { params, set, anno, mese, tipo, trimestre } = useFiscalPeriod();
+  const { attiva: generaleAttiva } = useContabilitaGeneraleAttiva();
   // La Contabilità generale sta nel menu Contabilità (10/11/2026): il vecchio indirizzo porta lì.
   if (params.get("sezione") === "generale") {
     const resto = new URLSearchParams(params);
@@ -126,9 +128,25 @@ export default function FiscalWorkspace({
     const q = resto.toString();
     return <Navigate to={`/azienda/contabilita-generale${q ? `?${q}` : ""}`} replace />;
   }
-  const section = params.has("sezione")
-    ? fiscalSection(params)
-    : defaultSection;
+  // Con la contabilità generale in casa (24/11/2026) l'IVA ha un posto solo: registri, liquidazione, LIPE,
+  // F24 e ritenute d'acconto stanno in Contabilità generale → IVA. Prima c'erano due copie degli stessi
+  // strumenti, e chi tiene la contabilità non sapeva quale valesse. Qui restano ritenute di garanzia e
+  // archivio; i vecchi indirizzi dell'IVA portano là, con lo stesso periodo.
+  if (generaleAttiva === undefined && params.get("sezione") !== "ritenute" && params.get("sezione") !== "archivio") {
+    return <p role="status" className="p-6 text-sm text-muted-foreground">{t("Caricamento…")}</p>;
+  }
+  const richiesta = params.has("sezione") ? fiscalSection(params) : generaleAttiva ? "ritenute" : defaultSection;
+  if (generaleAttiva && (richiesta === "iva" || richiesta === "contabilita")) {
+    const resto = new URLSearchParams(params);
+    const vistaVecchia = resto.get("vista");
+    for (const k of ["tab", "sezione", "vista"]) resto.delete(k);
+    resto.set("vista", "iva");
+    if (richiesta === "iva") resto.set("iva", "registri");
+    else { resto.set("iva", "liquidazione"); resto.set("iva_vista", vistaVecchia || "iva"); }
+    return <Navigate to={`/azienda/contabilita-generale?${resto.toString()}`} replace />;
+  }
+  const section = richiesta;
+  const sezioniVisibili = generaleAttiva ? sections.filter(([k]) => k === "ritenute" || k === "archivio") : sections;
   // La liquidazione elenca da sola i periodi dell'anno: mese e trimestre lì confonderebbero.
   const vista = params.get("vista");
   const conPeriodo = section === "iva" || (section === "contabilita" && (vista === "f24" || vista === "ritenute_bancarie"));
@@ -156,7 +174,7 @@ export default function FiscalWorkspace({
         aria-label={t("Sezioni fiscali")}
         className="flex gap-1 overflow-x-auto rounded-xl border bg-white p-1.5"
       >
-        {sections.map(([key, label, Icon]) => (
+        {sezioniVisibili.map(([key, label, Icon]) => (
           <button
             key={key}
             role="tab"
@@ -166,20 +184,20 @@ export default function FiscalWorkspace({
             id={`fiscal-tab-${key}`}
             onClick={() => set({ tab: "fiscalita", sezione: key })}
             onKeyDown={(event) => {
-              const index = sections.findIndex(([value]) => value === key);
+              const index = sezioniVisibili.findIndex(([value]) => value === key);
               const next =
                 event.key === "ArrowRight"
-                  ? (index + 1) % sections.length
+                  ? (index + 1) % sezioniVisibili.length
                   : event.key === "ArrowLeft"
-                    ? (index + sections.length - 1) % sections.length
+                    ? (index + sezioniVisibili.length - 1) % sezioniVisibili.length
                     : event.key === "Home"
                       ? 0
                       : event.key === "End"
-                        ? sections.length - 1
+                        ? sezioniVisibili.length - 1
                         : null;
               if (next === null) return;
               event.preventDefault();
-              set({ tab: "fiscalita", sezione: sections[next][0] });
+              set({ tab: "fiscalita", sezione: sezioniVisibili[next][0] });
               const tabs =
                 event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>(
                   '[role="tab"]',
@@ -192,6 +210,11 @@ export default function FiscalWorkspace({
             {t(label)}
           </button>
         ))}
+        {generaleAttiva ? (
+          <Link to="/azienda/contabilita-generale?vista=iva" className="ml-auto flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50">
+            <Calculator className="h-4 w-4" />{t("IVA, liquidazioni e F24 → Contabilità generale")}
+          </Link>
+        ) : null}
       </div>
       <div
         role="tabpanel"

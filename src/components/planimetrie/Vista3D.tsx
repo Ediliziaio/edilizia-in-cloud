@@ -7,7 +7,7 @@
 import { forwardRef, lazy, Suspense, useCallback, useDeferredValue, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { Box, Building, Cable, Download, Eye, Focus, Footprints, Layers, Map as MappaIcona, Maximize2, Minimize2, PaintRoller, Rotate3d, SlidersHorizontal, Sparkles, Sun } from "lucide-react";
+import { Box, Building, Cable, Camera, Clapperboard, Download, Eye, Focus, Footprints, Layers, Map as MappaIcona, Maximize2, Minimize2, PaintRoller, Rotate3d, SlidersHorizontal, Sparkles, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { CircuitiRadiantiElenco } from "./CircuitiRadiantiElenco";
@@ -35,7 +35,7 @@ import {
 } from "@/lib/planimetrie/tred";
 import { catturaFotogramma, type Fotogramma } from "./tred/fotogramma";
 import { esplodiInStrati, STRATI_ESPLOSO, stratoDi } from "@/lib/planimetrie/tred/esploso";
-import { vistaEsplosa } from "@/lib/planimetrie/tred/telecamera";
+import { INQUADRATURE_ESTERNE, inquadraturaEsterna, limitiCasa, orbita, vistaEsplosa, type InquadraturaEsterna } from "@/lib/planimetrie/tred/telecamera";
 import { vistaDettaglioInterno } from "@/lib/planimetrie/tred/inquadraturaArredi";
 import type { StratoEsploso3D } from "@/lib/planimetrie/tred/tipi";
 import { adattaAmbiente, aggiornaGruppo, applicaTelecamera, creaGruppo, liberaGruppo, preparaAmbiente } from "./tred/scenaThree";
@@ -178,6 +178,8 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
   const [opzioniVisibili, mostraOpzioni] = useState(false);
   const [ripristini, risistemaInquadratura] = useState(0);
   const [inquadraturaLocale, setInquadraturaLocale] = useState(false);
+  /** Un'inquadratura pronta dell'esterno chiesta dalla barra: la telecamera la calcola al prossimo giro. */
+  const inquadraturaScelta = useRef<InquadraturaEsterna | null>(null);
   const primaCamera = useRef<{ telecamera: Telecamera3D; proporzioni?: number } | undefined>(
     telecameraIniziale ? { telecamera: telecameraIniziale, proporzioni: proporzioniIniziali } : undefined,
   );
@@ -397,7 +399,10 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     const aspetto = m.camera.aspect || 1;
     const locale = locali.find((l) => l.id === localeId) ?? locali[0];
     const fov = studio || compatta ? THREE.MathUtils.clamp(2 * Math.atan(Math.tan((locale?.destinazione === "bagno" ? 52 : 46) * Math.PI / 180) / Math.max(aspetto, 1)) * 180 / Math.PI, 40, 76) : undefined;
-    const iniziale = inVisita ? tappaVisita?.vista : primaCamera.current?.telecamera;
+    // L'inquadratura pronta si calcola qui, sui limiti della scena di adesso (con «Edificio intero» acceso).
+    const scelta = inquadraturaScelta.current;
+    inquadraturaScelta.current = null;
+    const iniziale = inVisita ? tappaVisita?.vista : scelta ? inquadraturaEsterna(scelta, limiti, aspetto, limitiCasa(pianta, limiti)) : primaCamera.current?.telecamera;
     const arredo = arredoDaInquadrare.current;
     const dettaglio = compatta && modo === "dentro" && locale && arredo
       ? vistaDettaglioInterno(pianta, locale.id, { tipo: "arredo", id: arredo }, vista, aspetto) : null;
@@ -816,6 +821,63 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     }
   };
 
+  // Inquadrature pronte dell'esterno, foto e video del giro (24/11/2026): quello che le tavole di
+  // progetto mostrano (vista dalla strada, dal giardino, a volo d'uccello) senza cercare l'angolo.
+  const [avvisoMedia, setAvvisoMedia] = useState("");
+  const inquadra = (tipo: InquadraturaEsterna) => {
+    const m = motore.current;
+    if (!m || attraversamento) return;
+    if (conPiani && !edificio) setEdificio(true);
+    setInquadraturaLocale(false);
+    inquadraturaScelta.current = tipo;
+    setModo(tipo === "alto" ? "alto" : "giro");
+    // Da fuori l'edificio si vede chiuso: solai e copertura (senza erano scatole aperte, Callimaco 24/11).
+    setSoffitto(tipo !== "alto");
+    risistemaInquadratura(n => n + 1);
+  };
+  const fotoVista = () => esegui(async () => {
+    const m = motore.current;
+    if (!m) return;
+    m.disegna();
+    const blob = await new Promise<Blob | null>(ok => m.renderer.domElement.toBlob(ok, "image/png"));
+    if (blob) scarica(blob, `${nomeFile}-vista.png`, "image/png");
+  });
+  const videoGiro = (secondi = 12) => esegui(async () => {
+    const m = motore.current;
+    const tela = m?.renderer.domElement;
+    const tipo = typeof MediaRecorder === "undefined" ? undefined
+      : ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm"].find(t => MediaRecorder.isTypeSupported(t));
+    if (!m || !tela || !tipo || typeof tela.captureStream !== "function") {
+      setAvvisoMedia(tr("Questo browser non registra video dal 3D: prova con Chrome o Safari aggiornati."));
+      return;
+    }
+    setAvvisoMedia("");
+    const registratore = new MediaRecorder(tela.captureStream(30), { mimeType: tipo, videoBitsPerSecond: 8_000_000 });
+    const pezzi: Blob[] = [];
+    registratore.ondataavailable = e => { if (e.data.size) pezzi.push(e.data); };
+    const fermo = new Promise<void>(ok => { registratore.onstop = () => ok(); });
+    const partenza = telecameraAdesso();
+    const durata = secondi * 1000;
+    registratore.start(500);
+    await new Promise<void>(ok => {
+      const inizio = performance.now();
+      const passo = (ora: number) => {
+        const f = Math.min(1, (ora - inizio) / durata);
+        // Un giro intero, che parte e arriva piano: si può mettere in loop.
+        applicaTelecamera(m.camera, orbita(partenza, (1 - Math.cos(f * Math.PI)) / 2));
+        m.controlli?.target.set(...partenza.guarda);
+        m.disegna();
+        if (f < 1) requestAnimationFrame(passo); else ok();
+      };
+      requestAnimationFrame(passo);
+    });
+    registratore.stop();
+    await fermo;
+    applicaTelecamera(m.camera, partenza);
+    m.disegna();
+    scarica(new Blob(pezzi, { type: tipo }), `${nomeFile}-giro.${tipo.startsWith("video/mp4") ? "mp4" : "webm"}`, tipo.split(";")[0]);
+  });
+
   const scaricaObj = () =>
     esegui(async () => {
       const { obj, mtl } = esportaObj(scena, `${nomeFile}.mtl`);
@@ -888,8 +950,24 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
             preparaRenderDaQui(vista);
             return true;
           } : undefined} />}
+        {/* L'edificio intero in vista: prima stava solo nel menu «Vista» e non lo trovava nessuno (24/11/2026). */}
+        {conPiani && !inVisita && !schemaCanali && <Button type="button" size="sm" variant={edificio ? "secondary" : "outline"} aria-pressed={edificio}
+          className="gap-1.5" onClick={() => { const acceso = !edificio; setEdificio(acceso); if (acceso && modo !== "alto") setSoffitto(true); }}><Building className="size-4" />{tr("Edificio intero")}</Button>}
         {!inVisita && !schemaCanali && <Button type="button" size="sm" variant={strutturaStrati ? "secondary" : "outline"} aria-pressed={strutturaStrati}
           className="gap-1.5" onClick={cambiaVistaEsplosa}><Layers className="size-4" />{tr("Vista esplosa")}</Button>}
+        {!inVisita && !schemaCanali && modo !== "dentro" && <>
+          <Select value="" onValueChange={v => inquadra(v as InquadraturaEsterna)} disabled={!!attraversamento}>
+            <SelectTrigger className="h-9 w-auto gap-1.5 px-2.5" aria-label={tr("Inquadrature pronte dell'esterno")}>
+              <Camera className="size-4 shrink-0 text-muted-foreground" /><SelectValue placeholder={tr("Inquadrature")} />
+            </SelectTrigger>
+            <SelectContent fitContent>{INQUADRATURE_ESTERNE.map(q => <SelectItem key={q.id} value={q.id}>{tr(q.nome)}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button type="button" size="sm" variant="outline" className="gap-1.5" disabled={occupato || !!errore} onClick={fotoVista}
+            title={tr("Scarica questa vista come immagine")}><Download className="size-4" />{tr("Foto")}</Button>
+          <Button type="button" size="sm" variant="outline" className="gap-1.5" disabled={occupato || !!errore} onClick={() => videoGiro()}
+            title={tr("Un giro intorno di 12 secondi, da questa inquadratura")}><Clapperboard className="size-4" />{occupato ? tr("Registro…") : tr("Video del giro")}</Button>
+        </>}
+        {avvisoMedia && <p role="status" className="basis-full text-xs text-amber-800 dark:text-amber-200">{avvisoMedia}</p>}
         {!inVisita && !schemaCanali && !!pianta.pavimentoRadiante?.length &&
           <Button type="button" size="sm" variant={impianti ? "secondary" : "outline"} aria-pressed={impianti}
             className="gap-1.5" onClick={() => setImpianti(v => !v)}><Cable className="size-4" />{tr("Impianti")}</Button>}

@@ -109,6 +109,49 @@ export function vistaDalGiardino(limiti: Limiti3D, lato: LatoEsterno = "sud", fo
   return { posizione: [c[0] + dx * (dc + d), 2.2, c[2] + dz * (dc + d)], guarda: [c[0], guardaY, c[2]], fov };
 }
 
+/** Le inquadrature pronte dell'esterno, come le viste delle tavole di progetto (24/11/2026). */
+export type InquadraturaEsterna = "strada" | "giardino" | "alto" | "volo";
+export const INQUADRATURE_ESTERNE: ReadonlyArray<{ id: InquadraturaEsterna; nome: string }> = [
+  { id: "strada", nome: "Dalla strada" },
+  { id: "giardino", nome: "Dal giardino" },
+  { id: "volo", nome: "A volo d'uccello" },
+  { id: "alto", nome: "Dall'alto" },
+];
+
+/**
+ * `limiti` è tutto (lotto compreso), `casa` l'edificio: dalla strada si guarda la facciata sud da
+ * terra, dal giardino quella nord, a volo d'uccello da sud-ovest e dall'alto, a 45°, tutto il lotto.
+ */
+export function inquadraturaEsterna(tipo: InquadraturaEsterna, limiti: Limiti3D, aspetto = 16 / 9, casa: Limiti3D = limiti): Telecamera3D {
+  if (tipo === "strada") return vistaDalGiardino(limiti, "sud", 55, casa);
+  if (tipo === "giardino") return vistaDalGiardino(limiti, "nord", 55, casa);
+  if (tipo === "alto") return vistaDallAlto(limiti, aspetto);
+  const mira = centro(casa);
+  const verso = unit([-0.62, 0.62, 0.48]);
+  const fov = 40;
+  const t = Math.tan((fov * Math.PI) / 360);
+  // La casa riempie l'inquadratura, con intorno un po' di lotto.
+  const raggio = Math.hypot(casa.max[0] - casa.min[0], casa.max[1] - casa.min[1], casa.max[2] - casa.min[2]) / 2 * 1.35;
+  const d = (raggio / t) * (aspetto < 1 ? 1.5 : 1.05);
+  return { posizione: [mira[0] + verso[0] * d, mira[1] + verso[1] * d, mira[2] + verso[2] * d], guarda: mira, fov };
+}
+
+/** L'ingombro dell'edificio (dalle pareti), con l'altezza della scena: le inquadrature esterne
+ *  guardano la casa, non il lotto col parcheggio (Callimaco: dalla strada la casa era un francobollo). */
+export function limitiCasa(pianta: Pick<PiantaPer3D, "muri">, limiti: Limiti3D): Limiti3D {
+  if (!pianta.muri.length) return limiti;
+  const xs = pianta.muri.flatMap((m) => [m.a.x * CM, m.b.x * CM]), zs = pianta.muri.flatMap((m) => [m.a.y * CM, m.b.y * CM]);
+  return { min: [Math.min(...xs), limiti.min[1], Math.min(...zs)], max: [Math.max(...xs), limiti.max[1], Math.max(...zs)] };
+}
+
+/** La telecamera girata intorno al punto che guarda, sull'asse verticale: `frazione` 1 = un giro intero. */
+export function orbita(t: Telecamera3D, frazione: number): Telecamera3D {
+  const a = frazione * Math.PI * 2;
+  const dx = t.posizione[0] - t.guarda[0], dz = t.posizione[2] - t.guarda[2];
+  const c = Math.cos(a), s = Math.sin(a);
+  return { ...t, posizione: [t.guarda[0] + dx * c - dz * s, t.posizione[1], t.guarda[2] + dx * s + dz * c] };
+}
+
 function contornoM(l: LocalePer3D): V2[] {
   return pulisciPoligono(l.contorno.map((p) => v2(p.x * CM, p.y * CM)));
 }

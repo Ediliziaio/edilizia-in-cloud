@@ -172,3 +172,33 @@ export function bolleDellaFattura(
   const inBolla = new Set(bolle.flatMap((b) => b.voci));
   return { bolle, vociSenzaBolla: voci.map((v) => v.numero).filter((n) => !inBolla.has(n)) };
 }
+
+/**
+ * Chi apre la fattura dalla commessa (Fatture dei fornitori → «Collega fattura») la trova già impostata per lei
+ * (piano docs/piano-collega-fatture-ricevute-da-commessa-20261124.md, lotto 3):
+ * - la fattura è già divisa su altre commesse e non su questa → si aggiunge la sua riga, col residuo;
+ * - le bolle di questa commessa coprono solo alcune voci → bolla per bolla, con le voci delle bolle caricate già
+ *   assegnate alla loro commessa e il resto da scegliere;
+ * - altrimenti (tutta sua, o niente bolle per capirlo) → come sempre, tutta la fattura sulla commessa.
+ */
+export type AperturaDallaCommessa =
+  | { modo: "come_sempre" }
+  | { modo: "aggiungi_riga" }
+  | { modo: "per_bolla"; scelte: Record<number, string> };
+
+export function aperturaDallaCommessa(
+  commessa: string | null | undefined,
+  gruppi: { bolle: BollaDellaFattura[]; vociSenzaBolla: number[] },
+  salvate: QuotaSalvata[],
+  voci: RigaFatturaXml[],
+): AperturaDallaCommessa {
+  if (!commessa) return { modo: "come_sempre" };
+  if (salvate.length > 0) {
+    return salvate.some((q) => q.order_id === commessa) ? { modo: "come_sempre" } : { modo: "aggiungi_riga" };
+  }
+  const sue = new Set(gruppi.bolle.filter((b) => b.commessaProposta === commessa).flatMap((b) => b.voci));
+  if (sue.size === 0 || voci.every((v) => sue.has(v.numero))) return { modo: "come_sempre" };
+  const scelte: Record<number, string> = {};
+  for (const b of gruppi.bolle) if (b.commessaProposta) for (const n of b.voci) scelte[n] = b.commessaProposta;
+  return { modo: "per_bolla", scelte };
+}

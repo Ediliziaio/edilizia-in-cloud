@@ -9,6 +9,8 @@ import { bozzaVuota, calcolaVoce, misuraVuota, voceVuota, type BozzaComputo } fr
 import { unitaDellEdificio } from "./unita";
 import { NOMI_SANITARI, sanitariNelLocale } from "./spostamentoBagno";
 import { percorsiPlanimetrie } from "./render/percorsi";
+import { capitoloRigaStudio, eNuovaCostruzione, righeNuovaCostruzione } from "./nuovaCostruzione";
+import { eVoceDellaSicurezza, RICARICO_PREZZARIO, vociDellaSicurezza } from "./sicurezzaComputo";
 
 const COMUNI = "Parti comuni";
 const SCALA_DA_RISCONTRARE = "Scala del modello da riscontrare";
@@ -39,7 +41,8 @@ export interface RigaStudio {
   fase: string;
   descrizione: string;
   gruppo: string;
-  unita: "m²" | "cad" | "m" | "a corpo";
+  /** «m³» solo per le voci della nuova costruzione (scavi, calcestruzzi). */
+  unita: "m²" | "m³" | "cad" | "m" | "a corpo";
   quantita: number | null;
   criterio: string;
   chiave?: string;
@@ -47,6 +50,8 @@ export interface RigaStudio {
   riferimento?: { tipo: "locale" | "muro" | "apertura"; id: string; fatto?: boolean };
   quantificazioneSospesa?: boolean;
   prezzo?: PrezzoVocePlanimetria;
+  /** Nel computo va a parte: proposta al cliente, fuori dal totale dei lavori (le opere esterne di una sopraelevazione). */
+  aParte?: boolean;
 }
 
 const VOCI_IMPIANTI = [
@@ -275,6 +280,8 @@ export function studioVariante(doc: Planimetria, variante: string | null) {
   const cucine: ReturnType<typeof computoSpostamentiCucina>["spostamenti"] = [], cucineDaRivedere = new Set<string>();
   const paretiDaRiscontrare: { livelloId: string; muroId: string }[] = [];
   let comuni = 0, esterniComuni = 0, senzaUnita = 0, muriMq = 0, scalaIncerta = false;
+  // In una nuova costruzione il disegno è il progetto: le sue misure sono di progetto, non un rilievo da verificare.
+  const progetto = eNuovaCostruzione(doc);
   for (const piano of doc.livelli) {
     const p = piano.proposte.find(x => x.id === variante);
     const l = p?.locali ?? piano.fatto.locali;
@@ -288,7 +295,7 @@ export function studioVariante(doc: Planimetria, variante: string | null) {
         if (interno) comuni += mq;
         else esterniComuni += mq;
       }
-      if (origineMisura(l[i], "contorno") === "stimata") scalaIncerta = true;
+      if (!progetto && origineMisura(l[i], "contorno") === "stimata") scalaIncerta = true;
       for (const altro of l.slice(i+1)) {
         if (interniSovrapposti(l[i].contorno, altro.contorno)) sovrapposti.push(`${piano.nome} · ${l[i].nome} / ${altro.nome}`);
       }
@@ -316,7 +323,7 @@ export function studioVariante(doc: Planimetria, variante: string | null) {
       const chiave = `${ambito}:muro:${m.id}.superficie_mq`;
       const q = mappa[chiave];
       const lunghezza = lunghezzaMuro(misurato) / 100, altezza = misurato.altezza / 100;
-      const altezzaDaVerificare = origineMisura(misurato, "altezza") === "stimata";
+      const altezzaDaVerificare = !progetto && origineMisura(misurato, "altezza") === "stimata";
       const haVani = (prima ? piano.fatto : p).aperture.some(a => a.muroId === m.id && a.stato!=="da_demolire");
       const deduzione = q ? arrotonda(lunghezza*altezza-q.valore) : 0;
       const vuoti = deduzione > 0 ? ` − ${italiano(deduzione)} m² di vuoti detraibili`
@@ -410,6 +417,7 @@ export function studioVariante(doc: Planimetria, variante: string | null) {
     righe.push(...indotte, ...impiantiNelComputo(doc, piano, p, scalaNonCalibrata, mappa), ...radianteNelComputo(piano, p, scalaNonCalibrata),
       ...verificheBilocaliNelComputo(piano, p));
   }
+  if (eNuovaCostruzione(doc)) aggiungiNuovaCostruzione(doc, variante, righe);
   const prezzi = new Map(doc.livelli.map(p => [p.id, p.proposte.find(pr => pr.id === variante)?.prezziLavorazioni]));
   const righeConPrezzi = righe.map(r => {
     const importi = prezzi.get(r.livelloId);
@@ -479,17 +487,54 @@ export function misuraRigaStudio(r: RigaStudio) {
   };
 }
 
+/**
+ * Il costo per l'impresa, stimato dal prezzo (25/11/2026). I prezzi del prezzario regionale e quelli
+ * indicativi sono prezzi di vendita: comprendono spese generali (dal 13 al 17% per l'art. 32 del
+ * DPR 207/2010, qui il 15%) e utile d'impresa (10%). Il costo stimato li toglie, così il passo
+ * Economia del computo mostra costo e margine. Il listino aziendale no: dice il prezzo all'impresa
+ * cliente, il costo lo sa solo l'impresa. Si corregge voce per voce («Costo unitario stimato»).
+ */
+export { RICARICO_PREZZARIO };
+function costoStimato(p: PrezzoVocePlanimetria): { costo?: string } {
+  if (p.fonte === "Listino aziendale" || !(p.importo > 0)) return {};
+  return { costo: String(Math.round(p.importo / RICARICO_PREZZARIO * 100) / 100) };
+}
+
+const NUMERO_CAPITOLO = /^(\d{2}) /;
+/** Le voci della sicurezza nascono in fondo: si mettono nel loro capitolo, così la numerazione non salta. */
+function inOrdineDiCapitoloVoci<T extends { capitolo: string }>(voci: T[]): T[] {
+  if (!voci.some((v) => NUMERO_CAPITOLO.test(v.capitolo))) return voci;
+  const numero = (v: T) => Number(NUMERO_CAPITOLO.exec(v.capitolo)?.[1] ?? 100);
+  return voci.map((v, i) => ({ v, i })).sort((a, b) => numero(a.v) - numero(b.v) || a.i - b.i).map(({ v }) => v);
+}
+
+/** Ordine stabile: prima i capitoli numerati, per numero; gli altri dopo, come sono arrivati. */
+function inOrdineDiCapitolo(righe: RigaStudio[]): RigaStudio[] {
+  if (!righe.some((r) => NUMERO_CAPITOLO.test(r.gruppo))) return righe;
+  const numero = (r: RigaStudio) => Number(NUMERO_CAPITOLO.exec(r.gruppo)?.[1] ?? 100);
+  return righe.map((r, i) => ({ r, i })).sort((a, b) => numero(a.r) - numero(b.r) || a.i - b.i).map(({ r }) => r);
+}
+
 export function computoStudio(fonte: FonteStudio, titolo: string, righe: RigaStudio[], verificheAperte = true): BozzaComputo {
   return {
-    ...bozzaVuota(), titolo: titolo.slice(0,160), fontePlanimetria: fonte, mostraMisurePdf: true, mostraFontiPdf: true,
+    ...bozzaVuota(), titolo: titolo.slice(0,160), fontePlanimetria: fonte, mostraMisurePdf: true, mostraFontiPdf: true, mostraCodiciPdf: true,
     oggetto: `Computo preliminare · variante ${fonte.varianteId} · planimetria v${fonte.versione}${verificheAperte ? " · verifiche urbanistiche aperte" : ""}`,
-    voci: righe.map((r) => ({
+    // I capitoli numerati della nuova costruzione («01 Opere provvisionali» … «12 Sistemazioni
+    // esterne») escono nell'ordine del cantiere, non in quello in cui le righe sono nate (25/11/2026).
+    voci: inOrdineDiCapitoloVoci([...inOrdineDiCapitolo(righe).map((r) => ({
       ...voceVuota(), id:r.id, capitolo:r.gruppo, categoria:r.fase,
       descrizione:`${r.descrizione}\n${r.piano} · ${r.criterio}`,
       ...misuraRigaStudio(r),
       ...(r.prezzo ? { prezzo: String(r.prezzo.importo), fonte: r.prezzo.fonte, tariffa: r.prezzo.tariffa } : {}),
+      ...(r.prezzo ? costoStimato(r.prezzo) : {}),
+      ...(r.aParte ? { opzionale: true } : {}),
+      // Il ponteggio della parte S del prezzario è un costo della sicurezza: non soggetto a ribasso.
+      ...(eVoceDellaSicurezza(r.prezzo?.tariffa) ? { sicurezza: true } : {}),
       noteMisure:r.stimata ? "Quantità indicativa. Verifica le misure di riferimento." : "",
     })),
+      // Gli oneri della sicurezza della previsione (impianto di cantiere, dispositivi, coordinamento).
+      ...vociDellaSicurezza(righe, righe.some((r) => NUMERO_CAPITOLO.test(r.gruppo)) ? "01 Opere provvisionali" : "Oneri della sicurezza"),
+    ]),
   };
 }
 
@@ -506,7 +551,8 @@ export function computoStudioRevisionato(nuovo: BozzaComputo, precedente: BozzaC
         || calcolaVoce(p).quantita !== calcolaVoce(base).quantita);
       const nota = quantitaManuale ? NOTA_QUANTITA_RIPRESA : "";
       const prezzoNuovo = !!v.prezzo && (v.prezzo !== base.prezzo || v.fonte !== base.fonte || v.tariffa !== base.tariffa);
-      return {...v, ...(prezzoNuovo ? {} : { prezzo:p.prezzo, fonte:p.fonte, tariffa:p.tariffa }), costo:p.costo, sicurezza:p.sicurezza,
+      // Il costo della bozza di prima vale se qualcuno l'ha scritto a mano; se no resta quello stimato ora.
+      return {...v, ...(prezzoNuovo ? {} : { prezzo:p.prezzo, fonte:p.fonte, tariffa:p.tariffa }), costo:p.costo !== base.costo ? p.costo : v.costo, sicurezza:p.sicurezza,
         detrazione:p.detrazione, corpo:p.corpo, opzionale:p.opzionale, descrizione:p.descrizione===base.descrizione ? v.descrizione : p.descrizione,
         capitolo:p.capitolo===base.capitolo ? v.capitolo : p.capitolo, categoria:p.categoria===base.categoria ? v.categoria : p.categoria,
         ...(quantitaManuale ? {unita:p.unita,quantita:p.quantita,misure:p.misure,daQuantificare:p.daQuantificare} : {}),
@@ -514,4 +560,32 @@ export function computoStudioRevisionato(nuovo: BozzaComputo, precedente: BozzaC
     }),
     ...precedente.voci.filter(v=>!modello.has(v.id) && !ids.has(v.id)),
   ]};
+}
+
+/**
+ * Nuova costruzione (nuovaCostruzione.ts): le pareti di perimetro diventano tamponature con
+ * l'intonaco interno su una faccia sola (fuori c'è cappotto o intonaco esterno), ogni riga va
+ * nel suo capitolo del computo e si aggiungono scavi, fondazioni, strutture, solai, impianti
+ * ed esterni.
+ */
+function aggiungiNuovaCostruzione(doc: Planimetria, variante: string | null, righe: RigaStudio[]) {
+  const muriMq = new Map(righe.filter(r => r.riferimento?.tipo === "muro" && r.id === r.riferimento.id && r.quantita !== null && r.fase === "Murature")
+    .map(r => [`${r.livelloId}:${r.id}`, r.quantita!]));
+  const { righe: aggiunte, perimetro } = righeNuovaCostruzione(doc, variante, muriMq);
+  const portante = doc.costruzione?.struttura === "muratura_portante";
+  for (let i = 0; i < righe.length; i++) {
+    const r = righe[i];
+    if (r.riferimento?.tipo === "muro" && perimetro.get(r.livelloId)?.has(r.riferimento.id)) {
+      if (r.id === r.riferimento.id && r.fase === "Murature") {
+        righe[i] = { ...r, descrizione: portante ? "Nuova muratura portante di perimetro" : "Tamponatura esterna" };
+      } else if (/-(intonaco|tinteggiatura)$/.test(r.id) && r.quantita !== null) {
+        const intonaco = r.id.endsWith("-intonaco");
+        righe[i] = { ...r, quantita: arrotonda(r.quantita / 2), criterio: `Faccia interna: ${italiano(arrotonda(r.quantita / 2))} m²`,
+          descrizione: intonaco ? "Intonaco interno della parete di perimetro" : "Tinteggiatura interna della parete di perimetro" };
+      }
+    }
+    righe[i] = { ...righe[i], gruppo: capitoloRigaStudio(righe[i]) ?? righe[i].gruppo };
+  }
+  const esistenti = new Set(righe.map(r => r.id));
+  righe.push(...aggiunte.filter(r => !esistenti.has(r.id)));
 }

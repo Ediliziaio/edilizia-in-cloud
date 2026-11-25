@@ -37,7 +37,10 @@ import { ArticleCombobox, type ArticleTemplateData } from "./ArticleCombobox";
 import { caricaArticoliCatalogo } from "@/lib/listino/catalogoArticoli";
 import { caricaVociListino } from "@/lib/listino/vociListino";
 import { valoriArticoloAcquisto } from "@/lib/orders/articoloAcquisto";
-import { leggiDocumentoOda, propostaDaLettura } from "@/lib/orders/letturaOdaDocumento";
+import {
+  confrontoTotaleDocumento, fornitoreDaDocumento, leggiDocumentoOda, propostaDaLettura, type OrdineFornitoreLetto,
+} from "@/lib/orders/letturaOdaDocumento";
+import { invalidaFornitori } from "@/lib/suppliers/cacheFornitori";
 import { ACCEPT_DOCUMENTI_DDT, erroreDocumento } from "@/lib/ddt/preparaDocumento";
 import { caricaDocumentoOda, eliminaDocumentoOda, registraDocumentoOda } from "@/lib/orders/documentoOda";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
@@ -84,6 +87,9 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
   const [esitoLettura, setEsitoLettura] = useState<{ righe: number; abbinate: number; fornitoreLetto: string | null; fornitoreTrovato: boolean; avvisi: string[]; errore?: string } | null>(null);
   // Cambia a ogni lettura: le righe ripartono dai valori letti (i campi tengono il testo scritto).
   const [versione, setVersione] = useState(0);
+  // La lettura intera: serve al confronto dei totali e a creare il fornitore che non c'è.
+  const [documentoLetto, setDocumentoLetto] = useState<OrdineFornitoreLetto | null>(null);
+  const [creoFornitore, setCreoFornitore] = useState(false);
   const inputDocumento = useRef<HTMLInputElement>(null);
   // Una lettura che arriva dopo «Togli», un altro file o la chiusura non tocca più il popup.
   const letturaInCorso = useRef(0);
@@ -136,7 +142,7 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
     if (!v) {
       setOrigine(null); setFornitore(null); setModifiche({}); setLibere([]); setConsegna(""); setRiferimento(""); setNote("");
       setElenco(""); setElencoAperto(false);
-      setDocumento(null); setLettura("no"); setEsitoLettura(null); letturaInCorso.current++;
+      setDocumento(null); setLettura("no"); setEsitoLettura(null); setDocumentoLetto(null); letturaInCorso.current++;
     }
     onOpenChange(v);
   };
@@ -151,6 +157,7 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
     const turno = ++letturaInCorso.current;
     setLettura("leggo");
     setEsitoLettura(null);
+    setDocumentoLetto(null);
     try {
       const letto = await leggiDocumentoOda(file, companyId);
       if (turno !== letturaInCorso.current) return;
@@ -164,6 +171,7 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
       setLibere((rr) => [...rr.filter((r) => !r.key.startsWith("doc:")), ...nuove]);
       setContatore((c) => c + nuove.length);
       setVersione((v) => v + 1);
+      setDocumentoLetto(letto);
       setEsitoLettura({ righe: letto.righe.length, abbinate: p.abbinate, fornitoreLetto: p.fornitoreLetto, fornitoreTrovato: !!p.fornitore, avvisi: p.avvisi });
       setLettura("letto");
     } catch (e) {
@@ -182,8 +190,30 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
     void leggi(file);
   };
 
+  const aggiungiFornitore = async () => {
+    const nuovo = documentoLetto && companyId ? fornitoreDaDocumento(documentoLetto, companyId) : null;
+    if (!nuovo || creoFornitore) return;
+    setCreoFornitore(true);
+    try {
+      const { data, error } = await supabase.from("suppliers").insert(nuovo as never).select("id").single();
+      if (error) {
+        if (error.code === "42501") throw new Error(tr("Non hai il permesso di aggiungere fornitori: chiedi all'amministratore."));
+        throw error;
+      }
+      await invalidaFornitori(qc);
+      setFornitore(String((data as { id: string }).id));
+      setEsitoLettura((e) => (e ? { ...e, fornitoreTrovato: true } : e));
+      toast.success(tr("{nome} aggiunto ai fornitori", { nome: nuovo.name }), { description: tr("Completa la scheda (indirizzo, pagamento) dalla rubrica quando serve.") });
+    } catch (e) {
+      toast.error(tr("Fornitore non aggiunto"), { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setCreoFornitore(false);
+    }
+  };
+
   const errore = erroreNuovoOda({ fornitore, origine, righe });
   const totali = totaliNuovoOda(righe);
+  const confronto = documentoLetto ? confrontoTotaleDocumento(documentoLetto, totali) : null;
   const quante = righeInOrdine(righe).length;
 
   const crea = async () => {
@@ -321,7 +351,7 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
                   <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                   <span className="truncate">{documento.name}</span>
                   <button type="button" className="ml-auto text-xs text-muted-foreground underline" disabled={lettura === "leggo"}
-                    onClick={() => { setDocumento(null); setLettura("no"); setEsitoLettura(null); letturaInCorso.current++; }}>{tr("Togli")}</button>
+                    onClick={() => { setDocumento(null); setLettura("no"); setEsitoLettura(null); setDocumentoLetto(null); letturaInCorso.current++; }}>{tr("Togli")}</button>
                 </p>
                 {lettura === "leggo" && <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> {tr("Leggo il documento…")}</p>}
                 {lettura === "errore" && esitoLettura?.errore && (
@@ -334,7 +364,15 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
                       {esitoLettura.abbinate > 0 ? tr(", {n} abbinate agli articoli della commessa", { n: esitoLettura.abbinate }) : ""}{tr(". Controlla i campi qui sotto.")}
                     </p>
                     {esitoLettura.fornitoreLetto && !esitoLettura.fornitoreTrovato && (
-                      <p className="text-amber-700">{tr("Fornitore sul documento: {nome}. Non l'ho trovato con certezza in rubrica: sceglilo dall'elenco.", { nome: esitoLettura.fornitoreLetto })}</p>
+                      <div className="flex flex-wrap items-center gap-2 text-amber-700">
+                        <span>{tr("Fornitore sul documento: {nome}. Non l'ho trovato con certezza in rubrica: sceglilo dall'elenco.", { nome: esitoLettura.fornitoreLetto })}</span>
+                        {documentoLetto?.fornitore.nome && (
+                          <Button type="button" size="sm" variant="outline" className="h-7" disabled={creoFornitore} onClick={() => void aggiungiFornitore()}>
+                            {creoFornitore ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Plus className="h-3.5 w-3.5 mr-1" />}
+                            {tr("Aggiungi ai fornitori")}
+                          </Button>
+                        )}
+                      </div>
                     )}
                     {esitoLettura.avvisi.map((a) => <p key={a} className="text-amber-700">{a}</p>)}
                   </div>
@@ -446,6 +484,16 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
             {tr("{imponibile} + IVA {iva} =", { imponibile: formatCurrency(totali.imponibile), iva: formatCurrency(totali.iva) })} <strong>{formatCurrency(totali.totale)}</strong>
           </span>
         </div>
+        {confronto && (
+          <p role="status" className={`text-xs ${confronto.torna ? "text-emerald-700" : "text-amber-700"}`}>
+            {confronto.torna
+              ? tr(confronto.voce === "imponibile" ? "L'imponibile torna con il documento ({importo})." : "Il totale torna con il documento ({importo}).", { importo: formatCurrency(confronto.documento) })
+              : tr(confronto.voce === "imponibile"
+                ? "Sul documento l'imponibile è {documento}, le righe fanno {righe}: controlla quantità, prezzi o righe mancanti."
+                : "Sul documento il totale è {documento}, le righe fanno {righe}: controlla quantità, prezzi o righe mancanti.",
+                { documento: formatCurrency(confronto.documento), righe: formatCurrency(confronto.righe) })}
+          </p>
+        )}
         {errore && (fornitore || origine || quante > 0) && <p role="alert" className="text-sm text-red-600">{errore}</p>}
 
         <DialogFooter>

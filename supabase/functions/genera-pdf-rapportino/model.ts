@@ -57,6 +57,22 @@ export interface PdfContext {
   modelloPdf?: import("../_shared/modelliPdfOperativi.ts").ModelloPdf;
   /** Sottofasi della commessa (id → nome e unità), per dire cosa è avanzato quel giorno. */
   subphases?: ReadonlyMap<string, SottofaseNota>;
+  /** Voci del viaggio (24/11/2026): solo luoghi, mezzo, DDT, km e ore — i prezzi non vanno nel PDF. */
+  viaggi?: RecordData[];
+}
+
+/** Una riga della tabella «Viaggi»: «—» dove manca un dato, i km e le ore all'italiana. */
+export function rigaViaggio(v: RecordData): [string, string, string, string, string] {
+  const d = record(v.viaggio);
+  const n = (x: unknown): string => { const k = number(x); return k == null ? "" : k.toLocaleString("it-IT", { maximumFractionDigits: 1 }); };
+  const ore = [n(d.oreUomo) && `${n(d.oreUomo)} h uomo`, n(d.oreMezzo) && `${n(d.oreMezzo)} h mezzo`].filter(Boolean).join(", ");
+  return [
+    [text(d.carico) || "—", text(d.scarico) || "—"].join(" → "),
+    text(d.mezzo) || "—",
+    text(d.ddt) || "—",
+    n(d.km) || "—",
+    ore || "—",
+  ];
 }
 export function reportSummary(report: RecordData) {
   const crew = rows(report.presenze);

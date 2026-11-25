@@ -125,3 +125,31 @@ describe("voci libere nel modulo dell'ufficio", () => {
     expect(giornoVuoto("2026-11-04", "h", { ...giorno, voci: [{ chiave: "a", descrizione: "X", quantita: "1", unita: "cad", costo: "", vendita: "" }] }).voci).toBeUndefined();
   });
 });
+
+describe("commessa dei trasporti (24/11/2026)", () => {
+  it("riconosce il nome, non le parole che lo contengono", async () => {
+    const { commessaDeiTrasporti } = await import("@/lib/campo/rapportiniUfficio");
+    for (const nome of ["TRASPORTI", "TRASPORTI E SMALTIMENTI", "TRASPORTI/SMALTIMENTI ATTIVI", "Trasporto materiale", "TRASPORTI C/T"]) expect(commessaDeiTrasporti(nome)).toBe(true);
+    for (const nome of ["Villa Rossi", "Trasportatori riuniti", "", null]) expect(commessaDeiTrasporti(nome)).toBe(false);
+  });
+  it("la voce del viaggio prende quella del catalogo, o «Trasporto» a viaggio", async () => {
+    const { voceViaggioNuova } = await import("@/lib/campo/rapportiniUfficio");
+    expect(voceViaggioNuova("k", [{ nome: "SERVIZIO GRU", unita: "cad", costo_unitario: 1, vendita_unitaria: 2 }, { nome: "TRASPORTI", unita: "cad", costo_unitario: 90.5, vendita_unitaria: null }]))
+      .toEqual({ chiave: "k", descrizione: "TRASPORTI", quantita: "1", unita: "cad", costo: "90,5", vendita: "", viaggio: {} });
+    expect(voceViaggioNuova("k")).toEqual({ chiave: "k", descrizione: "Trasporto", quantita: "1", unita: "viaggio", costo: "", vendita: "", viaggio: {} });
+  });
+});
+
+describe("senzaViaggiVuoti", () => {
+  it("toglie i viaggi ancora vuoti e lascia quelli compilati e le altre voci", async () => {
+    const { senzaViaggiVuoti } = await import("@/lib/campo/rapportiniUfficio");
+    const base = { chiave: "g", data: "2026-11-20", descrizione: "", fasi: [] as string[], percentuali: {}, sottofasi: {}, note: "" };
+    const vuoto = { chiave: "a", descrizione: "TRASPORTI", quantita: "1", unita: "cad", costo: "", vendita: "", viaggio: { carico: "  " } };
+    const pieno = { chiave: "b", descrizione: "TRASPORTI", quantita: "1", unita: "cad", costo: "", vendita: "", viaggio: { carico: "Maranello" } };
+    const altra = { chiave: "c", descrizione: "Nolo", quantita: "1", unita: "cad", costo: "", vendita: "" };
+    const g = { ...base, voci: [vuoto, pieno, altra] } as unknown as Parameters<typeof senzaViaggiVuoti>[0];
+    expect(senzaViaggiVuoti(g).voci?.map((v) => v.chiave)).toEqual(["b", "c"]);
+    const solo = { ...base, voci: [altra] } as unknown as Parameters<typeof senzaViaggiVuoti>[0];
+    expect(senzaViaggiVuoti(solo)).toBe(solo);
+  });
+});

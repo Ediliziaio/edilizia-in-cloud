@@ -177,6 +177,9 @@ it("vista IVA: il percorso guidato dice il passo da fare e porta dove si fa (23/
   apri("iva&iva=contabile");
   expect(await screen.findByRole("region", { name: "Percorso IVA 2026" })).toBeTruthy();
   expect(screen.getByText("Da fare adesso: Impostazioni IVA 2026")).toBeTruthy();
+  // Chiuso è una riga sola col passo da fare; i sei passi si aprono a richiesta (24/11/2026).
+  expect(screen.queryByText(/732 fatture ricevute sono senza data di ricezione SDI/)).toBeNull();
+  fireEvent.click(screen.getByText("Mostra i passi"));
   expect(screen.getByText(/732 fatture ricevute sono senza data di ricezione SDI/)).toBeTruthy();
   expect(screen.getByText(/1 emessa e 1 ricevuta col solo totale \(gennaio, luglio\)/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Compila" }));

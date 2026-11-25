@@ -7,6 +7,8 @@ const state = vi.hoisted(() => ({
   inserti: [] as Array<{ tabella: string; righe: unknown }>,
   caricati: [] as string[],
   letture: [] as Array<Record<string, unknown>>,
+  fornitoreLetto: { nome: "Edil Forniture S.r.l.", partita_iva: "IT01234567890", codice_fiscale: null as string | null },
+  imponibileLetto: 180 as number | null,
 }));
 // Il menu del listino (provato a parte) qui è un campo: scrivere = voce libera.
 vi.mock("@/components/orders/ArticleCombobox", () => ({
@@ -29,13 +31,13 @@ vi.mock("@/integrations/supabase/client", () => ({
       invoke: (nome: string, opz: { body: Record<string, unknown> }) => {
         state.letture.push({ nome, ...opz.body });
         return Promise.resolve({ error: null, data: { success: true, ordine: {
-          fornitore: { nome: "Edil Forniture S.r.l.", partita_iva: "IT01234567890", codice_fiscale: null },
+          fornitore: state.fornitoreLetto,
           numero: "ORD 145", data: "2026-11-20", consegna: "2026-12-03", pagamento: null,
           righe: [
             { codice: null, descrizione: "Mattoni forati", quantita: 180, unita: "pz", prezzo_unitario: 0.75, iva: 22 },
             { codice: null, descrizione: "Trasporto in cantiere", quantita: 1, unita: null, prezzo_unitario: 45, iva: 22 },
           ],
-          imponibile: 180, iva: 39.6, totale: 219.6, note: null, avvisi: [],
+          imponibile: state.imponibileLetto, iva: 39.6, totale: 219.6, note: null, avvisi: [],
         } } });
       },
     },
@@ -48,7 +50,7 @@ vi.mock("@/integrations/supabase/client", () => ({
       select: () => { const q = { eq: () => q, order: () => Promise.resolve({ data: [], error: null }) }; return q; },
       insert: (righe: unknown) => {
         state.inserti.push({ tabella, righe });
-        const fine = Promise.resolve({ data: tabella === "purchase_orders" ? { id: "po1", oda_number: "ODA-2026-050" } : null, error: null });
+        const fine = Promise.resolve({ data: tabella === "purchase_orders" ? { id: "po1", oda_number: "ODA-2026-050" } : tabella === "suppliers" ? { id: "s9" } : null, error: null });
         return { select: () => ({ single: () => fine }), then: (r: (v: unknown) => unknown) => fine.then(r) };
       },
     }),
@@ -78,7 +80,11 @@ function disegna(onOpenChange = vi.fn()) {
   return onOpenChange;
 }
 
-beforeEach(() => { state.inserti = []; state.caricati = []; state.letture = []; });
+beforeEach(() => {
+  state.inserti = []; state.caricati = []; state.letture = [];
+  state.fornitoreLetto = { nome: "Edil Forniture S.r.l.", partita_iva: "IT01234567890", codice_fiscale: null };
+  state.imponibileLetto = 180;
+});
 
 describe("Nuovo ordine d'acquisto dalla commessa", () => {
   it("mostra gli articoli da comprare e non crea finché mancano come e a chi", () => {
@@ -162,5 +168,28 @@ describe("Nuovo ordine d'acquisto dalla commessa", () => {
     ]);
     const allegato = state.inserti.find((i) => i.tabella === "order_attachments")!.righe as Record<string, unknown>;
     expect(allegato).toMatchObject({ order_id: "o1", file_url: state.caricati[0], access_scope: "costi", file_name: "ordine firmato.pdf", visible_to_customer: false });
+  });
+
+  it("dice se le righe tornano col totale del documento, mentre si correggono", async () => {
+    disegna();
+    fireEvent.click(screen.getByRole("button", { name: /Su documento/ }));
+    fireEvent.change(screen.getByLabelText("File del documento d'ordine"), { target: { files: [new File(["%PDF"], "o.pdf", { type: "application/pdf" })] } });
+    // 180 × 0,75 + 45 = 180: torna.
+    await waitFor(() => expect(screen.getByText(/L'imponibile torna con il documento/)).toBeInTheDocument());
+    fireEvent.change(screen.getByRole("textbox", { name: "Quantità di Mattoni forati" }), { target: { value: "100" } });
+    expect(screen.getByText(/Sul documento l'imponibile è .*180,00.*le righe fanno .*120,00/)).toBeInTheDocument();
+  });
+
+  it("un fornitore che non è in rubrica si aggiunge dal documento e si sceglie da solo", async () => {
+    state.fornitoreLetto = { nome: "Ferramenta Nuova S.r.l.", partita_iva: "IT05555555555", codice_fiscale: null };
+    disegna();
+    fireEvent.click(screen.getByRole("button", { name: /Su documento/ }));
+    fireEvent.change(screen.getByLabelText("File del documento d'ordine"), { target: { files: [new File(["%PDF"], "o.pdf", { type: "application/pdf" })] } });
+    await waitFor(() => expect(screen.getByText(/Fornitore sul documento: Ferramenta Nuova/)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /Aggiungi ai fornitori/ }));
+    await waitFor(() => expect(screen.queryByText(/Fornitore sul documento: Ferramenta Nuova/)).not.toBeInTheDocument());
+    expect(state.inserti.find((i) => i.tabella === "suppliers")!.righe).toEqual({
+      company_id: "co", name: "Ferramenta Nuova S.r.l.", vat_number: "05555555555", fiscal_code: null,
+    });
   });
 });

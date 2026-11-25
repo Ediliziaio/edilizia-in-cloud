@@ -21,6 +21,8 @@ import { AccessiProposta } from "./AccessiProposta";
 import { AnalisiProgettoPlanimetria } from "./AnalisiProgettoPlanimetria";
 import type { SegnalazioneProgetto } from "@/lib/planimetrie/analisiProgetto";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { GuidaProgetto } from "./GuidaProgetto";
+import type { DestinazioneGuida } from "@/lib/planimetrie/guidaProgetto";
 
 const ESEMPI = [
   {etichetta:"Controlla la superficie",testo:"Qual è la superficie ricostruita della stanza? Confrontala con la misura scritta sul DWG, se c’è."},
@@ -53,10 +55,12 @@ const TUTTA_LA_CASA = "__tutto_il_piano";
  * domande sul progetto e le finiture. Le modifiche, da qualunque strada arrivino, si vedono
  * prima in anteprima con il costo e si salvano come variante. Vedi `chatUnicaPlanimetria.ts`.
  */
-export function SilvioPlanimetria({ documento, selezione, locali, companyId, puoScrivere, bozza, mostraPrima, salvataggio, erroreSalvataggio, analisi, onAnalisi, onEsodo, onRiscontro, evidenziata, onMostraSegnalazione, onSeleziona, onAnteprima, onSalva, onChiudi, onVaiAllaCorrente, gruppoIniziale, onGruppo, onVista3D, muroId }: {
+export function SilvioPlanimetria({ documento, selezione, locali, companyId, puoScrivere, bozza, mostraPrima, salvataggio, erroreSalvataggio, analisi, onAnalisi, onEsodo, onRiscontro, evidenziata, onMostraSegnalazione, onSeleziona, onAnteprima, onSalva, onChiudi, onVaiAllaCorrente, gruppoIniziale, onGruppo, onVista3D, muroId, onGuida }: {
   documento: Planimetria; selezione: AmbitoChatProgetto; locali: Locale[]; companyId: string; puoScrivere: boolean;
   bozza: AnteprimaChatProgetto | null; salvataggio: boolean; erroreSalvataggio?: string;
   mostraPrima: boolean;
+  /** La guida dopo il DWG: dove portare l'utente quando sceglie un'azione. Senza, la guida non c'è. */
+  onGuida?: (verso: DestinazioneGuida) => void;
   analisi: boolean; onAnalisi: (aperta: boolean) => void;
   onEsodo?: () => void;
   onRiscontro?: React.ComponentProps<typeof AnalisiProgettoPlanimetria>["onRiscontro"];
@@ -321,6 +325,7 @@ export function SilvioPlanimetria({ documento, selezione, locali, companyId, puo
     </div> : <>
       <div role="log" aria-label={t("Conversazione con Silvio")} className="min-h-32 flex-1 space-y-3 overflow-auto px-4 py-4 lg:max-h-[315px]">
         {messaggi.length===0 && <div className="space-y-3">
+          {onGuida && <GuidaProgetto documento={documento} ambito={selezione.ambito} onVai={onGuida} />}
           <p className="text-sm leading-relaxed text-muted-foreground">{quanti>1 ? t("Indica quali ambienti vuoi modificare o chiedi una modifica per tutti.") : contesto ? t("Chiedi una misura, scrivi una modifica al disegno o proponi una finitura per l’ambiente selezionato.") : locali.length ? t("Scrivi una modifica al disegno («Porta tra cucina e soggiorno da 80 cm») o una domanda sul progetto.") : t("Traccia le stanze nell’editor per usare la chat.")}</p>
           {esempi.length>0 && <div className="flex flex-wrap gap-1.5">{esempi.map(e=><button type="button" key={e.etichetta} onClick={()=>setRichiesta(e.testo)}
             className="rounded-md border bg-background px-2 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted">

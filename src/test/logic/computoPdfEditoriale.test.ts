@@ -42,14 +42,14 @@ describe("computo editoriale completo", () => {
   it("nasconde gli unitari senza perdere gli importi e le misure", async () => {
     const b = computoCompletoDimostrativo();
     const doc = await generaComputoPdf(vociDaBozza(b), { titolo: b.titolo, impaginazione: "editoriale", mostraPrezziUnitari: false, dettaglioMisure: true });
-    expect(doc.output()).not.toContain("PREZZO UNITARIO");
-    expect(doc.output()).toContain("IMPORTO VOCE"); expect(doc.output()).toContain("Formula:");
+    expect(doc.output()).not.toContain("(PREZZO ");
+    expect(doc.output()).toContain("(IMPORTO "); expect(doc.output()).toContain("Formula:");
     expect(doc.output()).toContain("TOTALE IMPONIBILE");
   });
   it("esclude codici, fonti e importi solo dalla presentazione", async () => {
     const b = computoCompletoDimostrativo(), voci = vociDaBozza(b), prima = JSON.stringify(voci);
     const doc = await generaComputoPdf(voci, { titolo: b.titolo, impaginazione: "editoriale", mostraCodici: false, mostraFonti: false, mostraImporti: false, mostraPrezziUnitari: false, riferimentoPrezzi: "RIFERIMENTO_RISERVATO" });
-    for (const s of ["NP.13", "RIFERIMENTO_RISERVATO", "FONTI DELLE VOCI", "IMPORTO VOCE", "TOTALE IMPONIBILE", "PREZZO UNITARIO"]) expect(doc.output()).not.toContain(s);
+    for (const s of ["NP.13", "RIFERIMENTO_RISERVATO", "FONTI DELLE VOCI", "(IMPORTO ", "TOTALE IMPONIBILE", "(PREZZO "]) expect(doc.output()).not.toContain(s);
     expect(JSON.stringify(voci)).toBe(prima);
   });
   it("il riepilogo mostra solo i capitoli e un unico totale finale", async () => {
@@ -82,7 +82,7 @@ describe("computo editoriale completo", () => {
     const doc = await generaComputoPdf(vociDaBozza(bozza), { ...bozza, titolo: "Ristrutturazione - computo senza prezzi", azienda: "Edilizia in Cloud", indirizzoIntervento: bozza.indirizzo, impaginazione: "editoriale", dettaglioMisure: true, senzaPrezzi: true });
     const out = doc.output();
     expect(out).toContain("NP.13"); expect(out).toContain("Formula:");
-    expect(out).not.toContain("PREZZO UNITARIO"); expect(out).not.toContain("TOTALE IMPONIBILE"); expect(out).not.toContain("Riepilogo economico");
+    expect(out).not.toContain("(PREZZO "); expect(out).not.toContain("TOTALE IMPONIBILE"); expect(out).not.toContain("Riepilogo economico");
     if (process.env.COMPUTO_PDF_QA_OUTPUT) await writeFile("output/pdf/computo-ristrutturazione-senza-prezzi.pdf", Buffer.from(doc.output("arraybuffer")));
   });
   it("permette la presentazione sintetica senza eliminare le misure dai dati", async () => {
@@ -102,7 +102,7 @@ describe("computo editoriale completo", () => {
       const doc = await generaComputoPdf(voci, { ...b, azienda: "Edilizia in Cloud", indirizzoIntervento: b.indirizzo, impaginazione: "editoriale",
         mostraPrezziUnitari: opzioni.mostraPrezziUnitariPdf, mostraImporti: opzioni.mostraImportiPdf, mostraCodici: opzioni.mostraCodiciPdf, mostraFonti: opzioni.mostraFontiPdf,
         dettaglioMisure: opzioni.mostraMisurePdf, senzaPrezzi: variant === "senza-prezzi", soloRiepilogo: variant === "riepilogo", parziale: "RIPRODUZIONE DA VERIFICARE: dati mancanti e incongruenze presenti nella fonte. Totale parziale ricalcolato, non un'offerta." });
-      if (variant === "senza-prezzi") expect(doc.output()).not.toContain("PREZZO UNITARIO");
+      if (variant === "senza-prezzi") expect(doc.output()).not.toContain("(PREZZO ");
       if (variant === "riepilogo") expect(doc.output()).not.toContain("MISURAZIONI");
       await writeFile(`output/pdf/giulia-replica-${variant}.pdf`, Buffer.from(doc.output("arraybuffer")));
     }

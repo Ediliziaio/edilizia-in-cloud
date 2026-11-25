@@ -83,6 +83,8 @@ export interface IntestazioneComputo extends ImpostazioniIvaComputo {
    */
   impaginazione?: "editoriale" | "primus" | "elenco-prezzi";
   dettaglioMisure?: boolean;
+  /** Computo nato dalla pianta: nel documento una voce per lavorazione e piano, con le righe di misura (accorpaVoci.ts). */
+  accorpaPerLavorazione?: boolean;
   dataDocumento?: string;
   revisione?: string;
   tecnico?: string;
