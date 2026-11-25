@@ -103,7 +103,7 @@ function server(options: { companyId?: string | null; superAdmin?: boolean; emai
     const response = await handler!(new Request("https://example.test/functions/v1/platform-mcp", {
       method: "POST", headers: { "content-type": "application/json", ...(authenticated ? { "x-api-key": "eic_live_offline" } : {}) }, body: JSON.stringify(body),
     }));
-    return { status: response.status, body: await response.json() };
+    return { status: response.status, www: response.headers.get("www-authenticate"), body: await response.json() };
   };
   const call = (name: string, args: unknown = {}) => post({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } });
   return { post, call, calls, queries, logs };
@@ -144,7 +144,10 @@ describe("MCP protocol and schemas", () => {
 describe("MCP handler offline integration", () => {
   it("allows public discovery with OAuth metadata, but not unauthenticated invocation", async () => {
     const s = server();
-    expect((await s.post({ jsonrpc: "2.0", id: 1, method: "initialize" }, false)).status).toBe(200);
+    // Senza credenziali initialize chiede l'accesso: è dal 401 che Claude scopre dove registrarsi.
+    const avvio = await s.post({ jsonrpc: "2.0", id: 1, method: "initialize" }, false);
+    expect(avvio.status).toBe(401);
+    expect(avvio.www).toContain('resource_metadata="https://example.test/functions/v1/platform-mcp/.well-known/oauth-protected-resource"');
     const listing = await s.post({ jsonrpc: "2.0", id: 2, method: "tools/list" }, false);
     expect(listing.body.result.tools).toHaveLength(98); // +3 commesse generali (tappa 7), +40 preventivi, fatture, rapportini, fasi, posta, WhatsApp, calendario e file (25/11/2026)
     for (const tool of listing.body.result.tools) expect(tool.securitySchemes).toEqual([{ type: "oauth2", scopes: [] }]);

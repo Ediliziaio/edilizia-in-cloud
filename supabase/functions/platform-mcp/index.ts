@@ -849,15 +849,14 @@ Deno.serve(async (req) => {
   const id = Object.hasOwn(msg, "id") ? msg.id : undefined;
   const params = (msg.params ?? {}) as Json;
 
-  // Discovery is public; only invoking tools requires authorization.
+  // Senza credenziali: l'elenco degli strumenti resta consultabile (ChatGPT lo legge per
+  // registrarli), ma l'avvio della sessione chiede l'accesso. Il 401 con WWW-Authenticate porta
+  // l'indirizzo dei metadati OAuth di QUESTA funzione: è la strada che usano Claude e gli altri
+  // client. Fino al 25/11/2026 initialize rispondeva 200, Claude concludeva «nessun accesso»,
+  // cercava i metadati alla radice del dominio Supabase (che rifiuta senza apikey) e la
+  // registrazione del client falliva («Registrazione presso il servizio di accesso non riuscita»).
   if (!req.headers.get("authorization") && !req.headers.get("x-api-key")) {
-    if (method === "initialize") {
-      const requested = params.protocolVersion as string | undefined;
-      return new Response(JSON.stringify(rpcResult(id, {
-        protocolVersion: requested && SUPPORTED_PROTOCOL_VERSIONS.includes(requested) ? requested : LATEST_PROTOCOL,
-        capabilities: { tools: { listChanged: false } }, serverInfo: SERVER_INFO, instructions: SERVER_INSTRUCTIONS,
-      })), { headers: jsonHeaders });
-    }
+    if (method === "initialize") return sfidaOAuth("Collega l'assistente: serve l'accesso a Edilizia in Cloud.", cors, null);
     if (method === "ping") return new Response(JSON.stringify(rpcResult(id, {})), { headers: jsonHeaders });
     if (method.startsWith("notifications/") && id === undefined) return new Response(null, { status: 202, headers: cors });
     // Gli strumenti dell'area superadmin si vedono solo dopo il collegamento.
