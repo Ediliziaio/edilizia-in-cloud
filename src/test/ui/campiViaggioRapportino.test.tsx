@@ -9,7 +9,8 @@ vi.mock("@/hooks/useMezzi", () => ({ useMezzi: () => ({ data: [
 ] }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => {
   const q: Record<string, unknown> = {};
-  Object.assign(q, { select: () => q, eq: () => q, maybeSingle: async () => ({ data: { order_code: "25000050", work_address: "Via Roma 1, Castano" }, error: null }) });
+  const commessa = async (): Promise<{ data: unknown; error: null }> => ({ data: { order_code: "25000050", work_address: "Via Roma 1, Castano" }, error: null });
+  Object.assign(q, { select: (): unknown => q, eq: (): unknown => q, maybeSingle: commessa });
   return q;
 } } }));
 
