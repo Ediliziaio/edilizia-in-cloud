@@ -107,7 +107,7 @@ export function SaluteCommerciale(props: Props) {
 
   const score = calcScore(props);
   const config = getScoreConfig(score);
-  const radius = 52;
+  const radius = 40;
   const circumference = 2 * Math.PI * radius;
   const dashOffset = circumference - (score / 100) * circumference;
 
@@ -116,14 +116,14 @@ export function SaluteCommerciale(props: Props) {
       <div className="flex items-center gap-3 sm:gap-6 flex-wrap sm:flex-nowrap">
         {/* Gauge */}
         <div className="relative inline-flex items-center justify-center flex-shrink-0">
-          <svg width="136" height="136" className="-rotate-90">
-            <circle cx="68" cy="68" r={radius} fill="none" className={config.trackColor} strokeWidth="10" strokeLinecap="round" />
-            <circle cx="68" cy="68" r={radius} fill="none" className={config.ringColor} strokeWidth="10" strokeLinecap="round"
+          <svg width="104" height="104" className="-rotate-90">
+            <circle cx="52" cy="52" r={radius} fill="none" className={config.trackColor} strokeWidth="8" strokeLinecap="round" />
+            <circle cx="52" cy="52" r={radius} fill="none" className={config.ringColor} strokeWidth="8" strokeLinecap="round"
               strokeDasharray={circumference} strokeDashoffset={dashOffset}
               style={{ transition: "stroke-dashoffset 1s ease-out" }} />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className={cn("text-3xl font-bold tabular-nums", config.color)}>{score}</span>
+            <span className={cn("text-xl font-bold tabular-nums", config.color)}>{score}</span>
             <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">/100</span>
           </div>
         </div>

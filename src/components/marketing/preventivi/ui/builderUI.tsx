@@ -518,16 +518,12 @@ export function QuoteHubTabs({
   className,
 }: QuoteHubTabsProps) {
   const tr = useT();
+  // Pillole da 32px come le sezioni di Commesse (25/11/2026): prima linguette sottolineate
+  // alte 65px. Il conteggio resta dentro la pillola.
   return (
-    <div
-      className={cn(
-        "border-b border-slate-200 bg-white rounded-t-2xl max-sm:rounded-none max-sm:bg-transparent",
-        className,
-      )}
-    >
-      {/* Telefono: le schede dividono la riga, più basse e senza icone. */}
+    <div className={cn("rounded-xl border border-slate-200 bg-white p-1 shadow-sm", className)}>
       <nav
-        className="-mb-px flex gap-1 sm:gap-2 overflow-x-auto px-2 sm:px-3 max-sm:overflow-visible max-sm:px-0"
+        className="flex min-h-0 flex-wrap items-center gap-1 px-0.5"
         role="tablist"
         aria-label={tr("Sezioni preventivi")}
       >
@@ -541,20 +537,16 @@ export function QuoteHubTabs({
               aria-selected={isActive}
               onClick={() => onSelect(t.key)}
               className={cn(
-                // v8.6.67 — `shrink-0` evita che il flex parent comprima il button:
-                // senza, il testo della label tracimava fuori bound del button
-                // e si sovrapponeva alle tab adiacenti su mobile.
-                "relative flex shrink-0 items-center gap-1.5 px-3 sm:px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-[3px] -mb-px",
-                "tap-compact max-sm:flex-1 max-sm:justify-center max-sm:py-2 max-sm:text-xs",
+                "tap-compact relative flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-medium whitespace-nowrap transition-all",
                 isActive
-                  ? "border-orange-500 text-slate-900 font-semibold"
-                  : "border-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-50",
+                  ? "bg-orange-50 text-slate-950 font-semibold shadow-sm ring-1 ring-orange-100"
+                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
               )}
             >
               {t.icon && (
                 <span
                   className={cn(
-                    "h-4 w-4 shrink-0 max-sm:hidden",
+                    "flex h-4 w-4 shrink-0 items-center justify-center",
                     isActive ? "text-orange-500" : "text-slate-400",
                   )}
                 >

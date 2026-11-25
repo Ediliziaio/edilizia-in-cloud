@@ -64,7 +64,7 @@ const EmailMarketing = () => {
           c'erano un riquadro sfumato, l'icona e un sottotitolo che ripeteva
           le schede qui sotto. */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground max-sm:text-lg">{t("Email Marketing")}</h1>
+        <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground max-sm:text-lg">{t("Email Marketing")}</h1>
         <p className="text-[11px] text-muted-foreground sm:hidden">{t("le campagne si creano da computer o tablet")}</p>
       </div>
 

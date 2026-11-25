@@ -486,7 +486,7 @@ export default function MarketingDashboard() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-100 max-sm:hidden">{tr("Quadro commerciale")}</p>
-                    <h2 className="mt-1 text-xl font-semibold text-white max-sm:mt-0 max-sm:text-base">{executiveState.title}</h2>
+                    <h2 className="mt-1 text-lg font-semibold text-white max-sm:mt-0 max-sm:text-base">{executiveState.title}</h2>
                     <p className="mt-1 max-w-2xl text-sm leading-6 text-blue-50/85 max-sm:hidden">{executiveState.detail}</p>
                   </div>
                 </div>
@@ -521,7 +521,7 @@ export default function MarketingDashboard() {
                         </span>
                         <span className="min-w-0">
                           <span className="block truncate text-[11px] font-semibold uppercase tracking-wide text-blue-100 max-sm:font-medium max-sm:normal-case max-sm:tracking-normal">{item.label}</span>
-                          <span className="block truncate text-xl font-bold text-white max-sm:text-base">{item.value}</span>
+                          <span className="block truncate text-lg font-bold text-white max-sm:text-base">{item.value}</span>
                           <span className="mt-0.5 flex min-w-0 items-center gap-1.5">
                             <PillolaVariazione pct={item.variazione} suScuro titolo={tr("Rispetto al periodo precedente")} className="shrink-0" />
                             <span className="block truncate text-xs text-blue-50/70 max-sm:hidden">{item.hint}</span>
