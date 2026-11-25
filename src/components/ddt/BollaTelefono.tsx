@@ -36,7 +36,7 @@ import {
   type DocumentoPersistente,
 } from "@/lib/ddt/documentiPersistenti";
 import { leggiDDTdaAI, quantitaTotale } from "@/lib/ddt/letturaAI";
-import { completaLetturaConTelefono, type RiferimentiTelefono } from "@/lib/ddt/riferimentiTelefono";
+import { completaLetturaConTelefono, righeTelefonoValide, type RiferimentiTelefono } from "@/lib/ddt/riferimentiTelefono";
 import { abbinaFornitore, type FornitoreInRubrica } from "@/lib/ddt/abbinaFornitore";
 import type { TestataBolla } from "@/lib/ddt/righeBolla";
 import {
@@ -116,7 +116,11 @@ export function RevisioneBollaTelefono({
         if (error || !data) throw new Error("Originale non disponibile: riprova");
         files.push(new File([data], f.prepared_name ?? f.name, { type: f.prepared_mime ?? f.mime }));
       }
-      return { files, result: job.result ?? {}, riferimenti: job.files[0]?.riferimenti_telefono };
+      return {
+        files, result: job.result ?? {},
+        riferimenti: job.files[0]?.riferimenti_telefono,
+        righeTelefono: job.files[0]?.righe_telefono,
+      };
     },
   });
   // Quello che l'AI ha letto è il punto di partenza; le correzioni stanno sopra.
@@ -140,6 +144,9 @@ export function RevisioneBollaTelefono({
   const testata = iniziale ? { ...iniziale.testata, ...correzioni } : null;
   const righe = righeCorrette ?? iniziale?.righe ?? [];
   const fornitoreLetto = iniziale?.fornitoreLetto ?? null;
+  // 25/11/2026 — Una lettura su otto perdeva una riga di merce senza dirlo (warnings vuoto,
+  // confidenza 0,95). Il telefono aveva già contato le righe sul foglio: se sono di più, si avvisa.
+  const righeTelefono = righeTelefonoValide(caricamento.data?.righeTelefono);
   const [carica, setCarica] = useState(true);
   const [salvando, setSalvando] = useState(false);
 
@@ -207,6 +214,9 @@ export function RevisioneBollaTelefono({
       onRigheChange={setRighe}
       fornitoreLetto={testata.supplierId ? null : fornitoreLetto}
       commessaFissa={etichettaCantiere}
+      avvisi={righeTelefono && righe.length < righeTelefono
+        ? [t("Sul foglio si vedevano {viste} righe di merce, qui ce ne sono {lette}: controlla che non ne manchi una.", { viste: righeTelefono, lette: righe.length })]
+        : []}
       stato={
         <>
           <p className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { leggiDDTdaAI } from "@/lib/ddt/letturaAI";
-import { completaLetturaConTelefono, proponiRiferimentiTelefono, riferimentiTelefonoValidi } from "@/lib/ddt/riferimentiTelefono";
+import { completaLetturaConTelefono, contaRigheArticolo, proponiRiferimentiTelefono, riferimentiTelefonoValidi, righeTelefonoValide } from "@/lib/ddt/riferimentiTelefono";
 
 describe("Riferimenti DDT letti sul telefono", () => {
   it("mantiene zeri iniziali e sezionale, riconosce l'emissione e distingue mittente e destinatario", () => {
@@ -60,6 +60,34 @@ describe("Riferimenti DDT letti sul telefono", () => {
       "CONDIZIONI GENERALI DI VENDITA\nFirma del destinatario ______________",
       "DELIVERY NOTE No. DN-2026-8841\nDate: 2026-11-20\nShipper: NORDIC TOOLS AB",
     ]) expect(proponiRiferimentiTelefono([pagina])).toEqual({});
+  });
+
+  it("conta le righe di merce viste sul foglio, e nel dubbio ne conta meno", () => {
+    const corpo = `Cod.      Descrizione                               U.M.    Q.ta
+CLS2530   Calcestruzzo C25/30 S4 consistenza         m3      12,00
+RET20     Rete elettrosaldata 20x20 fi 8 - 2x3 m     pz      40,00
+VTE440    Vite TSP autofilettante 4x40 zincata       pz     500,00
+TAS08     Tassello nylon 8 mm con vite               pz     250,00
+Colli: 6        Peso lordo kg: 31.250        Porto: franco`;
+    expect(contaRigheArticolo([corpo])).toBe(4);
+    // Intestazione, indirizzi, totali e retro della bolla non sono merce.
+    expect(contaRigheArticolo([
+      "FERRAMENTA ROSSI S.R.L.\nVia Industria 14 - 20090 Segrate (MI)\nP.IVA 02345678901 - Tel. 02 1234567\nDOCUMENTO DI TRASPORTO N. 1234/26 del 20/11/2026\nMittente: FERRAMENTA ROSSI S.R.L.",
+      "CONDIZIONI GENERALI DI VENDITA\nIl reclamo entro 8 giorni dalla consegna.\nForo competente: Milano",
+    ])).toBe(0);
+    expect(contaRigheArticolo([`Cod  Descrizione            UM   Qta    Prezzo   Importo
+0012  Vite TSP 4x40          PZ    500     0,04     20,00
+0318  Tassello nylon 8mm     PZ    250     0,12     30,00
+Imponibile 50,00   IVA 22% 11,00   Totale documento 61,00`])).toBe(2);
+    // Senza unità di misura non si conta: meglio nessun avviso che un avviso falso.
+    expect(contaRigheArticolo(["Cod  Descrizione                 Qta\nA100  Nolo gru a torre             1"])).toBe(0);
+  });
+
+  it("riconosce solo un conteggio plausibile riletto dalla coda", () => {
+    expect(righeTelefonoValide(4)).toBe(4);
+    for (const sbagliato of [0, -1, 2.5, 201, "4", null, undefined, NaN]) {
+      expect(righeTelefonoValide(sbagliato)).toBeUndefined();
+    }
   });
 
   it("completa i campi mancanti senza sostituire i dati già letti o associare un nome a una partita IVA diversa", () => {

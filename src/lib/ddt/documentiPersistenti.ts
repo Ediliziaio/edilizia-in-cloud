@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { syncQueue } from "@/lib/campo/sync-queue";
-import { riferimentiTelefonoValidi, type RiferimentiTelefono } from "./riferimentiTelefono";
+import { riferimentiTelefonoValidi, righeTelefonoValide, type RiferimentiTelefono } from "./riferimentiTelefono";
 import {
   preparaDocumento,
   improntaDocumenti,
@@ -20,6 +20,8 @@ export interface FileDocumento {
   bucket?: string;
   /** Nella prima pagina, solo i riferimenti che l'operatore ha confermato. */
   riferimenti_telefono?: RiferimentiTelefono;
+  /** Quante righe di merce si vedevano nel testo letto dal telefono. */
+  righe_telefono?: number;
 }
 export interface DocumentoPersistente {
   id: string;
@@ -93,6 +95,7 @@ export async function inviaDocumentoPersistente(input: {
   operationId?: string;
   salvaCopiaLocale?: boolean;
   riferimentiTelefono?: unknown;
+  righeTelefono?: unknown;
 }): Promise<{ id: string | null; duplicate: boolean }> {
   const { files, companyId, userId, orderId, source } = input;
   if (!companyId || !userId) throw new Error("Accedi per salvare il documento");
@@ -104,6 +107,8 @@ export async function inviaDocumentoPersistente(input: {
   const erroreFormato = files.map(erroreDocumento).find(Boolean);
   if (erroreFormato) throw new Error(erroreFormato);
   const riferimenti = source === "campo" ? riferimentiTelefonoValidi(input.riferimentiTelefono) : undefined;
+  // Il conteggio non lo conferma nessuno: è una misura, e parte anche senza i riferimenti.
+  const righeTelefono = source === "campo" ? righeTelefonoValide(input.righeTelefono) : undefined;
   // Anche il desktop conserva la ripresa PRIMA della rete. Il processore offline
   // richiama questa funzione senza salvaCopiaLocale, evitando di ricreare la coda.
   const copiaLocale = input.salvaCopiaLocale
@@ -121,6 +126,7 @@ export async function inviaDocumentoPersistente(input: {
           destinazione: input.destinazione ?? null,
           warehouse_id: input.warehouseId ?? null,
           ...(riferimenti && { riferimenti_telefono: riferimenti }),
+          ...(righeTelefono && { righe_telefono: righeTelefono }),
         },
       })
     : null;
@@ -162,6 +168,7 @@ export async function inviaDocumentoPersistente(input: {
       mime: tipoOriginale,
       size: originale.size,
       ...(i === 0 && riferimenti && { riferimenti_telefono: riferimenti }),
+      ...(i === 0 && righeTelefono && { righe_telefono: righeTelefono }),
     };
     // Il server sa convertire HEIC: un browser che fallisce la conversione non perde l'originale.
     const { lettura } = await preparaDocumento(originale).catch(() => ({

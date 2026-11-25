@@ -127,3 +127,48 @@ it("l'operaio ha mandato in magazzino senza commessa: la destinazione del docume
     p_dati: expect.objectContaining({ destinazione: "magazzino", warehouse_id: "w-predefinito" }),
   })));
 });
+
+it("l'AI ha reso meno righe di quelle che il telefono vedeva sul foglio: lo dice invece di far passare una bolla monca", async () => {
+  m.leggi.mockResolvedValue({
+    files: [{ path: "p", name: "b.jpg", mime: "image/jpeg", size: 1, righe_telefono: 4 }],
+    result: {
+      intestazione: { numero_ddt: "4471/26", data_ddt: "2026-11-24" },
+      mittente: { ragione_sociale: "Edil Srl", partita_iva: "01234567890" },
+      righe_merce: [
+        { codice_articolo: "RET20", descrizione: "Rete elettrosaldata", unita_misura: "pz", quantita: 40 },
+        { codice_articolo: "VTE440", descrizione: "Vite TSP", unita_misura: "pz", quantita: 500 },
+        { codice_articolo: "TAS08", descrizione: "Tassello nylon", unita_misura: "pz", quantita: 250 },
+      ],
+    },
+  });
+  conClient(
+    <RevisioneBollaTelefono
+      documento={{ id: "j4", company_id: "c", order_id: "o1", status: "review", files: [], created_by: "u", source: "campo", result: null, last_error: null, ddt_id: null, created_at: "", updated_at: "x" }}
+      etichettaCantiere="SIM-1 · Via Roma"
+      onChiudi={vi.fn()}
+    />,
+  );
+  expect(await screen.findByText(/si vedevano 4 righe di merce, qui ce ne sono 3/)).toBeInTheDocument();
+  // Aggiunta la riga che mancava, l'avviso sparisce da solo.
+  fireEvent.click(screen.getByRole("button", { name: "Aggiungi riga" }));
+  await waitFor(() => expect(screen.queryByText(/si vedevano 4 righe/)).not.toBeInTheDocument());
+});
+
+it("l'AI ha letto tutte le righe che il telefono vedeva: nessun avviso", async () => {
+  m.leggi.mockResolvedValue({
+    files: [{ path: "p", name: "b.jpg", mime: "image/jpeg", size: 1, righe_telefono: 1 }],
+    result: {
+      intestazione: { numero_ddt: "9", data_ddt: "2026-11-24" },
+      righe_merce: [{ codice_articolo: "A", descrizione: "Sabbia", unita_misura: "mc", quantita: 3 }],
+    },
+  });
+  conClient(
+    <RevisioneBollaTelefono
+      documento={{ id: "j5", company_id: "c", order_id: "o1", status: "review", files: [], created_by: "u", source: "campo", result: null, last_error: null, ddt_id: null, created_at: "", updated_at: "x" }}
+      etichettaCantiere="SIM-1 · Via Roma"
+      onChiudi={vi.fn()}
+    />,
+  );
+  expect(await screen.findByDisplayValue("Sabbia")).toBeInTheDocument();
+  expect(screen.queryByText(/righe di merce/)).not.toBeInTheDocument();
+});

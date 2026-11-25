@@ -116,3 +116,39 @@ export function completaLetturaConTelefono(lettura: LetturaDDT, valore: unknown)
     fornitoreNome: lettura.fornitoreNome ?? (lettura.fornitorePiva || lettura.fornitoreCodiceFiscale ? null : riferimenti.fornitore ?? null),
   };
 }
+
+/**
+ * Quante righe di merce si vedono nel testo che il telefono ha letto.
+ *
+ * Serve a un solo scopo: accorgersi che l'AI ne ha resa qualcuna in meno.
+ * Il 25/11/2026, su otto letture della stessa bolla, una ne ha restituite tre
+ * su quattro con `warnings` vuoto e confidenza 0,95: in ufficio arrivava una
+ * bolla che sembrava completa. Il conteggio è volutamente prudente — conta solo
+ * le righe che hanno insieme unità di misura e quantità — perché un avviso di
+ * troppo fa perdere fiducia a chi controlla, e perché l'avviso scatta solo
+ * quando il telefono ne ha viste PIÙ dell'AI, mai il contrario.
+ */
+const UNITA_RIGA = /(?:^|[\s|])(pz|nr|cad|m|ml|mq|mc|m2|m3|kg|ton|q(?:li)?|lt|l|cf|sc|rt|bc|bancal[ei]|pallet|ore|h)(?=[\s|]|$)/i;
+const QUANTITA_RIGA = /(?:^|[\s|])\d{1,3}(?:\.\d{3})*(?:,\d{1,3})?(?=[\s|]|$)/;
+const RIGA_NON_MERCE = /\b(?:cod(?:ice)?\b.*\bdescrizione|descrizione\b.*\bu\.?\s*m\.?|q\.?\s*t[aà]\b.*\bprezzo|colli|peso\s+(?:lordo|netto)|porto|totale|imponibile|iva\b|p\.?\s*iva|cod(?:ice)?\s+fiscale|tel\.?\b|e-?mail|causale|vettore|mittente|destinatario|luogo\s+di\s+consegna|data\s+(?:documento|ddt|trasporto|consegna)|firma|pagina|segue|cap\b)/i;
+
+/** Il conteggio riletto dalla coda o dall'archivio: un intero plausibile, o niente. */
+export function righeTelefonoValide(valore: unknown): number | undefined {
+  return typeof valore === "number" && Number.isInteger(valore) && valore > 0 && valore <= 200
+    ? valore
+    : undefined;
+}
+
+export function contaRigheArticolo(pagine: readonly string[]): number {
+  let righe = 0;
+  for (const testo of pagine) {
+    for (const grezza of testo.slice(0, 20000).normalize("NFKC").split(/\r?\n/)) {
+      const riga = grezza.trim();
+      if (riga.length < 8 || RIGA_NON_MERCE.test(riga)) continue;
+      // Una riga di merce ha una descrizione, un'unità di misura e una quantità.
+      if (!/\p{L}{3}/u.test(riga) || !UNITA_RIGA.test(riga) || !QUANTITA_RIGA.test(riga)) continue;
+      righe++;
+    }
+  }
+  return righe;
+}

@@ -12,7 +12,7 @@ import { AnteprimaFotoCampo } from "@/components/campo/AnteprimaFotoCampo";
 import { cantiereBolla } from "@/lib/campo/cantiereBolla";
 import { leggiByte } from "@/lib/files/leggiByte";
 import { leggiScansioneBolla, scannerBolleDisponibile, scansionaBolla } from "@/lib/mobile/scannerBolle";
-import { MAX_FORNITORE_DDT, MAX_NUMERO_DDT, proponiRiferimentiTelefono, riferimentiTelefonoValidi, type RiferimentiTelefono } from "@/lib/ddt/riferimentiTelefono";
+import { contaRigheArticolo, MAX_FORNITORE_DDT, MAX_NUMERO_DDT, proponiRiferimentiTelefono, riferimentiTelefonoValidi, type RiferimentiTelefono } from "@/lib/ddt/riferimentiTelefono";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Switch } from "@/components/ui/switch";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -201,9 +201,15 @@ export function CampoDDTEditor({ companyId, cantiereFisso }: { companyId?: strin
   const haScansione = files.some(f => testiPagine.has(f));
   const ocrInCorso = files.some(f => testiPagine.get(f) === null);
   // Quello che il telefono ha letto, con sopra le correzioni scritte a mano.
-  const letti = useMemo(
-    () => haScansione ? proponiRiferimentiTelefono(files.map(f => testiPagine.get(f) ?? "")) : {},
+  const testiLetti = useMemo(
+    () => haScansione ? files.map(f => testiPagine.get(f) ?? "") : [],
     [haScansione, files, testiPagine],
+  );
+  const letti = useMemo(() => haScansione ? proponiRiferimentiTelefono(testiLetti) : {}, [haScansione, testiLetti]);
+  // Quante righe di merce si vedevano: serve all'ufficio per accorgersi se l'AI ne perde una.
+  const righeLette = useMemo(
+    () => haScansione && !ocrInCorso ? contaRigheArticolo(testiLetti) || undefined : undefined,
+    [haScansione, ocrInCorso, testiLetti],
   );
   const riferimenti: RiferimentiTelefono = haScansione ? { ...letti, ...correzioni } : {};
   const riferimentiValidi = riferimentiTelefonoValidi(riferimenti);
@@ -368,7 +374,7 @@ export function CampoDDTEditor({ companyId, cantiereFisso }: { companyId?: strin
     return new File([foto], `${pagina.name.replace(/\.[^.]+$/, "")}.jpg`, { type: foto.type });
   });
 
-  const preparaInvio = async (pagine: File[], dati?: RiferimentiTelefono) => {
+  const preparaInvio = async (pagine: File[], dati?: RiferimentiTelefono, righe?: number) => {
     if (!user?.id || !companyId || !cantierePronto)
       throw new Error("Scegli prima il cantiere");
     return {
@@ -383,6 +389,7 @@ export function CampoDDTEditor({ companyId, cantiereFisso }: { companyId?: strin
         destinazione,
         source: "campo" as const,
         ...(dati && { riferimenti_telefono: dati }),
+        ...(righe && { righe_telefono: righe }),
       },
     };
   };
@@ -410,7 +417,7 @@ export function CampoDDTEditor({ companyId, cantiereFisso }: { companyId?: strin
         return;
       }
       // Prima IndexedDB, poi rete: la lettura AI non trattiene la pagina aperta.
-      const id = await syncQueue.enqueue(await preparaInvio(files, riferimentiConfermati));
+      const id = await syncQueue.enqueue(await preparaInvio(files, riferimentiConfermati, righeLette));
       svuotaBolla();
       // Chi può registrare rivede subito quello che l'AI ha letto.
       if (puoRegistrare && typeof id === "string") setAttesa(id);
