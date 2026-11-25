@@ -8,6 +8,13 @@
  *  - Lo stesso ruolo ha lo stesso nome: «Operatore», non «Utente».
  *  - Testi in italiano semplice; ogni interruttore ha un nome per il lettore di schermo.
  *  - Chi può solo guardare non trova interruttori accesi né «Salva permessi».
+ *
+ * 25/11/2026: l'editor è stato riscritto a due passi («1. Tipo di accesso»,
+ * «2. Autorizzazioni effettive») con il riquadro «Dati economici» e i pulsanti
+ * «Attiva/Disattiva tutti i moduli» e «Attiva il gruppo <nome>». Questi test
+ * cercavano ancora i nomi di prima («Ruolo», «Cosa può fare», «Nessuno»,
+ * «Tutti») ed erano rossi: aggiornati i nomi, le promesse controllate restano
+ * le stesse.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
@@ -61,7 +68,9 @@ describe("L'editor non mostra più gli interruttori che non facevano niente", ()
     expect(screen.getByRole("switch", { name: "Persone & Accessi" })).toBeInTheDocument();
   }, TIMEOUT);
 
-  it("«Nessuno» non azzera quello che la persona ha già: salvando, restano", () => {
+  // «Tutti»/«Nessuno» si chiamano «Attiva tutti i moduli» e «Disattiva tutti i moduli»
+  // (riscrittura dell'editor, 2026); il gruppo ha «Attiva il gruppo <nome>».
+  it("«Disattiva tutti i moduli» non azzera quello che la persona ha già: salvando, restano", () => {
     const onSave = vi.fn();
     render(
       <UserRolesPermissionsTab
@@ -69,7 +78,7 @@ describe("L'editor non mostra più gli interruttori che non facevano niente", ()
         onSave={onSave}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /^Nessuno$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Disattiva tutti i moduli" }));
     fireEvent.click(screen.getByRole("button", { name: "Salva permessi" }));
 
     expect(onSave).toHaveBeenCalledTimes(1);
@@ -81,20 +90,23 @@ describe("L'editor non mostra più gli interruttori che non facevano niente", ()
 });
 
 describe("Nomi e testi", () => {
-  it("il ruolo company_staff si chiama Operatore, e i titoli sono «Ruolo» e «Cosa può fare» (h3: il nome della persona è l'h2)", () => {
+  it("il ruolo company_staff si chiama Operatore, e i due passi sono «1. Tipo di accesso» e «2. Autorizzazioni effettive» (h3: «Accesso e autorizzazioni» è l'h2)", () => {
     render(<UserRolesPermissionsTab user={persona()} onSave={vi.fn()} />);
 
     expect(screen.getByRole("combobox", { name: "Ruolo principale" })).toHaveTextContent("Operatore");
     expect(screen.queryByText("Utente", { selector: "span" })).toBeNull();
-    expect(screen.getByRole("heading", { level: 3, name: "Ruolo" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 3, name: "Cosa può fare" })).toBeInTheDocument();
-    expect(screen.getByText("Ruolo principale")).toBeInTheDocument();
-    expect(screen.getByText("Permessi accesi")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Accesso e autorizzazioni" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: "1. Tipo di accesso" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: "2. Autorizzazioni effettive" })).toBeInTheDocument();
+    expect(screen.getByText("Accesso alla piattaforma")).toBeInTheDocument();
+    expect(screen.getByText("Moduli visibili")).toBeInTheDocument();
     expect(screen.getByText(/Accendi quello che deve vedere\. Dove c'è «Modifica» può anche cambiare i dati\./)).toBeInTheDocument();
     // Le vecchie diciture non ci sono più.
     expect(screen.queryByText(/Ruolo Utente|Ruolo primario|Autorizzazioni moduli|Totale attivi|Limita visibilità/)).toBeNull();
-    expect(screen.getByText("Solo i dati assegnati a lui")).toBeInTheDocument();
-    expect(screen.getByText("Vede solo commesse, attività e appuntamenti assegnati a lui.")).toBeInTheDocument();
+    // La restrizione del portafoglio sta nelle avanzate, col nome di adesso
+    // («Solo i dati assegnati a lui» è rimasto nella finestra di creazione).
+    expect(screen.getByText("Solo il portafoglio CRM assegnato")).toBeInTheDocument();
+    expect(screen.getByText(/Limita contatti, opportunità e attività commerciali/)).toBeInTheDocument();
   }, TIMEOUT);
 
   it("le descrizioni delle voci che promettevano il falso sono corrette", () => {
@@ -115,9 +127,10 @@ describe("Nomi e testi", () => {
     expect(descrizioneDi("Sicurezza & Privacy")).toMatch(/Accessi, registro attività e regole di sicurezza li vede solo l'amministratore/);
     expect(descrizioneDi("Esporta Clienti")).toMatch(/L'archivio completo \(Esporta i dati\) chiede anche «Sicurezza & Privacy»/);
     expect(screen.queryByRole("switch", { name: /Team & Utenti|Utenti & Team|Gestione Dipendenti/ })).toBeNull();
-    // «Costi» non ha una riga fra i gruppi: la sua spiegazione sta nelle avanzate, vicino al suo interruttore.
-    fireEvent.click(screen.getByRole("button", { name: /Avanzate/ }));
-    expect(screen.getByText(/In Impostazioni apre anche Prezzo e margini, Approvazioni, Categorie costi e Automazioni finanza/)).toBeInTheDocument();
+    // «Costi» non ha una riga fra i gruppi: sta nel riquadro «Dati economici», con
+    // la spiegazione accanto al suo interruttore (non più dentro «Avanzate»).
+    expect(descrizioneDi("Costi")).toMatch(/Costi aziendali e delle commesse, incluso il totale del personale/);
+    expect(descrizioneDi("Costi")).toMatch(/Le tariffe individuali richiedono anche l’accesso al personale/);
   }, TIMEOUT);
 
   it("ogni interruttore ha un nome e il nome si può toccare per muoverlo", () => {
@@ -175,11 +188,17 @@ describe("Sola lettura onesta: chi non è amministratore guarda e basta", () => 
     expect(screen.getByRole("combobox", { name: "Ruolo principale" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: /^Nessuno$|^Come /i })).toBeNull();
     expect(screen.queryByRole("button", { name: /Salva permessi/ })).toBeNull();
-    // I «Tutti» dei gruppi ci sono ma non si possono premere.
-    for (const tutti of screen.getAllByRole("button", { name: /^Tutti$/ })) expect(tutti).toBeDisabled();
+    // Gli «Attiva il gruppo …» ci sono ma non si possono premere, e i due pulsanti
+    // che accendono o spengono tutto non compaiono affatto.
+    const perGruppo = screen.getAllByRole("button", { name: /^Attiva il gruppo / });
+    expect(perGruppo.length).toBeGreaterThan(3);
+    for (const bottone of perGruppo) expect(bottone, bottone.getAttribute("aria-label") ?? "").toBeDisabled();
+    expect(screen.queryByRole("button", { name: /^(Attiva|Disattiva) tutti i moduli$/ })).toBeNull();
 
     // I gruppi si aprono comunque: serve a leggere cosa ha la persona.
-    const gruppoCantieri = screen.getByRole("button", { name: /Cantieri & Lavori/ });
+    // Il nome del gruppo porta con sé il conteggio («Cantieri & Lavori1/18»): così
+    // non si confonde con «Attiva il gruppo Cantieri & Lavori», che gli sta accanto.
+    const gruppoCantieri = screen.getByRole("button", { name: /^Cantieri & Lavori\s*\d+\s*\/\s*\d+$/ });
     fireEvent.click(gruppoCantieri);
     const ordini = screen.getByRole("switch", { name: "Ordini e Commesse" });
     expect(ordini).toHaveAttribute("aria-checked", "true");
@@ -188,8 +207,8 @@ describe("Sola lettura onesta: chi non è amministratore guarda e basta", () => 
     fireEvent.click(ordini);
     expect(ordini).toHaveAttribute("aria-checked", "true");
     expect(onSave).not.toHaveBeenCalled();
-    // Il pulsante «Spegni/Tutti» del gruppo non c'è da usare.
-    expect(within(gruppoCantieri.parentElement as HTMLElement).getByRole("button", { name: /Tutti|Spegni/ })).toBeDisabled();
+    // Il pulsante che accende il gruppo intero non c'è da usare.
+    expect(within(gruppoCantieri.parentElement as HTMLElement).getByRole("button", { name: /^Attiva il gruppo / })).toBeDisabled();
   }, TIMEOUT);
 
   it("una bozza non c'è mai se si guarda soltanto", () => {

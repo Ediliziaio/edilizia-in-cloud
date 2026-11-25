@@ -43,6 +43,10 @@ const REGISTRI = [
   "src/components/settings/AccessGovernancePanel.tsx",
   "src/components/admin/settings/CreatePlatformUserDialog.tsx",
   "src/components/admin/company/CompanyTeamTab.tsx",
+  // Le ETICHETTE del registro delle modifiche: nomina ogni permesso (anche quelli
+  // nascosti) solo per scriverlo in italiano nel diario degli accessi. Nominare non
+  // è leggere: un permesso che compare solo qui non decide ancora niente.
+  "src/lib/users/permissionChanges.ts",
   "src/pages/admin/adminConstants.ts",
   "supabase/functions/_shared/staffPermissionsDefaults.ts",
   "supabase/functions/_shared/callcenterPiattaforma.ts",
