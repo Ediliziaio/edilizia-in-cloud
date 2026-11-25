@@ -1,3 +1,4 @@
+import { RICERCA_BARRA, BOTTONE_SECONDARIO, BOTTONE_NUOVO } from "@/components/orders/TestataScheda";
 import type { PropostaCommessaMappa } from "@/components/calendar/mappa/servizio";
 import { useState, useMemo, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -1717,10 +1718,10 @@ function CalendarInner() {
   };
 
   return (
-    <div className="space-y-4 max-md:space-y-3">
+    <div className="space-y-3">
       <header className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight max-sm:text-xl">
+          <h1 className="text-xl font-semibold tracking-tight">
             {view === "gantt"
               ? tr("Gantt lavori")
               : view === "teams"
@@ -1729,7 +1730,8 @@ function CalendarInner() {
                   ? tr("Carico lavori")
                   : tr("Calendario lavori")}
           </h1>
-          <p className="mt-1 text-xs text-muted-foreground max-md:hidden">
+          {/* Per i lettori di schermo: in vista era una riga sotto il titolo (25/11/2026). */}
+          <p className="sr-only">
             {calendarData.scope === "personal"
               ? planningView
                 ? tr("Le tue commesse e le risorse assegnate")
@@ -1741,7 +1743,7 @@ function CalendarInner() {
           <Button
             variant="outline"
             size="icon"
-            className="hidden size-9 md:inline-flex"
+            className="hidden size-8 md:inline-flex"
             aria-label={tr("Aggiorna dati del calendario")}
             disabled={refreshingCalendar || permissions.isLoading}
             onClick={aggiornaCalendario}
@@ -1754,16 +1756,15 @@ function CalendarInner() {
             variant="outline"
             size="sm"
             onClick={goToToday}
-            className="hidden gap-1.5 md:inline-flex"
+            className={cn(BOTTONE_SECONDARIO, "hidden md:inline-flex")}
             aria-label={tr("Oggi")}
           >
-            <CalendarDays className="h-4 w-4" />
+            <CalendarDays />
             {tr("Oggi")}
           </Button>
 
           {/* In sola lettura il calendario si consulta: la policy su appointments rifiuta le scritture. */}
           <Button
-            variant="default"
             size="sm"
             onClick={() => {
               setEditingAppointment(null);
@@ -1772,9 +1773,10 @@ function CalendarInner() {
             disabled={permissions.solaLettura}
             title={permissions.solaLettura ? tr("Sei in sola lettura") : undefined}
             aria-label={tr("Nuovo appuntamento")}
-            className={cn("gap-1.5 max-md:h-11", planningView && "hidden")}
+            // Arancio come tutti i «Nuovo» (era l'unico blu della pagina), 32px da computer.
+            className={cn(BOTTONE_NUOVO, "max-md:h-11", planningView && "hidden")}
           >
-            <Plus className="h-4 w-4 sm:mr-1.5" />
+            <Plus className="h-3.5 w-3.5" />
             <span className="md:hidden">{tr("Nuovo")}</span>
             <span className="hidden md:inline">{tr("Appuntamento")}</span>
           </Button>
@@ -1815,7 +1817,7 @@ function CalendarInner() {
               <Button
                 variant="outline"
                 size="sm"
-                className="max-sm:hidden"
+                className="h-8 w-8 p-0 max-sm:hidden"
                 aria-label={tr("Altre azioni del calendario")}
               >
                 <MoreHorizontal className="h-4 w-4" />
@@ -1977,7 +1979,9 @@ function CalendarInner() {
         </div>
       )}
 
-      {(canViewTeam || permissions.canViewOrders) && <div className="flex items-center justify-between gap-1 md:contents">
+      {/* «Il mio calendario / Pianificazione team» e «Calendario / Mappa» sulla stessa riga da computer:
+          erano due righe una sotto l'altra (25/11/2026). */}
+      {(canViewTeam || permissions.canViewOrders) && <div className="flex items-center justify-between gap-1 md:justify-start md:gap-4">
       {canViewTeam && (
         <div
           className="flex items-center gap-1 text-xs"
@@ -2014,8 +2018,8 @@ function CalendarInner() {
         </div>
       )}
       {permissions.canViewOrders && <div role="group" aria-label={tr("Vista operativa")} className="flex shrink-0 flex-wrap gap-1">
-        <Button size="sm" className={cn("max-md:h-11", !mostraMappa && "max-md:hidden")} variant={mostraMappa ? "ghost" : "secondary"} aria-pressed={!mostraMappa} onClick={() => impostaVistaMappa(null)}><CalendarDays className="size-4" /> {tr("Calendario")}</Button>
-        <Button size="sm" className={cn("max-md:h-11", mostraMappa && "max-md:hidden")} variant={mostraMappa ? "secondary" : "ghost"} aria-pressed={mostraMappa} onClick={() => impostaVistaMappa("giorno")}><MapIcon className="size-4" /> {tr("Mappa")}</Button>
+        <Button size="sm" className={cn("h-8 px-2.5 text-xs max-md:h-11", !mostraMappa && "max-md:hidden")} variant={mostraMappa ? "ghost" : "secondary"} aria-pressed={!mostraMappa} onClick={() => impostaVistaMappa(null)}><CalendarDays className="size-4" /> {tr("Calendario")}</Button>
+        <Button size="sm" className={cn("h-8 px-2.5 text-xs max-md:h-11", mostraMappa && "max-md:hidden")} variant={mostraMappa ? "secondary" : "ghost"} aria-pressed={mostraMappa} onClick={() => impostaVistaMappa("giorno")}><MapIcon className="size-4" /> {tr("Mappa")}</Button>
       </div>}
       </div>}
       {mostraMappa ? <>
@@ -2061,7 +2065,7 @@ function CalendarInner() {
         onApriFiltri={() => setFiltriMobileAperti(true)}
       />
       <div
-        className="hidden flex-wrap items-center gap-2 border-b pb-3 md:flex"
+        className="hidden flex-wrap items-center gap-2 border-b pb-2.5 md:flex"
         aria-label={tr("Comandi del calendario")}
       >
         {planningView ? (
@@ -2097,10 +2101,10 @@ function CalendarInner() {
             ))}
           </div>
         )}
-        <div className="relative min-w-0 flex-1 max-sm:order-last max-sm:basis-full">
-          <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+        <div className={cn(RICERCA_BARRA, "max-sm:order-last max-sm:basis-full")}>
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
-            className="h-9 min-w-0 bg-background pl-9 pr-8 text-sm"
+            className="h-8 min-w-0 bg-background pl-8 pr-8 text-xs"
             aria-label={tr("Cerca nel calendario")}
             placeholder={
               planningView
@@ -2115,16 +2119,16 @@ function CalendarInner() {
               type="button"
               aria-label={tr("Cancella ricerca")}
               onClick={() => setSearch("")}
-              className="absolute right-2 top-2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
             >
-              <X className="h-4 w-4" />
+              <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
         <Button
           variant="outline"
           size="sm"
-          className="h-9 gap-1.5 max-md:hidden"
+          className={cn(BOTTONE_SECONDARIO, "max-md:hidden")}
           aria-label={planningView ? tr("Risorse e colori") : tr("Fonti e risorse")}
           onClick={() =>
             isMobile ? setMobileLayerOpen(true) : setLayerPanelOpen(true)
@@ -2146,9 +2150,9 @@ function CalendarInner() {
             <Button
               variant="outline"
               size="sm"
-              className="gap-1.5 relative"
+              className={cn(BOTTONE_SECONDARIO, "relative")}
             >
-              <SlidersHorizontal className="h-4 w-4" />
+              <SlidersHorizontal />
               <span className="hidden sm:inline">{tr("Filtri")}</span>
               {hasActiveFilters && (
                 <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">

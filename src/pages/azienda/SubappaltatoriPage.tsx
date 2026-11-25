@@ -1,3 +1,5 @@
+import { RICERCA_BARRA, TENDINA_STATO_BARRA, BOTTONE_NUOVO } from "@/components/orders/TestataScheda";
+import { cn } from "@/lib/utils";
 import { useState, useMemo } from 'react';
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
@@ -563,7 +565,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
           <Button
             size="sm"
             onClick={() => setDialogOpen(true)}
-            className="ml-auto gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:w-9 max-sm:rounded-full max-sm:p-0"
+            className={cn(BOTTONE_NUOVO, "ml-auto max-sm:h-9 max-sm:w-9 max-sm:rounded-full max-sm:p-0")}
             aria-label={tr("Nuovo subappaltatore")}
           >
             <Plus className="h-4 w-4" />
@@ -629,14 +631,14 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
       {/* Stats */}
       {/* I riquadri fanno da filtro, come negli operai: «Attivi» (l'app di cantiere
           accesa) non diceva niente a chi guarda le ditte, e stava quasi sempre a 0. */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 max-sm:hidden">
-        <OperationalKpiCard icon={Building2} label={tr("Ditte")} value={stats.ditte} hint={tr("in subappalto")} tone="blue" isLoading={isLoading}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 max-sm:hidden">
+        <OperationalKpiCard compact icon={Building2} label={tr("Ditte")} value={stats.ditte} hint={tr("in subappalto")} tone="blue" isLoading={isLoading}
           active={!soloAlLavoro && !soloDurcInScadenza && filtroDoc === '__all__'} onClick={togliFiltri} />
-        <OperationalKpiCard icon={HardHat} label={tr("Al lavoro")} value={stats.alLavoro} hint={tr("con un contratto in corso")} tone="green" isLoading={isLoading}
+        <OperationalKpiCard compact icon={HardHat} label={tr("Al lavoro")} value={stats.alLavoro} hint={tr("con un contratto in corso")} tone="green" isLoading={isLoading}
           active={soloAlLavoro} onClick={() => setSoloAlLavoro(v => !v)} />
-        <OperationalKpiCard icon={AlertTriangle} label={tr("DURC da controllare")} value={stats.durcScaduti} hint={stats.durcScaduti > 0 ? tr("scaduti, in scadenza o mancanti") : tr("tutti in regola")} tone={stats.durcScaduti > 0 ? "red" : "green"} isLoading={isLoading}
+        <OperationalKpiCard compact icon={AlertTriangle} label={tr("DURC da controllare")} value={stats.durcScaduti} hint={stats.durcScaduti > 0 ? tr("scaduti, in scadenza o mancanti") : tr("tutti in regola")} tone={stats.durcScaduti > 0 ? "red" : "green"} isLoading={isLoading}
           active={soloDurcInScadenza} onClick={() => setSoloDurcInScadenza(v => !v)} />
-        <OperationalKpiCard icon={FileX2} label={tr("Fascicolo da completare")} value={stats.senzaDocumenti} hint={stats.senzaDocumenti > 0 ? tr("manca almeno un documento") : tr("tutti in regola")} tone={stats.senzaDocumenti > 0 ? "amber" : "green"} isLoading={isLoading}
+        <OperationalKpiCard compact icon={FileX2} label={tr("Fascicolo da completare")} value={stats.senzaDocumenti} hint={stats.senzaDocumenti > 0 ? tr("manca almeno un documento") : tr("tutti in regola")} tone={stats.senzaDocumenti > 0 ? "amber" : "green"} isLoading={isLoading}
           active={filtroDoc === '__senza__'} onClick={() => setFiltroDoc(filtroDoc === '__senza__' ? '__all__' : '__senza__')} />
       </div>
 
@@ -650,18 +652,18 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
 
       {/* Filtri */}
       {/* Filtri sullo sfondo, senza riquadro, come nelle altre liste. */}
-      <div className="flex flex-col gap-2 sm:flex-row max-sm:hidden">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center max-sm:hidden">
+        <div className={RICERCA_BARRA}>
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
-            className="pl-9"
+            className="h-8 pl-8 text-xs"
             placeholder={tr("Cerca ditta, referente, contatto o tipo lavori…")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         <Select value={filtroDoc} onValueChange={setFiltroDoc}>
-          <SelectTrigger className="sm:w-48">
+          <SelectTrigger className={TENDINA_STATO_BARRA}>
             <SelectValue placeholder={tr("Documenti")} />
           </SelectTrigger>
           <SelectContent>
@@ -671,7 +673,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
           </SelectContent>
         </Select>
         <Select value={filtroStato} onValueChange={setFiltroStato}>
-          <SelectTrigger className="sm:w-36">
+          <SelectTrigger className={TENDINA_STATO_BARRA}>
             <SelectValue placeholder={tr("Tutti gli stati")} />
           </SelectTrigger>
           <SelectContent>

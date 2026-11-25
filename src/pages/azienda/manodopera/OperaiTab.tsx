@@ -1,3 +1,4 @@
+import { RICERCA_BARRA, BOTTONE_SECONDARIO, BOTTONE_NUOVO } from "@/components/orders/TestataScheda";
 import { useStatiAppOperai, StatoAppOperaio, type AccessoOperaio } from "@/components/manodopera/AccessoAppOperaio";
 /**
  * Manodopera e Mezzi → Operai (26/09/2026).
@@ -113,19 +114,19 @@ export default function OperaiTab() {
           <>
             <div className="hidden items-center gap-2 sm:flex">
               {senzaApp.length > 0 && perms.isAdmin && (
-                <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setLinkAperto(true)}>
+                <Button size="sm" variant="outline" className={BOTTONE_SECONDARIO} onClick={() => setLinkAperto(true)}>
                   <Smartphone className="h-4 w-4" aria-hidden="true" />{t("Dai l'app (")}{senzaApp.length})
                 </Button>
               )}
-              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setNuovaSquadra(true)}>
+              <Button size="sm" variant="outline" className={BOTTONE_SECONDARIO} onClick={() => setNuovaSquadra(true)}>
                 <UsersRound className="h-4 w-4" aria-hidden="true" />{t("Nuova squadra")}
               </Button>
               <Button
                 size="sm"
                 onClick={() => setNuovoAperto(true)}
-                className="gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
+                className={BOTTONE_NUOVO}
               >
-                <Plus className="h-4 w-4" aria-hidden="true" />{t("Nuovo operaio")}
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" />{t("Nuovo operaio")}
               </Button>
             </div>
             {/* Telefono: un bottone solo, le due scelte nel menu. */}
@@ -199,14 +200,14 @@ function GiornataOperai({ onNuovo }: { onNuovo?: () => void }) {
     <div className="space-y-2.5">
       <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex items-center rounded-lg border border-slate-200 bg-white shadow-sm">
-          <Button variant="ghost" size="icon" className="h-9 w-9" aria-label={t("Giorno prima")} onClick={() => setGiorno((g) => spostaGiorno(g, -1))}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t("Giorno prima")} onClick={() => setGiorno((g) => spostaGiorno(g, -1))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <Popover open={calendarioAperto} onOpenChange={setCalendarioAperto}>
             <PopoverTrigger asChild>
               <button
                 type="button"
-                className="tap-compact min-w-[10.5rem] rounded px-1 py-1.5 text-center text-sm font-semibold text-slate-900 hover:bg-slate-50"
+                className="tap-compact min-w-[9.5rem] rounded px-1 py-1 text-center text-xs font-semibold text-slate-900 hover:bg-slate-50"
                 aria-label={t("Scegli il giorno (ora: {giorno})", { giorno: String(giornoInParole(giorno, oggi) ?? "") })}
               >
                 {giornoInParole(giorno, oggi)}
@@ -228,20 +229,20 @@ function GiornataOperai({ onNuovo }: { onNuovo?: () => void }) {
               />
             </PopoverContent>
           </Popover>
-          <Button variant="ghost" size="icon" className="h-9 w-9" aria-label={t("Giorno dopo")} disabled={eOggi} onClick={() => setGiorno((g) => spostaGiorno(g, 1))}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t("Giorno dopo")} disabled={eOggi} onClick={() => setGiorno((g) => spostaGiorno(g, 1))}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        {!eOggi && <Button variant="outline" size="sm" onClick={() => setGiorno(oggi)}>{t("Torna a oggi")}</Button>}
-        <div className="relative min-w-0 flex-1 sm:ml-auto sm:max-w-xs sm:flex-none">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+        {!eOggi && <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} onClick={() => setGiorno(oggi)}>{t("Torna a oggi")}</Button>}
+        <div className={cn(RICERCA_BARRA, "sm:ml-auto")}>
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
             id="cerca-giornata"
             value={cerca}
             onChange={(e) => setCerca(e.target.value)}
             placeholder={t("Cerca persona, cantiere, mezzo…")}
             aria-label={t("Cerca nella giornata")}
-            className="h-9 pl-9"
+            className="h-8 pl-8 text-xs"
           />
         </div>
       </div>
