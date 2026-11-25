@@ -7,6 +7,7 @@ import { VitePWA } from "vite-plugin-pwa";
 import Beasties from "beasties";
 import { minify as htmlMinify } from "html-minifier-terser";
 import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { join } from "node:path";
 import { viteLocalCacheKey } from "./config/viteLocalCache";
 import { localPlanOcrPlugin } from "./dev/preventivatore-ai/planOcrPlugin.mts";
@@ -50,6 +51,22 @@ function dizionariComeJson() {
 
 // https://vitejs.dev/config/
 const isMobile = process.env.VITE_APP_MODE === "mobile";
+
+/**
+ * Quando è stato scritto il codice di questo bundle (data del commit, non dell'ora in cui
+ * si costruisce): è il numero che l'app confronta con `public/versione-minima.json` per
+ * dire all'operaio che la sua app è vecchia. Serve soprattutto all'app installata, che
+ * porta il codice dentro di sé e non si aggiorna con un deploy.
+ * Senza git (o fuori da una copia del repository) resta l'ora della build.
+ */
+const DATA_BUILD = (() => {
+  try {
+    return execSync("git log -1 --format=%cI", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim()
+      || new Date().toISOString();
+  } catch {
+    return new Date().toISOString();
+  }
+})();
 let buildFailed = false;
 export default defineConfig(({ command, mode }) => ({
   // Multiple local terminals/previews otherwise delete chunks still used by
@@ -73,6 +90,7 @@ export default defineConfig(({ command, mode }) => ({
   },
   define: {
     __APP_MODE__: JSON.stringify(process.env.VITE_APP_MODE || "full"),
+    __EIC_BUILD__: JSON.stringify(DATA_BUILD),
   },
   plugins: [
     dizionariComeJson(),

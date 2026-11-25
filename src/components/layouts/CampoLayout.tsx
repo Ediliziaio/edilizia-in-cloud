@@ -40,6 +40,7 @@ import { usePreviewToken } from "@/hooks/usePreviewToken";
 import { PreviewSessionContext } from "@/contexts/PreviewSessionContext";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import OfflineBanner from "@/components/campo/OfflineBanner";
+import BannerVersioneVecchia from "@/components/campo/BannerVersioneVecchia";
 import { NavLink } from "@/components/NavLink";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -276,6 +277,8 @@ export default function CampoLayout() {
               senza questo banner il super_admin restava bloccato in /campo senza
               via d'uscita (nessun controllo di logout nell'area campo). */}
           <QuickLoginReturnBanner />
+          {/* Prima di tutto: se l'app è vecchia, quello che segue può essere sbagliato. */}
+          <BannerVersioneVecchia />
           <OfflineBanner />
 
           {/* Preview banners */}

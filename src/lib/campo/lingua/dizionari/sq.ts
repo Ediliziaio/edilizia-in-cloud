@@ -68914,5 +68914,7 @@ const dizionario: Dizionario = {
   "Letti dal telefono: correggili se sbagliano. Servono all'ufficio a riconoscere la bolla prima dell'AI.": "Të lexuara nga telefoni: korrigjoji nëse nuk janë të sakta. I shërbejnë zyrës për të njohur fletëdërgesën para AI.",
   "Escludi i dati": "Mos i dërgo të dhënat",
   "Allega i dati": "Dërgo të dhënat",
+  "Questa app è vecchia (del {data}): i cantieri e i dati che vedi possono essere sbagliati.": "Ky aplikacion është i vjetër (i datës {data}): kantieret dhe të dhënat që shikon mund të jenë të gabuara.",
+  "Scarica l’aggiornamento dallo store.": "Shkarko përditësimin nga store-i.",
 };
 export default dizionario;

@@ -68914,5 +68914,7 @@ const dizionario: Dizionario = {
   "Letti dal telefono: correggili se sbagliano. Servono all'ufficio a riconoscere la bolla prima dell'AI.": "Citite de telefon: corectează-le dacă greșesc. Ajută biroul să recunoască avizul înainte de AI.",
   "Escludi i dati": "Nu trimite datele",
   "Allega i dati": "Trimite datele",
+  "Questa app è vecchia (del {data}): i cantieri e i dati che vedi possono essere sbagliati.": "Aplicația asta e veche (din {data}): șantierele și datele pe care le vezi pot fi greșite.",
+  "Scarica l’aggiornamento dallo store.": "Descarcă actualizarea din magazinul de aplicații.",
 };
 export default dizionario;

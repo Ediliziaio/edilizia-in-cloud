@@ -24,7 +24,11 @@ export function letturaSenzaPrezzi(): boolean {
   return attiva || provaInSviluppo();
 }
 
-const EMBED = new RegExp(`(^|[,(])(?:(\\w+):)?(${TABELLE.join("|")})((?:![\\w]+)*)\\(`, "g");
+// Lo spazio dopo la virgola fa parte dei select scritti a mano
+// («*, order_items!chiave(…)»): senza accettarlo la riscrittura salta e la lettura
+// finisce sulla tabella grezza, con i prezzi dentro. Stessa correzione delle viste
+// *_visibili (25/11/2026).
+const EMBED = new RegExp(`((?:^|[,(])\\s*)(?:(\\w+):)?(${TABELLE.join("|")})((?:![\\w]+)*)\\(`, "g");
 
 /** Riscrive una select: l'alias resta il nome di prima, così chi legge il risultato non cambia. */
 export function selectSenzaPrezzi(select: string): string {

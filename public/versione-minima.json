@@ -1,0 +1,4 @@
+{
+  "minima": "2026-11-25T09:30:00+01:00",
+  "_commento": "Versione più vecchia che l'area operaio considera buona: la data del commit del bundle. Alzala solo quando una correzione cambia quello che l'operaio VEDE o PUÒ FARE, altrimenti l'avviso diventa rumore (l'app installata è sempre un po' indietro). Dal 25/11/2026: i cantieri non si vedevano nell'area operaio."
+}

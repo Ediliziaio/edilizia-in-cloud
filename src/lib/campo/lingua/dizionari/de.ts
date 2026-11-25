@@ -68778,5 +68778,7 @@ const dizionario: Dizionario = {
   "Letti dal telefono: correggili se sbagliano. Servono all'ufficio a riconoscere la bolla prima dell'AI.": "Vom Handy gelesen: korrigiere sie, wenn sie falsch sind. Damit erkennt das Büro den Lieferschein schon vor der KI.",
   "Escludi i dati": "Daten nicht mitsenden",
   "Allega i dati": "Daten mitsenden",
+  "Questa app è vecchia (del {data}): i cantieri e i dati che vedi possono essere sbagliati.": "Diese App ist alt (vom {data}): Die Baustellen und Daten, die du siehst, können falsch sein.",
+  "Scarica l’aggiornamento dallo store.": "Lade das Update im Store herunter.",
 };
 export default dizionario;
