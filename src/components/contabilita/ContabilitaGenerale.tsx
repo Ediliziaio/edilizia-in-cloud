@@ -34,7 +34,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useSelezioneRighe } from "@/hooks/useSelezioneRighe";
 import { eseguiPerRiga, messaggioErroreOperazione } from "@/lib/operazioniPerRiga";
 import { BarraSelezioneRighe, ErroriOperazioneRighe } from "@/components/shared/BarraSelezioneRighe";
-import { percheScritturaNonRettificabile, scritturaProvvisoria } from "@/lib/contabilita/rettificaScrittura";
+import { percheScritturaNonCorreggibile, percheScritturaNonRettificabile, scritturaProvvisoria } from "@/lib/contabilita/rettificaScrittura";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 import { scaricaCsv } from "@/lib/csv";
 import { FiscalSectionHeader } from "@/components/fatturazione/FiscalSectionLayout";
@@ -143,7 +143,7 @@ function useScritture(companyId: string | undefined, anno: number) {
       for (let da = 0; ; da += PAGINA) {
         const { data, error } = await db
           .from("contabilita_scritture")
-          .select("id, esercizio, numero, data_registrazione, causale, descrizione, documento_numero, documento_data, origine, origine_id, storno_di, revisione, contabilita_righe(riga, conto_id, dare, avere, descrizione)")
+          .select("id, esercizio, numero, data_registrazione, causale, descrizione, documento_numero, documento_data, origine, origine_id, storno_di, revisione, a_mano, contabilita_righe(riga, conto_id, dare, avere, descrizione)")
           .eq("company_id", companyId)
           .eq("esercizio", anno)
           .order("numero", { ascending: false })
@@ -381,6 +381,16 @@ function gruppoDi(origine: string | null | undefined): Exclude<GruppoOrigine, "t
   return "altre";
 }
 
+interface DocumentoEscluso {
+  origine: string;
+  origine_id: string;
+  esercizio: number | null;
+  documento_numero: string | null;
+  descrizione: string | null;
+  motivo: string;
+  created_at: string;
+}
+
 function Scritture({ companyId, anno, conti, giornale }: { companyId: string; anno: number; conti: ContoContabile[]; giornale: boolean }) {
   const tTesto = useT();
   const periodo = useFiscalPeriod();
@@ -403,6 +413,37 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
     },
     onSuccess: () => { setDaEliminare(null); setMotivoEliminazione(""); toast.success(tTesto("Scrittura provvisoria eliminata")); void qc.invalidateQueries({ queryKey: chiave(companyId) }); },
     onError: (e) => toast.error(tTesto("Scrittura non eliminata"), { description: messaggioErroreOperazione(e) }),
+  });
+  // I documenti tenuti fuori dal giornale dopo l'eliminazione della loro scrittura.
+  const escluseDocumenti = useQuery({
+    queryKey: chiave(companyId, "escluse", anno),
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("contabilita_escluse")
+        .select("origine, origine_id, esercizio, documento_numero, descrizione, motivo, created_at")
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as DocumentoEscluso[];
+    },
+  });
+  const riprendi = useMutation({
+    mutationFn: async (d: DocumentoEscluso) => {
+      const { error } = await db.rpc("contabilita_riprendi_documento", { p_company: companyId, p_origine: d.origine, p_origine_id: d.origine_id });
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success(tTesto("Documento ripreso: il prossimo aggiornamento lo registra di nuovo")); void qc.invalidateQueries({ queryKey: chiave(companyId) }); },
+    onError: (e) => toast.error(tTesto("Documento non ripreso"), { description: messaggioErroreOperazione(e) }),
+  });
+  // Una scrittura corretta a mano torna sotto la generazione automatica quando lo si chiede.
+  const riallinea = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await db.rpc("contabilita_riallinea_scrittura", { p_scrittura: id });
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success(tTesto("Scrittura riallineata al documento: il prossimo aggiornamento la riscrive")); void qc.invalidateQueries({ queryKey: chiave(companyId) }); },
+    onError: (e) => toast.error(tTesto("Scrittura non riallineata"), { description: messaggioErroreOperazione(e) }),
   });
   const [storniAperti, setStorniAperti] = useState(false);
   const [dataStorni, setDataStorni] = useState(oggi());
@@ -588,6 +629,24 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
         </div>
       </div>
 
+      {(escluseDocumenti.data?.length ?? 0) > 0 && (
+        <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/40">
+          <p className="font-medium">{tTesto("Documenti tenuti fuori dal giornale ({n})", { n: escluseDocumenti.data?.length ?? 0 })}</p>
+          <p className="text-muted-foreground">{tTesto("La loro scrittura è stata eliminata: l’aggiornamento automatico non li registra più. «Riprendi» li rimette dentro al prossimo aggiornamento.")}</p>
+          <ul className="space-y-1">
+            {(escluseDocumenti.data ?? []).map((d) => (
+              <li key={`${d.origine}-${d.origine_id}`} className="flex flex-wrap items-center justify-between gap-2 border-t pt-1">
+                <span>
+                  <span className="font-medium">{d.documento_numero || tTesto("senza numero")}</span>
+                  {d.descrizione ? ` · ${d.descrizione}` : ""}
+                  <span className="text-muted-foreground">{` · ${d.motivo}`}</span>
+                </span>
+                <Button size="sm" variant="outline" disabled={riprendi.isPending} onClick={() => riprendi.mutate(d)}>{tTesto("Riprendi")}</Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {!giornale && <label className="flex items-center gap-2 text-sm text-muted-foreground"><Checkbox checked={mostraStorico} onCheckedChange={v => setMostraStorico(v === true)} />{tTesto("Mostra anche storni e scritture stornate")}</label>}
       {(giornale || mostraStorico) && elenco.some(s => s.storno_di) && <p className="rounded-lg border p-3 text-sm text-muted-foreground">{tTesto("Uno storno inverte una registrazione precedente. Se segue una nuova scrittura della stessa fattura, resta il saldo della versione aggiornata. Il libro giornale conserva la sequenza; nell’elenco delle scritture puoi consultare solo quelle attive.")}</p>}
       {!giornale && visibili.length > 0 && <BarraSelezioneRighe nome={tTesto("le scritture")} selezionate={selezione.selezionate.length} consentite={stornabili.length}
@@ -685,8 +744,9 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
         onConto={conto => periodo.set({ vista: "mastrini", conto, anno: String(anno) })}
         onStorno={dettaglio && !dettaglio.storno_di && !stornate.has(dettaglio.id) ? setStorno : undefined}
         modificabile={!!dettaglio && scritturaProvvisoria(dettaglio, esercizio)}
-        onElimina={dettaglio?.origine === "manuale" && scritturaProvvisoria(dettaglio, esercizio) ? setDaEliminare : undefined}
-        onRettifica={dettaglio && !percheScritturaNonRettificabile(dettaglio, stornate) ? setRettifica : undefined} />
+        onElimina={dettaglio && dettaglio.origine !== "storno" && scritturaProvvisoria(dettaglio, esercizio) ? setDaEliminare : undefined}
+        onRiallinea={dettaglio?.a_mano ? () => riallinea.mutate(dettaglio.id) : undefined}
+        onRettifica={dettaglio && !percheScritturaNonCorreggibile(dettaglio, stornate, esercizio) ? setRettifica : undefined} />
       <StampaDefinitiva open={definitiva} onOpenChange={setDefinitiva} companyId={companyId} anno={anno}
         onStampa={(dal, al) => setStampa(htmlLibroGiornale({ azienda: intestazioneDa(anagrafica.data), scritture: elenco, conti, dal, al, definitiva: true }))} />
       <NuovaScrittura key={rettifica?.id ?? "nuova"} open={nuova || !!rettifica} onOpenChange={(v) => { setNuova(v); if (!v) { setRettifica(null); if (periodo.params.get("nuova")) periodo.set({ nuova: "" }); } }} companyId={companyId} conti={conti} daRettificare={rettifica} modificaProvvisoria={!!rettifica && scritturaProvvisoria(rettifica, esercizio)}
@@ -694,7 +754,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
       <StornaScrittura scrittura={storno} onClose={() => setStorno(null)}
         onFatto={() => void qc.invalidateQueries({ queryKey: chiave(companyId) })} />
       <Dialog open={!!daEliminare} onOpenChange={(v) => { if (!v && !elimina.isPending) { setDaEliminare(null); setMotivoEliminazione(""); } }}><DialogContent>
-        <DialogHeader><DialogTitle>{tTesto("Elimina scrittura provvisoria")}</DialogTitle><DialogDescription>{tTesto("La scrittura {numero}/{esercizio} verrà rimossa e i saldi seguiranno le registrazioni rimaste. Il motivo e la copia precedente restano nello storico delle revisioni.", { numero: String(daEliminare?.numero ?? ""), esercizio: String(daEliminare?.esercizio ?? "") })}</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>{tTesto("Elimina scrittura provvisoria")}</DialogTitle><DialogDescription>{tTesto("La scrittura {numero}/{esercizio} verrà rimossa e i saldi seguiranno le registrazioni rimaste. Il motivo e la copia precedente restano nello storico delle revisioni.", { numero: String(daEliminare?.numero ?? ""), esercizio: String(daEliminare?.esercizio ?? "") })}{daEliminare && daEliminare.origine !== "manuale" ? ` ${tTesto("Nasce da un documento: quel documento resta fuori dal giornale finché non lo riprendi da «Documenti tenuti fuori».")}` : ""}</DialogDescription></DialogHeader>
         <Label htmlFor="motivo-eliminazione-scrittura">{tTesto("Motivo dell’eliminazione")}</Label><Input id="motivo-eliminazione-scrittura" value={motivoEliminazione} disabled={elimina.isPending} onChange={e => setMotivoEliminazione(e.target.value)} />
         <DialogFooter><Button variant="outline" disabled={elimina.isPending} onClick={() => { setDaEliminare(null); setMotivoEliminazione(""); }}>{tTesto("Annulla")}</Button><Button variant="destructive" disabled={elimina.isPending || !motivoEliminazione.trim()} onClick={() => elimina.mutate()}>{elimina.isPending ? tTesto("Eliminazione…") : tTesto("Elimina scrittura")}</Button></DialogFooter>
       </DialogContent></Dialog>
@@ -708,7 +768,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
   );
 }
 
-function DettaglioScrittura({ dettaglio, companyId, nomi, numeroGiornale, onClose, onConto, onStorno, onRettifica, onElimina, modificabile }: {
+function DettaglioScrittura({ dettaglio, companyId, nomi, numeroGiornale, onClose, onConto, onStorno, onRettifica, onElimina, onRiallinea, modificabile }: {
   dettaglio: Scrittura | undefined;
   /** Il numero nel libro giornale (ordine di data): può differire da quello di registrazione. */
   numeroGiornale?: number;
@@ -719,6 +779,8 @@ function DettaglioScrittura({ dettaglio, companyId, nomi, numeroGiornale, onClos
   onStorno?: (scrittura: Scrittura) => void;
   onRettifica?: (scrittura: Scrittura) => void;
   onElimina?: (scrittura: Scrittura) => void;
+  /** Solo per una scrittura corretta a mano: la rimette sotto la generazione automatica. */
+  onRiallinea?: () => void;
   modificabile?: boolean;
 }) {
   const tTesto = useT();
@@ -738,6 +800,12 @@ function DettaglioScrittura({ dettaglio, companyId, nomi, numeroGiornale, onClos
             <DocumentoScrittura companyId={companyId} scrittura={dettaglio} />
             {dettaglio.documento_data && <span>{tTesto("del {data}", { data: String(dataIt(dettaglio.documento_data) ?? "") })}</span>}
           </div>
+          {dettaglio.a_mano && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/40">
+              <span>{tTesto("Corretta a mano: l’aggiornamento automatico non la riscrive più, anche se il documento cambia.")}</span>
+              {onRiallinea && <Button size="sm" variant="outline" onClick={() => { onClose(); onRiallinea(); }}>{tTesto("Riallinea al documento")}</Button>}
+            </div>
+          )}
           <TabellaContabile>
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-left text-xs"><tr><th className="p-2">{tTesto("Conto")}</th><th className="p-2">{tTesto("Descrizione")}</th><th className="p-2 text-right">{tTesto("Dare")}</th><th className="p-2 text-right">{tTesto("Avere")}</th></tr></thead>
