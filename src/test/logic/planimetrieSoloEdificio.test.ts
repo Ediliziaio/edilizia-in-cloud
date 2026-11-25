@@ -23,7 +23,7 @@ describe("tavola del piano senza il lotto", () => {
   });
   it("senza lotto, o con un cortile appena più grande della casa, la vista resta quella", () => {
     expect(soloEdificio(casa)).toBe(casa);
-    const cortile = { ...casa, elementi: [], aree: [{ id: "c", tipo: "prato", contorno: [{ x: -200, y: -200 }, { x: 1200, y: -200 }, { x: 1200, y: 1000 }, { x: -200, y: 1000 }] }] };
+    const cortile: VistaPianta = { ...casa, elementi: [], aree: [{ id: "c", tipo: "prato", contorno: [{ x: -200, y: -200 }, { x: 1200, y: -200 }, { x: 1200, y: 1000 }, { x: -200, y: 1000 }] }] };
     expect(soloEdificio(cortile)).toBe(cortile);
   });
 });
