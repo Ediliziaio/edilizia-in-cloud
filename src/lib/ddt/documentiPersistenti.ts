@@ -1,9 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
 import { syncQueue } from "@/lib/campo/sync-queue";
+import { riferimentiTelefonoValidi, type RiferimentiTelefono } from "./riferimentiTelefono";
 import {
   preparaDocumento,
   improntaDocumenti,
   MAX_DOCUMENTO_BYTE,
+  MAX_PAGINE_DDT,
   erroreDocumento,
   mimeDocumento,
 } from "./preparaDocumento";
@@ -16,6 +18,8 @@ export interface FileDocumento {
   prepared_name?: string;
   prepared_mime?: string;
   bucket?: string;
+  /** Nella prima pagina, solo i riferimenti che l'operatore ha confermato. */
+  riferimenti_telefono?: RiferimentiTelefono;
 }
 export interface DocumentoPersistente {
   id: string;
@@ -88,16 +92,18 @@ export async function inviaDocumentoPersistente(input: {
   warehouseId?: string | null;
   operationId?: string;
   salvaCopiaLocale?: boolean;
+  riferimentiTelefono?: unknown;
 }): Promise<{ id: string | null; duplicate: boolean }> {
   const { files, companyId, userId, orderId, source } = input;
   if (!companyId || !userId) throw new Error("Accedi per salvare il documento");
-  if (!files.length || files.length > 12)
+  if (!files.length || files.length > MAX_PAGINE_DDT)
     throw new Error("Scegli da una a dodici pagine dello stesso documento");
   if (files.reduce((s, f) => s + f.size, 0) > MAX_DOCUMENTO_BYTE)
     throw new Error("Il documento completo supera 18 MB: dividi prima il PDF");
   const id = input.operationId ?? crypto.randomUUID();
   const erroreFormato = files.map(erroreDocumento).find(Boolean);
   if (erroreFormato) throw new Error(erroreFormato);
+  const riferimenti = source === "campo" ? riferimentiTelefonoValidi(input.riferimentiTelefono) : undefined;
   // Anche il desktop conserva la ripresa PRIMA della rete. Il processore offline
   // richiama questa funzione senza salvaCopiaLocale, evitando di ricreare la coda.
   const copiaLocale = input.salvaCopiaLocale
@@ -114,6 +120,7 @@ export async function inviaDocumentoPersistente(input: {
           source,
           destinazione: input.destinazione ?? null,
           warehouse_id: input.warehouseId ?? null,
+          ...(riferimenti && { riferimenti_telefono: riferimenti }),
         },
       })
     : null;
@@ -154,6 +161,7 @@ export async function inviaDocumentoPersistente(input: {
       name: originale.name,
       mime: tipoOriginale,
       size: originale.size,
+      ...(i === 0 && riferimenti && { riferimenti_telefono: riferimenti }),
     };
     // Il server sa convertire HEIC: un browser che fallisce la conversione non perde l'originale.
     const { lettura } = await preparaDocumento(originale).catch(() => ({

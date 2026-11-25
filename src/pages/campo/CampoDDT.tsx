@@ -1,8 +1,8 @@
 import { UniformSelect } from "@/components/ui/uniform-select";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { ArrowDown, ArrowUp, Camera, Check, CloudUpload, FileText, FileUp, HardHat, ImagePlus, Loader2, MoreVertical, Receipt, RotateCw, Sparkles, Trash2, Warehouse, WifiOff } from "lucide-react";
+import { ArrowDown, ArrowUp, Camera, Check, ChevronDown, CloudUpload, FileText, FileUp, HardHat, ImagePlus, Loader2, MoreVertical, Receipt, RotateCw, ScanLine, Sparkles, Trash2, Warehouse, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
@@ -10,6 +10,9 @@ import { useCampoUfficio } from "@/hooks/campo/useCampoUfficio";
 import { useNetworkStatus } from "@/hooks/campo/useNetworkStatus";
 import { AnteprimaFotoCampo } from "@/components/campo/AnteprimaFotoCampo";
 import { cantiereBolla } from "@/lib/campo/cantiereBolla";
+import { leggiByte } from "@/lib/files/leggiByte";
+import { leggiScansioneBolla, scannerBolleDisponibile, scansionaBolla } from "@/lib/mobile/scannerBolle";
+import { MAX_FORNITORE_DDT, MAX_NUMERO_DDT, proponiRiferimentiTelefono, riferimentiTelefonoValidi, type RiferimentiTelefono } from "@/lib/ddt/riferimentiTelefono";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Switch } from "@/components/ui/switch";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -39,21 +42,13 @@ import {
   ACCEPT_DOCUMENTI_DDT,
   erroreDocumento,
   MAX_DOCUMENTO_BYTE,
+  MAX_PAGINE_DDT,
   mimeDocumento,
 } from "@/lib/ddt/preparaDocumento";
 import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const campo = "min-h-12 w-full rounded-xl border bg-background px-3 text-base";
 type PaginaBolla = { id: string; file: File };
-
-function leggiPagina(file: File): Promise<ArrayBuffer> {
-  return new Promise((resolve, reject) => {
-    const lettore = new FileReader();
-    lettore.onload = () => resolve(lettore.result as ArrayBuffer);
-    lettore.onerror = lettore.onabort = () => reject(lettore.error ?? new Error("Pagina non leggibile"));
-    lettore.readAsArrayBuffer(file);
-  });
-}
 
 function FotoBollaInCoda({ voce }: { voce: SyncItem }) {
   const t = useT();
@@ -140,7 +135,15 @@ export function CampoDDTEditor({ companyId, cantiereFisso }: { companyId?: strin
   const [pdfDaDividere, setPdfDaDividere] = useState<
     Array<{ id: string; pdf: PdfDaDividere }>
   >([]);
-  const [preparando, setPreparando] = useState<"foto" | "pdf" | null>(null);
+  const [preparando, setPreparando] = useState<"foto" | "pdf" | "scanner" | null>(null);
+  const [scannerFuoriUso, setScannerFuoriUso] = useState(false);
+  // Il testo che il telefono ha letto da ogni pagina scansionata: `null` finché l'OCR lavora.
+  const [testiPagine, setTestiPagine] = useState<Map<File, string | null>>(() => new Map());
+  const [correzioni, setCorrezioni] = useState<RiferimentiTelefono>({});
+  const [riferimentiConfermati, setRiferimentiConfermati] = useState<RiferimentiTelefono>();
+  const [mostraDati, setMostraDati] = useState(false);
+  const idDati = useId();
+  const comandoDati = useRef<HTMLButtonElement>(null);
   const blocco = useRef(false);
   const bytePagine = useRef(new WeakMap<File, ArrayBuffer>());
   const camera = useRef<HTMLInputElement>(null);
@@ -151,6 +154,9 @@ export function CampoDDTEditor({ companyId, cantiereFisso }: { companyId?: strin
   const salvaSoloDocumento = useSalvaSoloDocumento();
   const occupato = salvando || preparando !== null;
   const pronto = !!files.length && cantierePronto && !occupato && !pdfDaDividere.length;
+  const usaScanner = scannerBolleDisponibile() && !scannerFuoriUso;
+  const pagineDisponibili = MAX_PAGINE_DDT - files.length;
+  const byteDisponibili = MAX_DOCUMENTO_BYTE - files.reduce((totale, file) => totale + file.size, 0);
 
   useEffect(() => {
     let richiesta = 0;
@@ -192,10 +198,84 @@ export function CampoDDTEditor({ companyId, cantiereFisso }: { companyId?: strin
   const inAttesa = locali.filter((i) => !(documenti.data ?? []).some((j) => j.id === (i.operationId ?? i.id)));
   const invioInCoda = conAI || !senzaAIPossibile;
   const dettaglioRichiesto = !!params.get("invio") && inAttesa.some(i => i.id === params.get("invio"));
+  const haScansione = files.some(f => testiPagine.has(f));
+  const ocrInCorso = files.some(f => testiPagine.get(f) === null);
+  // Quello che il telefono ha letto, con sopra le correzioni scritte a mano.
+  const letti = useMemo(
+    () => haScansione ? proponiRiferimentiTelefono(files.map(f => testiPagine.get(f) ?? "")) : {},
+    [haScansione, files, testiPagine],
+  );
+  const riferimenti: RiferimentiTelefono = haScansione ? { ...letti, ...correzioni } : {};
+  const riferimentiValidi = riferimentiTelefonoValidi(riferimenti);
+  const statoDati = riferimentiConfermati
+    ? t("Inclusi")
+    : ocrInCorso ? t("Lettura…") : riferimentiValidi ? t("Da verificare") : t("Facoltativi");
 
   useEffect(() => {
     if (dettaglioRichiesto) dettaglioInCoda.current?.scrollIntoView?.({ block: "start" });
   }, [dettaglioRichiesto]);
+
+  const scordaTesti = (daTogliere: readonly File[]) => {
+    if (!daTogliere.length) return;
+    setTestiPagine(prima => {
+      if (!daTogliere.some(file => prima.has(file))) return prima;
+      const dopo = new Map(prima);
+      for (const file of daTogliere) dopo.delete(file);
+      return dopo;
+    });
+    setRiferimentiConfermati(undefined);
+  };
+
+  const svuotaBolla = () => {
+    setPagine([]);
+    setTestiPagine(new Map());
+    setCorrezioni({});
+    setRiferimentiConfermati(undefined);
+    setMostraDati(false);
+  };
+
+  /**
+   * Scanner del telefono (VisionKit su iOS, ML Kit su Android): raddrizza il foglio,
+   * salva le pagine come JPEG dentro il budget della bolla e ne legge il testo sul
+   * dispositivo. Il testo serve solo a proporre numero, data e fornitore: l'invio
+   * delle foto è già possibile mentre l'OCR lavora.
+   */
+  const usaScansione = useCallback(async () => {
+    if (blocco.current || !usaScanner || pagineDisponibili < 1 || byteDisponibili < 1) return;
+    blocco.current = true;
+    setPreparando("scanner");
+    try {
+      const scansione = await scansionaBolla(pagineDisponibili, byteDisponibili);
+      if (!scansione) return;
+      const foto = scansione.pagine.map(pagina => pagina.file);
+      for (const pagina of scansione.pagine) bytePagine.current.set(pagina.file, pagina.byte);
+      setPagine(prima => [...prima, ...foto.map(file => ({ id: crypto.randomUUID(), file }))]);
+      setRiferimentiConfermati(undefined);
+      setTestiPagine(prima => {
+        const dopo = new Map(prima);
+        for (const file of foto) dopo.set(file, null);
+        return dopo;
+      });
+      void leggiScansioneBolla(scansione).then(lette => {
+        setTestiPagine(prima => {
+          const dopo = new Map(prima);
+          for (const { file, testo } of lette) if (dopo.has(file)) dopo.set(file, testo);
+          return dopo;
+        });
+      });
+    } catch (errore) {
+      if ((errore as { code?: string } | null)?.code === "UNAVAILABLE") setScannerFuoriUso(true);
+      const messaggio = typeof errore === "object" && errore !== null && "message" in errore && typeof errore.message === "string"
+        ? errore.message
+        : t("Scanner non disponibile. Riprova, o scegli Foto o PDF.");
+      toast.error(messaggio);
+    } finally {
+      blocco.current = false;
+      setPreparando(null);
+    }
+    // `t` cambia con la lingua scelta e non deve ricreare la richiamata a ogni render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [byteDisponibili, pagineDisponibili, usaScanner]);
 
   const aggiungi = async (nuovi: File[]) => {
     if (!nuovi.length || blocco.current) return;
@@ -229,7 +309,7 @@ export function CampoDDTEditor({ companyId, cantiereFisso }: { companyId?: strin
         }
         // Il file della fotocamera può diventare illeggibile durante la sospensione
         // della pagina. I byte letti qui sono anche clonabili in IndexedDB su WebKit.
-        const byte = await leggiPagina(f).catch((): null => null);
+        const byte = await leggiByte(f).catch((): null => null);
         if (byte) bytePagine.current.set(f, byte);
         diretti.push({ id: crypto.randomUUID(), file: f });
       }
@@ -268,9 +348,10 @@ export function CampoDDTEditor({ companyId, cantiereFisso }: { companyId?: strin
       if (files.reduce((totale, f) => totale + (f === prima ? nuova.size : f.size), 0) > MAX_DOCUMENTO_BYTE) {
         throw new Error("La bolla completa supererebbe 18 MB. Scegli una foto più leggera.");
       }
-      const bytes = await leggiPagina(nuova);
+      const bytes = await leggiByte(nuova);
       bytePagine.current.set(nuova, bytes);
       setPagine(tutte => tutte.map(p => p.file === prima ? { ...p, file: nuova } : p));
+      scordaTesti([prima]);
     } catch (errore) {
       toast.error(errore instanceof Error && /foto|18 MB/.test(errore.message)
         ? t(errore.message) : t("Operazione non riuscita. La pagina originale è ancora qui."));
@@ -287,13 +368,13 @@ export function CampoDDTEditor({ companyId, cantiereFisso }: { companyId?: strin
     return new File([foto], `${pagina.name.replace(/\.[^.]+$/, "")}.jpg`, { type: foto.type });
   });
 
-  const preparaInvio = async (pagine: File[]) => {
+  const preparaInvio = async (pagine: File[], dati?: RiferimentiTelefono) => {
     if (!user?.id || !companyId || !cantierePronto)
       throw new Error("Scegli prima il cantiere");
     return {
       type: "documento_ddt" as const,
       payload: {
-        files: await Promise.all(pagine.map((f) => bytePagine.current.get(f) ?? leggiPagina(f))),
+        files: await Promise.all(pagine.map((f) => bytePagine.current.get(f) ?? leggiByte(f))),
         fileNames: pagine.map((f) => f.name),
         fileTypes: pagine.map((f) => f.type),
         user_id: user.id,
@@ -301,6 +382,7 @@ export function CampoDDTEditor({ companyId, cantiereFisso }: { companyId?: strin
         order_id: orderId ?? null,
         destinazione,
         source: "campo" as const,
+        ...(dati && { riferimenti_telefono: dati }),
       },
     };
   };
@@ -322,14 +404,14 @@ export function CampoDDTEditor({ companyId, cantiereFisso }: { companyId?: strin
     try {
       if (soloDocumento) {
         await salvaSoloDocumento(files, orderId);
-        setPagine([]);
+        svuotaBolla();
         void documenti.refetch();
         toast.success(t("Bolla ricevuta dall’ufficio"));
         return;
       }
       // Prima IndexedDB, poi rete: la lettura AI non trattiene la pagina aperta.
-      const id = await syncQueue.enqueue(await preparaInvio(files));
-      setPagine([]);
+      const id = await syncQueue.enqueue(await preparaInvio(files, riferimentiConfermati));
+      svuotaBolla();
       // Chi può registrare rivede subito quello che l'AI ha letto.
       if (puoRegistrare && typeof id === "string") setAttesa(id);
       toast.success(
@@ -458,17 +540,21 @@ export function CampoDDTEditor({ companyId, cantiereFisso }: { companyId?: strin
             <button
               type="button"
               className="flex min-h-12 items-center justify-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-2 text-sm font-semibold text-primary disabled:opacity-50 motion-safe:transition-transform motion-safe:active:scale-[0.98]"
-              onClick={() => camera.current?.click()}
-              disabled={occupato || files.length >= 12}
+              onClick={() => usaScanner ? void usaScansione() : camera.current?.click()}
+              disabled={occupato || pagineDisponibili < 1 || byteDisponibili < 1}
             >
-              <Camera className="size-5 shrink-0" aria-hidden="true" />
-              {files.length ? t("Altra foto") : t("Scatta la bolla")}
+              {usaScanner
+                ? <ScanLine className="size-5 shrink-0" aria-hidden="true" />
+                : <Camera className="size-5 shrink-0" aria-hidden="true" />}
+              {usaScanner
+                ? (files.length ? t("Altre pagine") : t("Scansiona la bolla"))
+                : (files.length ? t("Altra foto") : t("Scatta la bolla"))}
             </button>
             <button
               type="button"
               className="flex min-h-12 items-center justify-center gap-1.5 rounded-full border px-2 text-sm font-semibold disabled:opacity-50"
               onClick={() => archivio.current?.click()}
-              disabled={occupato || files.length >= 12}
+              disabled={occupato || pagineDisponibili < 1 || byteDisponibili < 1}
             >
               <FileUp className="size-4 shrink-0" aria-hidden="true" />
               {t("Foto o PDF")}
@@ -510,7 +596,7 @@ export function CampoDDTEditor({ companyId, cantiereFisso }: { companyId?: strin
         {preparando && (
           <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" />
-            {preparando === "pdf" ? t("Controllo le pagine del PDF…") : t("Preparo le foto…")}
+            {preparando === "scanner" ? t("Scansione in corso…") : preparando === "pdf" ? t("Controllo le pagine del PDF…") : t("Preparo le foto…")}
           </p>
         )}
         {pdfDaDividere.map((d) => (
@@ -574,7 +660,10 @@ export function CampoDDTEditor({ companyId, cantiereFisso }: { companyId?: strin
                         </DropdownMenuItem>
                       </>}
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem className="min-h-11 gap-2 text-destructive" onSelect={() => setPagine(p => p.filter(pagina => pagina.id !== id))}>
+                      <DropdownMenuItem className="min-h-11 gap-2 text-destructive" onSelect={() => {
+                        setPagine(p => p.filter(pagina => pagina.id !== id));
+                        scordaTesti([f]);
+                      }}>
                         <Trash2 className="size-4" aria-hidden="true" />{t("Rimuovi")}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -584,6 +673,53 @@ export function CampoDDTEditor({ companyId, cantiereFisso }: { companyId?: strin
             </ul>
             <p className="text-xs text-muted-foreground">{files.length === 12 ? t("Hai raggiunto il limite di 12 pagine.") : t("Per una bolla diversa, salva questa e inizia un nuovo invio.")}</p>
           </>
+        )}
+        {haScansione && invioInCoda && (
+          <div className="rounded-xl border">
+            <button ref={comandoDati} type="button" aria-expanded={mostraDati} aria-controls={idDati}
+              aria-label={t("Dati DDT")} aria-describedby={`${idDati}-stato`}
+              onClick={() => setMostraDati(prima => !prima)}
+              className="flex min-h-12 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-primary">
+              <span className="flex-1">{t("Dati DDT")}</span>
+              <span id={`${idDati}-stato`} className={cn("flex items-center gap-1 text-xs", riferimentiConfermati ? "text-emerald-700 dark:text-emerald-300" : "text-muted-foreground")}>
+                {riferimentiConfermati && <Check className="size-3.5 shrink-0" aria-hidden="true" />}
+                {statoDati}
+              </span>
+              <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground", mostraDati && "rotate-180")} aria-hidden="true" />
+            </button>
+            <fieldset id={idDati} hidden={!mostraDati} disabled={occupato} aria-label={t("Dati facoltativi del DDT")}
+              className="min-w-0 space-y-2 border-t p-2.5">
+              <p className="text-xs text-muted-foreground">
+                {t("Letti dal telefono: correggili se sbagliano. Servono all'ufficio a riconoscere la bolla prima dell'AI.")}
+              </p>
+              <div className="grid grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] gap-2 sm:grid-cols-2">
+                {([
+                  ["numero", t("Numero"), "text", MAX_NUMERO_DDT],
+                  ["data", t("Data"), "date", undefined],
+                  ["fornitore", t("Fornitore"), "text", MAX_FORNITORE_DDT],
+                ] as const).map(([campoDdt, etichetta, tipo, max]) => (
+                  <label key={campoDdt} className={campoDdt === "fornitore" ? "col-span-2 min-w-0" : "min-w-0"}>
+                    <span className="mb-0.5 block text-xs font-medium">{etichetta}</span>
+                    <input type={tipo} maxLength={max} value={riferimenti[campoDdt] ?? ""}
+                      className="block h-12 w-full min-w-0 rounded-xl border bg-background px-2 text-base"
+                      onChange={e => {
+                        setCorrezioni(prima => ({ ...prima, [campoDdt]: e.target.value }));
+                        setRiferimentiConfermati(undefined);
+                      }} />
+                  </label>
+                ))}
+              </div>
+              <button type="button" className="min-h-12 w-full rounded-xl border px-2 text-sm font-semibold disabled:opacity-50"
+                disabled={!riferimentiConfermati && (ocrInCorso || !riferimentiValidi)}
+                onClick={() => {
+                  setRiferimentiConfermati(riferimentiConfermati ? undefined : riferimentiValidi);
+                  setMostraDati(false);
+                  comandoDati.current?.focus();
+                }}>
+                {riferimentiConfermati ? t("Escludi i dati") : t("Allega i dati")}
+              </button>
+            </fieldset>
+          </div>
         )}
         {senzaAIPossibile && (
           <label className="flex min-h-12 items-center justify-between gap-3 rounded-xl border px-3 text-sm font-medium">
@@ -748,11 +884,12 @@ export function CampoDDTEditor({ companyId, cantiereFisso }: { companyId?: strin
           files={files}
           companyId={companyId}
           orderId={orderId}
+          riferimenti={riferimentiValidi}
           etichettaCantiere={etichettaCantiere}
           onChiudi={() => setCompila(false)}
           onFatto={() => {
             setCompila(false);
-            setPagine([]);
+            svuotaBolla();
             void documenti.refetch();
           }}
         />

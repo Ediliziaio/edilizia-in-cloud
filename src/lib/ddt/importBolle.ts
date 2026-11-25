@@ -31,6 +31,7 @@ export interface BollaLetta {
   /** Identifica la riga nella finestra, non la bolla. */
   id: string;
   file: File;
+  pagineAggiuntive?: File[];
   stato: "da_leggere" | "in_lettura" | "letta" | "non_letta";
   errore: string | null;
   numero: string;

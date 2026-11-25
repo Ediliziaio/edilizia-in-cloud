@@ -3,6 +3,7 @@ import { convertiHeic } from "@/lib/files/convertiHeic";
 /** Un solo contratto per fotografie e PDF. L'originale non viene modificato. */
 export const ACCEPT_DOCUMENTI_DDT =
   ".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif,.bmp";
+export const MAX_PAGINE_DDT = 12;
 export const MAX_DOCUMENTO_BYTE = 18 * 1024 * 1024;
 const MIME: Record<string, string> = {
   pdf: "application/pdf",

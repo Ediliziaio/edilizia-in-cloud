@@ -36,6 +36,7 @@ import {
   type DocumentoPersistente,
 } from "@/lib/ddt/documentiPersistenti";
 import { leggiDDTdaAI, quantitaTotale } from "@/lib/ddt/letturaAI";
+import { completaLetturaConTelefono, type RiferimentiTelefono } from "@/lib/ddt/riferimentiTelefono";
 import { abbinaFornitore, type FornitoreInRubrica } from "@/lib/ddt/abbinaFornitore";
 import type { TestataBolla } from "@/lib/ddt/righeBolla";
 import {
@@ -115,13 +116,13 @@ export function RevisioneBollaTelefono({
         if (error || !data) throw new Error("Originale non disponibile: riprova");
         files.push(new File([data], f.prepared_name ?? f.name, { type: f.prepared_mime ?? f.mime }));
       }
-      return { files, result: job.result ?? {} };
+      return { files, result: job.result ?? {}, riferimenti: job.files[0]?.riferimenti_telefono };
     },
   });
   // Quello che l'AI ha letto è il punto di partenza; le correzioni stanno sopra.
   const iniziale = useMemo(() => {
     if (!caricamento.data) return null;
-    const letta = leggiDDTdaAI(caricamento.data.result);
+    const letta = completaLetturaConTelefono(leggiDDTdaAI(caricamento.data.result), caricamento.data.riferimenti);
     return {
       testata: {
         numero: letta.numero ?? "",
@@ -235,6 +236,7 @@ export function CompilaBollaTelefono({
   files,
   companyId,
   orderId,
+  riferimenti,
   etichettaCantiere,
   onFatto,
   onChiudi,
@@ -242,6 +244,7 @@ export function CompilaBollaTelefono({
   files: File[];
   companyId: string;
   orderId: string | null;
+  riferimenti?: RiferimentiTelefono;
   etichettaCantiere: string;
   onFatto: () => void;
   onChiudi: () => void;
@@ -251,7 +254,9 @@ export function CompilaBollaTelefono({
   const { createDDT } = useDDTRicezioneMutations(null);
   const { uploadMainDDT, uploadAttachments } = useDDTAttachments();
   const destinazione: TestataBolla["destinazione"] = orderId ? "cantiere" : "magazzino";
-  const [testata, setTestata] = useState<TestataBolla>({ numero: "", data: oggi(), supplierId: null, orderId, destinazione });
+  const [testata, setTestata] = useState<TestataBolla>({
+    numero: riferimenti?.numero ?? "", data: riferimenti?.data ?? oggi(), supplierId: null, orderId, destinazione,
+  });
   const [righe, setRighe] = useState<DDTRigaNuova[]>([]);
   const [carica, setCarica] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -300,6 +305,7 @@ export function CompilaBollaTelefono({
       commessaFissa={etichettaCantiere}
       carico={{ visibile: spunta, valore: carica, onChange: setCarica }}
       conferma={{ etichetta: tr("Registra la bolla"), onConferma: () => void salva(), inCorso: salvando }}
+      fornitoreLetto={testata.supplierId ? null : riferimenti?.fornitore}
       etichettaChiudi="Indietro"
     />
   );
