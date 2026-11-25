@@ -87,6 +87,9 @@
 .settings-content > * { min-width: 0; }
 .settings-workspace [data-ui="card-header"] { padding: 1rem 1rem .75rem; }
 .settings-workspace [data-ui="card-content"] { padding: 0 1rem 1rem; }
+/* Un riquadro senza intestazione (le schede delle Sedi, i riquadri vuoti) ha il contenuto in cima:
+   senza margine sopra il titolo finiva attaccato al bordo, sotto la striscia colorata (25/11/2026). */
+.settings-workspace [data-ui="card"]:not(:has(> [data-ui="card-header"])) > [data-ui="card-content"] { padding-top: 1rem; }
 .settings-workspace [data-ui="card"] [data-ui="card"] {
   border-radius: .375rem;
   box-shadow: none;
@@ -170,6 +173,7 @@
 @media (min-width: 768px) {
   .settings-workspace [data-ui="card-header"] { padding: .75rem .875rem .5rem; }
   .settings-workspace [data-ui="card-content"] { padding: 0 .875rem .875rem; }
+  .settings-workspace [data-ui="card"]:not(:has(> [data-ui="card-header"])) > [data-ui="card-content"] { padding-top: .875rem; }
   .settings-workspace [data-ui="card-header"] > p { font-size: .75rem; line-height: 1.4; }
   .settings-workspace label { font-size: .8125rem; }
   .settings-workspace input.h-10:not([type="checkbox"]):not([type="radio"]),
