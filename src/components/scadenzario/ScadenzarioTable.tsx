@@ -188,16 +188,17 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
     {/* Desktop: una scadenza per riga, niente a capo. Controparte, documento,
         commessa e metodo hanno le loro colonne; il clic apre il dettaglio con
         pagamenti e bonifico abbinato. Le colonne meno importanti spariscono
-        sotto 1280/1536 invece di andare a capo. */}
+        sotto 1280/1800 invece di andare a capo. La descrizione prende lo spazio che resta
+        (25/11/2026): a 1600 con la barra laterale la tabella era larga il 124% del riquadro. */}
     <div className="relative hidden lg:block rounded-lg border overflow-x-auto">
       <table className="w-full text-sm [&_td]:whitespace-nowrap [&_th]:whitespace-nowrap [&_td]:px-2 [&_th]:px-2 [&_td]:py-1.5">
         <thead>
           <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
             {onSeleziona && <th className="w-10">{onSelezionaPagina ? <Checkbox aria-label={tTesto("Seleziona le scadenze di questa pagina")} checked={tutteSelezionate ? true : selezioneParziale ? "indeterminate" : false} disabled={inCorso} onCheckedChange={v => onSelezionaPagina(v === true)} /> : <span className="sr-only">{tTesto("Selezione")}</span>}</th>}
             <th className="py-2 font-medium">{tTesto("Scadenza")}</th>
-            <th className="hidden py-2 font-medium 2xl:table-cell">{tTesto("Tipo")}</th>
+            <th className="hidden py-2 font-medium min-[1800px]:table-cell">{tTesto("Tipo")}</th>
             <th className="py-2 font-medium">{tTesto("Cliente / fornitore")}</th>
-            <th className="py-2 font-medium">{tTesto("Descrizione")}</th>
+            <th className="w-full py-2 font-medium">{tTesto("Descrizione")}</th>
             <th className="hidden py-2 font-medium lg:table-cell">{tTesto("Documento · commessa")}</th>
             <th className="py-2 font-medium">{tTesto("Modalità")}</th>
             <th className="py-2 text-right font-medium">{tTesto("Importo")}</th>
@@ -259,16 +260,16 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                     </span>
                   )}
                 </td>
-                <td className="hidden 2xl:table-cell">
+                <td className="hidden min-[1800px]:table-cell">
                   <Badge variant="secondary" className={`text-xs ${tipoInfo.color}`}>
                     {s.direction === "entrata" ? <ArrowDownLeft className="mr-1 inline h-3 w-3" /> : <ArrowUpRight className="mr-1 inline h-3 w-3" />}
                     {tTesto(tipoInfo.label)}
                   </Badge>
                 </td>
-                <td><span className="block max-w-[130px] truncate xl:max-w-[180px] 2xl:max-w-[220px]" title={controparte ?? undefined}>{controparte ?? <span className="text-muted-foreground">—</span>}</span></td>
-                <td><span className="block max-w-[170px] truncate font-medium xl:max-w-[280px] 2xl:max-w-[360px]" title={s.description}>{s.description}</span></td>
+                <td><span className="block max-w-[130px] truncate xl:max-w-[160px] min-[1800px]:max-w-[220px]" title={controparte ?? undefined}>{controparte ?? <span className="text-muted-foreground">—</span>}</span></td>
+                <td className="w-full min-w-[186px] max-w-0"><span className="block truncate font-medium" title={s.description}>{s.description}</span></td>
                 <td className="hidden lg:table-cell">
-                  <span className="block max-w-[180px] truncate font-mono text-xs 2xl:max-w-[260px]" title={[documento === "Costo" ? `Costo · ${s.company_costs?.name}` : documento, commesse ? `Commesse ${commesse}` : null].filter(Boolean).join(" · ") || undefined}>
+                  <span className="block max-w-[150px] truncate font-mono text-xs min-[1800px]:max-w-[260px]" title={[documento === "Costo" ? `Costo · ${s.company_costs?.name}` : documento, commesse ? `Commesse ${commesse}` : null].filter(Boolean).join(" · ") || undefined}>
                     {[commesse, documento].filter(Boolean).join(" · ") || <span className="text-muted-foreground">—</span>}
                   </span>
                 </td>

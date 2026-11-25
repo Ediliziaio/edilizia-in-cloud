@@ -42,21 +42,21 @@ export function FiltriScadenzario({ valore: v, anno, periodi, aperto, onAperto, 
   const altri = [v.periodo === "custom", attivo(v.tipo), attivo(v.stato)].filter(Boolean).length;
   return <>
     <Select value={v.periodo || "all"} onValueChange={periodo => cambia({ periodo: periodo === "all" ? "" : periodo })}>
-      <SelectTrigger aria-label={t("Periodo scadenze")} className="h-9 w-[170px] text-xs"><SelectValue /></SelectTrigger>
+      <SelectTrigger aria-label={t("Periodo scadenze")} className="h-8 w-[170px] text-xs"><SelectValue /></SelectTrigger>
       <SelectContent>
         <SelectItem value="all">{anno === "all" ? t("Tutti gli anni") : t("Tutto il {anno}", { anno: String(anno ?? "") })}</SelectItem>
         {periodi.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
       </SelectContent>
     </Select>
     <Select value={v.metodo || "all"} onValueChange={metodo => cambia({ metodo: metodo === "all" ? "" : metodo })}>
-      <SelectTrigger aria-label={t("Modalità di pagamento")} className="h-9 w-[160px] text-xs"><SelectValue placeholder={t("Modalità")} /></SelectTrigger>
+      <SelectTrigger aria-label={t("Modalità di pagamento")} className="h-8 w-[160px] text-xs"><SelectValue placeholder={t("Modalità")} /></SelectTrigger>
       <SelectContent><SelectItem value="all">{t("Tutte le modalità")}</SelectItem>
         {GRUPPI_METODO.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
       </SelectContent>
     </Select>
     <Popover open={aperto} onOpenChange={onAperto}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 gap-1.5" aria-label={t("Filtri avanzati scadenzario")}>
+        <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs" aria-label={t("Filtri avanzati scadenzario")}>
           <Filter className="h-3.5 w-3.5" />{t("Altri filtri")}{altri > 0 && <span className="rounded bg-muted px-1.5 text-xs">{altri}</span>}
         </Button>
       </PopoverTrigger>

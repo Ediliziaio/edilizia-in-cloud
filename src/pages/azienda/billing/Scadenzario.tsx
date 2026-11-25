@@ -1,4 +1,4 @@
-import { BOTTONE_NUOVO, RICERCA_BARRA } from "@/components/orders/TestataScheda";
+import { BOTTONE_NUOVO, BOTTONE_SECONDARIO, RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { filtraScadenzario, queryFontiScadenzario, linkFonteScadenza } from "@/lib/finance/fontiScadenzario";
@@ -7,7 +7,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Loader2, Search, Download, Ellipsis, ChevronDown, ChevronLeft, ChevronRight, CalendarClock } from "lucide-react";
+import { Plus, Loader2, Search, Download, Ellipsis, ChevronDown, ChevronLeft, ChevronRight, CalendarClock, BarChart3 } from "lucide-react";
 
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -47,6 +47,10 @@ import { FiltriScadenzario, FiltriScadenzarioAttivi, FiltroStatoScadenzeCompatto
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ExpensePaymentDialog } from "@/components/orders/ExpensePaymentDialog";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+// Il grafico per mese si apre a richiesta (25/11/2026): chiuso, l'elenco parte sotto i numeri.
+const CHIAVE_GRAFICO_MESI = "scadenzario.graficoMesiAperto";
+const leggiGraficoAperto = () => { try { return localStorage.getItem(CHIAVE_GRAFICO_MESI) === "1"; } catch { return false; } };
+
 const MESI_BREVI = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];
 
 // Periodi rapidi nella barra; le date personalizzate stanno in «Altri filtri».
@@ -101,6 +105,11 @@ export default function Scadenzario() {
   // Si apre su «Aperte» (16/11/2026): quello che resta da incassare e da pagare, scadute comprese.
   // Lo scadenzario serve a vedere cosa manca; le pagate stanno in «Tutte» e «Pagate».
   const [tab, setTab] = useState("aperte");
+  const [graficoAperto, setGraficoAperto] = useState(leggiGraficoAperto);
+  const alternaGrafico = () => setGraficoAperto((v) => {
+    try { localStorage.setItem(CHIAVE_GRAFICO_MESI, v ? "0" : "1"); } catch { /* solo comodità */ }
+    return !v;
+  });
   const [search, setSearch] = useState("");
   const [payDialog, setPayDialog] = useState<Scadenza | null>(null);
   // 23/11/2026: la rata di una fattura fornitore si paga qui. Prima «Segna pagata» portava alla
@@ -358,10 +367,12 @@ export default function Scadenzario() {
     ...((summary?.senza_data_count || tab === "senza_data") ? [{ value: "senza_data", label: tr("Senza data") }] : []),
   ];
   const nSenzaData = summary?.senza_data_count ?? 0;
+  const conDatiMesi = !!mesiScadenze?.some((m) => m.entrate > 0 || m.uscite > 0);
+  const conDistinte = !!companyId && !permessi.solaLettura && (permessi.canManagePayments || role === "company_admin" || role === "super_admin");
   const exportDisabilitato = exporting || isLoading || isError || ricercaInAttesa || dateInvertite;
 
   return (
-    <div className="space-y-4 max-sm:space-y-3">
+    <div className="space-y-3">
       <div className="flex items-center justify-between max-sm:gap-2">
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-bold max-sm:text-lg">{tr("Scadenzario")}</h1>
@@ -400,8 +411,9 @@ export default function Scadenzario() {
         </div>
       </div>
 
-      {nSenzaData > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border text-sm lg:p-3">
+      {nSenzaData > 0 && vistaCompatta && (
+        // Da computer è un bottone nella riga delle viste (25/11/2026): la fascia occupava 58px.
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border text-sm lg:hidden">
           <span className="max-lg:hidden">{tr("{nSenzaData} importi aperti senza data. Completa la data nella commessa o nel costo.", { nSenzaData: String(nSenzaData ?? "") })}</span>
           {tab === "senza_data" ? (
             <Button size="sm" variant="ghost" className="lg:h-8 lg:px-2.5 lg:text-xs max-lg:min-h-11 max-lg:w-full max-lg:justify-start"
@@ -452,7 +464,7 @@ export default function Scadenzario() {
         />
       )}
 
-      {conGraficoMesi && mesiScadenze && mesiScadenze.some((m) => m.entrate > 0 || m.uscite > 0) && (
+      {graficoAperto && conGraficoMesi && conDatiMesi && (
         <GraficoEntrateUscite
           dati={mesiScadenze}
           titolo={tr("Incassi e pagamenti per mese di scadenza, {yearFilter}", { yearFilter })}
@@ -464,8 +476,7 @@ export default function Scadenzario() {
         />
       )}
 
-      {companyId && !permessi.solaLettura && (permessi.canManagePayments || role === "company_admin" || role === "super_admin") &&
-        <div className="flex justify-end"><DistintePagamenti key={companyId} companyId={companyId} /></div>}
+      {companyId && conDistinte && vistaCompatta && <div className="flex justify-end lg:hidden"><DistintePagamenti key={companyId} companyId={companyId} /></div>}
 
       {/* Fatture passive caricate in chat (Silvio) da confermare */}
       <FattureDaRegistrareCard companyId={companyId} />
@@ -483,7 +494,7 @@ export default function Scadenzario() {
       <div className="space-y-2 max-lg:hidden">
         <div className="flex min-w-0 items-center gap-2">
           <Tabs className="min-w-0 flex-1 overflow-x-auto" value={tab} onValueChange={v => { setTab(v); setPage(1); }}>
-            <TabsList className="inline-flex h-9 w-max justify-start gap-0.5 p-0.5 [&>button]:px-2.5 [&>button]:text-xs">
+            <TabsList className="inline-flex h-8 w-max justify-start gap-0.5 p-0.5 [&>button]:px-2.5 [&>button]:text-xs">
               <TabsTrigger value="aperte">{tr("Aperte")}<span className="hidden xl:inline">&nbsp;({counts.aperte})</span></TabsTrigger>
               <TabsTrigger value="tutte">{tr("Tutte")}<span className="hidden xl:inline">&nbsp;({counts.tutte})</span></TabsTrigger>
               <TabsTrigger value="da_incassare">{tr("Da Incassare")}<span className="hidden xl:inline">&nbsp;({counts.da_incassare})</span></TabsTrigger>
@@ -498,6 +509,24 @@ export default function Scadenzario() {
             </Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end">{viste.map(v => <DropdownMenuItem key={v.value} onSelect={() => { setTab(v.value); setPage(1); }}>{v.label}</DropdownMenuItem>)}</DropdownMenuContent>
           </DropdownMenu>
+          {nSenzaData > 0 && !vistaCompatta && (tab === "senza_data" ? (
+            <Button size="sm" variant="ghost" className={cn(BOTTONE_SECONDARIO, "shrink-0")} onClick={() => { setTab("aperte"); setPage(1); }}>
+              <ChevronLeft aria-hidden="true" />{tr("Torna alle aperte")}
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" className={cn(BOTTONE_SECONDARIO, "shrink-0")}
+              title={tr("{nSenzaData} importi aperti senza data. Completa la data nella commessa o nel costo.", { nSenzaData: String(nSenzaData ?? "") })}
+              onClick={() => { clearFilters(); setTab("senza_data"); }}>
+              <CalendarClock aria-hidden="true" className="text-amber-600" />{tr("{n} senza data", { n: nSenzaData })}
+            </Button>
+          ))}
+          {conGraficoMesi && conDatiMesi && (
+            <Button size="sm" variant={graficoAperto ? "secondary" : "outline"} className={cn(BOTTONE_SECONDARIO, "shrink-0")}
+              aria-expanded={graficoAperto} title={tr("Andamento nei mesi")} onClick={alternaGrafico}>
+              <BarChart3 aria-hidden="true" />{tr("Grafico")}
+            </Button>
+          )}
+          {companyId && conDistinte && !vistaCompatta && <DistintePagamenti key={companyId} companyId={companyId} />}
         </div>
         {tab !== "adempimenti" && <div className="flex flex-wrap items-center gap-2">
           <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
