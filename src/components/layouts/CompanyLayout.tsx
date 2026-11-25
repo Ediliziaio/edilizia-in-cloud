@@ -880,7 +880,8 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
   }, [allGroups, query, voci, managementMode]);
 
   const navLinkClass =
-    "flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent";
+    // 25/11/2026: stessa scala del menu principale (VOCE_MENU_COMPATTA): testo 11,5px, icone 14px.
+    "flex items-center gap-2.5 rounded-md px-3 py-1.5 text-[11.5px] text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent [&>svg]:!h-3.5 [&>svg]:!w-3.5";
   const navLinkActive =
     "bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary";
 
@@ -891,13 +892,15 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
         <Button
           variant="ghost"
           size="sm"
-          className="justify-start gap-2 mb-2 text-muted-foreground hover:text-foreground w-full"
-          onClick={() => navigate("/azienda")}
+          className="justify-start gap-2 mb-1.5 h-7 px-2 text-xs text-muted-foreground hover:text-foreground w-full"
+          // Uscendo dalle impostazioni si torna sempre ad Attività (richiesta del 25/11/2026):
+          // «/azienda» portava al cruscotto o a pagine diverse secondo il ruolo.
+          onClick={() => navigate("/azienda/attivita")}
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-3.5 w-3.5" />
           {t("Torna indietro")}
         </Button>
-        <h2 className="text-lg font-semibold px-3 mb-3">{t("Impostazioni")}</h2>
+        <h2 className="text-base font-semibold px-2 mb-2">{t("Impostazioni")}</h2>
 
         {/* Barra di ricerca fuzzy */}
         <div className="relative mb-2">
@@ -906,7 +909,7 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder={t("Cerca impostazioni…")}
-            className="pl-8 h-8 text-sm bg-muted/40 border-0 focus-visible:ring-1"
+            className="pl-8 h-8 text-xs bg-muted/40 border-0 focus-visible:ring-1"
             aria-label={t("Cerca nelle impostazioni")}
           />
         </div>

@@ -216,13 +216,13 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
               placeholder={t("Cerca squadra o referente…")}
               value={selezionata ? "" : cerca}
               onChange={(e) => { setCerca(e.target.value); togliRichiesta(); }}
-              className="min-w-0 basis-full sm:basis-auto sm:flex-1 sm:max-w-sm"
+              className="h-8 min-w-0 basis-full text-xs sm:basis-auto sm:w-72 sm:flex-none"
             />
             <UniformSelect
               aria-label={t("Tipo di squadra")}
               value={selezionata ? "tutte" : tipo}
               onChange={(e) => { setTipo(e.target.value); togliRichiesta(); }}
-              className="h-10 rounded-md border bg-background px-3 text-sm"
+              className="h-8 rounded-md border bg-background px-3 text-xs"
             >
               <option value="tutte">{t("Tutte le squadre")}</option>
               <option value="interna">{t("Interne")}</option>
