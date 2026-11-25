@@ -29,9 +29,13 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import {
   type KeyCtx, type ToolDef, ToolError, authorizePrincipal, assertToolSucceeded,
-  sha256Hex, hasScope, isSensitiveScope, scopesPerLivello, str, num, intLimit, resolveCompany, UUID_RE,
+  sha256Hex, hasScope, isSensitiveScope, richiedeConferma, scopesPerLivello, str, num, intLimit, resolveCompany, UUID_RE,
 } from "./lib.ts";
 import { SILVIO_TOOLS } from "./silvioTools.ts";
+import { PLATFORM_TOOLS, ISTRUZIONI_PIATTAFORMA } from "./platformTools.ts";
+import { AZIENDA_TOOLS } from "./aziendaTools.ts";
+import { type Attore, motivoNegato } from "./permessiStrumenti.ts";
+import { ruoloPrincipaleSilvio } from "../_shared/ruoloSilvio.ts";
 import { argumentError, canonicalJson, isRecord, validOAuthClaims, validRpcMessage } from "./protocol.ts";
 
 const SUPPORTED_PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
@@ -47,7 +51,11 @@ Stati opportunità: open | won | lost. Stati attività: da_fare | in_corso | com
 Per ogni scrittura genera un request_id UUID e riusa LO STESSO UUID e gli stessi argomenti nei retry.
 Non ripetere con un nuovo UUID un invio con esito incerto. Prima degli invii mostra destinatario e testo
 all'utente e richiedi conferma esplicita: confirmed=true. Email accodata non significa consegnata;
-usa stato_invio. WhatsApp/SMS e la generazione completa di preventivi/PDF non sono disponibili qui.`;
+usa stato_invio. WhatsApp/SMS non sono disponibili qui.
+Preventivi: proponi_voci_preventivo (prezzi dal listino dell'azienda) → mostra le voci → crea_preventivo → pdf_preventivo
+→ invia_preventivo_in_firma solo con conferma. Una planimetria o un computo allegati in chat NON arrivano agli strumenti:
+puoi leggerli tu e passare misure e stanze, oppure usa link_caricamento e poi leggi_file_caricato / importa_computo.
+Lavori con i permessi dell'utente che ti ha collegato: se uno strumento è negato, dillo e non cercare strade alternative.`;
 
 // Tipi e helper (KeyCtx, ToolDef, ToolError, resolveCompany, str/num/…) sono in
 // ./lib.ts, condivisi con silvioTools.ts.
@@ -62,9 +70,9 @@ const TOOLS_MANUALI: ToolDef[] = [
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     handler: async (_admin, ctx) => ({
       piattaforma: "Edilizia in Cloud — gestionale per imprese edili italiane",
-      chiave: { nome: ctx.name, ambito: ctx.company_id ? "azienda singola" : "piattaforma (tutte le aziende)", scopes: ctx.scopes },
-      convenzioni: SERVER_INSTRUCTIONS,
-      tool_disponibili: TOOLS.filter((t) => hasScope(ctx, t.scope)).map((t) => t.name),
+      chiave: { nome: ctx.name, ambito: ctx.company_id ? "azienda singola" : "piattaforma (area superadmin, tutte le aziende)", scopes: ctx.scopes },
+      convenzioni: istruzioniPer(ctx),
+      tool_disponibili: TOOLS.filter((t) => visibile(ctx, t)).map((t) => t.name),
     }),
   },
   {
@@ -622,8 +630,9 @@ const TOOLS_MANUALI: ToolDef[] = [
   },
 ];
 
-// Tool scritti a mano + ponte verso il catalogo silvio_tool_* (silvioTools.ts).
-const TOOLS: ToolDef[] = [...TOOLS_MANUALI, ...SILVIO_TOOLS, {
+// Tool scritti a mano + ponte verso il catalogo silvio_tool_* (silvioTools.ts)
+// + area superadmin (platformTools.ts, solo per i collegamenti di piattaforma).
+const TOOLS: ToolDef[] = [...TOOLS_MANUALI, ...SILVIO_TOOLS, ...AZIENDA_TOOLS, ...PLATFORM_TOOLS, {
   name: "stato_invio",
   description: "Verifica un'email accodata tramite outbound_id. queued = in attesa, failed = errore, sent = accettata dal provider (non prova di lettura o consegna).",
   scope: "email:read",
@@ -642,6 +651,41 @@ const TOOLS: ToolDef[] = [...TOOLS_MANUALI, ...SILVIO_TOOLS, {
 }];
 
 // Quotas, including in-flight sensitive calls, are reserved atomically in mcp_reserve_tool_call.
+
+/** Gli strumenti platform:* esistono solo per i collegamenti di piattaforma:
+ *  una chiave d'azienda con «*» non li vede (e il gestore li rifiuterebbe). */
+function visibile(ctx: KeyCtx, t: ToolDef): boolean {
+  if (t.scope?.startsWith("platform:") && (ctx.ambito !== "piattaforma" || ctx.company_id)) return false;
+  return hasScope(ctx, t.scope) && !negatoAllAttore(ctx, t);
+}
+
+/** Permessi dell'app di chi ha collegato (vedi permessiStrumenti.ts). */
+function negatoAllAttore(ctx: KeyCtx, t: ToolDef): string | null {
+  if (t.scope?.startsWith("platform:")) return null; // li controlla assicuraSuperadmin
+  return motivoNegato(ctx.attore, t.name, !!t.scope && !t.scope.endsWith(":read"));
+}
+
+/** Chi ha collegato: amministratore (tutto) o dipendente (ruolo + riga staff_permissions).
+ *  Riletto a ogni richiesta: un permesso tolto nell'app vale subito. */
+async function caricaAttore(admin: SupabaseClient, ctx: KeyCtx): Promise<Attore> {
+  // Area superadmin e chiavi API: le crea solo un amministratore (mcp_authorize_principal).
+  if (ctx.ambito === "piattaforma" || ctx.kind === "api_key") return { admin: true, ruolo: "company_admin", permessi: null };
+  const { data: eAdmin } = await admin.rpc("mcp_e_admin_azienda", { p_user: ctx.created_by, p_company: ctx.company_id });
+  if (eAdmin === true) return { admin: true, ruolo: "company_admin", permessi: null };
+  const [{ data: ruoli }, { data: permessi }] = await Promise.all([
+    admin.from("user_roles").select("role").eq("user_id", ctx.created_by),
+    admin.from("staff_permissions").select("*").eq("user_id", ctx.created_by).eq("company_id", ctx.company_id).maybeSingle(),
+  ]);
+  return {
+    admin: false,
+    ruolo: ruoloPrincipaleSilvio(((ruoli ?? []) as { role: string }[]).map((r) => r.role)),
+    permessi: (permessi as Record<string, unknown> | null) ?? null,
+  };
+}
+
+function istruzioniPer(ctx: KeyCtx | null): string {
+  return ctx?.ambito === "piattaforma" ? `${SERVER_INSTRUCTIONS}\n\n${ISTRUZIONI_PIATTAFORMA}` : SERVER_INSTRUCTIONS;
+}
 
 // ── JSON-RPC / MCP plumbing ─────────────────────────────────────────────────
 
@@ -662,7 +706,7 @@ function annotazioni(t: ToolDef) {
   return {
     readOnlyHint: false,
     // «aggiorna_*» sovrascrive dati esistenti; gli altri strumenti aggiungono soltanto.
-    destructiveHint: t.name.startsWith("aggiorna_"),
+    destructiveHint: t.name.startsWith("aggiorna_") || t.conferma === true,
     idempotentHint: false,
     // Invii reali: il messaggio esce dal gestionale verso persone esterne.
     openWorldHint: isSensitiveScope(t.scope),
@@ -671,13 +715,13 @@ function annotazioni(t: ToolDef) {
 
 function toolToMcp(t: ToolDef) {
   const write = !!t.scope && !t.scope.endsWith(":read");
-  const sensitive = isSensitiveScope(t.scope);
+  const sensitive = richiedeConferma(t);
   const inputSchema = {
     ...t.inputSchema,
     properties: {
       ...(t.inputSchema.properties as Record<string, unknown> ?? {}),
       ...(write ? { request_id: { type: "string", format: "uuid", description: "UUID univoco dell'operazione. Riusa lo stesso UUID con gli stessi dati nei retry." } } : {}),
-      ...(sensitive ? { confirmed: { type: "boolean", enum: [true], description: "Solo dopo conferma esplicita dell'utente su destinatario e contenuto." } } : {}),
+      ...(sensitive ? { confirmed: { type: "boolean", enum: [true], description: "Solo dopo conferma esplicita dell'utente su cosa verrà fatto (destinatario e contenuto, o azienda e modifica)." } } : {}),
     },
     required: [...(t.inputSchema.required as string[] ?? []), ...(write ? ["request_id"] : []), ...(sensitive ? ["confirmed"] : [])],
   };
@@ -749,7 +793,7 @@ async function ctxDaOAuth(admin: SupabaseClient, token: string): Promise<KeyCtx 
   const audience = Deno.env.get("MCP_OAUTH_AUDIENCE") ?? "authenticated";
   if (!clientId || !validOAuthClaims(claims, userId, `${SB_URL}/auth/v1`, audience)) return null;
   const { data: grant } = await admin.from("mcp_oauth_grants")
-    .select("id, company_id, client_name, livello, invii, rate_limit_per_minute, rate_limit_per_day, sensitive_actions_per_day")
+    .select("id, company_id, ambito, client_name, livello, invii, rate_limit_per_minute, rate_limit_per_day, sensitive_actions_per_day")
     .eq("user_id", userId).eq("client_id", clientId).is("revoked_at", null)
     .order("updated_at", { ascending: false }).limit(2);
   // A token without tenant binding cannot choose between multiple companies.
@@ -760,8 +804,10 @@ async function ctxDaOAuth(admin: SupabaseClient, token: string): Promise<KeyCtx 
     kind: "oauth",
     id: selected.id,
     company_id: selected.company_id,
+    ambito: selected.ambito === "piattaforma" ? "piattaforma" : "azienda",
     name: selected.client_name ?? "Assistente AI (OAuth)",
-    scopes: scopesPerLivello(selected.livello as string, selected.invii as boolean),
+    scopes: scopesPerLivello(selected.livello as string, selected.invii as boolean, selected.ambito as string),
+    tokenUtente: token,
     rate_limit_per_minute: selected.rate_limit_per_minute ?? 60,
     rate_limit_per_day: selected.rate_limit_per_day ?? 5000,
     sensitive_actions_per_day: selected.sensitive_actions_per_day ?? 100,
@@ -813,7 +859,8 @@ Deno.serve(async (req) => {
     }
     if (method === "ping") return new Response(JSON.stringify(rpcResult(id, {})), { headers: jsonHeaders });
     if (method.startsWith("notifications/") && id === undefined) return new Response(null, { status: 202, headers: cors });
-    if (method === "tools/list") return new Response(JSON.stringify(rpcResult(id, { tools: TOOLS.map(toolToMcp) })), { headers: jsonHeaders });
+    // Gli strumenti dell'area superadmin si vedono solo dopo il collegamento.
+    if (method === "tools/list") return new Response(JSON.stringify(rpcResult(id, { tools: TOOLS.filter((t) => !t.scope?.startsWith("platform:")).map(toolToMcp) })), { headers: jsonHeaders });
     if (method === "tools/call") return sfidaOAuth("Collega l'assistente prima di usare gli strumenti.", cors, id);
   }
 
@@ -849,6 +896,7 @@ Deno.serve(async (req) => {
       kind: "api_key",
       id: keyRow.id,
       company_id: keyRow.company_id,
+      ambito: keyRow.company_id ? "azienda" : "piattaforma",
       name: keyRow.name,
       scopes: (keyRow.scopes as string[]) ?? [],
       rate_limit_per_minute: keyRow.rate_limit_per_minute ?? 60,
@@ -870,6 +918,9 @@ Deno.serve(async (req) => {
   try { await authorizePrincipal(admin, ctx); } catch {
     return sfidaOAuth("Permessi del collegamento revocati o scaduti. Ricollega con un amministratore autorizzato.", cors, id);
   }
+  try { ctx.attore = await caricaAttore(admin, ctx); } catch {
+    return new Response(JSON.stringify(rpcError(id ?? null, -32603, "Non riesco a verificare i permessi dell'utente. Riprova.")), { status: 503, headers: jsonHeaders });
+  }
 
   // Notifiche (nessuna risposta attesa) → 202
   if (method?.startsWith("notifications/") && id === undefined) {
@@ -884,13 +935,13 @@ Deno.serve(async (req) => {
         protocolVersion,
         capabilities: { tools: { listChanged: false } },
         serverInfo: SERVER_INFO,
-        instructions: SERVER_INSTRUCTIONS,
+        instructions: istruzioniPer(ctx),
       })), { headers: jsonHeaders });
     }
     case "ping":
       return new Response(JSON.stringify(rpcResult(id, {})), { headers: jsonHeaders });
     case "tools/list": {
-      const visible = TOOLS.filter((t) => hasScope(ctx, t.scope));
+      const visible = TOOLS.filter((t) => visibile(ctx, t));
       return new Response(JSON.stringify(rpcResult(id, { tools: visible.map(toolToMcp) })), { headers: jsonHeaders });
     }
     case "tools/call": {
@@ -919,11 +970,12 @@ Deno.serve(async (req) => {
         });
       };
 
-      // Scope
-      if (!hasScope(ctx, tool.scope)) {
+      // Scope e permessi dell'utente che ha collegato
+      if (!visibile(ctx, tool)) {
         await log(403, null);
+        const motivo = negatoAllAttore(ctx, tool);
         return new Response(JSON.stringify(rpcResult(id, {
-          content: [{ type: "text", text: `Scope '${tool.scope}' non autorizzato per questo collegamento.` }],
+          content: [{ type: "text", text: motivo ?? `Scope '${tool.scope}' non autorizzato per questo collegamento.` }],
           isError: true,
         })), { headers: jsonHeaders });
       }
@@ -944,7 +996,7 @@ Deno.serve(async (req) => {
         const fingerprint = await sha256Hex(canonicalJson({ tool: tool.name, args }));
         const { data: reservation, error: reserveError } = await admin.rpc("mcp_reserve_tool_call", {
           p_kind: ctx.kind, p_id: ctx.id, p_request_id: requestId, p_fingerprint: fingerprint,
-          p_sensitive: isSensitiveScope(tool.scope), p_scope: tool.scope,
+          p_sensitive: richiedeConferma(tool), p_scope: tool.scope,
           p_company_id: ctx.company_id, p_actor_id: ctx.created_by,
         });
         if (reserveError) throw new ToolError("Controllo di sicurezza non disponibile: nessuna azione eseguita. Verifica che la migrazione MCP sia installata.");

@@ -1,4 +1,5 @@
 import { PlatformCompanyProvider } from "@/components/admin/PlatformCompanyProvider";
+import AdminGoogleCalendarPolicies from "@/components/admin/settings/AdminGoogleCalendarPolicies";
 import SettingsMarketingCalendars from "@/pages/azienda/settings/SettingsMarketingCalendars";
 
 export default function AdminSettingsMarketingCalendars() {
@@ -12,6 +13,8 @@ export default function AdminSettingsMarketingCalendars() {
           </p>
         </div>
         <SettingsMarketingCalendars />
+        {/* Regole Google valide per tutte le aziende: fino al 25/11/2026 stavano in Integrazioni. */}
+        <AdminGoogleCalendarPolicies />
       </div>
     </PlatformCompanyProvider>
   );

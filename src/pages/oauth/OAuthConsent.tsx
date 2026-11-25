@@ -12,14 +12,21 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Bot, Check, Loader2, ShieldCheck, Sparkles, X } from "lucide-react";
+import { Bot, Building2, Check, Crown, Loader2, ShieldCheck, Sparkles, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { LoginForm } from "@/components/auth/LoginForm";
-import { LIVELLI, type LivelloConnettore } from "@/lib/aiConnector";
+import { LIVELLI, LIVELLI_SUPERADMIN, type AmbitoConnettore, type LivelloConnettore } from "@/lib/aiConnector";
+
+// La colonna nuova non è ancora nei tipi generati.
+type LetturaAzienda = { from: (t: string) => { select: (c: string) => { eq: (k: string, v: string) => {
+  maybeSingle: () => Promise<{ data: { ai_connettore_dipendenti?: boolean } | null }>;
+} } } };
+
+const RUOLI_DIPENDENTI = ["company_staff", "salesperson", "call_center", "employee", "subcontractor"];
 
 type Dettagli = { clientId: string; clientName: string; scope: string; redirectHost: string | null };
 
@@ -37,8 +44,29 @@ export default function OAuthConsent() {
 
   const companyId = effectiveCompany?.id ?? profile?.company_id ?? null;
   const companyName = effectiveCompany?.name ?? "la tua azienda";
-  const puoAutorizzare =
-    role === "company_admin" || role === "super_admin";
+  const superAdmin = role === "super_admin";
+  const amministratore = role === "company_admin" || superAdmin;
+  // I dipendenti collegano il PROPRIO assistente solo se l'azienda lo permette;
+  // l'assistente farà solo ciò che il dipendente può fare nell'app (server MCP).
+  const [dipendentiAmmessi, setDipendentiAmmessi] = useState(false);
+  useEffect(() => {
+    if (amministratore || !companyId || !role || !RUOLI_DIPENDENTI.includes(role)) return;
+    let vivo = true;
+    (supabase as unknown as LetturaAzienda).from("companies")
+      .select("ai_connettore_dipendenti").eq("id", companyId).maybeSingle()
+      .then(({ data }) => {
+        if (vivo) setDipendentiAmmessi(data?.ai_connettore_dipendenti === true);
+      });
+    return () => { vivo = false; };
+  }, [amministratore, companyId, role]);
+  const puoAutorizzare = amministratore || dipendentiAmmessi;
+  // Il super admin può collegare l'assistente alla propria area (statistiche,
+  // aziende, piani, CRM della piattaforma) invece che a un'azienda.
+  const [ambitoScelto, setAmbito] = useState<AmbitoConnettore | null>(null);
+  const ambito: AmbitoConnettore = ambitoScelto ?? (superAdmin ? "piattaforma" : "azienda");
+  const piattaforma = superAdmin && ambito === "piattaforma";
+  const livelli = piattaforma ? LIVELLI_SUPERADMIN : LIVELLI;
+  const integrazioni = superAdmin ? "/admin/impostazioni/integrazioni" : "/azienda/impostazioni/integrazioni";
 
   const [stato, setStato] = useState<"carico" | "consenso" | "invio" | "errore" | "concluso">("carico");
   const [errore, setErrore] = useState<string | null>(null);
@@ -82,7 +110,7 @@ export default function OAuthConsent() {
   }, [authorizationId, user, isLoading]);
 
   const approva = async () => {
-    if (!dettagli || !companyId || !puoAutorizzare) return;
+    if (!dettagli || !puoAutorizzare || (!piattaforma && !companyId)) return;
     setStato("invio");
     setErrore(null);
     let oauthApproved = false;
@@ -94,13 +122,20 @@ export default function OAuthConsent() {
       oauthApproved = true;
       // Register the company grant before releasing the authorization code to
       // the client. If this fails, MCP remains closed and we do not redirect.
-      const { error: errGrant } = await supabase.rpc("mcp_oauth_upsert_grant" as never, {
-        p_client_id: dettagli.clientId,
-        p_company_id: companyId,
-        p_livello: livello,
-        p_invii: livello === "operativo" && invii,
-        p_client_name: dettagli.clientName,
-      } as never);
+      const { error: errGrant } = piattaforma
+        ? await supabase.rpc("mcp_oauth_upsert_grant_piattaforma" as never, {
+          p_client_id: dettagli.clientId,
+          p_livello: livello,
+          p_invii: livello === "operativo" && invii,
+          p_client_name: dettagli.clientName,
+        } as never)
+        : await supabase.rpc("mcp_oauth_upsert_grant" as never, {
+          p_client_id: dettagli.clientId,
+          p_company_id: companyId,
+          p_livello: livello,
+          p_invii: amministratore && livello === "operativo" && invii,
+          p_client_name: dettagli.clientName,
+        } as never);
       if (errGrant) throw new Error(errGrant.message);
       setStato("concluso");
       window.location.href = data.redirect_url;
@@ -119,11 +154,11 @@ export default function OAuthConsent() {
       window.location.href = data.redirect_url;
     } catch {
       // Se il rifiuto non riesce, torna comunque nell'app.
-      navigate("/azienda/impostazioni/integrazioni", { replace: true });
+      navigate(integrazioni, { replace: true });
     }
   };
 
-  const livelloScelto = useMemo(() => LIVELLI.find((l) => l.id === livello), [livello]);
+  const livelloScelto = useMemo(() => livelli.find((l) => l.id === livello), [livelli, livello]);
 
   // Senza sessione: login qui, restando su /oauth/consent (l'authorization_id resta).
   if (!isLoading && !user) {
@@ -160,7 +195,7 @@ export default function OAuthConsent() {
             <X className="h-4 w-4" />
             <AlertDescription className="text-xs">{errore}</AlertDescription>
           </Alert>
-          <Button variant="outline" onClick={() => navigate("/azienda/impostazioni/integrazioni")}>
+          <Button variant="outline" onClick={() => navigate(integrazioni)}>
             Torna alle integrazioni
           </Button>
         </>
@@ -168,11 +203,51 @@ export default function OAuthConsent() {
 
       {(stato === "consenso" || stato === "invio") && dettagli && (
         <>
+          {superAdmin && (
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Dove lavora l'assistente">
+              {([
+                { id: "piattaforma" as const, icona: Crown, titolo: "Area superadmin", sotto: "Tutta la piattaforma" },
+                { id: "azienda" as const, icona: Building2, titolo: companyName, sotto: "Solo questa azienda" },
+              ]).map((o) => {
+                const attivo = ambito === o.id;
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={attivo}
+                    disabled={o.id === "azienda" && !companyId}
+                    onClick={() => setAmbito(o.id)}
+                    className={cn(
+                      "rounded-xl border p-3 text-left transition-colors disabled:opacity-50",
+                      attivo ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "hover:bg-muted/50",
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <o.icona className="h-4 w-4 text-primary" />
+                      <span className="truncate text-sm font-semibold">{o.titolo}</span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{o.sotto}</p>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           <p className="text-sm text-muted-foreground">
-            <strong>{dettagli.clientName}</strong> chiede di collegarsi al gestionale di{" "}
-            <strong>{companyName}</strong>. L'assistente lavorerà <strong>solo sui dati di questa azienda</strong>.
-            Scegli cosa può fare.
-            Se questo stesso client era collegato a un'altra azienda, il nuovo consenso sostituisce quello precedente.
+            {piattaforma ? (
+              <>
+                <strong>{dettagli.clientName}</strong> chiede di collegarsi all'<strong>area superadmin</strong>: potrà
+                vedere i numeri della piattaforma e i dati di tutte le aziende. Scegli cosa può fare.
+              </>
+            ) : (
+              <>
+                <strong>{dettagli.clientName}</strong> chiede di collegarsi al gestionale di{" "}
+                <strong>{companyName}</strong>. L'assistente lavorerà <strong>solo sui dati di questa azienda</strong>.
+                Scegli cosa può fare.
+              </>
+            )}{" "}
+            Se questo stesso client era già collegato, il nuovo consenso sostituisce quello precedente.
           </p>
 
           {dettagli.redirectHost && (
@@ -194,12 +269,13 @@ export default function OAuthConsent() {
             <Alert>
               <ShieldCheck className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                Il collegamento lo attiva un amministratore dell'azienda. Chiedi a chi gestisce le integrazioni.
+                Il collegamento lo attiva un amministratore dell'azienda, oppure ti permette di collegare il tuo
+                assistente da Impostazioni → Integrazioni. Chiedi a chi gestisce le integrazioni.
               </AlertDescription>
             </Alert>
           ) : (
             <div className="grid gap-2">
-              {LIVELLI.map((l) => {
+              {livelli.map((l) => {
                 const attivo = livello === l.id;
                 return (
                   <button
@@ -224,7 +300,14 @@ export default function OAuthConsent() {
             </div>
           )}
 
-          {puoAutorizzare && livello === "operativo" && (
+          {!amministratore && puoAutorizzare && (
+            <p className="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              L'assistente farà solo ciò che puoi fare tu nel gestionale, con i tuoi permessi. Gli invii reali restano
+              agli amministratori.
+            </p>
+          )}
+
+          {amministratore && livello === "operativo" && (
             <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3 dark:bg-amber-950/20">
               <input
                 type="checkbox"
@@ -242,7 +325,7 @@ export default function OAuthConsent() {
           )}
 
           <p className="text-[11px] text-muted-foreground">
-            Potrai revocare questo collegamento in qualsiasi momento da Impostazioni → API.
+            Potrai revocare questo collegamento in qualsiasi momento da {piattaforma ? "Impostazioni → Integrazioni" : "Impostazioni → API"}.
             {livelloScelto ? ` Esempio: « ${livelloScelto.esempi[0]} »` : ""}
           </p>
 
@@ -250,7 +333,7 @@ export default function OAuthConsent() {
             <Button variant="ghost" className="flex-1" onClick={rifiuta} disabled={stato === "invio"}>
               Rifiuta
             </Button>
-            <Button className="flex-1 gap-2" onClick={approva} disabled={stato === "invio" || !puoAutorizzare || !companyId}>
+            <Button className="flex-1 gap-2" onClick={approva} disabled={stato === "invio" || !puoAutorizzare || (!piattaforma && !companyId)}>
               {stato === "invio" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
               Autorizza
             </Button>

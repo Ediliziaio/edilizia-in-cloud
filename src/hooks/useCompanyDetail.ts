@@ -8,13 +8,16 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { toast } from "sonner";
-import { addDays, differenceInDays } from "date-fns";
+import { differenceInDays } from "date-fns";
 import type { Company, CompanyStatus, CompanySector } from "@/types/auth";
 import type { StaffUserFormData, StaffRoleType } from "@/components/users/StaffUserDialog";
 import type { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { livelloMagazzinoCampo } from "../../shared/campo-magazzino";
 import { salvaPermessiUtente } from "@/lib/permessi/salvaPermessiUtente";
 import type { EmployeeFormData } from "@/components/employees/EmployeeDialog";
+
+// Funzioni lato server nuove (25/11/2026), non ancora nei tipi generati.
+type RpcLibera = { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ error: { message: string } | null }> };
 
 const formSchema = z.object({
   management_mode: z.enum(["complete", "accounting"]),
@@ -410,23 +413,12 @@ export function useCompanyDetail(id: string | undefined) {
     mutationFn: async ({ newStatus, notes }: { newStatus: CompanyStatus; notes: string }) => {
       assertCanManage();
       if (!id || !company) return;
-      const { error: updateError } = await supabase.from("companies").update({ status: newStatus }).eq("id", id);
-      if (updateError) throw updateError;
-      await supabase.from("subscription_logs").insert({
-        company_id: id,
-        event_type: newStatus === "active" ? "activated" : newStatus === "suspended" ? "suspended" : "status_change",
-        old_status: company.status, new_status: newStatus, notes, performed_by: user?.id,
+      // Stato, registro abbonamento e audit in una sola transazione, lato server
+      // (admin_azienda_cambia_stato, 25/11/2026): la stessa strada dell'assistente AI.
+      const { error } = await (supabase as unknown as RpcLibera).rpc("admin_azienda_cambia_stato", {
+        p_company_id: id, p_stato: newStatus, p_note: notes || null,
       });
-      if (user?.id) {
-        const auditAction = newStatus === "suspended" ? "suspend_company" : newStatus === "active" ? "reactivate_company" : "status_change";
-        await supabase.from("admin_audit_log").insert({
-          user_id: user.id,
-          action: auditAction,
-          target_type: "company",
-          target_id: id,
-          details: { company_name: company.name, old_status: company.status, new_status: newStatus, notes },
-        });
-      }
+      if (error) throw new Error(error.message);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.subscriptionLogs(id) });
@@ -492,27 +484,12 @@ export function useCompanyDetail(id: string | undefined) {
     mutationFn: async (days: number) => {
       assertCanManage();
       if (!id || !company) return;
-      // Base = max(oggi, fine trial attuale): estendere un trial scaduto da
-      // tempo partiva dalla data passata → nuova scadenza ancora nel passato
-      // (status "trial" ma di fatto già scaduto).
-      const storedEnd = company.trial_ends_at ? new Date(company.trial_ends_at) : new Date();
-      const currentEnd = storedEnd.getTime() > Date.now() ? storedEnd : new Date();
-      const newEnd = addDays(currentEnd, days);
-      const { error } = await supabase.from("companies").update({ trial_ends_at: newEnd.toISOString(), status: "trial" }).eq("id", id);
-      if (error) throw error;
-      await supabase.from("subscription_logs").insert({
-        company_id: id, event_type: "trial_extended", old_status: company.status,
-        new_status: "trial", notes: `Trial esteso di ${days} giorni`, performed_by: user?.id,
+      // La base è il più tardi fra oggi e la fine attuale della prova: lo calcola
+      // admin_azienda_proroga_prova, che scrive anche registro e audit (25/11/2026).
+      const { error } = await (supabase as unknown as RpcLibera).rpc("admin_azienda_proroga_prova", {
+        p_company_id: id, p_giorni: days,
       });
-      if (user?.id) {
-        await supabase.from("admin_audit_log").insert({
-          user_id: user.id,
-          action: "extend_trial",
-          target_type: "company",
-          target_id: id,
-          details: { company_name: company.name, days, new_end: newEnd.toISOString() },
-        });
-      }
+      if (error) throw new Error(error.message);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.subscriptionLogs(id) });

@@ -2,10 +2,10 @@ import AdminSettingsIntegrations from "@/components/admin/settings/AdminSettings
 
 export default function AdminSettingsIntegrationsPage() {
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-5xl space-y-5">
       <div>
         <h1 className="text-2xl font-bold">Integrazioni</h1>
-        <p className="text-muted-foreground max-sm:hidden">Credenziali dei servizi esterni, divise per tema: pagamenti, Meta e WhatsApp, Google</p>
+        <p className="text-sm text-muted-foreground max-sm:hidden">Quello che colleghi da qui: assistenti AI e pagine social dei brand</p>
       </div>
       <AdminSettingsIntegrations />
     </div>

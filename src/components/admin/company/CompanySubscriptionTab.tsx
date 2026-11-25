@@ -2,7 +2,6 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
@@ -544,7 +543,6 @@ function GiftPlanButton({
   stripeAttivo?: boolean;
 }) {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState<string>(currentPlanId ?? "");
   const [reason, setReason] = useState("");
@@ -587,54 +585,20 @@ function GiftPlanButton({
       if (!selectedPlanId) throw new Error("Seleziona un piano");
       if (!reason.trim()) throw new Error("Motivo obbligatorio");
 
-      // Costruisci la nota strutturata persistita in payment_notes
-      // Formato leggibile + parsable se in futuro vogliamo estrarre i campi.
-      const noteLines = [
-        `Regalato il ${format(new Date(), "dd/MM/yyyy HH:mm", { locale: it })}`,
-        `Piano: ${selectedPlan?.name ?? selectedPlanId}`,
-        `Motivo: ${reason.trim()}`,
-      ];
-      if (expiresAt) {
-        noteLines.push(
-          `Scadenza regalo: ${format(new Date(expiresAt), "dd/MM/yyyy", { locale: it })}`,
-        );
-      }
-      if (user?.email) noteLines.push(`Operatore: ${user.email}`);
-      const paymentNotes = noteLines.join("\n");
-
-      // 1) UPDATE companies (assegna piano + comped + status active)
-      const { error: updateErr } = await supabase
-        .from("companies")
-        .update({
-          subscription_plan_id: selectedPlanId,
-          payment_method: "comped",
-          payment_notes: paymentNotes,
-          status: "active",
-        })
-        .eq("id", companyId);
-      if (updateErr) throw new Error("Errore assegnazione piano: " + updateErr.message);
-
-      // 2) INSERT subscription_logs (best-effort, non blocca il flow)
-      // Includiamo performed_by e previous_plan_id per audit trail completo
-      const { error: logErr } = await supabase
-        .from("subscription_logs")
-        .insert({
-          company_id: companyId,
-          event_type: "plan_changed",
-          plan_id: selectedPlanId,
-          previous_plan_id: currentPlanId ?? null,
-          new_status: "active",
-          performed_by: user?.id ?? null,
-          notes: `Piano regalato (comped). Motivo: ${reason.trim()}${
-            expiresAt ? ` · Scadenza: ${expiresAt}` : ""
-          }`,
-        });
-      if (logErr) {
-        // Non rifiutiamo l'operazione principale, ma segnaliamo all'utente.
-        console.warn("subscription_logs insert failed:", logErr);
-        return { warning: "Piano regalato OK, ma log eventi non scritto" };
-      }
-      return { warning: null };
+      // Piano, pagamento «comped», stato, note, registro e audit in una sola
+      // transazione lato server (admin_regala_piano, 25/11/2026): prima erano
+      // un UPDATE dal browser e un registro «best effort». È la stessa strada
+      // dell'assistente AI collegato all'area superadmin.
+      const { error } = await (supabase as unknown as {
+        rpc: (fn: string, args: Record<string, unknown>) => Promise<{ error: { message: string } | null }>;
+      }).rpc("admin_regala_piano", {
+        p_company_id: companyId,
+        p_plan_id: selectedPlanId,
+        p_motivo: reason.trim(),
+        p_scadenza: expiresAt || null,
+      });
+      if (error) throw new Error("Errore assegnazione piano: " + error.message);
+      return { warning: null as string | null };
     },
     onSuccess: (data) => {
       toast.success(`Piano "${selectedPlan?.name}" regalato a ${companyName}`, {

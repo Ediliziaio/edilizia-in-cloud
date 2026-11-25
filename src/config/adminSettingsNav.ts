@@ -77,7 +77,7 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
       {
         id: "integrazioni",
         label: "Integrazioni",
-        description: "API esterne, webhook e connettori",
+        description: "Claude e ChatGPT nell'area superadmin, Facebook e Instagram dei brand",
         icon: Plug,
         url: "/admin/impostazioni/integrazioni",
         permission: "can_manage_admins",

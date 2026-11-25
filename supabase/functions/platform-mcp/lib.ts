@@ -2,6 +2,7 @@
 // (il ponte verso le RPC silvio_tool_*). Estratti da index.ts il 26/09/2026.
 import { type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { domainError } from "./protocol.ts";
+import type { Attore } from "./permessiStrumenti.ts";
 
 export interface KeyCtx {
   /** Come ci si è autenticati: chiave API o token OAuth (grant). Decide su quale
@@ -9,6 +10,14 @@ export interface KeyCtx {
   kind: "api_key" | "oauth";
   id: string;
   company_id: string | null;
+  /** azienda = lavora su company_id; piattaforma = area superadmin (company_id
+   *  NULL): consenso OAuth di piattaforma o chiave API senza azienda. */
+  ambito: "azienda" | "piattaforma";
+  /** Token OAuth dell'utente (solo collegamenti OAuth): per le funzioni che
+   *  devono applicare le sue regole sulle righe. Mai registrato né restituito. */
+  tokenUtente?: string;
+  /** Chi ha collegato e cosa può fare nell'app (caricato a ogni richiesta). */
+  attore?: Attore;
   name: string;
   scopes: string[];
   rate_limit_per_minute: number;
@@ -28,6 +37,13 @@ export function isSensitiveScope(scope: string | null): boolean {
   return scope === "actions:sensitive" || scope === "email:send";
 }
 
+/** Strumento che chiede conferma esplicita e conta nel tetto delle azioni
+ *  sensibili: gli invii, e le azioni di piattaforma che cambiano soldi o accessi
+ *  (crea azienda, piano, crediti, stato). */
+export function richiedeConferma(t: Pick<ToolDef, "scope" | "conferma">): boolean {
+  return isSensitiveScope(t.scope) || t.conferma === true;
+}
+
 // Livello del connettore → scope. Rispecchia src/lib/aiConnector.ts: gli scope
 // NON arrivano dal client (OAuth non ha scope personalizzati) ma si ricavano qui
 // dal livello salvato nel grant, così non sono manomettibili.
@@ -37,19 +53,29 @@ const SCOPE_LETTURA = [
 ];
 const SCOPE_AZIONI = [
   "contacts:write", "opportunities:write", "tasks:write", "orders:write", "products:write",
-  "warehouse:write", "hr:write", "appointments:write",
+  "quotes:write", "warehouse:write", "hr:write", "appointments:write",
 ];
 const SCOPE_SENSIBILI = ["actions:sensitive", "email:send"];
 
-export function scopesPerLivello(livello: string, invii: boolean): string[] {
-  if (livello !== "operativo") return [...SCOPE_LETTURA];
-  return invii ? [...SCOPE_LETTURA, ...SCOPE_AZIONI, ...SCOPE_SENSIBILI] : [...SCOPE_LETTURA, ...SCOPE_AZIONI];
+// Ambito piattaforma (area superadmin): in più platform:read, e platform:write
+// col livello operativo. Rispecchiato in mcp_reserve_tool_call (database).
+export function scopesPerLivello(livello: string, invii: boolean, ambito: string = "azienda"): string[] {
+  const piattaforma = ambito === "piattaforma";
+  const lettura = piattaforma ? [...SCOPE_LETTURA, "platform:read"] : [...SCOPE_LETTURA];
+  if (livello !== "operativo") return lettura;
+  const azioni = piattaforma ? [...SCOPE_AZIONI, "platform:write"] : [...SCOPE_AZIONI];
+  return invii ? [...lettura, ...azioni, ...SCOPE_SENSIBILI] : [...lettura, ...azioni];
 }
+
+/** L'azienda della piattaforma: il CRM, le email e il calendario del superadmin. */
+export const PLATFORM_COMPANY_ID = "00000000-0000-0000-0000-000000000001";
 
 export interface ToolDef {
   name: string;
   description: string;
   scope: string | null; // null = nessuno scope richiesto
+  /** Chiede confirmed=true e conta come azione sensibile (vedi richiedeConferma). */
+  conferma?: boolean;
   inputSchema: Record<string, unknown>;
   handler: (admin: SupabaseClient, ctx: KeyCtx, args: Record<string, unknown>) => Promise<unknown>;
 }
@@ -111,7 +137,12 @@ export async function resolveCompany(
     return data as { id: string; name: string };
   }
   const raw = str(args.company);
-  if (!raw) throw new ToolError('Parametro "company" obbligatorio per le chiavi piattaforma (nome o UUID azienda). Usa lista_aziende per scoprirle.');
+  if (!raw) throw new ToolError('Parametro "company" obbligatorio per le chiavi piattaforma (nome o UUID azienda, oppure "piattaforma" per il CRM del superadmin). Usa lista_aziende per scoprirle.');
+  if (/^(piattaforma|platform|superadmin)$/i.test(raw)) {
+    const { data } = await admin.from("companies").select("id, name").eq("id", PLATFORM_COMPANY_ID).maybeSingle();
+    if (!data) throw new ToolError("Azienda della piattaforma non trovata");
+    return data as { id: string; name: string };
+  }
   if (UUID_RE.test(raw)) {
     const { data } = await admin.from("companies").select("id, name").eq("id", raw).maybeSingle();
     if (!data) throw new ToolError(`Nessuna azienda con id ${raw}`);
