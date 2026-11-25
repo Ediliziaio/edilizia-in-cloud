@@ -1,3 +1,4 @@
+import { BOTTONE_SECONDARIO, BOTTONE_NUOVO, RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { corrispondeTestoPronto, terminiRicercaRicevute, testoRicercaRicevute, type TestoRicerca } from "@/lib/fatturazione/ricercaRicevute";
 import { leggiXmlRicevuta, scaricaOriginaleRicevuta } from "@/lib/fatturazione/originaleRicevuta";
 import { useState, useMemo, useCallback, useDeferredValue, type ComponentProps, type ReactNode } from "react";
@@ -99,15 +100,16 @@ import {
   Sparkles,
   FileSpreadsheet,
   Archive,
-  ChevronDown,
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
   MoreHorizontal,
   Building2,
+  Tags,
+  Plus,
 } from "lucide-react";
 import { NavyStatCard } from "@/components/costi/KpiCard";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { fatturaRicevutaHtml, type FatturaRicevutaVista } from "@/lib/fatturazione/fatturaRicevutaHtml";
 import { FatturaRicevutaCompletaDialog } from "@/components/fatturazione/FatturaRicevutaCompletaDialog";
 import { esportaElencoRicevute, esportaXmlRicevuteZip, type RigaRicevuta } from "@/lib/fatturazione/esportaRicevute";
@@ -1070,7 +1072,8 @@ export default function FattureRicevutePage() {
   const handleEsportaElenco = async () => {
     setEsportando("elenco");
     try {
-      await esportaElencoRicevute(righeEsporta, etichettaEsporta);
+      // Col protocollo del cantiere, dove l'azienda lo usa: in archivio si cerca da quello.
+      await esportaElencoRicevute(righeEsporta, etichettaEsporta, (r) => protocolliCantiere.etichetta(r));
       toast.success(tr("{n} fatture esportate in Excel", { n: righeEsporta.length }));
     } catch (err) {
       toast.error(tr("Esportazione non riuscita"), { description: err instanceof Error ? err.message : undefined });
@@ -1101,61 +1104,72 @@ export default function FattureRicevutePage() {
   // ─── Render ─────────────────────────────────────────────
 
   return (
-    <div className="space-y-6 max-sm:space-y-3">
-      {/* Header — mobile: solo il titolo (importa XML e classificazione AI al desktop). */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-3">
+      {/* Testata come le altre pagine di Finanza (25/11/2026): titolo a 20px; in vista solo la
+          classificazione AI (quando serve), l'importazione e il «Nuovo»; tipi dei fornitori ed
+          esportazioni nel «⋯». Prima erano cinque bottoni da 40px. Mobile: solo il titolo e il «Nuovo». */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
         {/* Senza sottotitolo: «Fatture passive ricevute dal Sistema di
             Interscambio» ripeteva il titolo con altre parole. */}
         <div>
-          <h1 className="text-2xl font-bold text-foreground max-sm:text-lg">{tr("Fatture Ricevute")}</h1>
+          <h1 className="text-xl font-bold text-foreground max-sm:text-lg">{tr("Fatture Ricevute")}</h1>
         </div>
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-          <div className="flex flex-wrap items-center justify-end gap-2 max-sm:hidden">
-          {/* Il tipo del fornitore decide se la fattura va su una commessa o nelle spese generali. */}
-          <Button variant="outline" asChild>
-            <Link to="/azienda/documenti/tipi-fornitori">{tr("Tipi dei fornitori")}</Link>
-          </Button>
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+          <div className="flex flex-wrap items-center justify-end gap-1.5 max-sm:hidden">
           {kpi.daClassificare > 0 && (
             <Button
               variant="outline"
+              size="sm"
+              className={BOTTONE_SECONDARIO}
               onClick={() => setConfermaClassifica(true)}
               disabled={classProgress !== null}
               title={tr("Assegna a ogni fattura la categoria di spesa, e la porta anche sul costo")}
             >
               {classProgress !== null ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                <Loader2 className="animate-spin" />
               ) : (
-                <Sparkles className="h-4 w-4 mr-2" />
+                <Sparkles />
               )}
               {classProgress !== null
                 ? tr("Classificazione {fatte} di {totale}…", { fatte: String(classProgress.fatte ?? ""), totale: String(classProgress.totale ?? "") })
                 : tr("Classifica con l'AI ({daClassificare})", { daClassificare: String(kpi.daClassificare ?? "") })}
             </Button>
           )}
+          <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} onClick={() => setImportaAperto(true)}>
+            <Upload />
+            {tr("Importa XML o PDF")}
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" disabled={esportando !== null || righeEsporta.length === 0 || erroreFatture || erroreRiferimenti || ricercaRiferimentiInCorso} title={tr("Esporta le fatture che vedi nella lista")}>
-                {esportando ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
-                {esportando?.startsWith("xml ") ? tr("Zip {esportando}…", { esportando: esportando.slice(4) }) : tr("Esporta")}
-                <ChevronDown className="h-3.5 w-3.5 ml-1.5" />
+              <Button variant="outline" size="icon" className="h-8 w-8" aria-label={tr("Altre azioni")} title={esportando?.startsWith("xml ") ? tr("Zip {esportando}…", { esportando: esportando.slice(4) }) : undefined}>
+                {esportando ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => void handleEsportaElenco()}>
+            <DropdownMenuContent align="end" className="w-60">
+              {/* Il tipo del fornitore decide se la fattura va su una commessa o nelle spese generali. */}
+              <DropdownMenuItem asChild>
+                <Link to="/azienda/documenti/tipi-fornitori"><Tags className="h-4 w-4 mr-2" />{tr("Tipi dei fornitori")}</Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs text-muted-foreground">{tr("Esporta")}</DropdownMenuLabel>
+              <DropdownMenuItem
+                disabled={esportando !== null || righeEsporta.length === 0 || erroreFatture || erroreRiferimenti || ricercaRiferimentiInCorso}
+                title={tr("Esporta le fatture che vedi nella lista")}
+                onClick={() => void handleEsportaElenco()}
+              >
                 <FileSpreadsheet className="h-4 w-4 mr-2" /> {tr("Elenco in Excel ({n})", { n: righeEsporta.length })}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void handleEsportaXml()}>
+              <DropdownMenuItem
+                disabled={esportando !== null || righeEsporta.length === 0 || erroreFatture || erroreRiferimenti || ricercaRiferimentiInCorso}
+                onClick={() => void handleEsportaXml()}
+              >
                 <Archive className="h-4 w-4 mr-2" /> {tr("XML originali (zip)")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="outline" onClick={() => setImportaAperto(true)}>
-            <Upload className="h-4 w-4 mr-2" />
-            {tr("Importa XML o PDF")}
-          </Button>
           </div>
           {companyId && permessiCosti.canViewCosts && !permessiCosti.solaLettura && (
-            <Button onClick={() => setModuloUscitaAperto(true)}>{tr("Nuovo costo senza fattura")}</Button>
+            <Button size="sm" className={BOTTONE_NUOVO} onClick={() => setModuloUscitaAperto(true)}><Plus className="h-3.5 w-3.5" />{tr("Nuovo costo senza fattura")}</Button>
           )}
         </div>
       </div>
@@ -1264,7 +1278,7 @@ export default function FattureRicevutePage() {
         <div className="flex flex-wrap items-center gap-2">
           <CampoRicercaRicevute valore={searchQuery} onCambia={setSearchQuery} />
           <Select value={annoFilter} onValueChange={setAnnoFilter}>
-            <SelectTrigger className="w-[130px]" aria-label={tr("Anno")}>
+            <SelectTrigger className="h-8 w-[120px] text-xs" aria-label={tr("Anno")}>
               <SelectValue placeholder={tr("Anno")} />
             </SelectTrigger>
             <SelectContent>
@@ -1276,8 +1290,8 @@ export default function FattureRicevutePage() {
           </Select>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="gap-1.5">
-                <SlidersHorizontal className="h-4 w-4" />{tr("Altri filtri")}
+              <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO}>
+                <SlidersHorizontal />{tr("Altri filtri")}
                 {altriFiltriAttivi > 0 && <Badge variant="secondary" className="ml-0.5 h-5 px-1.5 text-xs">{altriFiltriAttivi}</Badge>}
               </Button>
             </PopoverTrigger>
@@ -1354,7 +1368,7 @@ export default function FattureRicevutePage() {
             anni={[...new Set(fatture.map(f => Number((f.data_ricezione_sdi ?? f.data_fattura ?? "").slice(0, 4))).filter(a => a > 2000))]} />}
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="gap-1.5 max-sm:hidden"><Columns3 className="h-4 w-4" />{tr("Colonne")}</Button>
+              <Button variant="outline" size="sm" className={cn(BOTTONE_SECONDARIO, "max-sm:hidden")}><Columns3 />{tr("Colonne")}</Button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-60 space-y-2">
               {COLONNE_RICEVUTE.map((c) => (
@@ -2065,11 +2079,11 @@ function CampoRicercaRicevute({ valore, onCambia }: { valore: string; onCambia: 
   const t = useT();
   const [testo, scrivi] = useTestoCheSegue(valore, onCambia);
   return (
-    <div className="relative min-w-[220px] flex-1">
-      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+    <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
+      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
       <Input
         placeholder={t("Cerca fornitore, fattura, note o riferimenti…")}
-        className="pl-9"
+        className="h-8 pl-8 text-xs"
         value={testo}
         onChange={(e) => scrivi(e.target.value)}
       />

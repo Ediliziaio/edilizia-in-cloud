@@ -133,7 +133,7 @@ export function NumeraProtocolliRicevute({ companyId, protocolli, anni }: { comp
   if (!protocolli.puoScrivere) return null;
   const elencoAnni = [...new Set([new Date().getFullYear(), ...anni])].sort((a, b) => b - a);
   return <>
-    <Button variant="outline" className="max-sm:hidden" onClick={() => setAperto(true)}>{t("Numera protocolli")}</Button>
+    <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs max-sm:hidden" onClick={() => setAperto(true)}>{t("Numera protocolli")}</Button>
     <Dialog open={aperto} onOpenChange={v => { if (!numera.isPending) setAperto(v); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
