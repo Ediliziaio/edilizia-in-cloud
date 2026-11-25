@@ -40,7 +40,7 @@ export function CalendarViewNavigation({
       {!isMobile && (
         <nav
           aria-label={t("Strumenti del calendario")}
-          className="flex flex-wrap gap-1 rounded-lg bg-muted/60 p-1"
+          className="flex flex-wrap gap-1 rounded-lg bg-muted/60 p-0.5"
         >
           {(
             [
@@ -80,7 +80,7 @@ export function CalendarViewNavigation({
               aria-pressed={item.active}
               onClick={() => onViewChange(item.view as CalendarViewType)}
               className={cn(
-                "flex min-h-9 items-center gap-2 rounded-md px-3 text-xs transition-colors",
+                "flex min-h-7 items-center gap-1.5 rounded-md px-2.5 text-xs transition-colors max-md:min-h-9",
                 item.active
                   ? "bg-background font-semibold text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
@@ -98,7 +98,7 @@ export function CalendarViewNavigation({
           onValueChange={(value) => onViewChange(value as CalendarViewType)}
         >
           <SelectTrigger
-            className="h-9 w-[170px] max-md:h-11 max-md:min-w-0 max-md:flex-1 max-md:text-base"
+            className="h-8 w-[170px] text-xs max-md:h-11 max-md:min-w-0 max-md:flex-1 max-md:text-base"
             aria-label={t("Periodo del calendario")}
           >
             <SelectValue />

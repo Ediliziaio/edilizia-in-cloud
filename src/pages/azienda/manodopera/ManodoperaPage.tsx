@@ -74,7 +74,7 @@ export default function ManodoperaPage() {
   return (
     <div className="space-y-3">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-950 max-sm:text-lg max-sm:leading-6">{t("Manodopera e Mezzi")}</h1>
+        <h1 className="text-xl font-bold tracking-tight text-slate-950 max-sm:text-lg max-sm:leading-6">{t("Manodopera e Mezzi")}</h1>
 
       </div>
 

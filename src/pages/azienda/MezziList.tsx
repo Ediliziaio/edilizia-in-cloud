@@ -13,6 +13,7 @@
  * sono, elenco), riquadri che contano e filtrano, gruppi che si aprono e si
  * chiudono (i piccoli affiancati), e su ogni mezzo i documenti che mancano.
  */
+import { RICERCA_BARRA, TENDINA_STATO_BARRA, BOTTONE_SECONDARIO, BOTTONE_NUOVO } from "@/components/orders/TestataScheda";
 import { Fragment, useMemo, useState } from "react";
 import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -296,13 +297,13 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
   };
 
   const azioni = (
-    <div className={cn("flex items-center gap-2", incorporata ? "ml-auto max-sm:hidden" : "max-sm:w-full")}>
-      <ScansionaMezzoButton onLibero={(codice) => setNuovo({ codice })} />
+    <div className={cn("flex items-center gap-1.5", incorporata ? "ml-auto max-sm:hidden" : "max-sm:w-full")}>
+      <ScansionaMezzoButton onLibero={(codice) => setNuovo({ codice })} className={cn(BOTTONE_SECONDARIO, "max-sm:h-9")} />
       {vista === "attrezzatura" && (
         <Button
           size="sm"
           variant="outline"
-          className="gap-2 max-sm:h-9 max-sm:w-9 max-sm:p-0"
+          className={cn(BOTTONE_SECONDARIO, "max-sm:h-9 max-sm:w-9 max-sm:p-0")}
           onClick={() => navigate("/azienda/mezzi/inventario")}
           aria-label={tr("Inventario")}
           title={tr("Inventario con lo scanner")}
@@ -311,7 +312,7 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
         </Button>
       )}
       {puoModificare && diQuesti.length > 0 && (
-        <Button size="sm" variant="outline" className="gap-2 max-sm:hidden" onClick={() => setEtichette(true)}>
+        <Button size="sm" variant="outline" className={cn(BOTTONE_SECONDARIO, "max-sm:hidden")} onClick={() => setEtichette(true)}>
           <QrCode className="h-4 w-4 text-orange-600" />{tr("Etichette QR")}
         </Button>
       )}
@@ -319,7 +320,7 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
         <Button
           size="sm"
           onClick={apriNuovo}
-          className="gap-2 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:flex-1"
+          className={cn(BOTTONE_NUOVO, "max-sm:h-9 max-sm:flex-1")}
         >
           <Plus className="h-4 w-4" aria-hidden="true" />{nomeNuovo}
         </Button>
@@ -350,7 +351,8 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
     <div className="space-y-3 sm:space-y-4">
       {incorporata ? (
         <div className="flex flex-wrap items-center justify-between gap-3 max-sm:hidden">
-          <p className="text-sm text-slate-500 max-sm:hidden">
+          {/* La frase resta per i lettori di schermo: in vista era una riga di testo sopra i comandi (25/11/2026). */}
+          <p className="sr-only">
             {vista === "attrezzatura"
               ? tr("Attrezzi e ponteggi: dove sono, chi li ha, manutenzioni e verifiche. Con l'etichetta QR si trovano dal telefono.")
               : tr("Assicurazioni, revisioni e tagliandi di furgoni e mezzi d'opera, con l'avviso prima che scadano.")}
@@ -448,8 +450,9 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
             ))}
           </p>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <OperationalKpiCard
+              compact
               icon={vista === "mezzo" ? Truck : Wrench}
               label={vista === "mezzo" ? tr("Mezzi") : tr("Attrezzature")}
               value={diQuesti.length}
@@ -463,6 +466,7 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
               onClick={() => setFiltroRiquadro(null)}
             />
             <OperationalKpiCard
+              compact
               icon={HardHat}
               label={tr("Sui cantieri")}
               value={numeri.cantieri}
@@ -474,6 +478,7 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
             />
             {vista === "mezzo" ? (
               <OperationalKpiCard
+                compact
                 icon={FileWarning}
                 label={tr("Documenti da sistemare")}
                 value={numeri.documenti}
@@ -485,6 +490,7 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
               />
             ) : (
               <OperationalKpiCard
+                compact
                 icon={EyeOff}
                 label={tr("Non viste")}
                 value={numeri.nonVisti}
@@ -496,6 +502,7 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
               />
             )}
             <OperationalKpiCard
+              compact
               icon={Wrench}
               label={vista === "mezzo" ? tr("Fermi") : tr("Ferme")}
               value={numeri.fermi}
@@ -568,14 +575,14 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
 
       {/* Con pochi elementi si vedono tutti: ricerca e filtro servono da sei in su. */}
       {diQuesti.length > 5 && (
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <Input
               value={cerca}
               onChange={(e) => setCerca(e.target.value)}
               placeholder={vista === "attrezzatura" ? tr("Cerca nome, codice, persona") : tr("Cerca nome, targa, persona")}
-              className="pl-9"
+              className="h-8 pl-8 text-xs"
               aria-label={vista === "attrezzatura" ? tr("Cerca attrezzature") : tr("Cerca mezzi")}
             />
           </div>
@@ -584,7 +591,7 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
           <div className="flex gap-2 empty:hidden max-sm:hidden">
             {!isMobile && (
               <Select value={filtro} onValueChange={setFiltro}>
-                <SelectTrigger className="sm:w-56" aria-label={vista === "attrezzatura" ? tr("Filtra per categoria") : tr("Filtra per tipo")}>
+                <SelectTrigger className={TENDINA_STATO_BARRA} aria-label={vista === "attrezzatura" ? tr("Filtra per categoria") : tr("Filtra per tipo")}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
