@@ -1070,7 +1070,8 @@ export default function FattureRicevutePage() {
   const handleEsportaElenco = async () => {
     setEsportando("elenco");
     try {
-      await esportaElencoRicevute(righeEsporta, etichettaEsporta);
+      // Col protocollo del cantiere, dove l'azienda lo usa: in archivio si cerca da quello.
+      await esportaElencoRicevute(righeEsporta, etichettaEsporta, (r) => protocolliCantiere.etichetta(r));
       toast.success(tr("{n} fatture esportate in Excel", { n: righeEsporta.length }));
     } catch (err) {
       toast.error(tr("Esportazione non riuscita"), { description: err instanceof Error ? err.message : undefined });

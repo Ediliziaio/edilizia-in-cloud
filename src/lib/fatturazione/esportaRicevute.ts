@@ -17,6 +17,9 @@ export interface RigaRicevuta {
   iva_totale: number | null;
   totale_documento: number | null;
   stato: string;
+  /** Protocollo del cantiere, «Che12»: la commessa generale e il numero dentro quella. */
+  protocollo_commessa_id?: string | null;
+  protocollo_commessa_numero?: number | null;
 }
 
 const TIPI: Record<string, string> = {
@@ -36,18 +39,35 @@ export function nomeFileRicevuta(r: Pick<RigaRicevuta, "data_fattura" | "cedente
   return `${r.data_fattura}_${pulisci(r.cedente_piva || "senza-piva")}_${pulisci(r.numero_fattura) || "senza-numero"}.xml`;
 }
 
-/** L'elenco delle fatture ricevute in Excel (una riga per fattura). */
-export async function esportaElencoRicevute(righe: RigaRicevuta[], etichetta: string): Promise<void> {
+/**
+ * Colonne e celle dell'elenco. Separata dall'esportazione perché è l'unica parte con una
+ * decisione dentro, e così si prova senza scrivere file.
+ *
+ * `protocollo` dà il protocollo del cantiere di una fattura («Che12»): la colonna compare
+ * solo se almeno una fattura dell'elenco ne ha uno, come nella pagina. Sta per prima, perché
+ * è il numero della cartella: chi cerca un documento in archivio parte da lì.
+ */
+export function righeElencoRicevute(righe: RigaRicevuta[], protocollo?: (r: RigaRicevuta) => string | null) {
+  const protocolli = righe.map((r) => protocollo?.(r) ?? "");
+  const conProtocollo = protocolli.some((p) => !!p);
   const colonne = [
+    ...(conProtocollo ? [{ key: "protocollo", label: "Prot. cantiere" }] : []),
     { key: "data", label: "Data fattura" }, { key: "numero", label: "Numero" }, { key: "fornitore", label: "Fornitore" },
     { key: "piva", label: "P.IVA fornitore" }, { key: "tipo", label: "Tipo documento" }, { key: "imponibile", label: "Imponibile" },
     { key: "iva", label: "IVA" }, { key: "totale", label: "Totale" }, { key: "stato", label: "Stato" },
   ];
-  const dati = righe.map((r) => ({
+  const dati = righe.map((r, i) => ({
+    ...(conProtocollo ? { protocollo: protocolli[i] } : {}),
     data: dataIt(r.data_fattura), numero: r.numero_fattura, fornitore: r.cedente_ragione_sociale, piva: r.cedente_piva ?? "",
     tipo: `${r.tipo_documento} ${TIPI[r.tipo_documento] ?? ""}`.trim(), imponibile: eur(r.imponibile_totale), iva: eur(r.iva_totale),
     totale: eur(r.totale_documento), stato: STATI[r.stato] ?? r.stato,
   }));
+  return { colonne, dati };
+}
+
+/** L'elenco delle fatture ricevute in Excel (una riga per fattura). */
+export async function esportaElencoRicevute(righe: RigaRicevuta[], etichetta: string, protocollo?: (r: RigaRicevuta) => string | null): Promise<void> {
+  const { colonne, dati } = righeElencoRicevute(righe, protocollo);
   await exportToXLSX(dati, colonne, `fatture_ricevute_${etichetta}.xlsx`, "Fatture ricevute");
 }
 
