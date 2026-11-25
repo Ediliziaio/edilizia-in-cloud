@@ -14,14 +14,15 @@
 .settings-workspace [data-ui="tabs-list"] {
   max-width: 100%;
   height: auto;
-  min-height: 2.75rem;
+  min-height: 2rem;
   justify-content: flex-start;
-  gap: .25rem;
-  padding: .25rem;
+  gap: .125rem;
+  padding: .125rem;
   border-radius: .625rem;
 }
 .settings-workspace [data-ui="tabs-trigger"] {
-  min-height: 2.25rem;
+  /* 25/11/2026: da 36 a 28px, come le linguette del resto dell'app. */
+  min-height: 1.75rem;
   border-radius: .375rem;
   border-bottom-color: transparent;
 }
@@ -68,7 +69,12 @@
    tagliare la parola che distingue due funzioni. */
 .settings-sidebar [data-sidebar="menu-button"] {
   height: auto;
-  min-height: 2.25rem;
+  min-height: 1.75rem;
+}
+/* Etichette dei gruppi un po' più piccole, come le aree del menu principale (25/11/2026). */
+.settings-sidebar [data-sidebar="group-label"] {
+  height: 1.75rem;
+  font-size: 10.5px;
 }
 .settings-sidebar [data-sidebar="menu-button"] > span:last-child {
   white-space: normal;
@@ -99,4 +105,61 @@
 }
 @media (max-width: 767px) {
   .settings-workspace [data-ui="button"][data-variant="ghost"] { min-height: 2.75rem; }
+}
+
+/* Comandi delle impostazioni alla stessa misura del resto dell'app (25/11/2026): da computer
+   bottoni e tendine alti 32px con testo 12px, come le testate di Commesse, Finanza e le altre
+   pagine. Una regola sola qui invece di toccare 45 pagine; i campi di testo dei moduli restano
+   come sono (si leggono e si scrivono), il telefono ha la sua regola in index.css. */
+@media (min-width: 768px) {
+  .settings-workspace [data-ui="button"].h-10,
+  .settings-workspace [data-ui="button"].h-9 {
+    height: 2rem;
+    font-size: .75rem;
+  }
+  .settings-workspace [data-ui="button"].h-10.px-4,
+  .settings-workspace [data-ui="button"].h-9.px-3 {
+    padding-left: .75rem;
+    padding-right: .75rem;
+  }
+  .settings-workspace [data-ui="button"].w-10,
+  .settings-workspace [data-ui="button"].w-9 { width: 2rem; }
+  .settings-workspace [data-ui="button"].h-10 svg,
+  .settings-workspace [data-ui="button"].h-9 svg {
+    width: .875rem;
+    height: .875rem;
+  }
+  .settings-workspace button[role="combobox"].h-10,
+  .settings-workspace button[role="combobox"].h-9 {
+    height: 2rem;
+    font-size: .75rem;
+  }
+  /* Ricerche: 288×32 come in tutte le pagine (RICERCA_BARRA). Si riconoscono dalla lente
+     dentro il riquadro; erano larghe da 224 a 1088px e alte 36-40. */
+  .settings-workspace div.relative:has(> svg.lucide-search + input) {
+    flex: none;
+    width: 18rem;
+    max-width: 100%;
+  }
+  .settings-workspace div.relative:has(> svg.lucide-search + input) > input {
+    height: 2rem;
+    padding-left: 2rem;
+    font-size: .75rem;
+  }
+  .settings-workspace div.relative:has(> svg.lucide-search + input) > svg.lucide-search {
+    left: .625rem;
+    top: 50%;
+    width: .875rem;
+    height: .875rem;
+    transform: translateY(-50%);
+  }
+  /* Linguette: 28px e testo 12px (erano 36px con testo 14px). */
+  .settings-workspace [role="tab"].h-9,
+  .settings-workspace [role="tab"].h-10 { height: 1.75rem; }
+  .settings-workspace [role="tab"] {
+    min-height: 1.75rem;
+    padding-top: .25rem;
+    padding-bottom: .25rem;
+    font-size: .75rem;
+  }
 }
