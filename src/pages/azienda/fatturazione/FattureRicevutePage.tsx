@@ -43,6 +43,7 @@ import { StatoPill } from "@/components/orders/TabellaCommessa";
 import { fatturaVerificata, quoteDelCosto } from "@/lib/fatturazione/ripartizioneFattura";
 import { RiepilogoFatturaRicevuta } from "@/components/fatturazione/RiepilogoFatturaRicevuta";
 import { CellaProtocolloRicevuta, NumeraProtocolliRicevute, useProtocolliRicevute } from "@/components/fatturazione/ProtocolloRicevuta";
+import { CellaProtocolloCommessa, NumeraProtocolliCommesse, useProtocolliCommessa } from "@/components/fatturazione/ProtocolloCommessa";
 import { RiepilogoFatture, TESTI_RICEVUTE } from "@/components/fatturazione/RiepilogoFatture";
 import { MonthlyTimeline } from "@/components/fatturazione/MonthlyTimeline";
 import { mesiRicevute } from "@/lib/fatturazione/mesiRicevute";
@@ -203,6 +204,9 @@ interface FatturaRicevuta {
   categoria_confidenza: number | null;
   /** Scheda dell'anagrafica collegata: il suo tipo dice se va su una commessa. */
   fornitore_id?: string | null;
+  /** Protocollo del cantiere: la commessa generale e il numero dentro quella («Che12»). */
+  protocollo_commessa_id?: string | null;
+  protocollo_commessa_numero?: number | null;
 }
 
 /**
@@ -327,6 +331,8 @@ export default function FattureRicevutePage() {
   const permessiCosti = usePermissions();
   // Protocollo interno: colonna accanto al numero, per chi legge la contabilità (23/11/2026).
   const protocolli = useProtocolliRicevute(companyId);
+  // Protocollo del cantiere: «Che12», un progressivo per commessa generale (25/11/2026).
+  const protocolliCantiere = useProtocolliCommessa(companyId);
   const { data: storni } = useStorniNoteCredito(companyId);
   const [collegaNota, setCollegaNota] = useState<FatturaRicevuta | null>(null);
   const [contabilizzaFattura, setContabilizzaFattura] = useState<FatturaRicevuta | null>(null);
@@ -497,7 +503,7 @@ export default function FattureRicevutePage() {
       let q = supabase
         .from("fatture_ricevute" as never)
         .select(
-          "id, da_leggere, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, ritenuta_importo, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale, categoria_ai, sottocategoria_ai, categoria_confidenza, storico_esterno, fornitore_id, note_interne, piano_pagamento, netto_a_pagare, rettifica_motivo, riepilogo_iva, aliquota_reverse_charge, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, pdf_storage_bucket, pdf_storage_path" as never,
+          "id, da_leggere, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, ritenuta_importo, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale, categoria_ai, sottocategoria_ai, categoria_confidenza, storico_esterno, fornitore_id, note_interne, piano_pagamento, netto_a_pagare, rettifica_motivo, riepilogo_iva, aliquota_reverse_charge, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, pdf_storage_bucket, pdf_storage_path, protocollo_commessa_id, protocollo_commessa_numero" as never,
         )
         .eq("company_id", companyId!)
         .order("data_fattura", { ascending: false })
@@ -1343,6 +1349,7 @@ export default function FattureRicevutePage() {
               </label>
             </PopoverContent>
           </Popover>
+          {companyId && <NumeraProtocolliCommesse companyId={companyId} protocolli={protocolliCantiere} />}
           {companyId && <NumeraProtocolliRicevute companyId={companyId} protocolli={protocolli}
             anni={[...new Set(fatture.map(f => Number((f.data_ricezione_sdi ?? f.data_fattura ?? "").slice(0, 4))).filter(a => a > 2000))]} />}
           <Popover>
@@ -1503,6 +1510,7 @@ export default function FattureRicevutePage() {
                 {/* Numero, data, fornitore (16/11/2026): come si cerca una fattura su carta. */}
                 <TableHead>{tr("Numero")}</TableHead>
                 {protocolli.visibile && <TableHead className="whitespace-nowrap" title={tr("Protocollo interno: 1, 2, 3… per anno")}>{tr("Prot.")}</TableHead>}
+                {protocolliCantiere.visibile && <TableHead className="whitespace-nowrap" title={tr("Protocollo del cantiere: un progressivo per commessa, che non riparte a gennaio")}>{tr("Prot. cantiere")}</TableHead>}
                 <IntestazioneOrdinabile campo="data" ordinamento={ordinamento} onOrdina={ordinaPer}>{tr("Emessa il")}</IntestazioneOrdinabile>
                 {colonne.has("scadenza") && <TableHead className="whitespace-nowrap">{tr("Scadenza fattura")}</TableHead>}
                 <IntestazioneOrdinabile campo="fornitore" ordinamento={ordinamento} onOrdina={ordinaPer}>{tr("Fornitore")}</IntestazioneOrdinabile>
@@ -1559,6 +1567,7 @@ export default function FattureRicevutePage() {
                     </div>
                   </TableCell>
                   {protocolli.visibile && <TableCell><CellaProtocolloRicevuta fattura={f} protocolli={protocolli} /></TableCell>}
+                  {protocolliCantiere.visibile && <TableCell><CellaProtocolloCommessa fattura={f} protocolli={protocolliCantiere} /></TableCell>}
                   <TableCell className="whitespace-nowrap">
                     <DataEmissione f={f} />
                   </TableCell>
@@ -1811,6 +1820,7 @@ export default function FattureRicevutePage() {
                 {dettaglioMobile.cedente_piva ? ` · P.IVA ${dettaglioMobile.cedente_piva}` : ""}
               </p>
               {protocolli.visibile && <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">{tr("Protocollo interno:")} <CellaProtocolloRicevuta fattura={dettaglioMobile} protocolli={protocolli} /></p>}
+              {protocolliCantiere.visibile && <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">{tr("Protocollo cantiere:")} <CellaProtocolloCommessa fattura={dettaglioMobile} protocolli={protocolliCantiere} /></p>}
               <div className="mt-3 grid grid-cols-3 gap-2 text-center">
                 {[
                   { l: "Imponibile", v: dettaglioMobile.imponibile_totale },
