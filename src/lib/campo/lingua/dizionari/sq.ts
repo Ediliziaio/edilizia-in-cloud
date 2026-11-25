@@ -68886,5 +68886,9 @@ const dizionario: Dizionario = {
   "Compaiono solo le commesse con rapportini approvati nel periodo.": "Shfaqen vetëm porositë me raporte të miratuara në periudhë.",
   "{n} rapportino è ancora da approvare: approvalo per includere la sua commessa.": "{n} raport pret ende miratimin: miratoje për të përfshirë porosinë e tij.",
   "{n} rapportini sono ancora da approvare: approvali per includere le loro commesse.": "{n} raporte presin ende miratimin: miratoji për të përfshirë porositë e tyre.",
+  "Filtra i rapportini": "Filtro raportet",
+  "Cerca nei lavori, nelle note o per persona…": "Kërko te punimet, te shënimet ose sipas personit…",
+  "Mese dei rapportini": "Muaji i raporteve",
+  "{n} di {totale} rapportini con questi filtri": "{n} nga {totale} raporte me këto filtra",
 };
 export default dizionario;

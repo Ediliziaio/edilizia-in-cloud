@@ -1,5 +1,8 @@
 import { RapportiPeriodoDialog } from "@/components/documentiOperativi/RapportiPeriodoDialog";
 import { AzioniRapportino } from "./AzioniRapportino";
+import { NuoviRapportiniUfficio } from "./RapportiniUfficio";
+import { FILTRI_VUOTI, filtraRapportini, filtriAttivi, rapportinoDiTrasporto, type FiltriRapportini, type FiltroStato, type FiltroTipo } from "@/lib/orders/filtriRapportini";
+import { Input } from "@/components/ui/input";
 /**
  * Componente per la lista dei rapportini campo di un ordine.
  * Gestisce approvazione e rifiuto con motivo; ogni rapportino si apre in un popup.
@@ -23,7 +26,7 @@ import { format, parseISO } from "date-fns";
 import { dateFnsCampo, intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import {
   ClipboardList, Check, ChevronDown, Image as ImageIcon, PenLine,
-  Loader2, X, Clock,
+  Loader2, X, Clock, Search, Truck,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +45,8 @@ import { QuadroEconomicoRapportino } from "@/components/orders/QuadroEconomicoRa
 import { CostiDaCompletareCommessa } from "@/components/orders/CostiDaCompletareCommessa";
 import { RifiutaRapportinoDialog, useDecisioneRapportino } from "@/components/orders/DecisioneRapportino";
 import { orePersoneRapportino } from "@/lib/campo/orePersone";
+
+const NESSUN_VIAGGIO: ReadonlySet<string> = new Set();
 
 interface Props {
   orderId: string;
@@ -168,6 +173,38 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
   const quantiAnnullati = useMemo(() => tuttiRapportini.filter((r) => r.annullato_at).length, [tuttiRapportini]);
   const rapportini = useMemo(() => (mostraAnnullati ? tuttiRapportini : tuttiRapportini.filter((r) => !r.annullato_at)), [mostraAnnullati, tuttiRapportini]);
 
+  // Filtri dell'elenco (25/11/2026), legati alla commessa come le altre scelte della vista.
+  const conFiltri = !azioniInRiga && !soloDaApprovare;
+  const [filtriStato, setFiltriStato] = useState({ orderId, f: FILTRI_VUOTI });
+  const filtri = filtriStato.orderId === orderId ? filtriStato.f : FILTRI_VUOTI;
+  const cambiaFiltri = (patch: Partial<FiltriRapportini>) => { setFiltriStato({ orderId, f: { ...filtri, ...patch } }); setVisibleCount(10); };
+  // I rapportini con una voce di viaggio: le voci le legge solo chi vede i costi, gli altri si affidano alla descrizione.
+  const { data: viaggiLetti } = useQuery({
+    queryKey: ["order-campo-rapportini-viaggi", orderId, companyId],
+    enabled: conFiltri && canViewCosts && !!orderId && !!companyId,
+    staleTime: 60_000,
+    queryFn: async (): Promise<string[]> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).from("rapportino_voci_libere").select("rapportino_id, descrizione, unita, viaggio").eq("order_id", orderId);
+      if (error) throw error;
+      return (((data ?? []) as Array<{ rapportino_id: string; descrizione: string; unita: string; viaggio: unknown }>)
+        .filter((v) => v.viaggio || /^viaggi[oi]$/i.test(v.unita?.trim() ?? "") || /^(trasport[oi]|viaggi[oi])\b/i.test(v.descrizione?.trim() ?? ""))
+        .map((v) => v.rapportino_id));
+    },
+  });
+  const conViaggi = useMemo(() => (Array.isArray(viaggiLetti) ? new Set(viaggiLetti) : NESSUN_VIAGGIO), [viaggiLetti]);
+  const filtrati = useMemo(() => (conFiltri ? filtraRapportini(rapportini, filtri, statoDi, conViaggi) : rapportini), [conFiltri, rapportini, filtri, conViaggi]);
+  const conteggi = useMemo(() => {
+    const c = { inviato: 0, approvato: 0, rifiutato: 0, trasporti: 0 };
+    for (const r of rapportini) {
+      const st = statoDi(r);
+      if (st === "inviato" || st === "approvato" || st === "rifiutato") c[st] += 1;
+      if (rapportinoDiTrasporto(r, conViaggi)) c.trasporti += 1;
+    }
+    return c;
+  }, [rapportini, conViaggi]);
+  const mesi = useMemo(() => [...new Set(rapportini.map((r) => (r.data_lavoro ?? "").slice(0, 7)).filter(Boolean))], [rapportini]);
+
   // phase_id → nome della fase: i rapportini scritti prima che il nome entrasse nella voce hanno solo l'id.
   const { data: nomiFasi } = useQuery({
     queryKey: ["order-campo-fasi-nomi", orderId, companyId],
@@ -210,6 +247,10 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
       if (statoDi(r) === "inviato") daApprovare += 1;
       // l'elenco è dal più recente: il primo avanzamento trovato è l'ultimo dichiarato
       if (avanzamento == null && r.percentuale_avanzamento != null) avanzamento = Math.round(Number(r.percentuale_avanzamento) || 0);
+    }
+    // I titoli dei mesi contano quello che si vede: con un filtro, solo i rapportini filtrati.
+    for (const r of filtrati) {
+      const oreRiga = statoDi(r) === "rifiutato" ? 0 : orePersoneRapportino(r);
       const m = mese(r.data_lavoro);
       const corrente = perMese.get(m) ?? { totale: 0, ore: 0 };
       corrente.totale += 1;
@@ -217,7 +258,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
       perMese.set(m, corrente);
     }
     const gruppi: Array<{ mese: string; etichetta: string; totale: number; ore: number; righe: typeof rapportini }> = [];
-    for (const r of rapportini.filter((r, indice) => indice < visibleCount || r.id === expandedId)) {
+    for (const r of filtrati.filter((r, indice) => indice < visibleCount || r.id === expandedId)) {
       const m = mese(r.data_lavoro);
       let gruppo = gruppi[gruppi.length - 1];
       if (!gruppo || gruppo.mese !== m) {
@@ -227,7 +268,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
       gruppo.righe.push(r);
     }
     return { riepilogo: { ore, daApprovare, avanzamento }, gruppi };
-  }, [rapportini, visibleCount, expandedId]);
+  }, [rapportini, filtrati, visibleCount, expandedId]);
 
   return (
     <Card>
@@ -236,7 +277,13 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
           <ClipboardList className="h-4 w-4" />
           {soloDaApprovare ? t("Rapportini da approvare") : t("Rapportini Campo")} ({isLoading ? "…" : isError ? "—" : rapportini.length})
         </CardTitle>
-        {!azioniInRiga && !isLoading && !isError && <RapportiPeriodoDialog companyId={companyId} orderId={orderId} mese="Rapportini della commessa" righe={rapportini.filter((r) => !r.annullato_at)} conDatiEconomici={canViewCosts} />}
+        {/* Nuovo rapportino e documenti in una riga sola, in testa all'elenco (25/11/2026). */}
+        {!azioniInRiga && (
+          <div className="flex flex-wrap items-center gap-2">
+            {!soloDaApprovare && canEditOrders && <NuoviRapportiniUfficio orderId={orderId} />}
+            {!isLoading && !isError && <RapportiPeriodoDialog companyId={companyId} orderId={orderId} mese="Rapportini della commessa" righe={rapportini.filter((r) => !r.annullato_at)} conDatiEconomici={canViewCosts} />}
+          </div>
+        )}
         {/* Colpo d'occhio: quante ore, cosa aspetta l'ufficio, a che punto sono i lavori.
             Nel popup di Attività (azioniInRiga) si nasconde: lì serve solo approvare. */}
         {!azioniInRiga && quantiAnnullati > 0 && (
@@ -280,6 +327,62 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
           <div className="space-y-4">
             {!soloDaApprovare && canViewCosts && <CostiDaCompletareCommessa orderId={orderId} />}
             {!soloDaApprovare && <TotaliCampiCommessa orderId={orderId} rapportini={rapportini} />}
+            {conFiltri && (
+              <div role="search" aria-label={t("Filtra i rapportini")} className="space-y-2 rounded-lg border bg-slate-50/60 p-2.5">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {([
+                    ["tutti", t("Tutti"), rapportini.length],
+                    ["inviato", t("Da approvare"), conteggi.inviato],
+                    ["approvato", t("Approvati"), conteggi.approvato],
+                    ["rifiutato", t("Rifiutati"), conteggi.rifiutato],
+                  ] as Array<[FiltroStato, string, number]>).filter(([v, , n]) => v === "tutti" || n > 0 || filtri.stato === v).map(([v, etichetta, n]) => (
+                    <button key={v} type="button" aria-pressed={filtri.stato === v} onClick={() => cambiaFiltri({ stato: v })}
+                      className={cn("rounded-full border px-2.5 py-1 text-xs font-medium",
+                        filtri.stato === v ? "border-slate-900 bg-slate-900 text-white" : "border-border bg-white text-slate-700 hover:bg-slate-100")}>
+                      {etichetta} <span className="tabular-nums opacity-70">{n}</span>
+                    </button>
+                  ))}
+                  <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+                  {([
+                    ["tutti", t("Tutti i tipi")],
+                    ["lavori", t("Lavori")],
+                    ["trasporti", t("Trasporti")],
+                  ] as Array<[FiltroTipo, string]>).map(([v, etichetta]) => (
+                    <button key={v} type="button" aria-pressed={filtri.tipo === v} onClick={() => cambiaFiltri({ tipo: v })}
+                      className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium",
+                        filtri.tipo === v ? "border-blue-700 bg-blue-700 text-white" : "border-border bg-white text-slate-700 hover:bg-slate-100")}>
+                      {v === "trasporti" && <Truck className="h-3 w-3" />}{etichetta}
+                      {v === "trasporti" && <span className="tabular-nums opacity-70">{conteggi.trasporti}</span>}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative min-w-[12rem] flex-1">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <Input value={filtri.cerca} onChange={(e) => cambiaFiltri({ cerca: e.target.value })} placeholder={t("Cerca nei lavori, nelle note o per persona…")}
+                      aria-label={t("Cerca nei rapportini")} className="h-8 pl-8 text-sm" />
+                  </div>
+                  {mesi.length > 1 && (
+                    <select value={filtri.mese} onChange={(e) => cambiaFiltri({ mese: e.target.value })} aria-label={t("Mese dei rapportini")}
+                      className="h-8 rounded-md border bg-white px-2 text-sm">
+                      <option value="">{t("Tutti i mesi")}</option>
+                      {mesi.map((m) => <option key={m} value={m}>{fmtSafeDate(`${m}-01`, "LLLL yyyy")}</option>)}
+                    </select>
+                  )}
+                  {filtriAttivi(filtri) && (
+                    <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => cambiaFiltri(FILTRI_VUOTI)}>
+                      <X className="mr-1 h-3.5 w-3.5" />{t("Togli i filtri")}
+                    </Button>
+                  )}
+                </div>
+                {filtriAttivi(filtri) && (
+                  <p className="text-xs text-muted-foreground" aria-live="polite">{t("{n} di {totale} rapportini con questi filtri", { n: filtrati.length, totale: rapportini.length })}</p>
+                )}
+              </div>
+            )}
+            {conFiltri && filtrati.length === 0 && (
+              <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">{t("Nessun rapportino con questi filtri.")}</p>
+            )}
             {gruppi.map((gruppo) => (
               <section key={gruppo.mese} aria-label={gruppo.etichetta} className="space-y-2">
                 {/* Un titolo per mese: con molti rapportini si trova il periodo senza leggerli tutti. */}
@@ -513,10 +616,10 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                 </div>
               </section>
             ))}
-            {rapportini.length > 10 && (
+            {filtrati.length > 10 && (
               <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                <p className="text-xs text-muted-foreground" aria-live="polite">{t("Mostrati {visibili} di {totale} rapportini", { visibili: Math.min(visibleCount, rapportini.length), totale: rapportini.length })}</p>
-                {visibleCount < rapportini.length && <Button variant="outline" size="sm" onClick={() => setVisibleCount(count => count + 10)}>{t("Mostra altri 10")}</Button>}
+                <p className="text-xs text-muted-foreground" aria-live="polite">{t("Mostrati {visibili} di {totale} rapportini", { visibili: Math.min(visibleCount, filtrati.length), totale: filtrati.length })}</p>
+                {visibleCount < filtrati.length && <Button variant="outline" size="sm" onClick={() => setVisibleCount(count => count + 10)}>{t("Mostra altri 10")}</Button>}
               </div>
             )}
           </div>

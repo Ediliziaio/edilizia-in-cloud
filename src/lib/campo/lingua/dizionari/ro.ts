@@ -68886,5 +68886,9 @@ const dizionario: Dizionario = {
   "Compaiono solo le commesse con rapportini approvati nel periodo.": "Apar doar comenzile cu rapoarte aprobate în perioadă.",
   "{n} rapportino è ancora da approvare: approvalo per includere la sua commessa.": "{n} raport așteaptă încă aprobarea: aprobă-l pentru a include comanda lui.",
   "{n} rapportini sono ancora da approvare: approvali per includere le loro commesse.": "{n} rapoarte așteaptă încă aprobarea: aprobă-le pentru a include comenzile lor.",
+  "Filtra i rapportini": "Filtrează rapoartele",
+  "Cerca nei lavori, nelle note o per persona…": "Caută în lucrări, în note sau după persoană…",
+  "Mese dei rapportini": "Luna rapoartelor",
+  "{n} di {totale} rapportini con questi filtri": "{n} din {totale} rapoarte cu aceste filtre",
 };
 export default dizionario;

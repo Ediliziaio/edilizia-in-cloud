@@ -68,3 +68,26 @@ describe("Scrivi rapportini: lavori o trasporti", () => {
     expect(trasporti).toHaveTextContent("Serve il permesso Costi o Acquisti");
   });
 });
+
+describe("Pulsanti in testa all'elenco", () => {
+  it("«Rapportino trasporti» apre la finestra già su trasporti, col viaggio", async () => {
+    const { NuoviRapportiniUfficio } = await import("@/components/orders/RapportiniUfficio");
+    render(<QueryClientProvider client={new QueryClient()}><NuoviRapportiniUfficio orderId="o1" /></QueryClientProvider>);
+    fireEvent.click(screen.getByRole("button", { name: /Rapportino trasporti/ }));
+    await waitFor(() => expect(screen.getByRole("radio", { name: /Rapportino trasporti/ })).toHaveAttribute("aria-checked", "true"));
+    await waitFor(() => expect(screen.getByText("Carico")).toBeInTheDocument());
+  });
+  it("«Rapportino lavori» apre la finestra su lavori, senza viaggio", async () => {
+    const { NuoviRapportiniUfficio } = await import("@/components/orders/RapportiniUfficio");
+    render(<QueryClientProvider client={new QueryClient()}><NuoviRapportiniUfficio orderId="o1" /></QueryClientProvider>);
+    fireEvent.click(screen.getByRole("button", { name: /Rapportino lavori/ }));
+    expect(await screen.findByRole("radio", { name: /Rapportino lavori/ })).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByText("Carico")).toBeNull();
+  });
+  it("senza Costi né Acquisti il pulsante trasporti è spento", async () => {
+    m.costi = false;
+    const { NuoviRapportiniUfficio } = await import("@/components/orders/RapportiniUfficio");
+    render(<QueryClientProvider client={new QueryClient()}><NuoviRapportiniUfficio orderId="o1" /></QueryClientProvider>);
+    expect(screen.getByRole("button", { name: /Rapportino trasporti/ })).toBeDisabled();
+  });
+});

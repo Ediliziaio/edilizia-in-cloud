@@ -71,10 +71,12 @@ async function excelInTesto(file: File): Promise<string> {
  * l'app. Entrano da approvare: all'approvazione le ore di ognuno diventano costo
  * col suo costo orario, come per il capocantiere.
  */
-export function RapportiniUfficio({ orderId, className, aperta: apertaFuori, onApertaChange }: {
+export function RapportiniUfficio({ orderId, className, aperta: apertaFuori, onApertaChange, senzaPulsante = false }: {
   orderId: string; className?: string;
   /** Aperto da fuori: il menu «Silvio AI» della commessa porta qui per i rapportini dai documenti. */
   aperta?: boolean; onApertaChange?: (v: boolean) => void;
+  /** Solo la finestra: i pulsanti stanno nell'elenco dei rapportini (NuoviRapportiniUfficio). */
+  senzaPulsante?: boolean;
 }) {
   const t = useT();
   const [apertaDentro, setApertaDentro] = useState(false);
@@ -82,25 +84,59 @@ export function RapportiniUfficio({ orderId, className, aperta: apertaFuori, onA
   const setAperta = (v: boolean) => { setApertaDentro(v); onApertaChange?.(v); };
   return (
     <>
-      <Button variant="ghost" size="sm" className={cn("h-8", className)} onClick={() => setAperta(true)}>
-        <NotebookPen className="mr-1.5 h-4 w-4" />{t("Scrivi rapportini")}
-      </Button>
-      <Dialog open={aperta} onOpenChange={setAperta}>
-        <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>{t("Rapportini dall'ufficio")}</DialogTitle>
-            <DialogDescription>{t("Come quelli del cantiere, anche più giorni insieme. Entrano da approvare: all'approvazione le ore di ognuno diventano costo.")}</DialogDescription>
-          </DialogHeader>
-          {aperta && <Finestra orderId={orderId} onFatto={() => setAperta(false)} />}
-        </DialogContent>
-      </Dialog>
+      {!senzaPulsante && (
+        <Button variant="ghost" size="sm" className={cn("h-8", className)} onClick={() => setAperta(true)}>
+          <NotebookPen className="mr-1.5 h-4 w-4" />{t("Scrivi rapportini")}
+        </Button>
+      )}
+      <FinestraRapportiniUfficio orderId={orderId} aperta={aperta} onApertaChange={setAperta} />
     </>
+  );
+}
+
+/**
+ * I due pulsanti in testa all'elenco dei rapportini della commessa (25/11/2026): si parte già dal tipo giusto,
+ * senza cercare «Scrivi rapportini» e poi la scelta dentro.
+ */
+export function NuoviRapportiniUfficio({ orderId }: { orderId: string }) {
+  const t = useT();
+  const { canViewCosts } = usePermissions();
+  const [tipo, setTipo] = useState<TipoRapportinoUfficio | null>(null);
+  return (
+    <>
+      <Button size="sm" className="h-9" onClick={() => setTipo("lavori")}>
+        <Plus className="mr-1.5 h-4 w-4" />{t("Rapportino lavori")}
+      </Button>
+      <Button size="sm" variant="outline" className="h-9" onClick={() => setTipo("trasporti")} disabled={!canViewCosts}
+        title={canViewCosts ? undefined : t("Serve il permesso Costi o Acquisti")}>
+        <Truck className="mr-1.5 h-4 w-4" />{t("Rapportino trasporti")}
+      </Button>
+      <FinestraRapportiniUfficio key={tipo ?? "chiusa"} orderId={orderId} aperta={!!tipo} tipo={tipo ?? undefined}
+        onApertaChange={(v) => { if (!v) setTipo(null); }} />
+    </>
+  );
+}
+
+function FinestraRapportiniUfficio({ orderId, aperta, onApertaChange, tipo }: {
+  orderId: string; aperta: boolean; onApertaChange: (v: boolean) => void; tipo?: TipoRapportinoUfficio;
+}) {
+  const t = useT();
+  return (
+    <Dialog open={aperta} onOpenChange={onApertaChange}>
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>{t("Rapportini dall'ufficio")}</DialogTitle>
+          <DialogDescription>{t("Come quelli del cantiere, anche più giorni insieme. Entrano da approvare: all'approvazione le ore di ognuno diventano costo.")}</DialogDescription>
+        </DialogHeader>
+        {aperta && <Finestra orderId={orderId} tipoIniziale={tipo} onFatto={() => onApertaChange(false)} />}
+      </DialogContent>
+    </Dialog>
   );
 }
 
 const dbx = supabase as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }) {
+function Finestra({ orderId, onFatto, tipoIniziale }: { orderId: string; onFatto: () => void; tipoIniziale?: TipoRapportinoUfficio }) {
   const tr = useT();
   const qc = useQueryClient();
   const { effectiveCompany } = useAuth();
@@ -170,7 +206,7 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
   const catalogoVoci = useCatalogoVociRapportino(companyId, canViewCosts);
   // Lavori o trasporti (25/11/2026): si sceglie su ogni commessa; sulle commesse «TRASPORTI…» parte già su trasporti.
   // Il viaggio è una voce del rapportino: serve chi vede i costi (Costi o Acquisti), come per le altre voci.
-  const [tipoScelto, setTipoScelto] = useState<TipoRapportinoUfficio | null>(null);
+  const [tipoScelto, setTipoScelto] = useState<TipoRapportinoUfficio | null>(tipoIniziale ?? null);
   const tipo: TipoRapportinoUfficio = tipoScelto ?? (canViewCosts && commessaDeiTrasporti(commessa.data?.description) ? "trasporti" : "lavori");
   const pronto = canViewCosts && commessa.isFetched && (catalogoVoci.isFetched || catalogoVoci.isError);
   const trasporti = pronto && tipo === "trasporti";
