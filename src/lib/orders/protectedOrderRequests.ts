@@ -3,7 +3,11 @@
  * independently of this client code. Aliases keep existing result shapes intact.
  */
 const relations = ["orders", "order_installments", "order_employees", "campo_rapportini", "employees"];
-const embed = new RegExp(`(^|[,(])(?:(\\w+):)?(${relations.join("|")})((?:![\\w]+)*)\\(`, "g");
+// Lo spazio dopo la virgola fa parte dei select scritti a mano («id, order:orders!inner(…)»):
+// senza accettarlo la riscrittura saltava e la lettura finiva sulla tabella grezza, che la
+// regola restrittiva nega a chi non ha importi, costi e margini (25/11/2026: i cantieri
+// sparivano dall’area operaio).
+const embed = new RegExp(`((?:^|[,(])\\s*)(?:(\\w+):)?(${relations.join("|")})((?:![\\w]+)*)\\(`, "g");
 export function protectedOrderSelect(select: string) {
   return select.replace(embed, (_match, before: string, alias: string | undefined, relation: string, hints: string) =>
     `${before}${alias ?? relation}:${relation}_visibili${hints}(`);

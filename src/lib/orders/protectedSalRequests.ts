@@ -9,7 +9,7 @@
  */
 const TABELLE = ["sal_records", "sal_voci", "sal_voci_sottofasi"];
 // «sal_voci» non deve prendere «sal_voci_sottofasi(»: dopo il nome viene subito «(» o un «!hint».
-const EMBED = new RegExp(`(^|[,(])(?:(\\w+):)?(sal_voci_sottofasi|sal_voci|sal_records)((?:![\\w]+)*)\\(`, "g");
+const EMBED = new RegExp(`((?:^|[,(])\\s*)(?:(\\w+):)?(sal_voci_sottofasi|sal_voci|sal_records)((?:![\\w]+)*)\\(`, "g");
 
 export function protectedSalSelect(select: string): string {
   return select.replace(EMBED, (_m, prima: string, alias: string | undefined, tabella: string, hint: string) =>

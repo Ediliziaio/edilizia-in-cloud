@@ -15,3 +15,10 @@ it('protegge anche le retribuzioni dell’anagrafica, inclusi i collegamenti ann
  expect(protectedOrderUrl('https://example.test/rest/v1/employees?select=id,gross_salary')).toContain('/employees_visibili?');
  expect(protectedOrderSelect('employee:employees!employee_id(id,gross_salary)')).toBe('employee:employees_visibili!employee_id(id,gross_salary)');
 });
+
+it('riscrive anche con lo spazio dopo la virgola (select dell’area operaio)',()=>{
+ expect(protectedOrderSelect('is_capocantiere, id, order_id, order:orders!inner(id, status)'))
+  .toBe('is_capocantiere, id, order_id, order:orders_visibili!inner(id, status)');
+ expect(protectedOrderSelect('id, oda_number, orders(order_code, description)'))
+  .toBe('id, oda_number, orders:orders_visibili(order_code, description)');
+});
