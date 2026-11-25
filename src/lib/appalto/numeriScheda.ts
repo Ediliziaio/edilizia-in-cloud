@@ -38,7 +38,7 @@ export function azioniCommittente(
   }
   if (contrattiCaricati) {
     if (!contratto) {
-      azioni.push({ tipo: "contratto", testo: "Nessun contratto: senza, una commessa in appalto non sa a quanto fatturare" });
+      azioni.push({ tipo: "contratto", testo: "Nessun contratto: mancano le condizioni concordate — pagamento, ritenuta, come si fattura" });
     } else if (contratto.attivo === false) {
       // Spento apposta: non si ripete «scaduto da N giorni» per sempre.
       azioni.push({ tipo: "contratto", testo: "Nessun contratto in corso: quelli che ci sono sono spenti" });

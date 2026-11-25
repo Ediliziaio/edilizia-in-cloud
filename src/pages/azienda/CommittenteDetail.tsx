@@ -649,8 +649,10 @@ export default function CommittenteDetail() {
           <div className="flex items-center justify-between gap-2">
             {/* Senza contratto il listino si carica comunque (25/11/2026): l'accordo
                 nasce al salvataggio, e qui si legge con che nome. */}
-            <p className="min-w-0 truncate text-xs text-slate-500">
-              {contrattoAttivo?.nome ?? tr("In «{nome}», il contratto che nasce al primo salvataggio", { nome: nomeContrattoPredefinito() })}
+            <p className="min-w-0 text-xs text-slate-500">
+              {contrattoAttivo
+                ? <span className="block truncate">{contrattoAttivo.nome}</span>
+                : tr("«{nome}» · nasce al primo salvataggio", { nome: nomeContrattoPredefinito() })}
             </p>
             {puoModificare && (
               <div className="flex shrink-0 gap-1">
