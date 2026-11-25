@@ -272,7 +272,7 @@ export function OrderQuickActions({
           // Lo span tiene il suggerimento anche a bottone spento.
           return <span key={a.id} title={a.hint ?? a.label} className="flex min-w-0 flex-1 md:flex-none">
             <Button variant="outline" onClick={a.onClick} disabled={a.disabled} aria-label={a.label}
-            className={cn("h-11 min-h-11 w-full min-w-0 gap-1.5 whitespace-nowrap rounded-lg border-slate-300 px-2 text-xs font-semibold md:h-auto md:flex-none md:gap-2 md:px-3 md:py-2 md:text-sm",
+            className={cn("h-11 min-h-11 w-full min-w-0 gap-1.5 whitespace-nowrap rounded-lg border-slate-300 px-2 text-xs font-semibold md:h-8 md:min-h-8 md:flex-none md:gap-1.5 md:px-2.5 md:py-0 md:text-xs md:[&_svg]:h-3.5 md:[&_svg]:w-3.5",
               a.id === "task" ? "border-orange-700 bg-orange-700 text-white hover:bg-orange-800 hover:text-white" : "bg-white text-blue-950 hover:bg-blue-50")}>
             <Icon className="h-4 w-4 shrink-0" aria-hidden="true" /><span>{isMobile && a.id === "task" ? t("Attività") : a.label}</span>
           </Button></span>;
@@ -286,7 +286,7 @@ export function OrderQuickActions({
                 <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
               </Button>
             ) : (
-            <Button variant="outline" size="sm" aria-label={t("Altre azioni")} className="group h-11 min-h-11 gap-1.5 rounded-lg border-slate-300 px-2 text-xs font-semibold text-blue-950 md:gap-2 md:px-3 md:text-sm">
+            <Button variant="outline" size="sm" aria-label={t("Altre azioni")} className="group h-11 min-h-11 gap-1.5 rounded-lg border-slate-300 px-2 text-xs font-semibold text-blue-950 md:h-8 md:min-h-8 md:gap-1.5 md:px-2.5 md:text-xs">
               {!isMobile && <Zap className="h-3.5 w-3.5 text-primary" />}
               <span>{isMobile ? t("Altro") : t("Altre azioni")}</span>
               <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />

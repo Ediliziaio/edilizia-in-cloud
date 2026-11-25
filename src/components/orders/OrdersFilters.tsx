@@ -149,7 +149,7 @@ export function OrdersFilters({
         >
           <SelectTrigger
             aria-label={t("Stato pagamento")}
-            className={panel ? "h-9 w-full bg-background text-sm" : "max-md:hidden h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[132px] sm:px-2 sm:text-xs sm:shrink-0"}
+            className={panel ? "h-9 w-full bg-background text-sm" : "max-md:hidden h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-auto sm:min-w-[84px] sm:gap-1.5 sm:px-2 sm:text-xs sm:shrink-0"}
           >
             <SelectValue placeholder={t("Pagamenti")} />
           </SelectTrigger>
@@ -164,7 +164,7 @@ export function OrdersFilters({
           <FilterField panel={panel} title={t("Tipo di commessa")}><Select value={generaliFilter} onValueChange={(val) => onGeneraliFilterChange(val as "all" | "solo" | "senza")}>
             <SelectTrigger
               aria-label={t("Commesse generali")}
-              className={panel ? "h-9 w-full bg-background text-sm" : "h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[132px] sm:px-2 sm:text-xs sm:shrink-0"}
+              className={panel ? "h-9 w-full bg-background text-sm" : "h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-auto sm:min-w-[84px] sm:gap-1.5 sm:px-2 sm:text-xs sm:shrink-0"}
             >
               <SelectValue />
             </SelectTrigger>
@@ -235,10 +235,14 @@ export function OrdersFilters({
           <CheckCircle2 className="h-3.5 w-3.5 sm:hidden" />
           <span>{t("Nascondi completate")}</span>
         </Button>
-        {trailingControls}
-        {!panel && summary && (
-          <div className="col-span-2 text-xs text-slate-600 sm:ml-auto sm:shrink-0 sm:whitespace-nowrap">{summary}</div>
-        )}
+        {/* Ordinamento, colonne e conteggio restano un blocco unico a destra (25/11/2026): quando la riga
+            non basta vanno a capo insieme, invece di lasciare «124 risultati» da solo su una riga. */}
+        <div className="col-span-2 flex items-center gap-1.5 sm:ml-auto sm:shrink-0">
+          {trailingControls}
+          {!panel && summary && (
+            <div className="text-xs text-slate-600 sm:whitespace-nowrap">{summary}</div>
+          )}
+        </div>
       </div>
       {hasAnyFilter && (
         <Button

@@ -99,23 +99,24 @@ export function NavyStatCard({
   const inner = (
     <div className="flex items-center gap-2 sm:gap-3">
       {/* L'icona solo da 1024 px: sotto, i tre riquadri affiancati non avevano spazio per la cifra. */}
-      <span className={cn("hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 lg:flex", tone)}>
-        <Icon className="h-4 w-4" />
+      <span className={cn("hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 lg:flex", tone)}>
+        <Icon className="h-3.5 w-3.5" />
       </span>
       <span className="min-w-0">
-        <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">{label}</span>
+        <span className="block text-[10px] font-semibold uppercase tracking-wide text-blue-100 sm:text-[11px]">{label}</span>
         {/* 15/11/2026: la pillola va a capo invece di tagliare la cifra («263.0…»). */}
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="block whitespace-nowrap text-lg font-bold tabular-nums text-white xl:text-xl">{value}</span>
+          <span className="block whitespace-nowrap text-base font-semibold tabular-nums tracking-tight text-white">{value}</span>
           {variazione && (
             <PillolaVariazione pct={variazione.pct} piuEMeglio={variazione.piuEMeglio} neutra={variazione.neutra} titolo={variazione.nota} suScuro className="shrink-0" />
           )}
         </span>
-        {sub && <span className="mt-0.5 block text-xs text-blue-50/70">{sub}</span>}
+        {sub && <span className="block text-[11px] leading-4 text-blue-50/70">{sub}</span>}
       </span>
     </div>
   );
-  const base = "rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4";
+  // Compatto come i riquadri del riepilogo di Commesse (25/11/2026): cifre a 16px, riquadro basso.
+  const base = "rounded-lg border border-white/12 bg-white/9 px-2.5 py-1.5";
   if (onClick) {
     return (
       <button

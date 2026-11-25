@@ -58,23 +58,24 @@ export function RigheDaAbbinareCard() {
 
   return (
     <section aria-labelledby="righe-da-abbinare" className="rounded-xl border border-amber-200 bg-card">
-      <h2 id="righe-da-abbinare" className="flex items-center gap-2 border-b px-4 py-3 text-sm font-semibold">
+      <h2 id="righe-da-abbinare" title={t("Merce arrivata ma non caricata in giacenza. Caricala a mano (o abbina l’articolo), poi segna «Fatto».")} className="flex items-center gap-2 border-b px-3 py-2 text-sm font-semibold">
         <PackageSearch className="h-4 w-4 text-amber-600" aria-hidden="true" />{t("Righe di bolla da sistemare")}
         <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">{totRighe}</span>
       </h2>
-      <p className="px-4 pt-2 text-xs text-muted-foreground">
+      {/* La spiegazione sta nel titolo come suggerimento: era una riga in più (25/11/2026). */}
+      <p className="sr-only">
         {t("Merce arrivata ma non caricata in giacenza. Caricala a mano (o abbina l’articolo), poi segna «Fatto».")}
       </p>
       <ul className="divide-y">
         {lista.map((c) => (
-          <li key={c.id} className="space-y-1.5 px-4 py-3 text-sm">
+          <li key={c.id} className="space-y-0.5 px-3 py-1.5 text-xs">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="font-semibold">
                 {c.ddt_data ? t("Bolla {numero} del {ddt_data}", { numero: c.ddt_numero ?? "s.n.", ddt_data: String(dataIt(c.ddt_data) ?? "") }) : t("Bolla {numero}", { numero: c.ddt_numero ?? "s.n." })}{c.ordine ? " · " + t("ordine {ordine}", { ordine: String(c.ordine ?? "") }) : ""}
               </p>
               {permissions.canEditWarehouse && (
-                <Button size="sm" variant="outline" className="gap-1.5" disabled={chiudi.isPending} onClick={() => chiudi.mutate(c.id)}>
-                  <CheckCircle2 className="h-4 w-4" />{t("Fatto")}
+                <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" disabled={chiudi.isPending} onClick={() => chiudi.mutate(c.id)}>
+                  <CheckCircle2 className="h-3.5 w-3.5" />{t("Fatto")}
                 </Button>
               )}
             </div>

@@ -708,7 +708,7 @@ function WarehousePage() {
                 onValueChange={(value) => setWarehouseFilter(value === "__all__" ? null : value)}
                 disabled={warehousesLoading}
               >
-                <SelectTrigger aria-label={t("Filtra per magazzino")} className="h-10 w-full min-w-0 max-sm:h-11 sm:w-[210px]">
+                <SelectTrigger aria-label={t("Filtra per magazzino")} className="h-8 w-full min-w-0 text-xs max-sm:h-11 max-sm:text-sm sm:w-[180px]">
                   <SelectValue placeholder={t("Scegli magazzino")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -729,10 +729,10 @@ function WarehousePage() {
   const warehouseActions = (
     <>
       {isReadOnly ? <Badge variant="outline" className="h-10 px-3">{t("Sola lettura")}</Badge> : <>
-        <Button className="h-10 max-sm:h-11 gap-1.5 bg-orange-600 text-white hover:bg-orange-700" onClick={() => apriArrivoMerce()} aria-label={t("Carica merce")}><ArrowDownToLine className="h-4 w-4" aria-hidden="true" />{t("Carica")}</Button>
-        <Button className="h-10 max-sm:h-11 gap-1.5" variant="outline" onClick={() => openStockAction("ship")} aria-label={t("Preleva merce")}><ArrowUpFromLine className="h-4 w-4" aria-hidden="true" />{t("Preleva")}</Button>
+        <Button className="h-8 max-sm:h-11 gap-1.5 px-3 text-xs bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-500 [&_svg]:h-3.5 [&_svg]:w-3.5" onClick={() => apriArrivoMerce()} aria-label={t("Carica merce")}><ArrowDownToLine className="h-4 w-4" aria-hidden="true" />{t("Carica")}</Button>
+        <Button className="h-8 max-sm:h-11 gap-1.5 px-2.5 text-xs [&_svg]:h-3.5 [&_svg]:w-3.5" variant="outline" onClick={() => openStockAction("ship")} aria-label={t("Preleva merce")}><ArrowUpFromLine className="h-4 w-4" aria-hidden="true" />{t("Preleva")}</Button>
         {/* Telefono: «Reso» sta in «Altro» (Carica, Preleva, Altro su una riga — collaudo 23/11/2026). */}
-        {permissions.canEditOrders && <Button className="h-10 max-sm:hidden gap-1.5" variant="outline" onClick={() => setReturnOpen(true)} aria-label={t("Reso da cantiere")}><Undo2 className="h-4 w-4" aria-hidden="true" />{t("Reso")}</Button>}
+        {permissions.canEditOrders && <Button className="h-8 max-sm:hidden gap-1.5 px-2.5 text-xs [&_svg]:h-3.5 [&_svg]:w-3.5" variant="outline" onClick={() => setReturnOpen(true)} aria-label={t("Reso da cantiere")}><Undo2 className="h-4 w-4" aria-hidden="true" />{t("Reso")}</Button>}
       </>}
     </>
   );
@@ -813,8 +813,8 @@ function WarehousePage() {
       <WarehousePendingOperations />
       <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">{t("Magazzino")}</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">{t("Giacenze, materiali per le commesse e movimenti.")}</p>
+          {/* Come la testata delle schede di Commesse (25/11/2026): titolo a 20px, senza la frase sotto. */}
+          <h1 className="text-xl font-bold tracking-tight text-slate-900">{t("Magazzino")}</h1>
         </div>
       </div>
 
