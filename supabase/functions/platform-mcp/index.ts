@@ -53,8 +53,9 @@ Non ripetere con un nuovo UUID un invio con esito incerto. Prima degli invii mos
 all'utente e richiedi conferma esplicita: confirmed=true. Email accodata non significa consegnata;
 usa stato_invio. WhatsApp/SMS non sono disponibili qui.
 Preventivi: proponi_voci_preventivo (prezzi dal listino dell'azienda) → mostra le voci → crea_preventivo → pdf_preventivo
-→ invia_preventivo_in_firma solo con conferma. Una planimetria o un computo allegati in chat NON arrivano agli strumenti:
-puoi leggerli tu e passare misure e stanze, oppure usa link_caricamento e poi leggi_file_caricato / importa_computo.
+→ invia_preventivo_in_firma solo con conferma. Per portare in Edilizia in Cloud una planimetria o un computo allegati in chat:
+su ChatGPT carica_file_dalla_chat; altrimenti link_caricamento e, se puoi eseguire codice, carica tu il file con il
+comando di «caricamento_diretto» (se no, dai all'utente il «link»). Poi leggi_file_caricato / importa_computo.
 Lavori con i permessi dell'utente che ti ha collegato: se uno strumento è negato, dillo e non cercare strade alternative.`;
 
 // Tipi e helper (KeyCtx, ToolDef, ToolError, resolveCompany, str/num/…) sono in
@@ -728,7 +729,7 @@ function toolToMcp(t: ToolDef) {
   // Application scopes are granted in the consent page, not Supabase's OIDC scope field.
   const securitySchemes = [{ type: "oauth2", scopes: [] }];
   return { name: t.name, description: t.description, inputSchema, annotations: annotazioni(t),
-    securitySchemes, _meta: { securitySchemes } };
+    securitySchemes, _meta: { securitySchemes, ...(t.meta ?? {}) } };
 }
 
 // ── OAuth 2.1 (Supabase) — discovery e validazione token ────────────────────

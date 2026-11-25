@@ -76,6 +76,8 @@ export interface ToolDef {
   scope: string | null; // null = nessuno scope richiesto
   /** Chiede confirmed=true e conta come azione sensibile (vedi richiedeConferma). */
   conferma?: boolean;
+  /** _meta in più per i client (es. «openai/fileParams» di ChatGPT per ricevere i file della chat). */
+  meta?: Record<string, unknown>;
   inputSchema: Record<string, unknown>;
   handler: (admin: SupabaseClient, ctx: KeyCtx, args: Record<string, unknown>) => Promise<unknown>;
 }

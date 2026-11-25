@@ -110,6 +110,7 @@ export const REGOLE_STRUMENTI: Record<string, RegolaStrumento> = {
   invia_sollecito_pagamento: { permessi: ["can_manage_payments", "can_view_billing"] },
   // File dall'assistente
   link_caricamento: { permessi: [["can_edit_preventivi", "can_edit_orders"]] },
+  carica_file_dalla_chat: { permessi: [["can_edit_preventivi", "can_edit_orders"]] },
   leggi_file_caricato: { permessi: [["can_edit_preventivi", "can_edit_orders"]] },
   importa_computo: { permessi: ["can_edit_preventivi"] },
 };

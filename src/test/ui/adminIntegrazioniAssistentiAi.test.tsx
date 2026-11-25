@@ -14,6 +14,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { writeFileSync } from "node:fs";
+import type { CollegamentoAi } from "@/components/admin/settings/AdminAssistentiAi";
 
 const rpc = vi.fn();
 const revokeGrant = vi.fn();
@@ -36,7 +37,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 // La scheda Facebook dei brand ha il suo test: qui basta sapere che c'è.
 vi.mock("@/components/admin/settings/AdminMetaLeadsCard", () => ({ default: () => <div>Scheda Facebook brand</div> }));
 
-const COLLEGAMENTI = [
+const COLLEGAMENTI: CollegamentoAi[] = [
   { id: "g1", client_id: "c-claude", client_name: "Claude", ambito: "piattaforma", company_id: null, company_name: null,
     livello: "operativo", invii: false, created_at: "2026-11-25T08:00:00Z", last_used_at: new Date().toISOString(),
     chiamate_24h: 12, errori_24h: 1 },

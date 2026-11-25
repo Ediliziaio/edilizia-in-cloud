@@ -342,7 +342,7 @@ const STRUMENTI: ToolDef[] = [
       }));
       const azienda = esito.company as Record<string, unknown> | undefined;
       const credenziali = esito.adminCredentials as Record<string, unknown> | undefined;
-      await registra(admin, ctx, "create_company", String(azienda?.id ?? ""), { company_name: azienda?.name, plan: piano?.name ?? null });
+      await registra(admin, ctx, "create_company", typeof azienda?.id === "string" ? azienda.id : null, { company_name: azienda?.name, plan: piano?.name ?? null });
       // La password non passa dall'assistente: è nell'email di benvenuto.
       return {
         creata: true, azienda: { id: azienda?.id, nome: azienda?.name, stato: azienda?.status, prova_fino_al: azienda?.trial_ends_at },

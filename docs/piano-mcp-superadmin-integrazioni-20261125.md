@@ -290,3 +290,15 @@ richiedono il token dell'utente e salvano dal browser: serve una funzione che sa
 voci del preventivo legate agli articoli del listino (`silvio_create_quote_draft` non salva
 `article_template_id`); traduzioni dei testi nuovi per i dipendenti stranieri; email al titolare
 quando nasce un collegamento all'area superadmin.
+
+## File allegati in chat → Edilizia in Cloud (aggiunta del 25/11/2026)
+
+Verificato: si può, senza clic dell'utente.
+- **ChatGPT**: `carica_file_dalla_chat` dichiara `_meta["openai/fileParams"] = ["file"]`; ChatGPT passa
+  `{ download_url, file_id, file_name, mime_type }` e il server scarica (solo da domini OpenAI, max 50 MB)
+  e salva in `planimetrie` o `computi`. Problemi segnalati da altri sviluppatori: da telefono il
+  riferimento può arrivare incompleto; in una chiamata su dieci circa il file manca.
+- **Claude.ai**: l'allegato sta nella sandbox dell'esecuzione del codice. `link_caricamento` restituisce
+  anche `caricamento_diretto` (URL firmato per PUT) e Claude lo carica con curl. Serve l'esecuzione del
+  codice attiva e il dominio `rsbrguhkodgnqfomrevo.supabase.co` tra i domini consentiti.
+- Altrimenti resta la pagina `/carica-file` per l'utente.

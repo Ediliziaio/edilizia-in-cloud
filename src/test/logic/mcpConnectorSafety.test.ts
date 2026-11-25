@@ -38,7 +38,7 @@ function server(options: { companyId?: string | null; superAdmin?: boolean; emai
   const admin = {
     auth: {
       getUser: async (): Promise<{ data: { user: { id: string } }; error: null }> => ({ data: { user: { id: ACTOR } }, error: null }),
-      admin: { getUserById: async () => ({ data: { user: { id: ACTOR, email: "titolare@example.test" } }, error: null }) },
+      admin: { getUserById: async (): Promise<{ data: { user: { id: string; email: string } }; error: null }> => ({ data: { user: { id: ACTOR, email: "titolare@example.test" } }, error: null }) },
     },
     from(table: string) {
       const filters: Record<string, unknown> = {};
@@ -144,7 +144,7 @@ describe("MCP handler offline integration", () => {
     const s = server();
     expect((await s.post({ jsonrpc: "2.0", id: 1, method: "initialize" }, false)).status).toBe(200);
     const listing = await s.post({ jsonrpc: "2.0", id: 2, method: "tools/list" }, false);
-    expect(listing.body.result.tools).toHaveLength(67); // +3 commesse generali (tappa 7), +9 preventivi, calendario e file (25/11/2026)
+    expect(listing.body.result.tools).toHaveLength(68); // +3 commesse generali (tappa 7), +10 preventivi, calendario e file (25/11/2026)
     for (const tool of listing.body.result.tools) expect(tool.securitySchemes).toEqual([{ type: "oauth2", scopes: [] }]);
     const unauth = await s.post({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "kpi_azienda" } }, false);
     expect(unauth.status).toBe(401);
@@ -291,6 +291,17 @@ describe("MCP permessi dell'utente che collega", () => {
   it("clienti, worker e strumenti non elencati restano chiusi", () => {
     expect(motivoNegato(dipendente({ can_view_orders: true }, "customer"), "commesse_generali", false)).toMatch(/ruolo/);
     expect(motivoNegato(dipendente({ can_view_orders: true }), "strumento_nuovo", false)).toMatch(/amministratori/);
+  });
+});
+
+describe("MCP file dalla chat", () => {
+  it("ChatGPT riceve il file dichiarato in openai/fileParams; indirizzi non di OpenAI rifiutati", async () => {
+    const s = server({ scopes: ["*"] });
+    const tools = (await s.post({ jsonrpc: "2.0", id: 1, method: "tools/list" })).body.result.tools as { name: string; _meta: Record<string, unknown> }[];
+    expect(tools.find(t => t.name === "carica_file_dalla_chat")?._meta["openai/fileParams"]).toEqual(["file"]);
+    const res = await s.call("carica_file_dalla_chat", { tipo: "planimetria", request_id: REQUEST,
+      file: { download_url: "https://evil.example/pianta.pdf", file_name: "pianta.pdf" } });
+    expect(res.body.result.content[0].text).toMatch(/non ammesso/);
   });
 });
 

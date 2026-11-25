@@ -245,7 +245,7 @@ export const AZIENDA_TOOLS: ToolDef[] = [
   },
   {
     name: "link_caricamento",
-    description: "Il file allegato in chat non arriva a Edilizia in Cloud: questo strumento dà all'utente un link dove caricarlo (planimetria PDF/immagine/DWG/DXF, oppure computo PDF/Excel/XPWE). Il link vale 2 ore. Dopo il caricamento usa leggi_file_caricato o importa_computo con il percorso restituito.",
+    description: "Porta in Edilizia in Cloud un file della chat (planimetria PDF/immagine/DWG/DXF, oppure computo PDF/Excel/XPWE). Restituisce: «caricamento_diretto», un indirizzo dove caricare il file con PUT — se hai l'esecuzione del codice e il file è nella tua cartella, caricalo tu con il comando curl indicato, senza chiedere niente all'utente; e «link», una pagina dove l'utente trascina il file se tu non puoi. Valgono 2 ore. Su ChatGPT usa invece carica_file_dalla_chat. Poi leggi_file_caricato o importa_computo con il percorso restituito.",
     scope: "quotes:write",
     inputSchema: {
       type: "object",
@@ -270,7 +270,73 @@ export const AZIENDA_TOOLS: ToolDef[] = [
       const { data, error } = await admin.storage.from(bucket).createSignedUploadUrl(percorso);
       if (error || !data?.token) throw new ToolError(`Link di caricamento non creato: ${error?.message ?? "nessun token"}`);
       const link = `${URL_APP}/carica-file?b=${bucket}&p=${encodeURIComponent(percorso)}&t=${encodeURIComponent(data.token)}&n=${encodeURIComponent(nome)}`;
-      return { link, percorso, bucket, valido_per: "2 ore", istruzioni: "Apri il link, trascina il file e torna qui quando vedi «Caricato»." };
+      return {
+        percorso, bucket, valido_per: "2 ore",
+        // Claude.ai: il file allegato sta nella sandbox dell'esecuzione del codice; da lì si carica con curl
+        // (il dominio di Supabase va tra i domini consentiti dell'esecuzione del codice).
+        caricamento_diretto: {
+          metodo: "PUT",
+          url: data.signedUrl,
+          esempio_curl: `curl -sS -X PUT -H "Content-Type: <tipo del file>" --data-binary @"<percorso locale del file>" "${data.signedUrl}"`,
+        },
+        link,
+        istruzioni_utente: "Se l'assistente non può caricarlo da sé: apri il link, trascina il file e torna qui quando vedi «Caricato».",
+      };
+    },
+  },
+  {
+    // ChatGPT: con «openai/fileParams» il file allegato in chat arriva come link temporaneo da scaricare.
+    name: "carica_file_dalla_chat",
+    description: "Porta in Edilizia in Cloud un file che l'utente ha allegato in questa chat (planimetria o computo). Passa il file nel parametro «file». Poi leggi_file_caricato o importa_computo con il percorso restituito.",
+    scope: "quotes:write",
+    meta: { "openai/fileParams": ["file"] },
+    inputSchema: {
+      type: "object",
+      properties: {
+        company: { type: "string" },
+        tipo: { type: "string", enum: ["planimetria", "computo"] },
+        file: {
+          type: "object",
+          description: "Il file allegato in chat",
+          properties: {
+            download_url: { type: "string" }, file_id: { type: "string" },
+            file_name: { type: "string" }, mime_type: { type: "string" },
+          },
+          required: ["download_url"],
+        },
+      },
+      required: ["tipo", "file"],
+      additionalProperties: false,
+    },
+    handler: async (admin, ctx, args) => {
+      const az = await resolveCompany(admin, ctx, args);
+      const file = (args.file ?? {}) as Record<string, unknown>;
+      const indirizzo = str(file.download_url);
+      let url: URL;
+      try { url = new URL(indirizzo ?? ""); } catch { throw new ToolError("Il file non è arrivato: riallegalo e riprova."); }
+      // Solo i file serviti da OpenAI: il server non scarica da indirizzi qualsiasi.
+      if (url.protocol !== "https:" || !/(^|\.)(oaiusercontent\.com|openai\.com|chatgpt\.com)$/i.test(url.hostname)) {
+        throw new ToolError("Indirizzo del file non ammesso.");
+      }
+      const tipo = str(args.tipo) === "computo" ? "computo" : "planimetria";
+      const nome = (str(file.file_name) ?? "file").replace(/[^A-Za-z0-9._-]+/g, "_").slice(-80);
+      const estensione = nome.split(".").pop()?.toLowerCase() ?? "";
+      const ammesse = tipo === "computo" ? ["pdf", "xlsx", "xls", "xpwe", "dcf", "xml", "jpg", "jpeg", "png", "webp"]
+        : ["pdf", "jpg", "jpeg", "png", "webp", "dwg", "dxf"];
+      if (!ammesse.includes(estensione)) throw new ToolError(`Formato non ammesso per ${tipo}: ${ammesse.join(", ")}`);
+      const risposta = await fetch(url.toString());
+      if (!risposta.ok) throw new ToolError(`File non scaricabile (${risposta.status}): riallegalo e riprova.`);
+      const dichiarati = Number(risposta.headers.get("content-length") ?? 0);
+      if (dichiarati > 50 * 1024 * 1024) throw new ToolError("Il file supera 50 MB.");
+      const byte = new Uint8Array(await risposta.arrayBuffer());
+      if (byte.byteLength > 50 * 1024 * 1024) throw new ToolError("Il file supera 50 MB.");
+      const bucket = tipo === "computo" ? "computi" : "planimetrie";
+      const percorso = tipo === "computo" ? `${az.id}/${Date.now()}-${nome}` : `${az.id}/assistente/${crypto.randomUUID()}-${nome}`;
+      const { error } = await admin.storage.from(bucket).upload(percorso, byte, {
+        contentType: str(file.mime_type) ?? risposta.headers.get("content-type") ?? undefined,
+      });
+      if (error) throw new ToolError(`File non salvato: ${error.message}`);
+      return { caricato: true, percorso, bucket, nome, dimensione_kb: Math.round(byte.byteLength / 1024) };
     },
   },
   {
