@@ -261,7 +261,8 @@ export const macroAreas: MacroArea[] = [
       // «Calendario commerciale» e non «Calendario» (25/11/2026): la griglia delle app
       // sul telefono (MobileAppGrid) non accorpa per nome, e due riquadri con la stessa
       // icona e lo stesso nome finivano affiancati in «Recenti», indistinguibili.
-      { title: "Calendario commerciale", url: "/azienda/calendario?tipo=commerciali", icon: CalendarDays, permissionKey: "canViewMarketingAppointments", featureKey: "crm_modulo" },
+      // Dal 25/11/2026 ha un indirizzo suo: da computer i due calendari sono separati (vedi CalendarioUnico).
+      { title: "Calendario commerciale", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketingAppointments", featureKey: "crm_modulo" },
       { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Gauge, permissionKey: "canViewSalesOs", featureKey: "sales_os" },
       { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: PieChart, permissionKey: "canViewMarketingReports", featureKey: "marketing_reporting" },
       // ─── Marketing ───

@@ -1,5 +1,5 @@
 import { Suspense, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { Handshake, HardHat } from "lucide-react";
 import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -10,6 +10,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { tipoCalendario, CHIAVE_TIPO_CALENDARIO, type TipoCalendario } from "@/lib/calendar/calendarioUnico";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { useIsMobile } from "@/hooks/use-mobile";
+
+/** Indirizzo proprio del calendario commerciale (voce «Calendario commerciale» in Marketing & Vendita). */
+export const URL_CALENDARIO_COMMERCIALE = "/azienda/marketing/calendario";
 
 const CalendarioLavori = lazy(() => import("@/pages/azienda/Calendar"));
 const CalendarioCommerciale = lazy(() => import("@/pages/azienda/marketing/MarketingCalendar"));
@@ -32,32 +36,55 @@ function Caricamento() {
  * Ognuno vede il suo: chi ha solo il CRM vede gli appuntamenti commerciali, chi ha solo i
  * lavori vede i lavori; chi li ha entrambi sceglie in alto, e la scelta resta ricordata.
  * I due calendari restano due motori: qui si sceglie quale mostrare, con un indirizzo solo.
+ *
+ * 25/11/2026 (Florin): da computer e tablet sono DUE calendari separati, ognuno con la sua voce nel menu.
+ * «Calendario commerciale» ha il suo indirizzo (/azienda/marketing/calendario, `fisso="commerciali"`) e
+ * mostra solo il commerciale; «Calendario» in Cantieri & Lavori mostra solo i lavori. Prima la voce
+ * commerciale apriva /azienda/calendario?tipo=commerciali: il menu accendeva «Calendario» di Cantieri,
+ * la testata diceva «Cantieri & Lavori» e c'era la scelta Lavori/Commerciali in alto. La scelta resta
+ * solo sul telefono, dove il menu laterale non c'è.
  */
-export default function CalendarioUnico() {
+export default function CalendarioUnico({ fisso }: { fisso?: TipoCalendario } = {}) {
   const t = useT();
   const permissions = usePermissions();
   const crm = useFeatureAccess("crm_modulo");
   const [searchParams, setSearchParams] = useSearchParams();
+  const telefono = useIsMobile();
 
   const pronto = !permissions.isLoading && !crm.isLoading;
   const vedeLavori = permissions.canViewCalendar;
   const vedeCommerciale = permissions.canViewMarketingAppointments && (crm.isEnabled || crm.isPreview);
   let ricordato: string | null = null;
   try { ricordato = localStorage.getItem(CHIAVE_TIPO_CALENDARIO); } catch { /* archivio non disponibile */ }
-  const tipo = tipoCalendario({ vedeLavori, vedeCommerciale, richiesto: searchParams.get("tipo"), ricordato });
+  const richiestoDaIndirizzo = searchParams.get("tipo");
+  // Da computer l'indirizzo generico è il calendario dei lavori: l'ultima scelta ricordata non conta
+  // (aprirebbe il commerciale sotto la voce «Calendario» di Cantieri).
+  const tipo: TipoCalendario = fisso
+    ?? (telefono
+      ? tipoCalendario({ vedeLavori, vedeCommerciale, richiesto: richiestoDaIndirizzo, ricordato })
+      : vedeLavori ? "lavori" : "commerciali");
+  // Da computer un vecchio link «?tipo=commerciali» (o chi ha solo il CRM) va al calendario commerciale.
+  const vaiAlCommerciale = !fisso && !telefono && pronto && vedeCommerciale
+    && (richiestoDaIndirizzo === "commerciali" || !vedeLavori);
 
   // Il tipo sta sempre nell'indirizzo: la barra in basso ci legge se mostrare quella del
   // commerciale, e un link senza «?tipo=» la faceva cambiare sotto il pollice.
   const richiesto = searchParams.get("tipo");
   useEffect(() => {
-    if (!pronto || richiesto === tipo) return;
+    if (fisso || vaiAlCommerciale || !pronto || richiesto === tipo) return;
     setSearchParams((attuali) => {
       const prossimi = new URLSearchParams(attuali);
       prossimi.set("tipo", tipo);
       return prossimi;
     }, { replace: true });
-  }, [pronto, richiesto, tipo, setSearchParams]);
+  }, [fisso, vaiAlCommerciale, pronto, richiesto, tipo, setSearchParams]);
 
+  if (vaiAlCommerciale) {
+    const resto = new URLSearchParams(searchParams);
+    resto.delete("tipo");
+    const coda = resto.toString();
+    return <Navigate to={`${URL_CALENDARIO_COMMERCIALE}${coda ? `?${coda}` : ""}`} replace />;
+  }
   if (!pronto) return <Caricamento />;
 
   const scegli = (scelto: TipoCalendario) => {
@@ -69,7 +96,7 @@ export default function CalendarioUnico() {
 
   return (
     <div className="space-y-3">
-      {vedeLavori && vedeCommerciale && (
+      {!fisso && telefono && vedeLavori && vedeCommerciale && (
         <div role="tablist" aria-label={t("Quale calendario")} className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-0.5 sm:inline-grid sm:w-auto">
           {([
             ["lavori", "Lavori", HardHat],

@@ -57,13 +57,6 @@ function RimandoFatturaImportata() {
 
 /** Un indirizzo vecchio che porta al nuovo tenendo i parametri (?tab, ?q…) e l'ancora. */
 /** Il vecchio «Calendario CRM»: ora è il calendario unico, scheda «Commerciali». */
-function RimandoCalendarioCommerciale() {
-  const location = useLocation();
-  const params = new URLSearchParams(location.search);
-  params.set("tipo", "commerciali");
-  return <Navigate to={`/azienda/calendario?${params.toString()}${location.hash}`} replace />;
-}
-
 function RimandoConParametri({ to }: { to: string }) {
   const location = useLocation();
   return <Navigate to={`${to}${location.search}${location.hash}`} replace />;
@@ -1002,7 +995,9 @@ export default function CompanyRoutesContainer() {
         <Route path="marketing/contatti/:id" element={withCompanyPermission("canViewMarketingContacts", <FeatureRoute featureKey="crm_modulo"><MarketingContactDetail /></FeatureRoute>)} />
         <Route path="marketing/opportunita" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="crm_modulo"><MarketingOpportunities /></FeatureRoute>)} />
         <Route path="marketing/attivita" element={<Navigate to="/azienda/attivita?fonte=marketing" replace />} />
-        <Route path="marketing/calendario" element={withCompanyPermission("canViewMarketingAppointments", <RimandoCalendarioCommerciale />)} />
+        {/* Calendario commerciale con indirizzo proprio (25/11/2026): prima rimandava a /azienda/calendario?tipo=commerciali,
+            e il menu accendeva «Calendario» di Cantieri & Lavori. */}
+        <Route path="marketing/calendario" element={withCompanyPermission("canViewMarketingAppointments", <CalendarioUnico fisso="commerciali" />)} />
         
         {/* Backward-compatible redirects for old marketing automation/agent routes */}
         <Route path="marketing/automazioni" element={<Navigate to="/azienda/automazioni" replace />} />
