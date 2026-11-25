@@ -1891,7 +1891,9 @@ export default function ContenutiMultimediali() {
           </CardContent>
         </Card>
 
-        <Card className="min-w-0">
+        {/* Lista vuota: la scheda resta alta quanto il suo contenuto invece di
+            allungarsi fino alla colonna delle cartelle (spazio bianco). */}
+        <Card className={cn("min-w-0", !isLoading && filteredItems.length === 0 && "self-start")}>
           <CardHeader className="gap-3 pb-3">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="min-w-0">
@@ -2020,58 +2022,46 @@ export default function ContenutiMultimediali() {
               <p role="status" className="p-4 text-sm text-muted-foreground">{t("Cerco anche nelle pagine precedenti…")}</p>
             ) : filteredItems.length === 0 ? (
               rawItems.length === 0 ? (
-                // Azienda nuova senza alcun documento: onboarding ricco con 3 azioni
-                <div className="space-y-4 p-6">
-                  <div className="text-center">
-                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-eic-amber-strong text-white shadow-md">
-                      <FileText className="h-8 w-8" />
-                    </div>
-                    <h3 className="mt-4 text-xl font-bold tracking-tight text-slate-950">{t("Il Drive è vuoto, iniziamo")}</h3>
-                    <p className="mt-1 text-sm text-slate-600">{t("Carica documenti, crea una cartella o apri l’Inbox AI.")}</p>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <button
-                      type="button"
-                      onClick={() => apriCaricamento()}
-                      disabled={!puoScrivere}
-                      className="flex flex-col items-start gap-2 rounded-2xl border-2 border-orange-200 bg-gradient-to-br from-orange-50 to-white p-4 text-left transition hover:border-orange-400 hover:shadow-md"
-                    >
-                      <UploadCloud className="h-6 w-6 text-orange-600" />
-                      <p className="text-sm font-bold text-slate-900">{t("Carica un documento")}</p>
-                      <p className="text-xs text-slate-600">{t("DDT, fatture, computi, foto, contratti. Archivia i file oppure analizzali con Silvio.")}</p>
-                      <span className="mt-auto text-xs font-semibold text-orange-700">{t("Inizia →")}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("inbox_ai")}
-                      className="flex flex-col items-start gap-2 rounded-2xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-white p-4 text-left transition hover:border-blue-400 hover:shadow-md"
-                    >
-                      <Inbox className="h-6 w-6 text-blue-600" />
-                      <p className="text-sm font-bold text-slate-900">{t("Inbox AI")}</p>
-                      <p className="text-xs text-slate-600">{t("Inoltra documenti via email a un indirizzo dedicato. Silvio li classifica.")}</p>
-                      <span className="mt-auto text-xs font-semibold text-blue-700">{t("Configura →")}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => apriCartella()}
-                      className="flex flex-col items-start gap-2 rounded-2xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 text-left transition hover:border-emerald-400 hover:shadow-md"
-                    >
-                      <FolderPlus className="h-6 w-6 text-emerald-600" />
-                      <p className="text-sm font-bold text-slate-900">{t("Crea una cartella")}</p>
-                      <p className="text-xs text-slate-600">{t("Raggruppa i file per progetto, cliente o tipo.")}</p>
-                      <span className="mt-auto text-xs font-semibold text-emerald-700">{t("Crea →")}</span>
-                    </button>
+                // Azienda nuova senza alcun documento (25/11/2026): un blocco
+                // compatto (icona, una riga, le azioni) al posto dei tre riquadri
+                // grandi che lasciavano una scatola vuota alta mezzo schermo.
+                <div className="flex flex-col items-center gap-2 px-4 py-5 text-center">
+                  <UploadCloud className="h-6 w-6 text-orange-600" aria-hidden />
+                  <p className="text-sm text-muted-foreground">
+                    <span className="font-semibold text-foreground">{t("Il Drive è vuoto")}</span>
+                    {" · "}{t("Carica documenti, crea una cartella o apri l’Inbox AI.")}
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    {puoScrivere && (
+                      <Button type="button" size="sm" className={BOTTONE_NUOVO} onClick={() => apriCaricamento()}>
+                        <UploadCloud /> {t("Carica un documento")}
+                      </Button>
+                    )}
+                    <Button type="button" variant="outline" size="sm" className={BOTTONE_SECONDARIO} onClick={() => setActiveTab("inbox_ai")}>
+                      <Inbox /> {t("Inbox AI")}
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" className={BOTTONE_SECONDARIO} onClick={() => apriCartella()}>
+                      <FolderPlus /> {t("Crea una cartella")}
+                    </Button>
                   </div>
                 </div>
               ) : (
-                <EmptyState
-                  inline
-                  icon={FileText}
-                  title={t("Nessun contenuto in questa vista")}
-                  description={t("Cambia filtro o tab per visualizzare gli allegati già presenti nell'archivio.")}
-                  action={{ label: activeCustomFolder?.mode === "manual" && !query && !filtriAggiuntivi && puoScrivere ? t("Carica in questa cartella") : t("Mostra tutti"),
-                    onClick: activeCustomFolder?.mode === "manual" && !query && !filtriAggiuntivi && puoScrivere ? () => apriCaricamento() : mostraTutti, variant: "outline" }}
-                />
+                <div className="flex flex-col items-center gap-2 px-4 py-5 text-center">
+                  <FileText className="h-6 w-6 text-muted-foreground" aria-hidden />
+                  <p className="text-sm text-muted-foreground">
+                    <span className="font-semibold text-foreground">{t("Nessun contenuto in questa vista")}</span>
+                    <span className="block text-xs">{t("Cambia filtro o tab per visualizzare gli allegati già presenti nell'archivio.")}</span>
+                  </p>
+                  {activeCustomFolder?.mode === "manual" && !query && !filtriAggiuntivi && puoScrivere ? (
+                    <Button type="button" size="sm" className={BOTTONE_NUOVO} onClick={() => apriCaricamento()}>
+                      <UploadCloud /> {t("Carica in questa cartella")}
+                    </Button>
+                  ) : (
+                    <Button type="button" variant="outline" size="sm" className={BOTTONE_SECONDARIO} onClick={mostraTutti}>
+                      {t("Mostra tutti")}
+                    </Button>
+                  )}
+                </div>
               )
             ) : (
               <VirtualizedMediaList

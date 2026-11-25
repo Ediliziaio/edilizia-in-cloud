@@ -19,7 +19,9 @@ export default function ContabilitaGeneralePagina() {
   if (attiva === undefined) return <p role="status" className="p-6 text-sm text-muted-foreground">{t("Caricamento…")}</p>;
   if (!attiva) {
     return (
-      <div className="mx-auto max-w-2xl space-y-4 py-6">
+      // Allineata a sinistra come le altre pagine (25/11/2026): prima era un'isola
+      // centrata larga metà schermo. Il testo resta a una larghezza leggibile.
+      <div className="max-w-4xl space-y-3">
         <div className="flex items-center gap-2">
           <BookOpenCheck className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
           <h1 className="text-xl font-bold">{t("Contabilità generale")}</h1>

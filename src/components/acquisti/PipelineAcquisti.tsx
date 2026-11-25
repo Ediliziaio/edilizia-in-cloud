@@ -159,6 +159,7 @@ function Colonna({
       label={t(col.titolo)}
       color={col.colore}
       count={col.conteggio}
+      larga
       alert={inRitardo ? t("{n} in ritardo", { n: inRitardo }) : undefined}
       hint={`${vedeCosti && col.importo > 0 ? `${formatCurrency(col.importo)} · ` : ""}${t(col.descrizione)}`}
     >
