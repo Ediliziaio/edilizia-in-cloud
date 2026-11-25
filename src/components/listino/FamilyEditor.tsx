@@ -50,6 +50,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useFamily } from "@/hooks/useFamilies";
 import { useFamilyMutations } from "@/hooks/useFamilyMutations";
 import { useArticleImageUpload } from "@/hooks/useArticleImageUpload";
@@ -218,8 +219,10 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
   const navigate = useNavigate();
   const location = useLocation();
   const { effectiveCompany, role } = useAuth();
-  // Le tipologie le crea e le cambia solo l'amministratore (è la regola del database): il pulsante «Gestisci» è suo.
-  const gestoreTipologie = role === "company_admin" || role === "super_admin";
+  const permessiListino = usePermissions();
+  // Le tipologie le crea e le cambia chi può modificare il listino, come i prodotti (25/11/2026,
+  // stessa regola nel database): prima solo l'amministratore, e un collaboratore restava senza «Gestisci».
+  const gestoreTipologie = role === "company_admin" || role === "super_admin" || permessiListino.canEditSettingsPricing;
   const puoModificare = !soloLettura;
   // Il listino ci manda con l'indirizzo di partenza (area, tipologia, linea): «Torna al listino» ci riporta lì.
   const ritornoAlListino = (location.state as { ritorno?: string } | null)?.ritorno ?? "";

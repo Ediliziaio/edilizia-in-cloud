@@ -19,6 +19,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 const state = vi.hoisted(() => ({
   famiglia: null as Record<string, unknown> | null,
   role: "company_admin" as string,
+  modificaListino: false,
   update: vi.fn(),
   crea: vi.fn(),
   duplica: vi.fn(),
@@ -47,6 +48,7 @@ vi.mock("@/hooks/useArticleImageUpload", () => ({
   useArticleImageUpload: () => ({ upload: vi.fn(), remove: vi.fn(), isUploading: false, isRemoving: false }),
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "azienda-1" }, role: state.role }) }));
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canEditSettingsPricing: state.modificaListino }) }));
 vi.mock("@/hooks/useListinoMacrocategorie", () => ({ useListinoMacrocategorie: () => ({ macrocategorie: [{ id: "m1", nome: "Serramenti" }] }) }));
 vi.mock("@/hooks/useListinoCategorie", () => ({ useListinoCategorie: () => ({ categorie: [] as unknown[], isLoading: false }) }));
 vi.mock("@/components/listino/ArticlePdfDocumentsSection", () => ({ ArticlePdfDocumentsSection: (): null => null }));
@@ -104,6 +106,7 @@ const testo = () => document.body.textContent ?? "";
 beforeEach(() => {
   state.famiglia = famiglia();
   state.role = "company_admin";
+  state.modificaListino = false;
   state.update.mockReset().mockResolvedValue(undefined);
   state.crea.mockReset().mockResolvedValue({ id: "fam-9" });
   state.duplica.mockReset().mockResolvedValue("fam-2");
@@ -373,8 +376,16 @@ describe("Editor del prodotto: «Gestisci» le tipologie", () => {
     expect(screen.getByRole("button", { name: /Gestisci/ })).toBeInTheDocument();
   });
 
-  it("non lo vede chi ha solo il permesso sul listino: creare e cambiare tipologie è dell'amministratore", () => {
-    state.role = "staff";
+  // 25/11/2026: un collaboratore col permesso sul listino creava la guaina ma non la tipologia.
+  it("lo vede il collaboratore col permesso di modificare il listino", () => {
+    state.role = "company_staff";
+    state.modificaListino = true;
+    apri("/azienda/impostazioni/listino/famiglie/fam-1");
+    expect(screen.getByRole("button", { name: /Gestisci/ })).toBeInTheDocument();
+  });
+
+  it("non lo vede il collaboratore senza quel permesso", () => {
+    state.role = "company_staff";
     apri("/azienda/impostazioni/listino/famiglie/fam-1");
     expect(screen.queryByRole("button", { name: /Gestisci/ })).toBeNull();
   });

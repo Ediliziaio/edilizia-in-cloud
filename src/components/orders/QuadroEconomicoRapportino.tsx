@@ -73,7 +73,7 @@ function CollegaVoce({ tipo, id, orderId, onFatto }: { tipo: "mezzo" | "ditta"; 
   return (
     <div className="col-span-2 space-y-1">
       <CercaNelListino dove={{ orderId, data: null }} segnaposto={tipo === "mezzo" ? t("Nolo del listino (es. escavatore 40 qli)") : t("Voce delle ore della ditta")}
-        onScegli={(v) => collega.mutate(v.tariffa_id)} />
+        conProdotti={false} onScegli={(v) => { if (v.tariffa_id) collega.mutate(v.tariffa_id); }} />
       <p className="text-[11px] text-muted-foreground">{t("Vale per i rapportini che non hanno già un prezzo fissato all’approvazione.")} <button type="button" className="underline" onClick={() => setAperto(false)}>{t("Annulla")}</button></p>
     </div>
   );
@@ -117,7 +117,7 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
       const { error } = await db.from("rapportino_voci_libere").insert({
         rapportino_id: rapportinoId, descrizione: v.descrizione.trim(), quantita: misuraRapportino(v.quantita, "Quantità"), unita: v.unita.trim() || "cad",
         costo_unitario: v.costo.trim() ? misuraRapportino(v.costo, "Costo unitario") : null, vendita_unitaria: v.vendita.trim() ? misuraRapportino(v.vendita, "Vendita unitaria") : null,
-        ...(v.voce ? { tariffa_id: v.voce.tariffa_id } : {}),
+        ...(v.voce?.tariffa_id ? { tariffa_id: v.voce.tariffa_id } : {}),
         ...(v.viaggio || (voceTrasporto(v.descrizione, v.unita) && unitaChilometro(v.unita))
           ? { viaggio: dettagliViaggio(v.viaggio ?? {}, v.unita, v.quantita) } : {}),
       });
@@ -223,7 +223,7 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
           {puoModificare && data.order_id && scegliOre && (
             <div className="basis-full space-y-1">
               <CercaNelListino dove={{ orderId: data.order_id, data: null }} segnaposto={t("Voce di manodopera del listino (es. ore operaio)")}
-                onScegli={(v) => impostaOre.mutate({ orderId: data.order_id!, tariffaId: v.tariffa_id })} />
+                conProdotti={false} onScegli={(v) => { if (v.tariffa_id) impostaOre.mutate({ orderId: data.order_id!, tariffaId: v.tariffa_id }); }} />
               <p>{t("Vale per tutti i rapportini della commessa: il prezzo segue il listino del committente se ha la voce, altrimenti il generale.")} <button type="button" className="underline" onClick={() => setScegliOre(false)}>{t("Annulla")}</button></p>
             </div>
           )}

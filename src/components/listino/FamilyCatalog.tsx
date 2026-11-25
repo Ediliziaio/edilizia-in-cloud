@@ -119,11 +119,12 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
   const [parametri, setParametri] = useSearchParams();
   const { role, effectiveCompany } = useAuth();
   const permessi = usePermissions();
-  // Aree e tipologie le crea l'amministratore (è la regola del database sulle
-  // tipologie); prodotti, linee e prezzi anche chi ha il permesso di modificare
-  // il listino, come la pagina che lo ospita.
+  // Prodotti, linee, prezzi, tipologie e aree: chi ha il permesso di modificare il listino,
+  // non solo l'amministratore (25/11/2026, stessa regola nel database). Restano all'amministratore
+  // i disegni e i modelli dei serramenti, che installano listini interi.
   const gestore = role === "company_admin" || role === "super_admin";
   const isAdmin = gestore || permessi.canEditSettingsPricing;
+  const gestoreTipologie = isAdmin;
   const companyId = effectiveCompany?.id ?? null;
 
   // Carica anche i disattivati, ma li mostra solo con un filtro esplicito.
@@ -886,23 +887,23 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
             onAttivo: (f) => void toggleAttivo(f),
             onPreventivo: (f) => void togglePreventivo(f),
           }}
-          onCreaTipologia={gestore ? (area, standard) => void creaTipologia(area, standard) : undefined}
-          onCreaTutteStandard={gestore ? (area) => void creaTutteStandard(area) : undefined}
-          onNuovaArea={gestore ? () => setNuovaArea(true) : undefined}
+          onCreaTipologia={gestoreTipologie ? (area, standard) => void creaTipologia(area, standard) : undefined}
+          onCreaTutteStandard={gestoreTipologie ? (area) => void creaTutteStandard(area) : undefined}
+          onNuovaArea={gestoreTipologie ? () => setNuovaArea(true) : undefined}
           onNuovaTipologia={
-            gestore
+            gestoreTipologie
               ? (area) => setNuovaTipologia({ area, modo: area.mancanti.length > 0 ? "standard" : "nuova", origine: null })
               : undefined
           }
-          onCopiaTipologia={gestore ? (area, tipologia) => setNuovaTipologia({ area, modo: "copia", origine: tipologia }) : undefined}
-          onAttivaTipologia={gestore ? (_area, tipologia) => void attivaTipologia(tipologia) : undefined}
+          onCopiaTipologia={gestoreTipologie ? (area, tipologia) => setNuovaTipologia({ area, modo: "copia", origine: tipologia }) : undefined}
+          onAttivaTipologia={gestoreTipologie ? (_area, tipologia) => void attivaTipologia(tipologia) : undefined}
           onNuovaLinea={isAdmin ? (area, tipologia) => setNuovaLinea({ area, tipologia }) : undefined}
           onNuovoProdotto={isAdmin ? nuovoProdotto : undefined}
           onPrezziLinee={isAdmin ? (tipologia) => setPrezziAperti(tipologia) : undefined}
           onVariantiTipologia={isAdmin ? (tipologia) => setVariantiAperte(tipologia) : undefined}
           onAllineaLinee={isAdmin ? (_area, tipologia) => setDaAllineare(tipologia) : undefined}
-          onCollega={gestore ? (area, tipologia) => void collega(area, tipologia) : undefined}
-          onAccessorio={gestore ? (_area, tipologia) => void mettiFraGliAccessori(tipologia) : undefined}
+          onCollega={gestoreTipologie ? (area, tipologia) => void collega(area, tipologia) : undefined}
+          onAccessorio={gestoreTipologie ? (_area, tipologia) => void mettiFraGliAccessori(tipologia) : undefined}
           schedaDi={(tipologia, linea) => trovaSchedaLinea(schedeLinea, tipologia.macrocategoriaId, linea.nome)}
           onSchedaLinea={
             isAdmin && companyId ? (_area, tipologia, linea) => setSchedaAperta({ tipologia, linea }) : undefined
