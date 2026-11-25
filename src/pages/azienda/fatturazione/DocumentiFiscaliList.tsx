@@ -1,3 +1,4 @@
+import { BOTTONE_SECONDARIO, BOTTONE_NUOVO } from "@/components/orders/TestataScheda";
 import { SoloDaTabletOComputer } from "@/components/shared/SoloDaTabletOComputer";
 import { useContabilitaGeneraleAttiva } from "@/components/contabilita/ContabilitaInCasa";
 import { supabase } from "@/integrations/supabase/client";
@@ -696,59 +697,65 @@ function DocumentiFiscaliListInner() {
               <FileText className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">{tr("Fatturazione")}</h1>
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900">{tr("Fatturazione")}</h1>
               <p className="mt-0.5 text-sm text-slate-500">{tr("Gestisci documenti fiscali, SDI, incassi e scadenze operative.")}</p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Testata (25/11/2026): in vista solo «Fatture in bozza» e «Nuovo documento», alti 32px.
+              Report, abbinamento alle commesse, emesse importate, scontrini e impostazioni stanno nel «⋯»:
+              sette bottoni andavano su due righe e tagliavano il titolo («Fatturazion…»). */}
+          <div className="flex flex-wrap items-center gap-1.5">
             {elencoEmesse && !esterna && (
               <Button type="button" variant={soloBozzeFatture ? "secondary" : "outline"} size="sm" aria-pressed={soloBozzeFatture}
-                className="gap-1.5 max-sm:h-11 max-sm:px-3 max-sm:text-sm" onClick={() => {
+                className={cn(BOTTONE_SECONDARIO, "max-sm:h-11 max-sm:px-3 max-sm:text-sm")} onClick={() => {
                   setStatoFilter(soloBozzeFatture ? "all" : "bozza", true);
                   azzeraFiltriElenco();
                 }}>
-                <FileText className="h-4 w-4" aria-hidden="true" />
+                <FileText aria-hidden="true" />
                 {tr("Fatture in bozza")}
               </Button>
             )}
-            <Button variant="outline" size="sm" asChild className="gap-1.5 max-sm:hidden">
-              <Link to="/azienda/documenti/report">
-                <BarChart3 className="h-4 w-4" />
-                <span className="hidden sm:inline">{tr("Report fiscali")}</span>
-              </Link>
-            </Button>
-            {/* Abbinare scrive su fatture e rate: lo fa chi ha «Pagamenti» (regola del database). */}
-            {!isCommercialistaMode && effectiveCompany?.id && permissions.canManagePayments && !permissions.solaLettura && (
-              <Button variant="outline" size="sm" className="gap-1.5 max-sm:hidden" onClick={() => setAbbinaAperto(true)}>
-                <Link2 className="h-4 w-4" />
-                <span className="hidden sm:inline">{tr("Abbina alle commesse")}</span>
-              </Button>
-            )}
-            <Button variant="outline" size="sm" asChild className="gap-1.5 max-sm:hidden">
-              <Link to="/azienda/documenti/emesse-importate" title={tr("Fatture emesse con un altro programma e importate, mese per mese")}>
-                <span className="hidden sm:inline">{tr("Emesse importate")}</span>
-              </Link>
-            </Button>
-            {!isCommercialistaMode && (
-              <>
-                <Button variant="outline" size="sm" asChild className="gap-1.5 max-sm:h-11 max-sm:px-3 max-sm:text-sm">
-                  <Link to="/azienda/documenti/scontrini"><ReceiptText className="h-4 w-4" />{tr("Scontrini")}</Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="h-8 w-8 max-sm:h-11 max-sm:w-11" aria-label={tr("Altre azioni")}>
+                  <MoreHorizontal className="h-4 w-4" />
                 </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem asChild>
+                  <Link to="/azienda/documenti/report"><BarChart3 className="mr-2 h-4 w-4" />{tr("Report fiscali")}</Link>
+                </DropdownMenuItem>
+                {/* Abbinare scrive su fatture e rate: lo fa chi ha «Pagamenti» (regola del database). */}
+                {!isCommercialistaMode && effectiveCompany?.id && permissions.canManagePayments && !permissions.solaLettura && (
+                  <DropdownMenuItem onSelect={() => setAbbinaAperto(true)}><Link2 className="mr-2 h-4 w-4" />{tr("Abbina alle commesse")}</DropdownMenuItem>
+                )}
+                <DropdownMenuItem asChild>
+                  <Link to="/azienda/documenti/emesse-importate" title={tr("Fatture emesse con un altro programma e importate, mese per mese")}><FileText className="mr-2 h-4 w-4" />{tr("Emesse importate")}</Link>
+                </DropdownMenuItem>
+                {!isCommercialistaMode && (
+                  <DropdownMenuItem asChild>
+                    <Link to="/azienda/documenti/scontrini"><ReceiptText className="mr-2 h-4 w-4" />{tr("Scontrini")}</Link>
+                  </DropdownMenuItem>
+                )}
                 {/* Da telefono la fatturazione non si imposta (solo computer o tablet).
                     Chi importa imposta il collegamento al gestionale, non la numerazione. */}
-                {!isMobile && (
-                  <Button variant="outline" size="sm" asChild className="gap-1.5">
-                    <Link to={esterna ? "/azienda/impostazioni/fatturazione" : "/azienda/impostazioni/fatturazione-nativa"}>
-                      <Settings2 className="h-4 w-4" />
-                      <span className="hidden sm:inline">{tr("Impostazioni")}</span>
-                    </Link>
-                  </Button>
+                {!isCommercialistaMode && !isMobile && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link to={esterna ? "/azienda/impostazioni/fatturazione" : "/azienda/impostazioni/fatturazione-nativa"}><Settings2 className="mr-2 h-4 w-4" />{tr("Impostazioni")}</Link>
+                    </DropdownMenuItem>
+                  </>
                 )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {!isCommercialistaMode && (
+              <>
                 {puoCreare && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button className="gap-2 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-11 max-sm:gap-1 max-sm:px-3 max-sm:text-sm">
-                      <Plus className="h-4 w-4" /> <span className="max-sm:hidden">{tr("Nuovo documento")}</span><span className="sm:hidden">{tr("Nuovo")}</span>
+                    <Button size="sm" className={cn(BOTTONE_NUOVO, "max-sm:h-11 max-sm:px-3 max-sm:text-sm")}>
+                      <Plus className="h-3.5 w-3.5" /> <span className="max-sm:hidden">{tr("Nuovo documento")}</span><span className="sm:hidden">{tr("Nuovo")}</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
