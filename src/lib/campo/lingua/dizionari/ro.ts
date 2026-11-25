@@ -68897,5 +68897,10 @@ const dizionario: Dizionario = {
   "Questo cantiere": "Acest șantier",
   "All'approvazione il viaggio entra nel registro del mezzo: mappa, storico e km.": "La aprobare, cursa intră în registrul vehiculului: hartă, istoric și km.",
   "Posizione sulla mappa": "Poziție pe hartă",
+  "Costi senza mese": "Costuri fără lună",
+  "Ricavi senza mese": "Venituri fără lună",
+  "Il mese vale per le voci selezionate che non ne hanno uno; puoi cambiarlo riga per riga.": "Luna se aplică pozițiilor selectate care nu au una; o poți schimba rând cu rând.",
+  "Periodo dei lavori letto nel foglio:": "Perioada lucrărilor citită în foaie:",
+  "Distribuisci i costi sui {n} mesi dei lavori": "Distribuie costurile pe cele {n} luni de lucrări",
 };
 export default dizionario;

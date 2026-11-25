@@ -155,3 +155,16 @@ describe("Importazione business plan sulla commessa generale", () => {
     expect(analizzaBusinessPlan(letti[1]).totaleCosti).toBe(3);
   });
 });
+
+describe("periodo dei lavori scritto in testa al foglio", () => {
+  it("Callimaco: dicembre 2026 - fine agosto 2027 sono 9 mesi", async () => {
+    const { periodoLavori } = await import("@/lib/orders/generali/businessPlanImport");
+    expect(periodoLavori(["BUSINESS PLAN VIA CALLIMACO", "Durata prevista lavori massimo 9 mesi - dicembre 2026  - fine agosto 2027"]))
+      .toMatchObject({ inizio: "2026-12", fine: "2027-08", mesi: 9 });
+  });
+  it("una data qualsiasi non è un periodo", async () => {
+    const { periodoLavori } = await import("@/lib/orders/generali/businessPlanImport");
+    expect(periodoLavori(["Revisione 10/11/2026", "Ricavi marzo 2027"])).toBeNull();
+    expect(periodoLavori(["Fine lavori agosto 2027"])).toBeNull();
+  });
+});

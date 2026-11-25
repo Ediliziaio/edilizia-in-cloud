@@ -14,6 +14,7 @@ import {
   chiaveVoceBusinessPlan,
   leggiFileBusinessPlan,
   type FoglioBusinessPlan,
+  type PeriodoLavori,
 } from "@/lib/orders/generali/businessPlanImport";
 import type { VocePiano } from "@/lib/orders/generali/pianoConti";
 import { leggiNumeroItaliano } from "@/lib/orders/generali/pianoExcel";
@@ -61,6 +62,7 @@ export function ImportaBusinessPlan({
   const [categorie, setCategorie] = useState<Record<number, CategoriaPiano>>({});
   const [importi, setImporti] = useState<Record<number, string>>({});
   const [mesi, setMesi] = useState<Record<number, string>>({});
+  const [durate, setDurate] = useState<Record<number, number>>({});
   const [conferma, setConferma] = useState(false);
   const analisi = useMemo(
     () => (fogli[indice] ? analizzaBusinessPlan(fogli[indice]) : null),
@@ -85,6 +87,7 @@ export function ImportaBusinessPlan({
       giaPresenti,
       selezionata: selezionate[r.riga] ?? (giaPresenti.length === 0),
       mese: mesi[r.riga] ?? r.mese ?? null,
+      durataMesi: durate[r.riga] ?? r.durataMesi,
       problema:
         importi[r.riga] === undefined ? r.problema : importo === null ? "Scrivi un importo valido" : importo < 0 ? "Verifica l'importo negativo" : null,
     };
@@ -106,6 +109,7 @@ export function ImportaBusinessPlan({
     setCategorie({});
     setImporti({});
     setMesi({});
+    setDurate({});
     try {
       const excel = /\.xlsx$/i.test(f.name);
       if (!/\.(xlsx|pdf|png|jpe?g|webp)$/i.test(f.name)) throw new Error(t("Scegli Excel .xlsx, PDF o immagine. I formati .xls e .xlsm non sono supportati."));
@@ -176,6 +180,12 @@ export function ImportaBusinessPlan({
       {caricamento && <p role="status" className="text-sm text-muted-foreground">{t("Lettura del file in corso. Per PDF e immagini l’AI può impiegare qualche istante.")}</p>}
       {destinazione === "piano" && fogli[indice]?.ai && Object.keys(fogli[indice].ai!.simulazione).length > 0 && <p className="rounded-lg border bg-muted/30 p-3 text-sm">{t("Qui importi le voci del budget. Per preparare anche le unità e le fonti previste dal documento, usa lo stesso import dal simulatore «Valuta un’operazione».")}</p>}
       {destinazione === "simulatore" && analisi && daImportare.some(r => r.importo === null || r.importo < 0 || !r.mese) && <p role="alert" className="rounded-lg border border-amber-300 p-3 text-sm">{t("Per trasferire il piano al simulatore completa gli importi e il mese di ogni voce selezionata. Non vengono inventate scadenze o stime.")}</p>}
+      {destinazione === "simulatore" && analisi && daImportare.some(r => !r.mese) && <MesiInBlocco key={indice} righe={daImportare} periodo={analisi.periodo ?? null} disabled={occupato} onApplica={(tipo, mese, durata) => {
+        const senza = daImportare.filter(r => !r.mese && r.tipo === tipo);
+        setMesi(s => ({ ...s, ...Object.fromEntries(senza.map(r => [r.riga, mese])) }));
+        setDurate(s => ({ ...s, ...Object.fromEntries(senza.map(r => [r.riga, durata])) }));
+        setConferma(false);
+      }} />}
       {analisi && (
         <>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -191,6 +201,7 @@ export function ImportaBusinessPlan({
                   setCategorie({});
                   setImporti({});
                   setMesi({});
+    setDurate({});
                   setConferma(false);
                 }}
               >
@@ -261,7 +272,9 @@ export function ImportaBusinessPlan({
                       <input
                         type="checkbox"
                         aria-label={t("Importa riga {riga}", { riga: r.riga })}
-                        disabled={occupato || r.importo === null || r.importo < 0}
+                        // Una voce senza importo si può sempre togliere: prima restava spuntata e
+                        // bloccata, e il simulatore non partiva senza inventare un importo.
+                        disabled={occupato || (!r.selezionata && (r.importo === null || r.importo < 0))}
                         checked={r.selezionata}
                         onChange={(e) => {
                           setSelezionate((s) => ({ ...s, [r.riga]: e.target.checked }));
@@ -391,6 +404,52 @@ function Indicatore({ nome, valore }: { nome: string; valore: string }) {
     <div className="rounded-lg border p-3">
       <p className="text-xs text-muted-foreground">{nome}</p>
       <p className="mt-1 text-xl font-semibold tabular-nums">{valore}</p>
+    </div>
+  );
+}
+
+/**
+ * Un business plan in Excel di rado ha il calendario: Callimaco, 131 voci senza un mese
+ * (25/11/2026), da scrivere una per una. Qui chi importa sceglie un mese per i costi e uno per
+ * i ricavi che ne sono privi; quelli già letti dal file non si toccano, e ogni riga resta
+ * modificabile nella tabella.
+ */
+function MesiInBlocco({ righe, periodo, disabled, onApplica }: {
+  righe: readonly { tipo: string; mese: string | null }[];
+  periodo: PeriodoLavori | null;
+  disabled?: boolean;
+  onApplica: (tipo: "costo" | "ricavo", mese: string, durataMesi: number) => void;
+}) {
+  const t = useT();
+  // Dal periodo scritto nel foglio: i costi distribuiti sui mesi dei lavori, i ricavi alla fine.
+  const [scelti, setScelti] = useState<Record<"costo" | "ricavo", string>>({ costo: periodo?.inizio ?? "", ricavo: periodo?.fine ?? "" });
+  const [distribuisci, setDistribuisci] = useState(!!periodo && periodo.mesi > 1);
+  const campi = ([["costo", t("Costi senza mese")], ["ricavo", t("Ricavi senza mese")]] as const)
+    .map(([tipo, nome]) => ({ tipo, nome, n: righe.filter((r) => r.tipo === tipo && !r.mese).length }))
+    .filter((c) => c.n > 0);
+  return (
+    <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3 text-sm">
+      {periodo && <p className="basis-full text-xs">{t("Periodo dei lavori letto nel foglio:")} <strong dir="auto">{periodo.testo}</strong></p>}
+      {campi.map((c) => (
+        <label key={c.tipo} className="space-y-1">
+          <span className="block text-xs font-medium">{c.nome} ({c.n})</span>
+          <span className="flex gap-2">
+            <input type="month" aria-label={c.nome} value={scelti[c.tipo]} disabled={disabled} className="h-9 rounded border bg-background px-2"
+              onChange={(e) => setScelti((s) => ({ ...s, [c.tipo]: e.target.value }))} />
+            <Button type="button" size="sm" variant="outline" disabled={disabled || !scelti[c.tipo]}
+              onClick={() => onApplica(c.tipo, scelti[c.tipo], c.tipo === "costo" && distribuisci && periodo && scelti.costo === periodo.inizio ? periodo.mesi : 1)}>
+              {t("Applica")}
+            </Button>
+          </span>
+        </label>
+      ))}
+      {periodo && periodo.mesi > 1 && campi.some((c) => c.tipo === "costo") && (
+        <label className="flex items-center gap-2 text-xs">
+          <input type="checkbox" checked={distribuisci} disabled={disabled} onChange={(e) => setDistribuisci(e.target.checked)} />
+          {t("Distribuisci i costi sui {n} mesi dei lavori", { n: periodo.mesi })}
+        </label>
+      )}
+      <p className="basis-full text-xs text-muted-foreground">{t("Il mese vale per le voci selezionate che non ne hanno uno; puoi cambiarlo riga per riga.")}</p>
     </div>
   );
 }

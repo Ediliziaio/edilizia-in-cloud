@@ -68897,5 +68897,10 @@ const dizionario: Dizionario = {
   "Questo cantiere": "Ky kantier",
   "All'approvazione il viaggio entra nel registro del mezzo: mappa, storico e km.": "Me miratimin, udhëtimi hyn në regjistrin e mjetit: hartë, histori dhe km.",
   "Posizione sulla mappa": "Pozicioni në hartë",
+  "Costi senza mese": "Kosto pa muaj",
+  "Ricavi senza mese": "Të ardhura pa muaj",
+  "Il mese vale per le voci selezionate che non ne hanno uno; puoi cambiarlo riga per riga.": "Muaji vlen për zërat e zgjedhur që nuk kanë një; mund ta ndryshosh rresht pas rreshti.",
+  "Periodo dei lavori letto nel foglio:": "Periudha e punimeve e lexuar në fletë:",
+  "Distribuisci i costi sui {n} mesi dei lavori": "Shpërndaji kostot në {n} muajt e punimeve",
 };
 export default dizionario;
