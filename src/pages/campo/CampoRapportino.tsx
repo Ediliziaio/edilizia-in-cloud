@@ -717,10 +717,29 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
     </button>;
   };
 
+  // Prodotti del listino prodotti, proposti scrivendo «Altro materiale…» (25/11/2026: la guaina di
+  // un'impresa stava nel listino ma nel rapportino andava riscritta a mano). Solo nome e unità, niente prezzi.
+  const { data: prodottiListino = [] } = useQuery({
+    queryKey: ["campo-prodotti-listino-rapportino", companyId],
+    enabled: !!companyId,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("article_families")
+        .select("id, nome, unit_of_measure")
+        .eq("company_id", companyId!).is("deleted_at", null).eq("attivo", true)
+        .order("nome").limit(500);
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; nome: string; unit_of_measure: string | null }>;
+    },
+  });
+  const listaProdottiId = `prodotti-listino-${orderId ?? "x"}`;
+
   const aggiungiMaterialeLibero = () => {
     const nome = materialeLibero.trim();
     if (!nome) return;
-    setMaterialiSel(prev => ({ ...prev, [`libero_${Date.now()}`]: { nome, quantita: 1 } }));
+    const prodotto = prodottiListino.find(p => p.nome.trim().toLowerCase() === nome.toLowerCase());
+    const unita = prodotto?.unit_of_measure ? rapportinoMaterialUnit(prodotto.unit_of_measure) : undefined;
+    setMaterialiSel(prev => ({ ...prev, [`libero_${Date.now()}`]: { nome: prodotto?.nome ?? nome, quantita: 1, ...(unita ? { unita } : {}) } }));
     setMaterialeLibero("");
   };
 
@@ -1613,6 +1632,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                   type="text"
                   className="min-w-0 flex-1 rounded-xl border border-border bg-muted/60 px-3 py-2.5 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
                   placeholder={t("Altro materiale…")}
+                  list={prodottiListino.length > 0 ? listaProdottiId : undefined}
                   value={materialeLibero}
                   onChange={e => setMaterialeLibero(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter") aggiungiMaterialeLibero(); }}
@@ -1626,6 +1646,11 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                   {t("Aggiungi")}
                 </button>
               </div>
+              {prodottiListino.length > 0 && (
+                <datalist id={listaProdottiId}>
+                  {prodottiListino.map(p => <option key={p.id} value={p.nome} />)}
+                </datalist>
+              )}
             </div>
 
     </>

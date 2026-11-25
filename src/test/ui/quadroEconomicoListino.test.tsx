@@ -1,4 +1,7 @@
-/** Quadro del rapportino: provenienza del prezzo, modifica a mano, costo da completare (14/11/2026). */
+/**
+ * Quadro del rapportino: provenienza del prezzo, modifica a mano, costo da completare (14/11/2026).
+ * Dal 25/11/2026 la ricerca trova anche i prodotti del listino prodotti (per esempio una guaina).
+ */
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -39,6 +42,7 @@ const quadro = {
 const listino = [
   { tariffa_id: "t1", codice: "POS-01", descrizione: "Posa serramento", unita: "pz", prezzo: 45, fonte: "committente", costo_unitario: 30, categoria: "posa" },
   { tariffa_id: "t3", codice: "SMA-01", descrizione: "Smaltimento", unita: "pz", prezzo: N, fonte: "mancante", costo_unitario: 10, categoria: "smaltimento" },
+  { articolo_id: "a1", origine: "prodotto", codice: null as string | null, descrizione: "GUAINA", unita: "mq", prezzo: 19, fonte: "generale", costo_unitario: 8, categoria: "Prodotto del listino" },
 ];
 
 const disegna = () => render(
@@ -89,7 +93,19 @@ describe("Quadro economico del rapportino", () => {
     expect(screen.getByText("· prezzo modificato a mano")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi" }));
     await waitFor(() => expect(stato.insert).toHaveBeenCalledWith(expect.objectContaining({ rapportino_id: "r1", tariffa_id: "t1", vendita_unitaria: 50, descrizione: "Posa serramento" })));
-    expect(stato.rpc).toHaveBeenCalledWith("rapportino_listino_cerca", { p_rapportino_id: "r1", p_testo: "pos", p_limite: 20 });
+    expect(stato.rpc).toHaveBeenCalledWith("rapportino_listino_cerca", { p_rapportino_id: "r1", p_testo: "pos", p_limite: 20, p_con_prodotti: true });
+  });
+  it("un prodotto del listino prodotti si aggiunge col suo prezzo, senza tariffa", async () => {
+    disegna();
+    fireEvent.click(await screen.findByRole("button", { name: /Aggiungi voce/ }));
+    fireEvent.change(screen.getByLabelText("Cerca nel listino"), { target: { value: "guaina" } });
+    const riga = await screen.findByRole("button", { name: /GUAINA/ });
+    expect(riga).toHaveTextContent("Prodotto · Prodotto del listino");
+    fireEvent.click(riga);
+    expect(screen.getByLabelText("Vendita unitaria")).toHaveValue("19");
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi" }));
+    await waitFor(() => expect(stato.insert).toHaveBeenCalledWith(expect.objectContaining({ rapportino_id: "r1", descrizione: "GUAINA", unita: "mq", vendita_unitaria: 19, costo_unitario: 8 })));
+    expect(stato.insert.mock.calls[0][0]).not.toHaveProperty("tariffa_id");
   });
   it("voce senza prezzo in nessun listino: «Prezzo da definire», si scrive a mano", async () => {
     disegna();

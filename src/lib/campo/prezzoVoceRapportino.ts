@@ -9,9 +9,17 @@
 
 export type FontePrezzo = "cantiere" | "committente" | "generale" | "mancante";
 
-/** Una voce del listino generale, col prezzo già scelto dalla regola per quella commessa. */
+/**
+ * Una voce del listino generale, col prezzo già scelto dalla regola per quella commessa.
+ * Dal 25/11/2026 la ricerca delle voci del rapportino restituisce anche i prodotti del listino
+ * prodotti (`origine: "prodotto"`): hanno `articolo_id` e non `tariffa_id`, e nel rapportino
+ * diventano una voce col prezzo del prodotto scritto.
+ */
 export interface VoceListino {
-  tariffa_id: string;
+  /** Assente per un prodotto del listino prodotti. */
+  tariffa_id?: string;
+  articolo_id?: string;
+  origine?: "prodotto";
   codice: string | null;
   descrizione: string;
   dettaglio?: string | null;

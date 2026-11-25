@@ -16,6 +16,7 @@ const state = vi.hoisted(() => ({
   weather: undefined as Map<string, { code: number }> | undefined,
   articles: [] as RapportinoArticle[], articlesError: false, articlesRefetch: vi.fn(),
   deliveries: [] as RapportinoArticle[], deliveriesError: false,
+  prodotti: [] as Array<{ id: string; nome: string; unit_of_measure: string | null }>,
   reportDate: null as string | null, existing: null as { id: string; created_at: string } | null,
   dayArgs: vi.fn(), setParams: vi.fn(),
 }));
@@ -43,6 +44,7 @@ vi.mock("@tanstack/react-query", () => ({
   useQuery: ({ queryKey }: { queryKey: string[] }) => ({ data:
     queryKey[0] === "campo-articoli-commessa-rapportino" ? state.articles :
     queryKey[0] === "campo-materiali-consegnati-rapportino" ? state.deliveries :
+    queryKey[0] === "campo-prodotti-listino-rapportino" ? state.prodotti :
     queryKey[0] === "campo-rapportino-cantiere" ? { order_code: "C-123", description: "Ristrutturazione Via Roma" } :
     queryKey[0] === "campo-fasi-commessa" ? state.phases :
     queryKey[0] === "campo-ruolo" ? state.role :
@@ -69,7 +71,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
 } }));
 beforeEach(() => { vi.clearAllMocks(); state.allowed = true; state.role = { isCapocantiere: true, esisteCapo: true }; state.phases = []; state.punches = []; state.timeError = false; state.crew = []; state.orderId = "order"; state.weather = undefined; state.articles = [{ id: "article", name: "Malta", categoria: "Materiali" }]; state.articlesError = false; });
 beforeEach(() => { localStorage.clear(); state.reportDate = null; state.existing = null; vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-09-24T15:00:00+02:00")); });
-beforeEach(() => { state.deliveries = []; state.deliveriesError = false; });
+beforeEach(() => { state.deliveries = []; state.deliveriesError = false; state.prodotti = []; });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 const openMaterials = () => { render(<CampoRapportino />); changeFormControl(screen.getByLabelText("Ore ordinarie su questo cantiere"), { target: { value: "0" } }); fireEvent.click(screen.getByRole("button", { name: "Avanti" })); fireEvent.click(screen.getByRole("button", { name: "Malta" })); };
 
@@ -90,6 +92,21 @@ describe('Materiali consegnati: scelta esplicita senza nuovo scarico',()=>{
     expect(screen.getByRole('alert')).toHaveTextContent('Materiali consegnati non disponibili');
     fireEvent.click(screen.getByRole('button',{name:'Riprova consegne'}));
     expect(state.articlesRefetch).toHaveBeenCalled();expect(screen.getByLabelText('Quantità Malta')).toHaveValue(1);
+  });
+});
+
+describe("Prodotti del listino nel materiale libero (25/11/2026)", () => {
+  it("propone i prodotti del listino e ne prende l'unità", async () => {
+    state.prodotti = [{ id: "a1", nome: "GUAINA", unit_of_measure: "mq" }];
+    openMaterials(); fireEvent.click(screen.getByRole("button", { name: "Rimuovi materiale Malta" }));
+    const campo = screen.getByPlaceholderText("Altro materiale…");
+    const elenco = document.getElementById(campo.getAttribute("list") ?? "");
+    expect(elenco?.querySelector('option[value="GUAINA"]')).not.toBeNull();
+    changeFormControl(campo, { target: { value: "guaina" } });
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi" }));
+    expect(screen.getByLabelText("Unità GUAINA")).toHaveValue("m²");
+    fireEvent.click(screen.getByRole("button", { name: "Invia rapportino" }));
+    await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ materiali_usati: [expect.objectContaining({ nome: "GUAINA", quantita: 1, unita: "m²" })] })));
   });
 });
 
