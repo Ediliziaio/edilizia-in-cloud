@@ -62,6 +62,18 @@ function RimandoConParametri({ to }: { to: string }) {
   return <Navigate to={`${to}${location.search}${location.hash}`} replace />;
 }
 
+/** Sales OS è la scheda «Oggi» di Reportistica (25/11/2026). Il vecchio «?tab=» era la
+ *  scheda interna di Sales OS: diventa «?vista=»; periodo e pipeline restano. */
+function RimandoSalesOs() {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const vista = params.get("tab");
+  params.delete("tab");
+  if (vista) params.set("vista", vista);
+  const resto = params.toString();
+  return <Navigate to={`/azienda/marketing/reportistica?tab=oggi${resto ? `&${resto}` : ""}${location.hash}`} replace />;
+}
+
 /** Commesse e acquisti: ci entra anche chi ha solo il permesso «Ufficio acquisti». */
 const VerificaRenderCompleta = import.meta.env.DEV ? lazy(() => import("../../dev/render-verifica/VerificaRender")) : (): null => null;
 
@@ -492,7 +504,6 @@ const WANumberDetailPage = lazy(() => import("@/pages/azienda/whatsapp/WANumberD
 const SmsPage = lazy(() => import("@/pages/azienda/sms/index"));
 const OnboardingVertical = lazy(() => import("@/pages/azienda/onboarding/OnboardingVertical"));
 const ReportisticaPage = lazy(() => import("@/pages/azienda/ReportisticaPage"));
-const SalesOSDashboard = lazy(() => import("@/pages/azienda/marketing/SalesOSDashboard"));
 const FacebookFormsPage = lazy(() => import("@/pages/azienda/marketing/FacebookFormsPage"));
 const AdsManagerBeta = lazy(() => import("@/pages/azienda/marketing/AdsManagerBeta"));
 const SocialManagerBeta = lazy(() => import("@/pages/azienda/marketing/SocialManagerBeta"));
@@ -1017,7 +1028,10 @@ export default function CompanyRoutesContainer() {
         {/* MP05-FIX — rotta azienda /ai-modelli RIMOSSA (config ora SuperAdmin-only) */}
         <Route path="marketing/lead-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
         <Route path="marketing/facebook-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
-        <Route path="marketing/reportistica" element={withCompanyPermission("canViewMarketingReports", <FeatureRoute featureKey="marketing_reporting"><ReportisticaPage /></FeatureRoute>)} />
+        {/* Dal 25/11/2026 dentro c'è anche Sales OS (scheda «Oggi»): entra chi ha l'uno o
+            l'altro permesso, e la pagina mostra a ciascuno le sue schede. Le due funzioni di
+            piano (marketing_reporting, sales_os) hanno gli stessi valori in ogni piano. */}
+        <Route path="marketing/reportistica" element={withCompanyPermission("canViewMarketingReports", <FeatureRoute featureKey="marketing_reporting"><ReportisticaPage /></FeatureRoute>, (p) => p.canViewMarketingReports || p.canViewSalesOs)} />
         <Route path="marketing/google-ads" element={<Navigate to="/azienda/marketing/reportistica?tab=google-ads" replace />} />
         <Route path="marketing/pubblicita" element={withCompanyPermission("canViewMarketingDashboard", <ErrorBoundary title="Errore nel caricamento pubblicità"><AdsManagerBeta /></ErrorBoundary>)} />
         <Route path="marketing/social" element={withCompanyPermission("canViewMarketingDashboard", <SocialManagerBeta />)} />
@@ -1036,7 +1050,7 @@ export default function CompanyRoutesContainer() {
         <Route path="sms-marketing/contatti" element={<Navigate to="/azienda/sms?tab=contatti" replace />} />
         <Route path="sms-marketing/template" element={<Navigate to="/azienda/sms?tab=template" replace />} />
         <Route path="marketing/analisi-preventivi" element={<Navigate to="/azienda/marketing/preventivi?tab=analisi" replace />} />
-        <Route path="marketing/sales-os" element={withCompanyPermission("canViewSalesOs", <FeatureRoute featureKey="sales_os"><SalesOSDashboard /></FeatureRoute>)} />
+        <Route path="marketing/sales-os" element={<RimandoSalesOs />} />
         {/* Modulo Fotovoltaico — permesso del ruolo, come gli altri moduli di
             vendita (prima solo il flag: elenco e dettaglio dei preventivi FV,
             con clienti e importi, erano aperti a tutto lo staff), più la

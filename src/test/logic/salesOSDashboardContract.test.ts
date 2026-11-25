@@ -99,7 +99,9 @@ describe("sales os dashboard contract", () => {
     expect(source).toContain("useSearchParams");
     expect(source).toContain("SALES_OS_TABS");
     expect(source).toContain("handleTabChange");
-    expect(source).toContain('searchParams.get("tab")');
+    // «?tab=» da sola; dentro Reportistica («Oggi») la scheda interna sta in «?vista=».
+    expect(source).toContain('const chiaveScheda = incorporata ? "vista" : "tab"');
+    expect(source).toContain("searchParams.get(chiaveScheda)");
   });
 
   it("does not leave KPI cards in endless loading when remote sales data is slow", () => {

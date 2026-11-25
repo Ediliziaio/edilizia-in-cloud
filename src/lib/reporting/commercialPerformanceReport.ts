@@ -59,6 +59,9 @@ export interface CommercialOpportunityRow {
   status?: string | null;
   value?: number | string | null;
   probability?: number | string | null;
+  /** Probabilità della fase (marketing_pipeline_stages.win_probability): vale quando
+   *  l'opportunità non ne ha una sua o è rimasta al 50% predefinito della colonna. */
+  stage_win_probability?: number | string | null;
   expected_close_date?: string | null;
   next_action?: string | null;
   next_action_date?: string | null;
@@ -547,7 +550,9 @@ function buildForecast(
 
   const wonThisMonthCents = sum(
     allOpportunities
-      .filter((opportunity) => isWonStatus(opportunity.status) && isSameMonth(opportunity.won_at ?? opportunity.updated_at, now))
+      // Una vendita è datata da won_at e basta (vendite_una_definizione): updated_at si
+      // muove a ogni modifica e spostava le vinte vecchie nel mese corrente.
+      .filter((opportunity) => isWonStatus(opportunity.status) && isSameMonth(opportunity.won_at, now))
       .map((opportunity) => opportunityValueCents(opportunity)),
   );
   const projectedMonthCents = wonThisMonthCents + weighted30Cents;
@@ -693,7 +698,7 @@ function computeQuoteToSaleDays(
   const quoteDate = parseDate(quote.created_at);
   if (!quoteDate) return null;
   const orderDate = orders.map((order) => parseDate(order.created_at)).filter(Boolean).sort(sortDatesAsc)[0] as Date | undefined;
-  const opportunityWonDate = isWonStatus(opportunity?.status) ? parseDate(opportunity?.won_at ?? opportunity?.updated_at) : null;
+  const opportunityWonDate = isWonStatus(opportunity?.status) ? parseDate(opportunity?.won_at) : null;
   const saleDate = orderDate ?? opportunityWonDate;
   return saleDate ? diffDays(quoteDate, saleDate) : null;
 }
@@ -731,10 +736,20 @@ function leadSegmentLabel(contact: CommercialContactRow) {
     "Sorgente non tracciata";
 }
 
-function forecastProbability(opportunity: CommercialOpportunityRow) {
+/**
+ * Stessa regola di vendite_opportunita / get_sales_forecast
+ * (20290323123000_sales_os_stati_e_probabilita): la probabilità dell'opportunità;
+ * se manca o è rimasta al 50% (il DEFAULT della colonna) e la fase ne ha una, quella
+ * della fase; altrimenti 50%. Prima era un 30% fisso per chi non l'aveva, e uno 0
+ * scritto contava come mancante.
+ */
+export function forecastProbability(opportunity: Pick<CommercialOpportunityRow, "probability" | "stage_win_probability">) {
   const probability = toNumber(opportunity.probability);
-  if (probability !== null && probability > 0) return clamp(probability, 0, 100) / 100;
-  return 0.3;
+  const stageProbability = toNumber(opportunity.stage_win_probability);
+  const value = (probability === null || probability === 50) && stageProbability !== null
+    ? stageProbability
+    : probability ?? 50;
+  return clamp(value, 0, 100) / 100;
 }
 
 function hasNextStep(opportunity: CommercialOpportunityRow, todayIso: string) {
@@ -768,9 +783,10 @@ export function isDraftOnlyQuote(quote: CommercialQuoteRow) {
   return normalizeLookup(quote.status) === "bozza" && !quote.sent_at && !quote.signed_at;
 }
 
+/** Aperta = status 'open' e basta (vendite_una_definizione): 'abandoned' è un lead
+ *  scartato, non un'opportunità in corso, e non entra né nel valore aperto né nel forecast. */
 export function isOpenOpportunity(status: string | null | undefined) {
-  const value = normalizeLookup(status);
-  return !["won", "closed won", "vinto", "lost", "closed lost", "perso", "cancelled", "canceled", "annullato"].includes(value);
+  return normalizeLookup(status) === "open";
 }
 
 function isWonStatus(status: string | null | undefined) {

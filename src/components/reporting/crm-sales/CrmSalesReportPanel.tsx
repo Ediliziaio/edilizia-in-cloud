@@ -30,7 +30,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useAdsSalesReport } from "@/hooks/useAdsSalesReport";
 import { useCommercialPerformanceReport } from "@/hooks/useCommercialPerformanceReport";
 import { useCompanyStaff } from "@/hooks/useOpportunitiesData";
-import { isOpenOpportunity, type CommercialPerformanceReport } from "@/lib/reporting/commercialPerformanceReport";
+import { type CommercialPerformanceReport } from "@/lib/reporting/commercialPerformanceReport";
 import { AdsSalesReportPanel } from "@/components/reporting/ads-sales/AdsSalesReportPanel";
 import {
   autoGranularity,
@@ -45,7 +45,6 @@ import {
 import {
   buildFunnelConversion,
   buildPipelineAging,
-  buildSalesEfficiency,
   buildSourceBreakdown,
   type FunnelConversion,
   type SourceBreakdownRow,
@@ -161,19 +160,6 @@ export function CrmSalesReportPanel({
     [commercial.rows],
   );
   const aging = useMemo(() => buildPipelineAging(commercial.rows.opportunities), [commercial.rows]);
-  const salesEff = useMemo(
-    () =>
-      buildSalesEfficiency({
-        openOppCount: commercial.rows.opportunities.filter((o) => isOpenOpportunity(o.status)).length,
-        winRatePct: funnelConv.convQuoteWon ?? 0,
-        avgDealCents: report.quotes.averageValueCents,
-        cycleDays: report.quotes.avgQuoteToSaleDays,
-        openValueCents: report.forecast.openValueCents,
-        monthlyTargetCents: report.forecast.monthlyTargetCents,
-        wonThisMonthCents: report.forecast.wonThisMonthCents,
-      }),
-    [commercial.rows, funnelConv, report],
-  );
   const fatturatoCommCents = useMemo(() => sourceRows.reduce((s, r) => s + r.fatturatoCents, 0), [sourceRows]);
 
   const handleSourceDrill = (source: string) => {
@@ -347,13 +333,14 @@ export function CrmSalesReportPanel({
           ) : (
             <CommercialFunnel conv={funnelConv} />
           )}
-          <div className="grid grid-cols-2 gap-3 self-start max-sm:grid-cols-3 max-sm:gap-2">
+          {/* 25/11/2026: via «Ticket medio» e «Sales velocity». Erano calcolati qui con regole
+              diverse da quelle di «Oggi» (media dei preventivi invece delle vendite chiuse, ciclo
+              preventivo→ordine invece di creazione→vinta): due numeri con lo stesso nome nella
+              stessa pagina. Stanno in «Oggi», letti dal database (get_sales_velocity). */}
+          <div className="grid grid-cols-1 gap-3 self-start max-sm:gap-2">
             <MiniMetric label={tr("Fatturato comm.")} value={formatMoney(fatturatoCommCents)} loading={commercial.isLoading} tone="green" />
-            <MiniMetric label={tr("Ticket medio")} value={formatMoney(report.quotes.averageValueCents)} loading={commercial.isLoading} />
-            {/* 0 €/g voleva dire «non calcolabile» (nessuna vendita chiusa), non zero. */}
-            <MiniMetric label={tr("Sales velocity")} value={salesEff.velocityCentsPerDay > 0 ? `${formatMoney(salesEff.velocityCentsPerDay)}/g` : "—"} loading={commercial.isLoading} />
             {!commercial.isLoading && (report.forecast.monthlyTargetCents ?? 0) > 0 && (
-              <div className="col-span-2 max-sm:col-span-3">
+              <div>
                 <ObiettivoMese vintoCents={report.forecast.wonThisMonthCents ?? 0} obiettivoCents={report.forecast.monthlyTargetCents ?? 0} />
               </div>
             )}

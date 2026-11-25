@@ -139,13 +139,16 @@ async function fetchQuotes(companyId: string, fromDate: string, toDate: string |
 async function fetchOpportunities(companyId: string): Promise<CommercialOpportunityRow[]> {
   try {
     const { data, error } = await table("marketing_opportunities")
-      .select("id, contact_id, assigned_to, status, value, probability, expected_close_date, next_action, next_action_date, updated_at, won_at, lost_at, created_at, source, lost_reason, loss_reason, lost_reason_category, competitor_won")
+      // La probabilità della fase serve al forecast (stessa regola di vendite_opportunita).
+      .select("id, contact_id, assigned_to, status, value, probability, expected_close_date, next_action, next_action_date, updated_at, won_at, lost_at, created_at, source, lost_reason, loss_reason, lost_reason_category, competitor_won, fase:marketing_pipeline_stages!marketing_opportunities_stage_id_fkey(win_probability)")
       .eq("company_id", companyId)
       .is("deleted_at", null)
       .order("updated_at", { ascending: false })
       .limit(5000);
     if (error) throw error;
-    return (data ?? []) as CommercialOpportunityRow[];
+    return ((data ?? []) as Array<CommercialOpportunityRow & { fase?: { win_probability?: number | null } | null }>).map(
+      ({ fase, ...riga }) => ({ ...riga, stage_win_probability: fase?.win_probability ?? null }),
+    );
   } catch {
     return [];
   }

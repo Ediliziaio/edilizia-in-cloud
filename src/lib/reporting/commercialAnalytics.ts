@@ -140,32 +140,8 @@ export function buildSourceBreakdown(
     .sort((a, b) => b.fatturatoCents - a.fatturatoCents || b.lead - a.lead);
 }
 
-// ── C) Sales velocity + Pipeline coverage ──────────────────────────────────
-export interface SalesEfficiency {
-  velocityCentsPerDay: number;
-  coverageRatio: number | null; // pipeline aperta / fabbisogno residuo a target
-}
-
-export function buildSalesEfficiency(input: {
-  openOppCount: number;
-  winRatePct: number; // 0-100
-  avgDealCents: number;
-  cycleDays: number | null;
-  openValueCents: number;
-  monthlyTargetCents: number | null;
-  wonThisMonthCents: number;
-}): SalesEfficiency {
-  const velocityCentsPerDay =
-    input.cycleDays && input.cycleDays > 0
-      ? Math.round((input.openOppCount * (input.winRatePct / 100) * input.avgDealCents) / input.cycleDays)
-      : 0;
-  let coverageRatio: number | null = null;
-  if (input.monthlyTargetCents != null) {
-    const remaining = input.monthlyTargetCents - input.wonThisMonthCents;
-    coverageRatio = remaining > 0 ? roundOne(input.openValueCents / remaining) : null;
-  }
-  return { velocityCentsPerDay, coverageRatio };
-}
+// ── C) Sales velocity: tolta il 25/11/2026. Era una seconda velocity, con regole diverse da
+// get_sales_velocity; quella vera sta in Reportistica → Oggi.
 
 // ── D) Pipeline ferma (aging) ──────────────────────────────────────────────
 export interface PipelineAging {

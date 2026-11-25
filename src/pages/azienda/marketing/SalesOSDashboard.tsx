@@ -1129,7 +1129,7 @@ function RicalcolaScore({ companyId }: { companyId: string }) {
 // terza versione dello stesso numero). La classifica vive in un posto solo,
 // Reportistica → Venditori, sulle funzioni del database.
 
-function RimandoClassificaVenditori() {
+function RimandoClassificaVenditori({ onApri }: { onApri?: () => void }) {
   const t = useT();
   const navigate = useNavigate();
   const permissions = usePermissions();
@@ -1144,7 +1144,7 @@ function RimandoClassificaVenditori() {
             <p className="text-sm font-medium">{t("Classifica venditori")}</p>
           </div>
         </div>
-        <Button size="sm" variant="outline" className="gap-1 shrink-0" onClick={() => navigate("/azienda/marketing/reportistica?tab=venditori")}>
+        <Button size="sm" variant="outline" className="gap-1 shrink-0" onClick={() => (onApri ? onApri() : navigate("/azienda/marketing/reportistica?tab=venditori"))}>
           {t("Apri la classifica")} <ArrowRight className="h-3.5 w-3.5" />
         </Button>
       </CardContent>
@@ -1401,12 +1401,19 @@ function TopLeadsTable({ companyId, limit = 10 }: { companyId: string; limit?: n
 
 // ─── SalesOSDashboard (pagina principale) ────────────────────────────────────
 
-export default function SalesOSDashboard() {
+/**
+ * `incorporata`: la scheda «Oggi» di Reportistica (25/11/2026: Sales OS non è più una
+ * pagina a sé). Niente titolo (c'è quello di Reportistica) e la scheda interna sta in
+ * «?vista=», perché «?tab=» è la scheda di Reportistica. Senza, è la pagina dell'area
+ * superadmin (AdminSalesOS), com'era.
+ */
+export default function SalesOSDashboard({ incorporata = false }: { incorporata?: boolean } = {}) {
   const t = useT();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? null;
   const [searchParams, setSearchParams] = useSearchParams();
-  const queryTab = searchParams.get("tab");
+  const chiaveScheda = incorporata ? "vista" : "tab";
+  const queryTab = searchParams.get(chiaveScheda);
   const [activeTab, setActiveTab] = useState<SalesOSTab>(
     () => (isSalesOSTab(queryTab) ? queryTab : "pipeline"),
   );
@@ -1454,9 +1461,9 @@ export default function SalesOSDashboard() {
 
     const nextParams = new URLSearchParams(searchParams);
     if (nextTab === "pipeline") {
-      nextParams.delete("tab");
+      nextParams.delete(chiaveScheda);
     } else {
-      nextParams.set("tab", nextTab);
+      nextParams.set(chiaveScheda, nextTab);
     }
     setSearchParams(nextParams);
   };
@@ -1474,12 +1481,14 @@ export default function SalesOSDashboard() {
       {/* Header — titolo e periodo su una riga, senza riquadro, icona né
           sottotitolo: come sul telefono e nelle altre pagine. */}
       <div>
-        <div className="flex flex-wrap items-center justify-between gap-3 max-sm:flex-nowrap max-sm:gap-2">
-          <div className="flex items-center gap-3">
-            <div>
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-950 max-sm:text-lg">Sales OS</h1>
+        <div className={cn("flex flex-wrap items-center gap-3 max-sm:flex-nowrap max-sm:gap-2", incorporata ? "justify-end" : "justify-between")}>
+          {!incorporata && (
+            <div className="flex items-center gap-3">
+              <div>
+                <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-950 max-sm:text-lg">Sales OS</h1>
+              </div>
             </div>
-          </div>
+          )}
           <div className="flex flex-wrap items-center gap-2">
           {pipelines.length > 1 && (
             <div className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white/80 px-2 shadow-sm">
@@ -1614,7 +1623,15 @@ export default function SalesOSDashboard() {
 
         {/* TAB: Lead (il valore resta «team» per i link salvati) */}
         <TabsContent value="team" className="space-y-4 mt-4 max-sm:mt-3">
-          <RimandoClassificaVenditori />
+          <RimandoClassificaVenditori
+            onApri={incorporata ? () => {
+              // Stessa pagina: si cambia scheda, la pipeline scelta resta.
+              const nextParams = new URLSearchParams();
+              nextParams.set("tab", "venditori");
+              if (pipelineId) nextParams.set("pipeline", pipelineId);
+              setSearchParams(nextParams);
+            } : undefined}
+          />
           <Card className="max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 max-sm:px-0 max-sm:pb-1 max-sm:pt-0">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
