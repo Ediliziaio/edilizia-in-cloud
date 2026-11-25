@@ -70,7 +70,7 @@ export default function CalendarioUnico() {
   return (
     <div className="space-y-3">
       {vedeLavori && vedeCommerciale && (
-        <div role="tablist" aria-label={t("Quale calendario")} className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 sm:inline-grid sm:w-auto">
+        <div role="tablist" aria-label={t("Quale calendario")} className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-0.5 sm:inline-grid sm:w-auto">
           {([
             ["lavori", "Lavori", HardHat],
             ["commerciali", "Commerciali", Handshake],
@@ -82,11 +82,11 @@ export default function CalendarioUnico() {
               aria-selected={tipo === valore}
               onClick={() => scegli(valore)}
               className={cn(
-                "flex h-9 items-center justify-center gap-1.5 rounded-md px-4 text-sm transition-colors",
+                "flex h-7 items-center justify-center gap-1.5 rounded-md px-3 text-xs transition-colors",
                 tipo === valore ? "bg-background font-semibold shadow-sm" : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <Icona className="h-4 w-4" aria-hidden="true" />
+              <Icona className="h-3.5 w-3.5" aria-hidden="true" />
               {t(etichetta)}
             </button>
           ))}

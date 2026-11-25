@@ -50,7 +50,7 @@ const ReportisticaPage = () => {
       <div>
         <div className="flex items-center gap-3">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground max-sm:text-lg">
+            <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground max-sm:text-lg">
               {tr("Reportistica")}<span className="max-sm:hidden"> {tr("marketing e vendite")}</span>
             </h1>
           </div>

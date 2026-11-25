@@ -322,7 +322,7 @@ function SalesVelocityCard({ companyId, daysBack, periodLabel, pipelineId, onAll
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold" title={t("Valore della pipeline aperta × tasso di chiusura ÷ ciclo medio di vendita")}>
+        <div className="text-lg font-bold" title={t("Valore della pipeline aperta × tasso di chiusura ÷ ciclo medio di vendita")}>
           {fmt(velocity.sales_velocity)}
           <span className="text-sm font-normal text-muted-foreground ml-1">/giorno</span>
         </div>
@@ -439,9 +439,9 @@ function QuoteRevenueCard({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{fmt(data.actual_revenue)}</div>
+        <div className="text-lg font-bold">{fmt(data.actual_revenue)}</div>
         <p className="text-xs text-muted-foreground mt-0.5">{t("{signed_quotes_count} preventivi firmati · ticket medio {avg_signed_ticket}", { signed_quotes_count: String(data.signed_quotes_count ?? ""), avg_signed_ticket: fmt(data.avg_signed_ticket) })}</p>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-3 text-sm">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-1 text-sm">
           <button
             onClick={() => navigate(`/azienda/marketing/preventivi?stato=in_corso`)}
             className="text-left rounded-md hover:bg-muted/50 p-1 -m-1 transition"
@@ -1477,15 +1477,15 @@ export default function SalesOSDashboard() {
         <div className="flex flex-wrap items-center justify-between gap-3 max-sm:flex-nowrap max-sm:gap-2">
           <div className="flex items-center gap-3">
             <div>
-              <h1 className="text-2xl font-bold text-slate-950 max-sm:text-lg">Sales OS</h1>
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-950 max-sm:text-lg">Sales OS</h1>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
           {pipelines.length > 1 && (
-            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/80 px-2 py-1 shadow-sm">
-              <Target className="h-4 w-4 text-orange-500" />
+            <div className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white/80 px-2 shadow-sm">
+              <Target className="h-3.5 w-3.5 text-orange-500" />
               <Select value={pipelineId ?? "tutte"} onValueChange={setPipelineId}>
-                <SelectTrigger className="h-9 w-[190px] border-0 bg-transparent shadow-none" aria-label={t("Pipeline")}>
+                <SelectTrigger className="h-7 w-[190px] border-0 bg-transparent px-1 text-xs shadow-none" aria-label={t("Pipeline")}>
                   <SelectValue placeholder={t("Pipeline")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -1497,10 +1497,10 @@ export default function SalesOSDashboard() {
               </Select>
             </div>
           )}
-          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/80 px-2 py-1 shadow-sm max-sm:px-1 max-sm:py-0">
-            <Calendar className="h-4 w-4 text-orange-500 max-sm:hidden" />
+          <div className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white/80 px-2 shadow-sm max-sm:h-auto max-sm:rounded-xl max-sm:px-1 max-sm:py-0">
+            <Calendar className="h-3.5 w-3.5 text-orange-500 max-sm:hidden" />
             <Select value={period} onValueChange={(v) => setPeriod(v as SalesOSPeriod)}>
-              <SelectTrigger className="h-9 w-[180px] border-0 bg-transparent shadow-none max-sm:w-[130px]">
+              <SelectTrigger className="h-7 w-[180px] border-0 bg-transparent px-1 text-xs shadow-none max-sm:h-9 max-sm:w-[130px] max-sm:px-3 max-sm:text-sm">
                 <SelectValue placeholder={t("Periodo")} />
               </SelectTrigger>
               <SelectContent>

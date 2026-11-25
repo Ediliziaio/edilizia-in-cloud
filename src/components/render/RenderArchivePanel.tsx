@@ -1,3 +1,5 @@
+import { cn } from "@/lib/utils";
+import { RICERCA_BARRA, BOTTONE_SECONDARIO } from "@/components/orders/TestataScheda";
 import { lazy, Suspense, useEffect, useId, useRef, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import {
@@ -361,14 +363,14 @@ export function RenderArchivePanel({
         })}
       </div>
       <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <div className="relative min-w-[11rem] flex-1">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+        <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
             aria-label={t("Cerca nei render recenti")}
             placeholder={t("Cerca stanza, progetto, contatto…")}
             value={filters.search}
             onChange={(event) => change({ search: event.target.value })}
-            className="bg-card pl-9"
+            className="h-8 bg-card pl-8 text-xs"
           />
         </div>
         <Button
@@ -377,9 +379,10 @@ export function RenderArchivePanel({
           aria-expanded={advancedOpen}
           aria-controls={advancedId}
           onClick={() => setAdvancedOpen((open) => !open)}
-          className="shrink-0 gap-2"
+          size="sm"
+          className={cn(BOTTONE_SECONDARIO, "shrink-0")}
         >
-          <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+          <SlidersHorizontal aria-hidden="true" />
           {t("Filtri")}
           {advancedCount > 0 && (
             <span className="rounded bg-primary/10 px-1.5 text-xs tabular-nums text-primary">{advancedCount}</span>
@@ -391,10 +394,11 @@ export function RenderArchivePanel({
             variant="ghost"
             aria-label={t("Azzera filtri")}
             title={t("Azzera filtri")}
-            className="gap-1.5 px-2"
+            size="sm"
+            className={BOTTONE_SECONDARIO}
             onClick={() => change({ search: "", module: "all", crm: "all", onlyPlan: false, from: "", to: "", project: "all" })}
           >
-            <X className="h-4 w-4" aria-hidden="true" />
+            <X aria-hidden="true" />
             <span className="hidden sm:inline">{t("Azzera")}</span>
           </Button>
         )}

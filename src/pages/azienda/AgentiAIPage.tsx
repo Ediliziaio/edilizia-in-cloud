@@ -32,6 +32,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { BOTTONE_SECONDARIO } from "@/components/orders/TestataScheda";
 
 type MainTab = "agenti" | "knowledge" | "telefonia" | "conversazioni" | "chat" | "campagne" | "statistiche" | "crediti";
 
@@ -109,18 +110,18 @@ export default function AgentiAIPage() {
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="eic-workspace-icon"><Bot aria-hidden="true" className="size-5" /></span>
           <div>
-            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{tr("Agenti AI")}</h1>
+            <h1 className="text-xl font-semibold tracking-tight">{tr("Agenti AI")}</h1>
             <p className="text-xs text-muted-foreground md:hidden">{tr("Configurazione da computer o tablet")}</p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           {!isAdminContext && (
-            <Button asChild variant="outline" size="sm" className="eic-motion-button">
-              <Link to={centralinoHistoryHref()}><History aria-hidden="true" className="mr-1.5 size-4" /> {tr("Chiamate nel Centralino")}</Link>
+            <Button asChild variant="outline" size="sm" className={BOTTONE_SECONDARIO}>
+              <Link to={centralinoHistoryHref()}><History aria-hidden="true" /> {tr("Chiamate nel Centralino")}</Link>
             </Button>
           )}
           {elConfig?.api_key_valida && (
-            <div className="hidden items-center gap-1.5 rounded-lg border bg-background px-2.5 py-1.5 text-xs md:flex">
+            <div className="hidden h-8 items-center gap-1.5 rounded-md border bg-background px-2.5 text-xs md:flex">
               <span className="size-2 rounded-full bg-orange-500" aria-hidden="true" />
               {tr("ElevenLabs connesso")}
               {elConfig.crediti_rimanenti != null && (
@@ -148,8 +149,8 @@ export default function AgentiAIPage() {
               ? (
                 <div className="grid grid-cols-2 gap-2.5 pb-4 sm:grid-cols-3 lg:grid-cols-6 md:gap-3">
                   {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                      <div className="h-9 w-9 flex-shrink-0 animate-pulse rounded-lg bg-slate-100" />
+                    <div key={i} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                      <div className="h-8 w-8 flex-shrink-0 animate-pulse rounded-lg bg-slate-100" />
                       <div className="flex-1 space-y-1.5">
                         <div className="h-5 w-10 animate-pulse rounded bg-slate-100" />
                         <div className="h-3 w-16 animate-pulse rounded bg-slate-100" />

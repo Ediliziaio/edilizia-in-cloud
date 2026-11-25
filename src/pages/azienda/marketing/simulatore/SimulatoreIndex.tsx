@@ -66,6 +66,8 @@ import {
 } from "@/hooks/useSimulazioni";
 import { NuovaSimulazioneDialog } from "@/components/marketing/simulatore/NuovaSimulazioneDialog";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { cn } from "@/lib/utils";
+import { BOTTONE_NUOVO, TENDINA_STATO_BARRA } from "@/components/orders/TestataScheda";
 
 // ─── Helpers presentazione ──────────────────────────────────────────────────
 
@@ -166,14 +168,14 @@ export default function SimulatoreIndex() {
     <div className="space-y-6 max-sm:space-y-3">
       {/* Header — titolo e «Nuova» su una riga, senza icona né descrizione
           (da tablet c'era lo slogan «il tuo Excel, potenziato»). */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:gap-2">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:gap-2">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2 max-sm:text-lg">
+          <h1 className="text-xl font-bold leading-tight tracking-tight flex items-center gap-2 max-sm:text-lg">
             {t("Simulatore")}
           </h1>
         </div>
-        <Button onClick={() => setNuovaOpen(true)} className="gap-2 shrink-0 max-sm:h-9 max-sm:px-3">
-          <Plus className="h-4 w-4" />
+        <Button size="sm" onClick={() => setNuovaOpen(true)} className={cn(BOTTONE_NUOVO, "shrink-0 max-sm:h-9 max-sm:px-3")}>
+          <Plus className="h-3.5 w-3.5" />
           <span className="max-sm:hidden">{t("Nuova simulazione")}</span>
           <span className="sm:hidden">{t("Nuova")}</span>
         </Button>
@@ -183,7 +185,7 @@ export default function SimulatoreIndex() {
       {!hasNessunaSimulazione && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center">
           <Select value={statoFilter} onValueChange={setStatoFilter}>
-            <SelectTrigger className="w-full sm:w-[200px] max-sm:h-9 max-sm:flex-1">
+            <SelectTrigger className={cn(TENDINA_STATO_BARRA, "max-sm:h-9 max-sm:w-auto max-sm:flex-1 max-sm:shrink")}>
               <SelectValue placeholder={t("Filtra per stato")} />
             </SelectTrigger>
             <SelectContent>
@@ -363,7 +365,7 @@ export default function SimulatoreIndex() {
               <CardContent className="flex-1 space-y-3 pb-3">
                 <div>
                   <p className="text-xs text-muted-foreground">{t("Prezzo cliente")}</p>
-                  <p className="text-2xl font-bold tabular-nums">
+                  <p className="text-lg font-bold tabular-nums">
                     {formatCurrency(sim.prezzo_cliente)}
                   </p>
                 </div>

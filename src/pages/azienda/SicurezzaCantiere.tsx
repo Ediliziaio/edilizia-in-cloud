@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { BOTTONE_SECONDARIO } from "@/components/orders/TestataScheda";
 import {
   Dialog,
   DialogContent,
@@ -892,9 +893,9 @@ export default function SicurezzaCantiere() {
   return (
     <div className="space-y-6 max-sm:space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3"><div>
-        <h1 className="text-2xl font-bold tracking-tight">{t("Sicurezza cantiere")}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{t("Documenti, verifiche e scadenze collegati alle commesse.")}</p>
-      </div>{companyId&&<PulsanteProfiliRequisiti companyId={companyId}/>}</div>
+        <h1 className="text-xl font-bold leading-tight tracking-tight">{t("Sicurezza cantiere")}</h1>
+        <p className="sr-only">{t("Documenti, verifiche e scadenze collegati alle commesse.")}</p>
+      </div>{companyId&&<PulsanteProfiliRequisiti companyId={companyId} className={BOTTONE_SECONDARIO}/>}</div>
       {/* Niente fascia gialla col testo normativo: era un avviso fisso, non
           un'azione, e ripeteva a ogni visita cosa sono POS e DUVRI. */}
 

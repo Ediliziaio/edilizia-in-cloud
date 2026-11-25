@@ -19,6 +19,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Select,SelectContent,SelectItem,SelectTrigger,SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { RICERCA_BARRA, TENDINA_STATO_BARRA, BOTTONE_SECONDARIO } from "@/components/orders/TestataScheda";
+import { cn } from "@/lib/utils";
 const duration=(s:number)=>`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
 interface HistoryProps {
   contactId?: string | null;
@@ -138,19 +140,19 @@ function CompanyCallHistory({ companyId, contactId, customerId, phone, compact =
             <h2 className="font-semibold">{filters.agentId ? tr("Chiamate dell’agente") : tr("Storico chiamate")}</h2>
             {filters.agentId && <p className="mt-0.5 break-words text-sm text-muted-foreground">{selectedAgent?.nome || tr("Agente selezionato")}</p>}
           </div>
-          {selectedAgent && <Button asChild variant="outline" size="sm">
+          {selectedAgent && <Button asChild variant="outline" size="sm" className={BOTTONE_SECONDARIO}>
             <Link to={`/azienda/agenti-ai/${selectedAgent.id}`}>{tr("Configura agente")}</Link>
           </Button>}
         </div>
         <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-wrap lg:items-center">
-          <div className="relative col-span-2 min-w-0 lg:min-w-52 lg:flex-1">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          <div className={cn(RICERCA_BARRA, "col-span-2 max-lg:w-full")}>
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input aria-label={tr("Cerca nello storico chiamate")} value={search} onChange={event => setSearch(event.target.value)}
-              placeholder={tr("Cerca numero, cliente o riepilogo…")} className="pl-9" />
+              placeholder={tr("Cerca numero, cliente o riepilogo…")} className="h-8 pl-8 text-xs" />
           </div>
           {agentOptions && (
             <Select value={filters.agentId || "all"} onValueChange={changeAgent}>
-              <SelectTrigger aria-label={tr("Filtra per agente")} className="min-w-0 lg:w-48"><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label={tr("Filtra per agente")} className={cn(TENDINA_STATO_BARRA, "min-w-0 max-lg:w-full")}><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{tr("Tutti gli agenti")}</SelectItem>
                 {filters.agentId && !selectedAgent && <SelectItem value={filters.agentId}>{tr("Agente selezionato")}</SelectItem>}
@@ -159,7 +161,7 @@ function CompanyCallHistory({ companyId, contactId, customerId, phone, compact =
             </Select>
           )}
           <Select value={kind} onValueChange={changeKind}>
-            <SelectTrigger aria-label={tr("Tipo chiamata")} className="min-w-0 lg:w-36"><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-label={tr("Tipo chiamata")} className={cn(TENDINA_STATO_BARRA, "min-w-0 max-lg:w-full")}><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{tr("Tutti i tipi")}</SelectItem>
               <SelectItem value="ai">{tr("Agenti AI")}</SelectItem>
@@ -167,7 +169,7 @@ function CompanyCallHistory({ companyId, contactId, customerId, phone, compact =
             </SelectContent>
           </Select>
           <Select value={outcome} onValueChange={setOutcome}>
-            <SelectTrigger aria-label={tr("Esito chiamata")} className="min-w-0 lg:w-36"><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-label={tr("Esito chiamata")} className={cn(TENDINA_STATO_BARRA, "min-w-0 max-lg:w-full")}><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{tr("Tutti gli esiti")}</SelectItem>
               <SelectItem value="Completata">{tr("Completate")}</SelectItem>
@@ -176,7 +178,7 @@ function CompanyCallHistory({ companyId, contactId, customerId, phone, compact =
               <SelectItem value="Fallita">{tr("Fallite")}</SelectItem>
             </SelectContent>
           </Select>
-          {hasFilters && <Button variant="ghost" size="sm" onClick={resetFilters}>{tr("Azzera filtri")}</Button>}
+          {hasFilters && <Button variant="ghost" size="sm" className={BOTTONE_SECONDARIO} onClick={resetFilters}>{tr("Azzera filtri")}</Button>}
         </div>
       </div>
     )}

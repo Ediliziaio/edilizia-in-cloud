@@ -57,6 +57,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { BOTTONE_NUOVO, RICERCA_BARRA, TENDINA_STATO_BARRA } from "@/components/orders/TestataScheda";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1993,12 +1994,12 @@ export default function AdsManagerBeta() {
           className="mt-5 max-sm:mt-3"
         >
           <div className="overflow-x-auto pb-2 max-sm:hidden">
-            <TabsList className="h-auto min-w-max justify-start gap-1 rounded-xl bg-white p-1 shadow-sm">
+            <TabsList className="h-auto min-w-max justify-start gap-1 rounded-xl bg-white p-0.5 shadow-sm">
               {TABS.map((tab) => {
                 const Icon = tab.icon;
                 return (
-                  <TabsTrigger key={tab.value} value={tab.value} className="gap-2 rounded-lg px-3 py-2">
-                    <Icon className="h-4 w-4" />
+                  <TabsTrigger key={tab.value} value={tab.value} className="h-7 gap-1.5 rounded-lg px-3 py-0 text-xs">
+                    <Icon className="h-3.5 w-3.5" />
                     {t(tab.label)}
                   </TabsTrigger>
                 );
@@ -2071,14 +2072,14 @@ function ListHeader({ onCreate }: { onCreate: () => void }) {
   return (
     // Telefono: solo il titolo, senza fascia né spiegazione; le campagne si creano dal computer o dal tablet.
     <div className="border-b bg-white max-sm:border-0 max-sm:bg-transparent">
-      <div className="mx-auto flex max-w-[1500px] flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between max-sm:px-0 max-sm:pb-3 max-sm:pt-0">
+      <div className="mx-auto flex max-w-[1500px] flex-col gap-4 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between max-sm:px-0 max-sm:pb-3 max-sm:pt-0">
         {/* Titolo a 24px come nelle altre pagine (era 30) e senza le due
             righe di spiegazione sotto. */}
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-950 max-sm:text-lg">{t("Pubblicità")}</h1>
+          <h1 className="text-xl font-bold tracking-tight text-slate-950 max-sm:text-lg">{t("Pubblicità")}</h1>
         </div>
-        <Button onClick={onCreate} size="lg" className="shrink-0 max-sm:hidden">
-          <Plus className="h-4 w-4" />
+        <Button onClick={onCreate} size="sm" className={cn(BOTTONE_NUOVO, "shrink-0 max-sm:hidden")}>
+          <Plus />
           {t("Nuova campagna")}
         </Button>
       </div>
@@ -2560,7 +2561,7 @@ function KpiBar({
 
   return (
     <Card className={cn(isEmpty && "border-dashed bg-white/60")}>
-      <CardContent className="p-4 max-sm:p-3">
+      <CardContent className="px-3 py-2.5 max-sm:p-3">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 max-sm:grid-cols-2 max-sm:gap-x-3 max-sm:gap-y-2">
           <KpiItem
             icon={BadgeEuro}
@@ -2833,10 +2834,10 @@ function CampaignsList({
           {haFiltri && (
             <div className="flex flex-col gap-2 sm:flex-row">
               {mostraRicerca && (
-                <div className="relative w-full sm:w-64">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                   <Input
-                    className="pl-9"
+                    className="h-8 pl-8 text-xs"
                     placeholder={t("Cerca una campagna")}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
@@ -2845,7 +2846,7 @@ function CampaignsList({
               )}
               {mostraFiltroStato && (
                 <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
-                  <SelectTrigger className="w-full sm:w-44 max-sm:hidden"><SelectValue placeholder={t("Stato")} /></SelectTrigger>
+                  <SelectTrigger className={cn(TENDINA_STATO_BARRA, "max-sm:hidden")}><SelectValue placeholder={t("Stato")} /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">{t("Tutti gli stati ({n})", { n: campaigns.length })}</SelectItem>
                     {availableStatuses.map((status) => (
@@ -2858,7 +2859,7 @@ function CampaignsList({
               )}
               {mostraFiltroPiattaforma && (
                 <Select value={platformFilter} onValueChange={(v) => setPlatformFilter(v as typeof platformFilter)}>
-                  <SelectTrigger className="w-full sm:w-40 max-sm:hidden"><SelectValue placeholder={t("Canale")} /></SelectTrigger>
+                  <SelectTrigger className="h-8 w-full text-xs sm:w-40 max-sm:hidden"><SelectValue placeholder={t("Canale")} /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">{t("Tutti i canali")}</SelectItem>
                     <SelectItem value="meta">{t("Facebook e Instagram")}</SelectItem>

@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { BOTTONE_NUOVO, BOTTONE_SECONDARIO } from "@/components/orders/TestataScheda";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -280,9 +281,9 @@ const channelIcon: Record<Channel, ComponentType<{ className?: string }>> = {
 };
 
 // Telefono: i quattro numeri 2×2, nome e cifra senza icona.
-const KPI_CONTENUTO = "flex items-center gap-3 p-4 max-sm:px-2.5 max-sm:py-2";
+const KPI_CONTENUTO = "flex items-center gap-3 px-3 py-2.5 max-sm:px-2.5 max-sm:py-2";
 const KPI_NOME = "text-xs text-muted-foreground max-sm:truncate max-sm:text-[11px]";
-const KPI_CIFRA = "text-2xl font-semibold max-sm:text-base";
+const KPI_CIFRA = "text-lg font-semibold max-sm:text-base";
 
 function isReputationTab(value: string | null): value is ReputationTab {
   return value === "dashboard" || value === "richieste" || value === "recensioni" || value === "automazioni" || value === "integrazioni";
@@ -1275,7 +1276,7 @@ export default function ReputationManager() {
           <div className="flex items-start gap-3">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-bold text-slate-950 max-sm:text-lg">{tr("Reputazione")}</h1>
+                <h1 className="text-xl font-bold text-slate-950 max-sm:text-lg">{tr("Reputazione")}</h1>
                 {isHydrating && (
                   <Badge variant="outline" className="gap-1.5 border-blue-200 bg-blue-50 text-blue-700">
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -1286,12 +1287,12 @@ export default function ReputationManager() {
             </div>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Button variant="outline" onClick={() => navigate("/azienda/impostazioni/integrazioni")} className="max-sm:hidden">
-              <Settings className="mr-2 h-4 w-4" />
+            <Button variant="outline" size="sm" onClick={() => navigate("/azienda/impostazioni/integrazioni")} className={cn(BOTTONE_SECONDARIO, "max-sm:hidden")}>
+              <Settings />
               {tr("Integrazioni")}
             </Button>
-            <Button onClick={() => handleTabChange("richieste")} className="max-sm:h-9 max-sm:px-3 max-sm:text-[13px]">
-              <Send className="mr-2 h-4 w-4" />
+            <Button size="sm" onClick={() => handleTabChange("richieste")} className={cn(BOTTONE_NUOVO, "max-sm:h-9 max-sm:px-3 max-sm:text-[13px]")}>
+              <Send />
               {tr("Chiedi recensioni")}
             </Button>
           </div>
@@ -1310,8 +1311,8 @@ export default function ReputationManager() {
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 max-sm:grid-cols-2 max-sm:gap-2">
         <Card>
           <CardContent className={KPI_CONTENUTO}>
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-amber-700 max-sm:hidden">
-              <Star className="h-5 w-5" />
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-1.5 text-amber-700 max-sm:hidden">
+              <Star className="h-4 w-4" />
             </div>
             <div>
               <p className={KPI_NOME}>{tr("Rating medio")}</p>
@@ -1324,8 +1325,8 @@ export default function ReputationManager() {
         </Card>
         <Card>
           <CardContent className={KPI_CONTENUTO}>
-            <div className="rounded-lg border border-sky-200 bg-sky-50 p-2 text-sky-700 max-sm:hidden">
-              <MessageSquare className="h-5 w-5" />
+            <div className="rounded-lg border border-sky-200 bg-sky-50 p-1.5 text-sky-700 max-sm:hidden">
+              <MessageSquare className="h-4 w-4" />
             </div>
             <div>
               <p className={KPI_NOME}>{tr("Recensioni recenti")}</p>
@@ -1335,8 +1336,8 @@ export default function ReputationManager() {
         </Card>
         <Card>
           <CardContent className={KPI_CONTENUTO}>
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-emerald-700 max-sm:hidden">
-              <TrendingUp className="h-5 w-5" />
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-1.5 text-emerald-700 max-sm:hidden">
+              <TrendingUp className="h-4 w-4" />
             </div>
             <div>
               <p className={KPI_NOME}>{tr("Conversione richieste")}</p>
@@ -1346,8 +1347,8 @@ export default function ReputationManager() {
         </Card>
         <Card>
           <CardContent className={KPI_CONTENUTO}>
-            <div className="rounded-lg border border-rose-200 bg-rose-50 p-2 text-rose-700 max-sm:hidden">
-              <AlertTriangle className="h-5 w-5" />
+            <div className="rounded-lg border border-rose-200 bg-rose-50 p-1.5 text-rose-700 max-sm:hidden">
+              <AlertTriangle className="h-4 w-4" />
             </div>
             <div>
               <p className={KPI_NOME}>{tr("Da gestire")}</p>
@@ -1358,7 +1359,7 @@ export default function ReputationManager() {
       </div>
 
       <Tabs value={schedaVisibile} onValueChange={handleTabChange} className="space-y-4 max-sm:space-y-3">
-        <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-lg border bg-white p-1.5 shadow-sm max-sm:p-1 max-sm:shadow-none">
+        <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-lg border bg-white p-0.5 shadow-sm max-sm:p-1 max-sm:shadow-none">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -1366,11 +1367,11 @@ export default function ReputationManager() {
                 key={tab.value}
                 value={tab.value}
                 className={cn(
-                  "shrink-0 gap-1.5 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-800 max-sm:flex-1 max-sm:text-[13px]",
+                  "h-7 shrink-0 gap-1.5 text-xs data-[state=active]:bg-amber-50 data-[state=active]:text-amber-800 max-sm:flex-1 max-sm:text-[13px]",
                   tab.soloComputer && "max-sm:hidden",
                 )}
               >
-                <Icon className="h-4 w-4 max-sm:hidden" />
+                <Icon className="h-3.5 w-3.5 max-sm:hidden" />
                 {tr(tab.label)}
               </TabsTrigger>
             );

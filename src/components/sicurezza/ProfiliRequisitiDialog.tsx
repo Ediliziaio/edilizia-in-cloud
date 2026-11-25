@@ -464,14 +464,14 @@ export function ProfiliRequisitiDialog({
   );
 }
 
-export function PulsanteProfiliRequisiti({ companyId }: { companyId: string }) {
+export function PulsanteProfiliRequisiti({ companyId, className }: { companyId: string; className?: string }) {
   const t = useT();
   const p = usePermissions();
   const [aperto, setAperto] = useState(false);
   if (!companyId || !p.canViewSicurezzaCantiere) return null;
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setAperto(true)}>
+      <Button variant="outline" size="sm" className={className} onClick={() => setAperto(true)}>
         {t("Profili requisiti")}
       </Button>
       {aperto && (

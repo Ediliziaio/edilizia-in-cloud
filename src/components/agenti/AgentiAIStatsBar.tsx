@@ -70,12 +70,12 @@ export function AgentiAIStatsBar({ stats }: { stats: AICompanyStats }) {
         return (
           <div
             key={cfg.key}
-            className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:gap-3 max-md:min-w-0 max-md:rounded-lg max-md:px-2.5 max-md:py-2 max-md:shadow-none"
+            className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm md:gap-3 max-md:min-w-0 max-md:rounded-lg max-md:px-2.5 max-md:py-2 max-md:shadow-none"
           >
             {/* Icona solo da 1280: a 1024, sei in riga, lasciava 40px al testo e
                 le etichette diventavano «Age…», «Chi…», «Tas…». */}
             <div
-              className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg max-xl:hidden ${cfg.bg}`}
+              className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg max-xl:hidden ${cfg.bg}`}
             >
               <Icon className={`h-4 w-4 ${cfg.color}`} />
             </div>

@@ -24,6 +24,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { BOTTONE_NUOVO, BOTTONE_SECONDARIO } from "@/components/orders/TestataScheda";
+import { cn } from "@/lib/utils";
 
 import { usePermissions } from "@/hooks/usePermissions";
 import {
@@ -44,7 +46,6 @@ import {
   PIANTE_PER_PAGINA,
   useAnteprimePlanimetrie,
 } from "@/lib/planimetrie/anteprime";
-import { TestataPlanimetrie } from "@/components/planimetrie/render/TestataPlanimetrie";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import {
   useCreaPlanimetria,
@@ -135,31 +136,33 @@ export default function RenderPlanimetrieHub() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-5 pb-12 sm:space-y-6">
-      <TestataPlanimetrie
-        titolo={t("Planimetrie")}
-        sottotitolo={t("Disegni 2D, viste 3D e render organizzati per progetto.")}
-        azioni={
-          <>
-            <Button asChild variant="outline" size="sm">
-              <Link to="/azienda/render">
-                <ImageIcon className="mr-2 h-4 w-4" />
-                {t("Render AI")}
+      {/* Testata come Commesse (25/11/2026): titolo 20px, la frase solo per i lettori di schermo,
+          comandi alti 32px. Le pagine interne usano ancora TestataPlanimetrie. */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="break-words text-xl font-bold leading-tight text-foreground max-md:text-lg">{t("Planimetrie")}</h1>
+          <p className="sr-only">{t("Disegni 2D, viste 3D e render organizzati per progetto.")}</p>
+        </div>
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0">
+          <Button asChild variant="outline" size="sm" className={BOTTONE_SECONDARIO}>
+            <Link to="/azienda/render">
+              <ImageIcon />
+              {t("Render AI")}
+            </Link>
+          </Button>
+          <div className="max-md:hidden">
+            <RenderCreditsWidget />
+          </div>
+          {!permessi.solaLettura && (
+            <Button asChild size="sm" className={BOTTONE_NUOVO}>
+              <Link to={percorsiPlanimetrie.nuova()}>
+                <Plus />
+                {t("Nuova planimetria")}
               </Link>
             </Button>
-            <div className="max-md:hidden">
-              <RenderCreditsWidget />
-            </div>
-            {!permessi.solaLettura && (
-              <Button asChild size="sm">
-                <Link to={percorsiPlanimetrie.nuova()}>
-                  <Plus className="mr-1.5 h-4 w-4" />
-                  {t("Nuova planimetria")}
-                </Link>
-              </Button>
-            )}
-          </>
-        }
-      />
+          )}
+        </div>
+      </div>
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -167,7 +170,7 @@ export default function RenderPlanimetrieHub() {
             <h2 className="text-lg font-semibold tracking-tight">{t("I tuoi progetti")}</h2>
           </div>
           <div
-            className="inline-flex rounded-lg border bg-muted/30 p-1"
+            className="inline-flex gap-0.5 rounded-lg bg-muted/60 p-0.5"
             aria-label={t("Visualizzazione dell'archivio")}
           >
             <Button
@@ -176,8 +179,9 @@ export default function RenderPlanimetrieHub() {
               aria-label={t("Vista griglia")}
               aria-pressed={vista === "griglia"}
               onClick={() => cambiaVista("griglia")}
+              className={cn(BOTTONE_SECONDARIO, "h-7")}
             >
-              <Grid2X2 className="mr-1.5 h-4 w-4" />
+              <Grid2X2 />
               {t("Griglia")}
             </Button>
             <Button
@@ -186,8 +190,9 @@ export default function RenderPlanimetrieHub() {
               aria-label={t("Vista elenco")}
               aria-pressed={vista === "elenco"}
               onClick={() => cambiaVista("elenco")}
+              className={cn(BOTTONE_SECONDARIO, "h-7")}
             >
-              <List className="mr-1.5 h-4 w-4" />
+              <List />
               {t("Elenco")}
             </Button>
           </div>

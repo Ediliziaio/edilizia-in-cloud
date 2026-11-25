@@ -33,6 +33,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { BOTTONE_NUOVO, RICERCA_BARRA, TENDINA_STATO_BARRA } from "@/components/orders/TestataScheda";
+import { cn } from "@/lib/utils";
 
 const TIPO_CHIPS: { value: string; label: string; icon: typeof Bot }[] = [
   { value: "tutti", label: "Tutti", icon: Bot },
@@ -87,13 +89,13 @@ export function AgentiTab() {
     // Da 768 niente px-6/py-6: il margine lo dà il layout (prima si sommava).
     <div className="max-md:py-3">
       <div className="mb-4 grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
-        <div className="relative col-span-2 sm:w-56">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <div className={cn(RICERCA_BARRA, "col-span-2 max-sm:w-full")}>
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input aria-label={t("Cerca per nome agente")} value={cerca} onChange={event => setCerca(event.target.value)}
-            placeholder={t("Cerca agente…")} className="pl-9" />
+            placeholder={t("Cerca agente…")} className="h-8 pl-8 text-xs" />
         </div>
         <Select value={filtroTipo} onValueChange={setFiltroTipo}>
-          <SelectTrigger className="min-w-0 sm:w-36" aria-label={t("Tipo agente")}><SelectValue /></SelectTrigger>
+          <SelectTrigger className={cn(TENDINA_STATO_BARRA, "min-w-0 max-sm:w-full")} aria-label={t("Tipo agente")}><SelectValue /></SelectTrigger>
           <SelectContent>
             {TIPO_CHIPS.map(({ value, label }) => (
               <SelectItem key={value} value={value}>{value === "tutti" ? t("Tutti i tipi") : t(label)}</SelectItem>
@@ -101,7 +103,7 @@ export function AgentiTab() {
           </SelectContent>
         </Select>
         <Select value={filtroStato} onValueChange={setFiltroStato}>
-          <SelectTrigger className="min-w-0 sm:w-36" aria-label={t("Stato agente")}><SelectValue /></SelectTrigger>
+          <SelectTrigger className={cn(TENDINA_STATO_BARRA, "min-w-0 max-sm:w-full")} aria-label={t("Stato agente")}><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="tutti">{t("Tutti gli stati")}</SelectItem>
             <SelectItem value="attivo">{t("Attivi")}</SelectItem>
@@ -110,8 +112,8 @@ export function AgentiTab() {
             <SelectItem value="archiviato">{t("Archiviati")}</SelectItem>
           </SelectContent>
         </Select>
-        {!isMobile && <Button onClick={() => handleCrea()} className="eic-motion-button ml-auto">
-          <Plus className="mr-1.5 h-4 w-4" /> {t("Nuovo agente")}
+        {!isMobile && <Button size="sm" onClick={() => handleCrea()} className={cn(BOTTONE_NUOVO, "ml-auto")}>
+          <Plus /> {t("Nuovo agente")}
         </Button>}
       </div>
 
