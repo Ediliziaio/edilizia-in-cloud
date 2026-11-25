@@ -9,6 +9,7 @@
  *  4. Ferie        — saldo ferie/permessi e richieste
  *  5. Cedolini     — lista cedolini con download PDF
  */
+import { BOTTONE_NUOVO } from "@/components/orders/TestataScheda";
 import { Fragment, lazy, Suspense, useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { flushSync } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -175,11 +176,12 @@ function AttivitaHeader() {
   // Su telefono niente data e saluto: la pagina parte dalle linguette.
   if (isMobile) return null;
   return (
-    <div>
-      <p className="text-muted-foreground text-xs sm:text-sm capitalize">{oggi}</p>
-      <h1 className="text-xl sm:text-2xl font-bold">
+    // Come le altre pagine (25/11/2026): titolo a 20px, la data accanto, piccola.
+    <div className="flex flex-wrap items-baseline gap-x-2.5">
+      <h1 className="text-xl font-bold leading-tight tracking-tight">
         {saluto}
       </h1>
+      <p className="text-xs text-muted-foreground capitalize">{oggi}</p>
     </div>
   );
 }
@@ -918,10 +920,10 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
               {/* Desktop: «Nuova» apre la scheda completa. Mobile: apre la riga
                   di aggiunta veloce (titolo e invio). Silvio ha già il bottone
                   centrale in basso. */}
-              <Button size="sm" className="hidden sm:inline-flex h-8 gap-1.5" disabled={solaLettura || mutationBusy} title={creaTitle} onClick={() => openCreate(calendarDate || undefined)}>
+              <Button size="sm" className={cn(BOTTONE_NUOVO, "hidden sm:inline-flex")} disabled={solaLettura || mutationBusy} title={creaTitle} onClick={() => openCreate(calendarDate || undefined)}>
                 <Plus className="h-3.5 w-3.5" /><span className="hidden sm:inline">{tr("Nuova")}</span>
               </Button>
-              <Button size="sm" className="tap-compact sm:hidden h-8 gap-1 px-3" disabled={solaLettura} title={creaTitle} onClick={apriAggiunta}>
+              <Button size="sm" className={cn(BOTTONE_NUOVO, "tap-compact sm:hidden")} disabled={solaLettura} title={creaTitle} onClick={apriAggiunta}>
                 <Plus className="h-4 w-4" />{tr("Nuova")}
               </Button>
             </div>
@@ -959,7 +961,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
                 aria-label={tr("Cerca attività")} placeholder={tr("Cerca attività...")}
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="h-9 text-base md:text-sm pl-8"
+                className="h-9 text-base sm:h-8 md:text-xs pl-8"
               />
               <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               {searchQuery && <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground" aria-label={tr("Pulisci ricerca")}><X className="h-3 w-3" /></button>}
@@ -980,7 +982,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
               {/* «Di chi» accanto alla ricerca (25/11/2026): era una riga intera da sola
                   tra la ricerca e l'elenco. */}
               <Select value={areaView} onValueChange={setAreaView}>
-                <SelectTrigger aria-label={tr("Ambito attività")} className="h-9 w-auto max-w-[190px] gap-1 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label={tr("Ambito attività")} className="h-8 w-auto max-w-[190px] gap-1 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="all">{tr("Mie e delle mie aree")}</SelectItem><SelectItem value="personal">{tr("Solo individuali")}</SelectItem>
                   {(offices.data ?? []).filter(o => o.membri.includes(user?.id ?? "")).map(o => <SelectItem key={o.id} value={o.id}>{o.nome}</SelectItem>)}
                 </SelectContent>
@@ -990,7 +992,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
                   la vista non è quella di base. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="relative h-9 w-9 shrink-0 p-0" aria-label={tr("Opzioni della lista")}>
+                  <Button variant="outline" size="sm" className="relative h-8 w-8 shrink-0 p-0" aria-label={tr("Opzioni della lista")}>
                     <MoreHorizontal className="h-4 w-4" />
                     {(groupBy !== "none" || compact) && <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-primary" aria-hidden />}
                   </Button>
@@ -1064,10 +1066,10 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
                     onBlur={() => { if (isMobile && !quickAddTitle.trim()) setAggiuntaAperta(false); }}
                     onChange={e => setQuickAddTitle(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter" && !createTask.isPending) handleQuickAdd(); if (e.key === "Escape") { setQuickAddTitle(""); quickAddRef.current?.blur(); } }}
-                    className="h-9 text-base md:text-sm pr-8" />
+                    className="h-9 text-base sm:h-8 md:text-xs pr-8" />
                   {quickAddTitle && <button aria-label={tr("Cancella il titolo della nuova attività")} onClick={() => setQuickAddTitle("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>}
                 </div>
-                <Button variant="outline" size="sm" className="h-9 shrink-0" aria-label={tr("Aggiungi attività rapida")} onClick={handleQuickAdd} disabled={solaLettura || !quickAddTitle.trim() || mutationBusy} title={creaTitle}>
+                <Button variant="outline" size="sm" className="h-9 shrink-0 sm:h-8" aria-label={tr("Aggiungi attività rapida")} onClick={handleQuickAdd} disabled={solaLettura || !quickAddTitle.trim() || mutationBusy} title={creaTitle}>
                   {createTask.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 </Button>
               </div>
@@ -1619,25 +1621,25 @@ function AttivitaAzienda({ companyId }: { companyId: string }) {
         {/* Saluto e linguette su una riga quando ci stanno: sotto il saluto
             restava una fascia vuota larga quanto la pagina. Su telefono il
             saluto non c'e' e restano le linguette da sole. */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <AttivitaHeader />
           {isAdmin ? (
           <TabsList className="grid w-full max-w-full sm:w-96 grid-cols-3 h-auto">
-            <TabsTrigger value="attivita" className="gap-1.5 text-xs sm:text-sm py-1.5 sm:py-2"><ClipboardCheck className="h-4 w-4" /><span>{t("Le mie attività")}</span></TabsTrigger>
-            <TabsTrigger value="regia" className="gap-1.5 text-xs sm:text-sm py-1.5 sm:py-2"><Users className="h-4 w-4" /><span className="truncate">{t("Regia")}</span></TabsTrigger>
-            <TabsTrigger value="eccezioni" className="gap-1.5 text-xs sm:text-sm py-1.5 sm:py-2"><AlertCircle className="h-4 w-4" /><span>{t("Eccezioni")}</span></TabsTrigger>
+            <TabsTrigger value="attivita" className="gap-1.5 text-xs py-1.5 sm:py-1"><ClipboardCheck className="h-4 w-4 sm:h-3.5 sm:w-3.5" /><span>{t("Le mie attività")}</span></TabsTrigger>
+            <TabsTrigger value="regia" className="gap-1.5 text-xs py-1.5 sm:py-1"><Users className="h-4 w-4 sm:h-3.5 sm:w-3.5" /><span className="truncate">{t("Regia")}</span></TabsTrigger>
+            <TabsTrigger value="eccezioni" className="gap-1.5 text-xs py-1.5 sm:py-1"><AlertCircle className="h-4 w-4 sm:h-3.5 sm:w-3.5" /><span>{t("Eccezioni")}</span></TabsTrigger>
           </TabsList>
         ) : (
           <TabsList className={cn("grid w-full h-auto", layoutSchede)}>
-            <TabsTrigger value="attivita" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><ClipboardCheck className="h-4 w-4" /><span className="truncate">{t("Le mie")}</span></TabsTrigger>
+            <TabsTrigger value="attivita" className="gap-1 sm:gap-1.5 text-[11px] sm:text-xs py-2 sm:py-1 px-1 sm:px-3"><ClipboardCheck className="h-4 w-4 sm:h-3.5 sm:w-3.5" /><span className="truncate">{t("Le mie")}</span></TabsTrigger>
             {seesRegia && (
-              <TabsTrigger value="regia" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Users className="h-4 w-4" /><span className="truncate">{t("Regia")}</span></TabsTrigger>
+              <TabsTrigger value="regia" className="gap-1 sm:gap-1.5 text-[11px] sm:text-xs py-2 sm:py-1 px-1 sm:px-3"><Users className="h-4 w-4 sm:h-3.5 sm:w-3.5" /><span className="truncate">{t("Regia")}</span></TabsTrigger>
             )}
-            <TabsTrigger value="timbrature" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Clock className="h-4 w-4" /><span className="truncate">{t("Timbra")}</span></TabsTrigger>
-            <TabsTrigger value="ferie" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Palmtree className="h-4 w-4" /><span className="truncate">{t("Ferie")}</span></TabsTrigger>
-            <TabsTrigger value="cedolini" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Receipt className="h-4 w-4" /><span className="truncate">{t("Cedolini")}</span></TabsTrigger>
+            <TabsTrigger value="timbrature" className="gap-1 sm:gap-1.5 text-[11px] sm:text-xs py-2 sm:py-1 px-1 sm:px-3"><Clock className="h-4 w-4 sm:h-3.5 sm:w-3.5" /><span className="truncate">{t("Timbra")}</span></TabsTrigger>
+            <TabsTrigger value="ferie" className="gap-1 sm:gap-1.5 text-[11px] sm:text-xs py-2 sm:py-1 px-1 sm:px-3"><Palmtree className="h-4 w-4 sm:h-3.5 sm:w-3.5" /><span className="truncate">{t("Ferie")}</span></TabsTrigger>
+            <TabsTrigger value="cedolini" className="gap-1 sm:gap-1.5 text-[11px] sm:text-xs py-2 sm:py-1 px-1 sm:px-3"><Receipt className="h-4 w-4 sm:h-3.5 sm:w-3.5" /><span className="truncate">{t("Cedolini")}</span></TabsTrigger>
             {vedeEccezioni && (
-              <TabsTrigger value="eccezioni" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><AlertCircle className="hidden h-4 w-4 sm:block" /><span className="truncate">{t("Eccezioni")}</span></TabsTrigger>
+              <TabsTrigger value="eccezioni" className="gap-1 sm:gap-1.5 text-[11px] sm:text-xs py-2 sm:py-1 px-1 sm:px-3"><AlertCircle className="hidden h-3.5 w-3.5 sm:block" /><span className="truncate">{t("Eccezioni")}</span></TabsTrigger>
             )}
           </TabsList>
           )}

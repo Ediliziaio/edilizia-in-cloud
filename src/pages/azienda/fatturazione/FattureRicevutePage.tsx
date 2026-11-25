@@ -1189,7 +1189,7 @@ export default function FattureRicevutePage() {
               </p>
               {/* Da telefono la fatturazione non si imposta (solo computer o tablet). */}
               {!isMobile && (
-                <Button asChild variant="outline" size="sm" className="mt-3 border-amber-400 bg-white hover:bg-amber-100">
+                <Button asChild variant="outline" size="sm" className="mt-3 h-8 px-2.5 text-xs border-amber-400 bg-white hover:bg-amber-100">
                   <Link to="/azienda/impostazioni/fatturazione">{tr("Ricollega il gestionale")}</Link>
                 </Button>
               )}

@@ -1,4 +1,4 @@
-import { RICERCA_BARRA } from "@/components/orders/TestataScheda";
+import { BOTTONE_NUOVO, BOTTONE_SECONDARIO, RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
 import React, { useState, useMemo } from "react";
@@ -546,8 +546,8 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">{tr("Assistenza")}</h1>
-          <p className="text-muted-foreground">{tr("Caricamento ticket, interventi e richieste clienti...")}</p>
+          <h1 className="text-xl font-bold">{tr("Assistenza")}</h1>
+          <p className="sr-only">{tr("Caricamento ticket, interventi e richieste clienti...")}</p>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
@@ -562,8 +562,8 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">{tr("Assistenza")}</h1>
-          <p className="text-muted-foreground">{tr("Gestisci ticket di supporto e interventi sul campo")}</p>
+          <h1 className="text-xl font-bold">{tr("Assistenza")}</h1>
+          <p className="sr-only">{tr("Gestisci ticket di supporto e interventi sul campo")}</p>
         </div>
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -591,8 +591,8 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
   const azioni = (
     <>
       {selectedTicketIds.size > 0 && (
-        <Button variant="outline" onClick={() => setBulkOpen(true)} className="gap-2 max-sm:hidden">
-          <CheckSquare className="h-4 w-4" />
+        <Button variant="outline" size="sm" onClick={() => setBulkOpen(true)} className={cn(BOTTONE_SECONDARIO, "max-sm:hidden")}>
+          <CheckSquare />
           {selectedTicketIds.size} {tr("selezionati")}
         </Button>
       )}
@@ -624,14 +624,16 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
             { key: "created", label: "Creato il" },
           ]}
           filename="assistenza-interventi"
+          className={BOTTONE_SECONDARIO}
         />
       </div>
       <Button
+        size="sm"
         onClick={() => setNuovoOpen(true)}
-        className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:w-9 max-sm:rounded-full max-sm:p-0"
+        className={cn(BOTTONE_NUOVO, "max-sm:h-9 max-sm:w-9 max-sm:rounded-full max-sm:p-0")}
         aria-label={tr("Nuovo Ticket")}
       >
-        <Plus className="mr-2 h-4 w-4 max-sm:mr-0" />
+        <Plus className="h-4 w-4" />
         <span className="hidden sm:inline">{tr("Nuovo Ticket")}</span>
       </Button>
     </>
@@ -644,16 +646,14 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
       {incorporata && actionsSlot ? (
         createPortal(azioni, actionsSlot)
       ) : (
-        <div className={incorporata ? "flex items-center justify-end gap-2" : "testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6"}>
-          <div className={incorporata ? "flex items-center gap-2" : "flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4"}>
+        <div className={incorporata ? "flex items-center justify-end gap-2" : "testata-pagina"}>
+          <div className={incorporata ? "flex items-center gap-2" : "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"}>
             {!incorporata && (
-              <div className="flex min-w-0 items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
-                  <LifeBuoy className="h-5 w-5" />
-                </div>
+              <div className="flex min-w-0 items-center gap-2">
+                <LifeBuoy className="h-5 w-5 shrink-0 text-orange-500" aria-hidden="true" />
                 <div className="min-w-0">
-                  <h1 className="text-2xl font-bold tracking-tight">{tr("Assistenza")}</h1>
-                  <p className="text-sm text-muted-foreground">
+                  <h1 className="text-xl font-bold tracking-tight">{tr("Assistenza")}</h1>
+                  <p className="sr-only">
                     {tr("Ticket clienti, interventi collegati alle commesse, responsabilita e costi da tenere sotto controllo.")}
                   </p>
                 </div>
@@ -674,7 +674,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
 
       {/* Tab tipo (supporto / intervento / emergenza / tutti) */}
       {/* Mobile: il tipo sta nel pannello dei filtri (una riga di pillole in meno). */}
-      <div className="flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm max-sm:hidden">
+      <div className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm max-sm:hidden">
         {[
           { value: "all",           label: tr("Tutti"),        icon: ClipboardList },
           { value: "supporto",      label: tr("Supporto"),     icon: LifeBuoy },
@@ -688,13 +688,13 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
               key={tab.value}
               onClick={() => setTipoFilter(tab.value)}
               className={cn(
-                "tap-compact flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition-all whitespace-nowrap max-sm:h-8 max-sm:rounded-full max-sm:border max-sm:px-3 max-sm:py-0 max-sm:text-xs",
+                "tap-compact flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-medium transition-all whitespace-nowrap max-sm:h-8 max-sm:rounded-full max-sm:border max-sm:px-3 max-sm:py-0 max-sm:text-xs",
                 active
                   ? "bg-orange-50 text-orange-700 shadow-sm ring-1 ring-orange-100"
                   : "text-muted-foreground hover:bg-slate-50 hover:text-slate-900"
               )}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-3.5 w-3.5" />
               {tab.label}
             </button>
           );
@@ -905,11 +905,11 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
             onValueChange={(v) => v && cambiaVista(v as "tabella" | "pipeline")}
             className="ml-auto hidden rounded-md border lg:flex"
           >
-            <ToggleGroupItem value="tabella" aria-label={tr("Vista elenco")} className="px-3">
-              <LayoutList className="h-4 w-4" />
+            <ToggleGroupItem value="tabella" aria-label={tr("Vista elenco")} className="h-8 px-2.5">
+              <LayoutList className="h-3.5 w-3.5" />
             </ToggleGroupItem>
-            <ToggleGroupItem value="pipeline" aria-label={tr("Vista pipeline")} className="px-3">
-              <Columns3 className="h-4 w-4" />
+            <ToggleGroupItem value="pipeline" aria-label={tr("Vista pipeline")} className="h-8 px-2.5">
+              <Columns3 className="h-3.5 w-3.5" />
             </ToggleGroupItem>
           </ToggleGroup>
         </div>
