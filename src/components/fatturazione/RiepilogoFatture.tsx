@@ -128,7 +128,7 @@ export function RiepilogoFatture({
       );
     }
     return (
-      <section aria-label="Numeri delle fatture" aria-busy="true" className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+      <section aria-label="Numeri delle fatture" aria-busy="true" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {[`${testi.totale} ${nomePeriodo}`, "Imponibile", "IVA", testi.incassato, testi.daIncassare, "Scaduto"].map((e, i) => (
           <NumeroVeloce key={e} indice={i} etichetta={e} testo="…" nota="…" />
         ))}
@@ -157,7 +157,7 @@ export function RiepilogoFatture({
   }
 
   const numeri = (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
       <NumeroVeloce
         indice={0}
         etichetta={`${t(testi.totale)} ${nomePeriodo}`}

@@ -285,7 +285,9 @@ function ChipFiltro({ attivo, onClick, conteggio, children }: {
       aria-pressed={attivo}
       className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
         attivo
-          ? "border-primary bg-primary text-primary-foreground"
+          // Il filtro attivo in arancio tenue, come le pillole di Commesse e Sicurezza (25/11/2026): il blu pieno
+          // sembrava un bottone d'azione.
+          ? "border-orange-200 bg-orange-50 text-orange-700"
           : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
       }`}
     >
@@ -1215,8 +1217,9 @@ export default function FattureRicevutePage() {
         <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-sm:hidden">
         {/* Senza il titoletto «Fatture ricevute — Quello che i fornitori ti
             mandano»: ripeteva il titolo della pagina. */}
-        <div className="bg-eic-navy-deep p-4 text-white sm:p-5">
-          <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
+        {/* Dal tablet i quattro numeri stanno su una riga sola (prima 2×2, due righe alte sopra l'elenco). */}
+        <div className="bg-eic-navy-deep p-3 text-white">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <NavyStatCard
               label={annoFilter === "all" ? tr("Totale ricevute") : tr("Ricevute nel {annoFilter}", { annoFilter: String(annoFilter ?? "") })}
               value={String(kpi.totale)}
@@ -2079,7 +2082,8 @@ function CampoRicercaRicevute({ valore, onCambia }: { valore: string; onCambia: 
   const t = useT();
   const [testo, scrivi] = useTestoCheSegue(valore, onCambia);
   return (
-    <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
+    // Sul tablet la ricerca è un po' più stretta (224px): così «Colonne» resta sulla riga dei filtri.
+    <div className={cn(RICERCA_BARRA, "max-sm:w-full sm:max-lg:w-56")}>
       <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
       <Input
         placeholder={t("Cerca fornitore, fattura, note o riferimenti…")}
