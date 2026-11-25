@@ -15963,6 +15963,7 @@ const dizionario: Dizionario = {
   "La mia formazione": "التكوين ديالي",
   "Contatti CRM": "جهات الاتصال CRM",
   "Preventivi CRM": "الدوفيات CRM",
+  "Preventivi/Computi": "الدوفيات/الحساب",
   "Simulatore": "المحاكي",
   "Calendario CRM": "الأجندة CRM",
   "Sales OS": "Sales OS",

@@ -243,7 +243,7 @@ export const macroAreas: MacroArea[] = [
       // Flag dedicato (non crm_modulo): il Piano Marketing tiene il CRM ma spegne i preventivi.
       // Stesso permesso della rotta (canViewPreventivi): prima usava le
       // Opportunità, e chi le aveva senza «Preventivi» trovava la pagina negata.
-      { title: "Preventivi CRM", url: "/azienda/marketing/preventivi", icon: FileSignature, permissionKey: "canViewPreventivi", featureKey: "preventivi_crm" },
+      { title: "Preventivi/Computi", url: "/azienda/marketing/preventivi", icon: FileSignature, permissionKey: "canViewPreventivi", featureKey: "preventivi_crm" },
       // 2026-07-12: voce "Firma Elettronica" rimossa da qui — l'hub vive solo in
       // "Cantieri & Lavori". Il commerciale invia comunque preventivi/contratti in firma
       // dal dettaglio preventivo (SendSignatureDialog in QuoteDetail/FotovoltaicoDettaglio),
