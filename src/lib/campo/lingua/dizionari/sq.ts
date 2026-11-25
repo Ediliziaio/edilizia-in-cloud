@@ -68896,5 +68896,6 @@ const dizionario: Dizionario = {
   "Sede, cantiere o indirizzo": "Selia, kantieri ose adresa",
   "Questo cantiere": "Ky kantier",
   "All'approvazione il viaggio entra nel registro del mezzo: mappa, storico e km.": "Me miratimin, udhëtimi hyn në regjistrin e mjetit: hartë, histori dhe km.",
+  "Posizione sulla mappa": "Pozicioni në hartë",
 };
 export default dizionario;

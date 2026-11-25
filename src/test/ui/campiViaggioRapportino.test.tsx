@@ -14,6 +14,13 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => {
   return q;
 } } }));
 
+vi.mock("@/lib/indirizzi/ricercaIndirizzi", async (originale) => ({
+  ...(await originale<typeof import("@/lib/indirizzi/ricercaIndirizzi")>()),
+  cercaIndirizzi: async () => [{ id: "h1", testo: "Via Roma 1, 24050 Morengo BG, Italia" }],
+  dettaglioIndirizzo: async () => ({ id: "h1", via: "Via Roma 1", cap: "24050", citta: "Morengo", provincia: "BG",
+    testo: "Via Roma 1, 24050 Morengo (BG)", etichetta: "Via Roma 1, 24050 Morengo BG, Italia", lat: 45.5306, lng: 9.7034 }),
+}));
+
 import { CampiViaggioRapportino } from "@/components/orders/CampiViaggioRapportino";
 import { dettagliViaggio, leggiDettagliViaggio } from "@/lib/campo/viaggiRapportino";
 
@@ -51,4 +58,19 @@ it("mezzoId passa nel salvataggio e si rilegge, solo se è un id valido", () => 
   expect(dettagliViaggio({ mezzoId: "11111111-1111-4111-8111-111111111111", km: "12" }, "cad", "1")).toMatchObject({ mezzoId: "11111111-1111-4111-8111-111111111111", km: 12 });
   expect(dettagliViaggio({ mezzoId: "non-un-id" }, "cad", "1").mezzoId).toBeUndefined();
   expect(leggiDettagliViaggio({ mezzoId: "11111111-1111-4111-8111-111111111111", carico: "Sede" })).toEqual({ mezzoId: "11111111-1111-4111-8111-111111111111", carico: "Sede" });
+});
+
+it("lo scarico si cerca come ogni indirizzo dell'app: scelto dall'elenco porta la via esatta e la posizione", async () => {
+  const onChange = disegna();
+  fireEvent.change(screen.getByRole("combobox", { name: "Scarico" }), { target: { value: "via roma morengo" } });
+  fireEvent.click(await screen.findByRole("option", { name: /Morengo/ }));
+  await vi.waitFor(() => expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({
+    scarico: "Via Roma 1, 24050 Morengo (BG)", scaricoLat: "45.5306", scaricoLng: "9.7034" })));
+});
+
+it("le coordinate passano nel salvataggio solo in coppia e valide", () => {
+  expect(dettagliViaggio({ scarico: "Via Roma 1", scaricoLat: "45.5306", scaricoLng: "9.7034" }, "cad", "1")).toMatchObject({ scaricoLat: 45.5306, scaricoLng: 9.7034 });
+  expect(dettagliViaggio({ caricoLat: "45.5" }, "cad", "1").caricoLat).toBeUndefined();
+  expect(leggiDettagliViaggio({ caricoLat: 95, caricoLng: 9 })).toEqual({});
+  expect(leggiDettagliViaggio({ caricoLat: 45.1, caricoLng: 9.2, carico: "Cava" })).toEqual({ carico: "Cava", caricoLat: 45.1, caricoLng: 9.2 });
 });

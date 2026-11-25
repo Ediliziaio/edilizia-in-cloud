@@ -68896,5 +68896,6 @@ const dizionario: Dizionario = {
   "Sede, cantiere o indirizzo": "Sediu, șantier sau adresă",
   "Questo cantiere": "Acest șantier",
   "All'approvazione il viaggio entra nel registro del mezzo: mappa, storico e km.": "La aprobare, cursa intră în registrul vehiculului: hartă, istoric și km.",
+  "Posizione sulla mappa": "Poziție pe hartă",
 };
 export default dizionario;

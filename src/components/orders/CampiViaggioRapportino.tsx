@@ -1,6 +1,7 @@
-import { useId, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { supabase } from "@/integrations/supabase/client";
 import { useMezzi } from "@/hooks/useMezzi";
 import { mezzoStradale } from "@/lib/campo/arrivoRapportino";
@@ -19,7 +20,6 @@ export function CampiViaggioRapportino({ valore, quantitaInKm, onChange, orderId
   orderId?: string;
 }) {
   const t = useT();
-  const idLuoghi = useId();
   const { data: tuttiMezzi = [] } = useMezzi();
   const stradali = tuttiMezzi.filter(mezzoStradale);
   const commessa = useQuery({
@@ -27,15 +27,23 @@ export function CampiViaggioRapportino({ valore, quantitaInKm, onChange, orderId
     enabled: !!orderId,
     staleTime: 5 * 60_000,
     queryFn: async () => {
-      const { data, error } = await supabase.from("orders").select("order_code, work_address").eq("id", orderId!).maybeSingle();
+      const { data, error } = await supabase.from("orders").select("order_code, work_address, work_lat, work_lng").eq("id", orderId!).maybeSingle();
       if (error) throw error;
-      return data as { order_code: string | null; work_address: string | null } | null;
+      return data as { order_code: string | null; work_address: string | null; work_lat: number | null; work_lng: number | null } | null;
     },
   });
   const cantiere = commessa.data?.work_address?.trim()
     ? [commessa.data.order_code, commessa.data.work_address.trim()].filter(Boolean).join(" · ")
     : null;
   const luoghi = ["Sede", ...(cantiere ? [cantiere] : [])];
+  // Un luogo con la sua posizione; scrivendo a mano la posizione si toglie (non sarebbe più quella del testo).
+  const conLuogo = (key: "carico" | "scarico", testo: string, lat?: number | null, lng?: number | null): BozzaViaggio => ({
+    ...valore, [key]: testo,
+    [`${key}Lat`]: lat != null && lng != null ? String(lat) : undefined,
+    [`${key}Lng`]: lat != null && lng != null ? String(lng) : undefined,
+  });
+  const cantiereLat = commessa.data?.work_lat ?? null;
+  const cantiereLng = commessa.data?.work_lng ?? null;
   const scelto = stradali.find((m) => m.id === valore.mezzoId);
   // «Altro»: un mezzo che non è nell'elenco (noleggio, trasportatore): resta il testo libero, senza registro.
   const [aMano, setAMano] = useState(!valore.mezzoId && !!valore.mezzo?.trim());
@@ -43,7 +51,6 @@ export function CampiViaggioRapportino({ valore, quantitaInKm, onChange, orderId
   return (
     <fieldset className="grid grid-cols-2 gap-2 rounded-md border p-2 text-xs sm:grid-cols-3">
       <legend className="px-1 font-medium">{t("Dettagli del viaggio")}</legend>
-      <datalist id={idLuoghi}>{luoghi.map((l) => <option key={l} value={l} />)}</datalist>
       {CAMPI_TESTO_VIAGGIO.map(([key, label]) => key === "mezzo" && stradali.length > 0 ? (
         <label key={key} className="space-y-1">
           <span>{t("Mezzo")}</span>
@@ -64,20 +71,29 @@ export function CampiViaggioRapportino({ valore, quantitaInKm, onChange, orderId
               onChange={(e) => onChange({ ...valore, mezzo: e.target.value })} />
           )}
         </label>
-      ) : (
+      ) : key === "carico" || key === "scarico" ? (
         <label key={key} className="space-y-1">
           <span>{t(label)}</span>
-          <Input className="h-8 text-sm" value={valore[key] ?? ""} list={key === "carico" || key === "scarico" ? idLuoghi : undefined}
-            placeholder={key === "carico" ? t("Sede, cantiere o indirizzo") : key === "scarico" ? (cantiere ?? t("Sede, cantiere o indirizzo")) : undefined}
-            onChange={(e) => onChange({ ...valore, [key]: e.target.value })} />
-          {(key === "carico" || key === "scarico") && !valore[key]?.trim() && (
+          <CampoIndirizzo value={valore[key] ?? ""} className="h-8 text-sm" aria-label={t(label)}
+            placeholder={key === "scarico" && cantiere ? cantiere : t("Sede, cantiere o indirizzo")}
+            onChange={(testo) => onChange(conLuogo(key, testo))}
+            onScegli={(ind) => onChange(conLuogo(key, ind.testo, ind.lat, ind.lng))} />
+          {!valore[key]?.trim() && (
             <span className="flex flex-wrap gap-1">
               {luoghi.map((l) => (
                 <button key={l} type="button" className="rounded border px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-slate-50"
-                  onClick={() => onChange({ ...valore, [key]: l })}>{l === "Sede" ? t("Sede") : t("Questo cantiere")}</button>
+                  onClick={() => onChange(l === "Sede" ? conLuogo(key, l) : conLuogo(key, l, cantiereLat, cantiereLng))}>
+                  {l === "Sede" ? t("Sede") : t("Questo cantiere")}
+                </button>
               ))}
             </span>
           )}
+          {valore[key]?.trim() && valore[`${key}Lat`] && <span className="block text-[11px] text-emerald-700">{t("Posizione sulla mappa")}</span>}
+        </label>
+      ) : (
+        <label key={key} className="space-y-1">
+          <span>{t(label)}</span>
+          <Input className="h-8 text-sm" value={valore[key] ?? ""} onChange={(e) => onChange({ ...valore, [key]: e.target.value })} />
         </label>
       ))}
       {CAMPI_NUMERICI_VIAGGIO.filter(([key]) => key !== "km" || !quantitaInKm).map(([key, label]) => (

@@ -16,8 +16,24 @@ type CampoNumerico = (typeof CAMPI_NUMERICI_VIAGGIO)[number][0];
  * mezzoId (25/11/2026): il mezzo scelto dall'elenco dell'azienda. Col rapportino approvato il viaggio entra
  * nel registro di quel mezzo (mappa, storico, km, carburante). Senza, resta solo il testo «Mezzo o targa».
  */
-export type DettagliViaggio = Partial<Record<CampoTesto, string> & Record<CampoNumerico, number> & { mezzoId: string }>;
-export type BozzaViaggio = Partial<Record<CampoTesto | CampoNumerico | "mezzoId", string>>;
+/** Posizione di carico e scarico scelta dalla ricerca indirizzi: porta il luogo sulla mappa del registro. */
+export const CAMPI_POSIZIONE_VIAGGIO = ["caricoLat", "caricoLng", "scaricoLat", "scaricoLng"] as const;
+type CampoPosizione = (typeof CAMPI_POSIZIONE_VIAGGIO)[number];
+export type DettagliViaggio = Partial<Record<CampoTesto, string> & Record<CampoNumerico | CampoPosizione, number> & { mezzoId: string }>;
+export type BozzaViaggio = Partial<Record<CampoTesto | CampoNumerico | CampoPosizione | "mezzoId", string>>;
+
+function coordinata(v: string | number | undefined, limite: number): number | undefined {
+  if (v == null || v === "") return undefined;
+  const n = typeof v === "number" ? v : Number(String(v).replace(",", "."));
+  return Number.isFinite(n) && Math.abs(n) <= limite ? n : undefined;
+}
+
+/** Le due coordinate di un luogo, o nessuna: mezza posizione non serve. */
+function posizione(v: Partial<Record<CampoPosizione, string | number>>, luogo: "carico" | "scarico"): Partial<Record<CampoPosizione, number>> {
+  const lat = coordinata(v[`${luogo}Lat`], 85);
+  const lng = coordinata(v[`${luogo}Lng`], 180);
+  return lat != null && lng != null ? { [`${luogo}Lat`]: lat, [`${luogo}Lng`]: lng } : {};
+}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -53,6 +69,8 @@ export function dettagliViaggio(v: BozzaViaggio, unita: string, quantita: string
     km: numeroViaggio(unitaChilometro(unita) ? quantita : v.km),
     oreUomo: numeroViaggio(v.oreUomo),
     oreMezzo: numeroViaggio(v.oreMezzo),
+    ...posizione(v, "carico"),
+    ...posizione(v, "scarico"),
   };
 }
 
@@ -69,5 +87,6 @@ export function leggiDettagliViaggio(dati: unknown): DettagliViaggio {
     if (typeof valore === "number" && Number.isFinite(valore) && valore >= 0) dettagli[chiave] = valore;
   }
   if (typeof riga.mezzoId === "string" && UUID.test(riga.mezzoId)) dettagli.mezzoId = riga.mezzoId;
-  return dettagli;
+  const numeri = riga as Partial<Record<CampoPosizione, number>>;
+  return { ...dettagli, ...posizione(numeri, "carico"), ...posizione(numeri, "scarico") };
 }
