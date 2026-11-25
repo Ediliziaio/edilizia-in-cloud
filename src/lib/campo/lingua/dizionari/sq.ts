@@ -4243,6 +4243,7 @@ const dizionario: Dizionario = {
   "Apri attività: {titolo}": "Hap aktivitetin: {titolo}",
   "I tuoi impegni e le tue scadenze. Seleziona un giorno per filtrare le tue attività.": "Angazhimet dhe afatet e tua. Zgjidh një ditë për të filtruar aktivitetet e tua.",
   "Calendario lavori": "Kalendari i punëve",
+  "Calendario commerciale": "Kalendari tregtar",
   "Vista dell’agenda": "Pamja e axhendës",
   "Periodo precedente": "Periudha e mëparshme",
   "Periodo successivo": "Periudha pasardhëse",
