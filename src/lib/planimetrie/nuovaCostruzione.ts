@@ -265,11 +265,18 @@ export function righeNuovaCostruzione(doc: Planimetria, variante: string | null,
     c.riscaldamento === "radiante_pompa_di_calore" ? "Pompa di calore aria-acqua con accumulo sanitario" : "Caldaia a condensazione con produzione sanitaria", "cad", alloggi, criterioAlloggi);
   voce(null, "portoncino", "Portoncino d'ingresso blindato", "cad", alloggi, criterioAlloggi);
   // ── Esterni.
-  if (c.marciapiedeCm > 0) voce(base, "marciapiede", "Marciapiede perimetrale con cordolo", "m²", base.geo.perimetroM * c.marciapiedeCm / 100,
+  // Sopraelevazione: il piano più basso c'è già, e con lui il lotto. Il marciapiede intorno alla
+  // casa non si rifà, e le aree disegnate senza stato (prati, vialetti del DWG) sono quelle che ci
+  // sono: si contano solo quelle segnate «nuove». Le opere disegnate (piscine, pergole) restano,
+  // nel loro capitolo: si tolgono dall'editor se esistono già (Callimaco, 25/11/2026).
+  const lottoEsistente = !nuovo(base);
+  if (c.marciapiedeCm > 0 && !lottoEsistente) voce(base, "marciapiede", "Marciapiede perimetrale con cordolo", "m²", base.geo.perimetroM * c.marciapiedeCm / 100,
     `${it(base.geo.perimetroM)} m × ${it(c.marciapiedeCm / 100)} m`);
   voce(null, "allacciamenti", "Allacciamenti alle reti (acqua, fognatura, energia elettrica) e pozzetti", "a corpo", 1, "Ordine di grandezza: dipende dalle distanze dalle reti");
 
-  // ── Esterni disegnati: aree del lotto, recinzione, piscine e arredi da giardino.
+  // ── Esterni disegnati: aree del lotto, recinzione, piscine e arredi da giardino. In una
+  // sopraelevazione sono un lavoro a sé: nel computo vanno a parte, col loro totale.
+  const primaDegliEsterni = righe.length;
   const AREE: Partial<Record<string, [TipoCostruzione, string]>> = {
     prato: ["prato", "Sistemazione a prato: terra vegetale, semina e irrigazione"],
     pavimentato: ["pavimentazione_esterna", "Pavimentazione esterna su massetto"],
@@ -283,6 +290,7 @@ export function righeNuovaCostruzione(doc: Planimetria, variante: string | null,
   for (const p of piani) {
     for (const a of (p.stato as { aree?: AreaEsterna[] }).aree ?? []) {
       if (a.stato === "da_demolire" || a.stato === "esistente" || a.contorno.length < 3) continue;
+      if (lottoEsistente && a.stato !== "nuovo") continue;
       if (a.tipo === "lotto") { if (a.recinzione !== false) recinzioneM += perimetroPoligono(a.contorno) / 100; continue; }
       const regola = AREE[a.tipo];
       if (!regola) continue;
@@ -297,6 +305,7 @@ export function righeNuovaCostruzione(doc: Planimetria, variante: string | null,
     e.larghezza * e.profondita / 10_000, `Vasca ${it(e.larghezza / 100)} × ${it(e.profondita / 100)} m`, n + 1));
   voce(base, "pergola", "Pergola in legno o alluminio, fornitura e posa", "cad", elementi.filter((e) => e.tipo === "pergola").length, "Pergole disegnate");
   voce(base, "idromassaggio", "Minipiscina idromassaggio, fornitura e posa", "cad", elementi.filter((e) => e.tipo === "idromassaggio").length, "Minipiscine disegnate");
+  if (lottoEsistente) for (const r of righe.slice(primaDegliEsterni)) r.aParte = true;
   return { righe, perimetro };
 }
 

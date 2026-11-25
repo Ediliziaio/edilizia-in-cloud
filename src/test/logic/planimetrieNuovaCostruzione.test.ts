@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { COSTRUZIONE_PREDEFINITA, costruzioneValida, geometriaPiano } from "../../../shared/planimetrie/costruzione";
 import { validaPlanimetria, type Livello, type Muro, type Planimetria } from "../../../shared/planimetrie/modello";
 import { capitoloRigaStudio, disegnoDaCostruire, tipoCostruzione } from "@/lib/planimetrie/nuovaCostruzione";
-import { studioVariante } from "@/lib/planimetrie/studioImmobiliare";
+import { computoStudio, studioVariante } from "@/lib/planimetrie/studioImmobiliare";
 import { conPrezziProposti, tipoLavorazione } from "@/lib/planimetrie/prezziProposti";
 import { extraPredefiniti, previsioneLavori } from "@/lib/planimetrie/previsioneLavori";
 
@@ -147,5 +147,29 @@ describe("esterni disegnati nel computo della costruzione", () => {
     expect(q("recinzione")!.quantita).toBe(120);
     expect(q("piscina")).toMatchObject({ quantita: 40, unita: "m²", gruppo: "12 Sistemazioni esterne" });
     expect(q("piscina")!.prezzo!.importo).toBe(900);
+  });
+
+  it("sopraelevazione: il lotto c'è già, si contano solo le opere disegnate e le aree segnate nuove", () => {
+    // Callimaco: piano terra esistente; dal DWG prati senza stato, lotto esistente, due piscine nuove.
+    const s = { ...COSTRUZIONE_PREDEFINITA, piani: { pt: "esistente" as const, p1: "nuovo" as const } };
+    const base = casa();
+    const fatto = base.livelli[0].fatto as unknown as { aree: unknown[]; elementi: unknown[] };
+    fatto.aree = [
+      { id: "lotto", tipo: "lotto", contorno: [{ x: -1000, y: -1000 }, { x: 2000, y: -1000 }, { x: 2000, y: 2000 }, { x: -1000, y: 2000 }], stato: "esistente" },
+      { id: "prato", tipo: "prato", contorno: [{ x: 1200, y: 0 }, { x: 1700, y: 0 }, { x: 1700, y: 800 }, { x: 1200, y: 800 }] },
+      { id: "vialetto", tipo: "vialetto", contorno: [{ x: 1200, y: 900 }, { x: 1700, y: 900 }, { x: 1700, y: 1000 }, { x: 1200, y: 1000 }], stato: "nuovo" },
+    ];
+    fatto.elementi = [{ id: "pisc", tipo: "piscina", posizione: { x: 1450, y: 1400 }, rotazione: 0, larghezza: 500, profondita: 800, origine: "rilevata" }];
+    const righe = conPrezziProposti(studioVariante({ ...disegnoDaCostruire(base, s), costruzione: s }, "A").righe);
+    const tipi = righe.map((r) => tipoCostruzione(r.id));
+    expect(tipi).not.toContain("prato");
+    expect(tipi).not.toContain("marciapiede");
+    expect(righe.find((r) => tipoCostruzione(r.id) === "recinzione")?.quantita ?? 0).toBe(0);
+    expect(righe.find((r) => tipoCostruzione(r.id) === "vialetto")!.quantita).toBe(5);
+    expect(righe.find((r) => tipoCostruzione(r.id) === "piscina")).toMatchObject({ quantita: 40, gruppo: "12 Sistemazioni esterne", aParte: true });
+    // Nel computo: piscina e vialetto a parte, fuori dal totale; gli allacciamenti restano nei lavori.
+    const bozza = computoStudio({ planimetriaId: "p", varianteId: "A", versione: 1 }, "Sopraelevazione", righe);
+    expect(bozza.voci.filter((v) => v.opzionale).map((v) => tipoCostruzione(v.id)).sort()).toEqual(["piscina", "vialetto"]);
+    expect(bozza.voci.find((v) => tipoCostruzione(v.id) === "allacciamenti")!.opzionale).toBe(false);
   });
 });

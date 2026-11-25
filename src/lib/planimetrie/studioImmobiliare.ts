@@ -49,6 +49,8 @@ export interface RigaStudio {
   riferimento?: { tipo: "locale" | "muro" | "apertura"; id: string; fatto?: boolean };
   quantificazioneSospesa?: boolean;
   prezzo?: PrezzoVocePlanimetria;
+  /** Nel computo va a parte: proposta al cliente, fuori dal totale dei lavori (le opere esterne di una sopraelevazione). */
+  aParte?: boolean;
 }
 
 const VOCI_IMPIANTI = [
@@ -493,6 +495,7 @@ export function computoStudio(fonte: FonteStudio, titolo: string, righe: RigaStu
       descrizione:`${r.descrizione}\n${r.piano} · ${r.criterio}`,
       ...misuraRigaStudio(r),
       ...(r.prezzo ? { prezzo: String(r.prezzo.importo), fonte: r.prezzo.fonte, tariffa: r.prezzo.tariffa } : {}),
+      ...(r.aParte ? { opzionale: true } : {}),
       noteMisure:r.stimata ? "Quantità indicativa. Verifica le misure di riferimento." : "",
     })),
   };
