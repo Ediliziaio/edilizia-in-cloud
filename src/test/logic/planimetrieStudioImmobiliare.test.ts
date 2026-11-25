@@ -151,6 +151,19 @@ describe("Frazionamento prima dell’acquisto",()=>{
     expect(calcolaVoce(precedente.voci[1]).quantita).toBe(27);
   });
 
+  it("nella revisione il costo scritto a mano resta, quello mai toccato prende la stima nuova", () => {
+    const studio = { righe: studioVariante(conVarianti(), "B").righe.filter(r => !eLavorazioneIndotta(r)) };
+    const fonte = { planimetriaId, versione: 3, varianteId: "B" };
+    // La bozza di prima nasceva senza costi; in una voce l'impresa ne ha scritto uno.
+    const base = { ...computoStudio(fonte, "Variante", studio.righe), voci: computoStudio(fonte, "Variante", studio.righe).voci.map(v => ({ ...v, costo: "" })) };
+    const precedente = { ...base, voci: [{ ...base.voci[0], costo: "12" }, ...base.voci.slice(1)] };
+    const nuova = computoStudio({ ...fonte, versione: 4 }, "Variante", studio.righe);
+    const aggiornata = computoStudioRevisionato(nuova, precedente, base);
+    expect(aggiornata.voci[0].costo).toBe("12");
+    const seconda = aggiornata.voci.find(v => v.id === nuova.voci[1].id)!;
+    expect(seconda.costo).toBe(nuova.voci[1].costo);
+  });
+
   it("confronta le quantità della bozza con la variante e riconosce le misure modificate", () => {
     const { righe } = studioVariante(conVarianti(), "B");
     const riga = { ...righe[0], stimata: false };

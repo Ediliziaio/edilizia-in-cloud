@@ -538,7 +538,8 @@ export function computoStudioRevisionato(nuovo: BozzaComputo, precedente: BozzaC
         || calcolaVoce(p).quantita !== calcolaVoce(base).quantita);
       const nota = quantitaManuale ? NOTA_QUANTITA_RIPRESA : "";
       const prezzoNuovo = !!v.prezzo && (v.prezzo !== base.prezzo || v.fonte !== base.fonte || v.tariffa !== base.tariffa);
-      return {...v, ...(prezzoNuovo ? {} : { prezzo:p.prezzo, fonte:p.fonte, tariffa:p.tariffa }), costo:p.costo, sicurezza:p.sicurezza,
+      // Il costo della bozza di prima vale se qualcuno l'ha scritto a mano; se no resta quello stimato ora.
+      return {...v, ...(prezzoNuovo ? {} : { prezzo:p.prezzo, fonte:p.fonte, tariffa:p.tariffa }), costo:p.costo !== base.costo ? p.costo : v.costo, sicurezza:p.sicurezza,
         detrazione:p.detrazione, corpo:p.corpo, opzionale:p.opzionale, descrizione:p.descrizione===base.descrizione ? v.descrizione : p.descrizione,
         capitolo:p.capitolo===base.capitolo ? v.capitolo : p.capitolo, categoria:p.categoria===base.categoria ? v.categoria : p.categoria,
         ...(quantitaManuale ? {unita:p.unita,quantita:p.quantita,misure:p.misure,daQuantificare:p.daQuantificare} : {}),
