@@ -630,7 +630,13 @@ export const COMPLETI_TOOLS: ToolDef[] = [
         if (!chiave || !(righe ?? []).some((r) => corrisponde(r, chiave))) throw new ToolError(`Voce da cambiare non trovata: ${chiave ?? "(senza id né nome)"}`);
       }
       for (const t of togli) if (!(righe ?? []).some((r) => corrisponde(r, t))) throw new ToolError(`Voce da togliere non trovata: ${t}`);
-      const restanti = (righe ?? []).filter((r) => !togli.some((t) => corrisponde(r, t)));
+      // Togliere una voce toglie anche quelle che contiene (le figlie resterebbero senza madre).
+      const tolte = new Set((righe ?? []).filter((r) => togli.some((t) => corrisponde(r, t))).map((r) => r.id as string));
+      for (let cresciuto = true; cresciuto;) {
+        cresciuto = false;
+        for (const r of righe ?? []) if (!tolte.has(r.id) && r.parent_item_id && tolte.has(r.parent_item_id)) { tolte.add(r.id); cresciuto = true; }
+      }
+      const restanti = (righe ?? []).filter((r) => !tolte.has(r.id));
       // Le voci esistenti tornano com'erano (legami col listino, misure, gerarchia), con i soli campi cambiati.
       const items = restanti.map((r) => {
         const modifica = cambia.find((c) => corrisponde(r, str(c.id) ?? str(c.nome) ?? ""));
@@ -660,7 +666,7 @@ export const COMPLETI_TOOLS: ToolDef[] = [
       const { data, error: errSalva } = await clienteUtente(ctx).rpc("save_quote_items_atomic", { p_quote_id: p.id, p_company_id: az.id, p_items: items });
       if (errSalva) throw new ToolError(errSalva.message);
       const { data: dopo } = await admin.from("quotes").select("subtotal, vat_amount, total").eq("id", p.id).maybeSingle();
-      return { preventivo: p.quote_number, voci: items.length, totali: dopo, esito: data };
+      return { preventivo: p.quote_number, voci: items.length, tolte: tolte.size, totali: dopo, esito: data };
     },
   },
   {
@@ -803,10 +809,12 @@ export const COMPLETI_TOOLS: ToolDef[] = [
       const { data, error } = await utente.rpc("documento_crea", { p_company_id: az.id, p_dati: dati });
       if (error) throw new ToolError(error.message);
       const doc = (data ?? {}) as Record<string, unknown>;
+      let avvisoCommessa: string | null = null;
       if (commessa && typeof doc.id === "string") {
-        await utente.from("fattura_ordine").insert({ company_id: az.id, fattura_id: doc.id, ordine_id: commessa.id, importo_associato: totale });
+        const { error: errLegame } = await utente.from("fattura_ordine").insert({ company_id: az.id, fattura_id: doc.id, ordine_id: commessa.id, importo_associato: totale });
+        if (errLegame) avvisoCommessa = `Bozza creata, ma non collegata alla commessa ${commessa.order_code ?? ""}: collegala dall'app (${errLegame.message}).`;
       }
-      return { bozza: doc.numero, id: doc.id, cliente: dati.cliente_snapshot.ragione_sociale, imponibile: imponibileTot, iva: ivaTot, totale,
+      return { bozza: doc.numero, ...(avvisoCommessa ? { attenzione: avvisoCommessa } : {}), id: doc.id, cliente: dati.cliente_snapshot.ragione_sociale, imponibile: imponibileTot, iva: ivaTot, totale,
         apri: typeof doc.id === "string" ? `${URL_APP}/azienda/documenti/${doc.id}` : null,
         nota: "È una bozza: controllala nell'app; per emetterla e mandarla allo SdI usa emetti_fattura." };
     },
@@ -1022,9 +1030,19 @@ export const COMPLETI_TOOLS: ToolDef[] = [
       if (telefono.length < 8) throw new ToolError("Numero non valido");
       const modello = args.modello as Record<string, unknown> | undefined;
       if (!str(args.testo) && !modello) throw new ToolError("Serve il testo o un modello");
+      // Il contatto, se indicato, deve essere dell'azienda: whatsapp-send chiamato come servizio non lo controlla.
+      let contatto: string | null = null;
+      if (str(args.contatto_id)) {
+        const id = str(args.contatto_id)!;
+        if (!UUID_RE.test(id)) throw new ToolError("contatto_id non valido");
+        const { data: c } = await admin.from("marketing_contacts").select("id").eq("id", id).eq("company_id", az.id).maybeSingle();
+        if (!c) throw new ToolError("Contatto non trovato in questa azienda");
+        contatto = id;
+      }
       const esito = await funzioneInterna("whatsapp-send", {
-        company_id: az.id, to: telefono, idempotency_key: crypto.randomUUID(),
-        ...(UUID_RE.test(str(args.contatto_id) ?? "") ? { contact_id: str(args.contatto_id) } : {}),
+        // Stessa richiesta ripetuta (stesso request_id) = stesso invio: whatsapp-send non lo rimanda.
+        company_id: az.id, to: telefono, idempotency_key: `mcp:${ctx.id}:${ctx.requestId ?? crypto.randomUUID()}`,
+        ...(contatto ? { contact_id: contatto } : {}),
         ...(modello
           ? { template: { name: str(modello.nome), language: str(modello.lingua) ?? "it", variables: Array.isArray(modello.variabili) ? modello.variabili : [] } }
           : { text: { body: str(args.testo) } }),

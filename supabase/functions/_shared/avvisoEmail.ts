@@ -43,7 +43,8 @@ const SOLO_NEL_RIEPILOGO = new Set([
  */
 export function vaPerEmail(tipo: string): boolean {
   if (SOLO_NEL_RIEPILOGO.has(tipo)) return false;
-  return /^(outreach_|whatsapp_|lead_)/.test(tipo);
+  // sicurezza_: un assistente AI collegato all'area superadmin (25/11/2026).
+  return /^(outreach_|whatsapp_|lead_|sicurezza_)/.test(tipo);
 }
 
 /** Destinatari da platform_settings: lista JSON, oppure testo separato da virgole, spazi o punti e virgola. */

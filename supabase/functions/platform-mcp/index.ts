@@ -36,6 +36,7 @@ import { PLATFORM_TOOLS, ISTRUZIONI_PIATTAFORMA } from "./platformTools.ts";
 import { AZIENDA_TOOLS, PONTE_SILVIO_TOOLS, ALTRI_TOOLS, COMPLETI_TOOLS } from "./aziendaTools.ts";
 import { type Attore, motivoNegato } from "./permessiStrumenti.ts";
 import { ruoloPrincipaleSilvio } from "../_shared/ruoloSilvio.ts";
+import { avvisaSuperAdmin } from "../_shared/avvisaSuperAdmin.ts";
 import { argumentError, canonicalJson, isRecord, validOAuthClaims, validRpcMessage } from "./protocol.ts";
 
 const SUPPORTED_PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
@@ -1007,13 +1008,28 @@ Deno.serve(async (req) => {
         receipt = reservation.receipt;
         delete args.request_id;
         delete args.confirmed;
+        ctx.requestId = requestId;
         const result = await tool.handler(admin, ctx, args);
         assertToolSucceeded(result);
         const response: Json = { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
         await complete(response);
         await log(200, typeof (result as Json)?.company_id === "string" ? (result as Json).company_id as string : null);
-        await admin.from(ctx.kind === "oauth" ? "mcp_oauth_grants" : "api_keys")
-          .update({ last_used_at: new Date().toISOString() }).eq("id", ctx.id);
+        const { data: primoUso } = await admin.from(ctx.kind === "oauth" ? "mcp_oauth_grants" : "api_keys")
+          .update({ last_used_at: new Date().toISOString() }).eq("id", ctx.id).is("last_used_at", null).select("id");
+        if (!primoUso?.length) {
+          await admin.from(ctx.kind === "oauth" ? "mcp_oauth_grants" : "api_keys")
+            .update({ last_used_at: new Date().toISOString() }).eq("id", ctx.id);
+        } else if (ctx.ambito === "piattaforma") {
+          // Primo uso di un collegamento all'area superadmin: il titolare lo deve sapere (campanella, push, email).
+          const avviso = avvisaSuperAdmin(admin, {
+            tipo: "sicurezza_assistente_ai", tag: `mcp-${ctx.id}`, entityType: "mcp", entityId: ctx.id,
+            titolo: `Assistente AI collegato all'area superadmin: ${ctx.name}`,
+            testo: `${ctx.name} ha appena usato per la prima volta l'area superadmin (${tool.name}). Se non sei stato tu, revocalo subito da Integrazioni.`,
+            url: "/admin/impostazioni/integrazioni",
+          }).catch(() => undefined);
+          const runtime = (globalThis as { EdgeRuntime?: { waitUntil: (p: Promise<unknown>) => void } }).EdgeRuntime;
+          if (runtime) runtime.waitUntil(avviso); else await avviso;
+        }
         return new Response(JSON.stringify(rpcResult(id, response)), { headers: jsonHeaders });
       } catch (e) {
         const friendly = e instanceof ToolError;
