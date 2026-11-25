@@ -1,4 +1,4 @@
-import { RICERCA_BARRA } from "@/components/orders/TestataScheda";
+import { RICERCA_BARRA, TENDINA_STATO_BARRA } from "@/components/orders/TestataScheda";
 import { PipelineCardHeading } from "@/components/orders/PipelineDrag";
 import { isPipelineCardControl } from "@/lib/orders/cardInteraction";
 import { useOperationalViewMemory } from "@/hooks/useOperationalViewMemory";
@@ -152,7 +152,7 @@ export function SafetyWorkflow<T extends { id: string }>({
       setTransition(onTransition?.(item, target) ?? null);
   };
   return (
-    <div className="min-w-0 space-y-4">
+    <div className="min-w-0 space-y-3">
       <section
         aria-label={t("Filtri {label}", { label: String(label ?? "") })}
         className="space-y-2 rounded-xl border bg-white p-2.5 shadow-sm"
@@ -176,7 +176,7 @@ export function SafetyWorkflow<T extends { id: string }>({
           </div>
           <Select value={order} onValueChange={(v) => update({ commessa: v })}>
             <SelectTrigger
-              className="h-8 w-[200px] text-xs"
+              className={TENDINA_STATO_BARRA}
               aria-label={t("Commessa {codice}", { codice: String(label ?? "") })}
             >
               <SelectValue />
@@ -197,6 +197,7 @@ export function SafetyWorkflow<T extends { id: string }>({
             <Button
               variant="ghost"
               size="sm"
+              className="h-8 px-2.5 text-xs"
               onClick={() =>
                 update({ cerca: null, commessa: null, fase: null })
               }
@@ -211,7 +212,7 @@ export function SafetyWorkflow<T extends { id: string }>({
         <div
           role="group"
           aria-label={t("Fasi {label}", { label: String(label ?? "") })}
-          className="flex gap-1 overflow-x-auto border-t pt-2"
+          className="flex items-center gap-1 overflow-x-auto border-t pt-2"
         >
           {[{ id: "tutte", label: t("Tutti") }, ...stages].map((stage) => (
             <button
@@ -234,8 +235,9 @@ export function SafetyWorkflow<T extends { id: string }>({
               </span>
             </button>
           ))}
+          {/* Il conteggio sulla riga delle fasi: prima occupava una riga a sé. */}
+          <p className="ml-auto shrink-0 whitespace-nowrap pl-2 text-[11px] text-muted-foreground">{t("{n} di {n2} {label}", { n: rows.length, n2: items.length, label: label.toLowerCase() })}</p>
         </div>
-        <p className="text-xs text-muted-foreground">{t("{n} di {n2} {label}", { n: rows.length, n2: items.length, label: label.toLowerCase() })}</p>
       </section>
       {!rows.length ? (
         <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
@@ -296,16 +298,17 @@ export function SafetyWorkflow<T extends { id: string }>({
           disabled={pending}
           onMove={canWrite && onTransition ? move : undefined}
           renderCard={(item) => (
-            <article className="space-y-1.5 rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+            // Stessa densità delle schede di Commesse: titolo 13px, testo 11px.
+            <article className="space-y-1 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[11px] leading-4 shadow-sm [&_.text-xs]:text-[11px] [&_.text-xs]:leading-4">
               <PipelineCardHeading>
-                <p className="min-w-0 text-sm font-semibold">
+                <p className="min-w-0 text-[13px] font-semibold leading-tight">
                   {getTitle(item)}
                 </p>
               </PipelineCardHeading>
               {getOrderId(item) && (
                 <Link
                   to={`/azienda/ordini/${getOrderId(item)}`}
-                  className="block text-xs text-primary hover:underline"
+                  className="block text-[11px] text-primary hover:underline"
                 >
                   {orders.find((o) => o.id === getOrderId(item))?.order_code ??
                     t("Apri commessa")}
