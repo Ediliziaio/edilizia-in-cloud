@@ -34,7 +34,8 @@ function dateLabel(value?: string | null) {
   return Number.isNaN(date.getTime()) ? null : format(date, "d MMM yyyy", { locale: dateFnsCampo() });
 }
 
-const cellClass = "min-w-0 p-3 text-left sm:p-4";
+// 25/11/2026: riquadri più bassi (da 16px di margine interno a 10-12), testo a 14px.
+const cellClass = "min-w-0 px-3 py-2.5 text-left";
 const linkClass = `${cellClass} group flex flex-col items-stretch justify-start transition-colors hover:bg-orange-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary`;
 const labelClass = "flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-eic-navy-deep [&>svg:first-child]:text-orange-500";
 
@@ -61,7 +62,7 @@ export function OrderCommessaSummary({
         <div id="section-stato" className={`${cellClass} scroll-mt-24`}>
           <p className={labelClass}>{t("Stato commessa")}</p>
           {statoControllo ?? (
-            <p className="mt-2 flex items-start gap-2 text-sm font-semibold text-slate-900 sm:text-base">
+            <p className="mt-1 flex items-start gap-2 text-sm font-semibold text-slate-900">
               <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: statusColor || "#64748b" }} />
               <span className="min-w-0 break-words">{statusName || t("Stato non impostato")}</span>
             </p>
@@ -69,7 +70,7 @@ export function OrderCommessaSummary({
         </div>
         <button type="button" onClick={onOpenWork} className={linkClass} aria-label={t("Apri lavorazioni e squadra")}>
           <span className={labelClass}><HardHat className="h-3.5 w-3.5 shrink-0" /> {t("Lavorazioni")} <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0" /></span>
-          <span className="mt-2 block text-sm font-semibold text-slate-900 sm:text-base">
+          <span className="mt-1 block text-sm font-semibold text-slate-900">
             {progressError ? t("Dati non disponibili") : progressLoading ? t("Caricamento…") : hasPhases ? t("{n}% avanzamento", { n: percent }) : t("Senza fasi")}
           </span>
           {!progressError && !progressLoading && hasPhases ? <>
@@ -82,7 +83,7 @@ export function OrderCommessaSummary({
         <div className="flex min-w-0 flex-col border-t border-slate-100 lg:border-t-0">
         <button type="button" onClick={onOpenPlanning} className={`${linkClass} flex-1`} aria-label={t("Apri date e pianificazione")}>
           <span className={labelClass}><CalendarDays className="h-3.5 w-3.5 shrink-0" /> {t("Date lavori")} <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0" /></span>
-          <span className="mt-2 block text-sm font-semibold text-slate-900 sm:text-base">
+          <span className="mt-1 block text-sm font-semibold text-slate-900">
             {end ? t("Fine {data}", { data: end }) : installation ? t("Posa {data}", { data: installation }) : start ? t("Inizio {data}", { data: start }) : t("Da pianificare")}
           </span>
           <span className="mt-1 block text-xs text-muted-foreground">
@@ -93,7 +94,7 @@ export function OrderCommessaSummary({
         </div>
         <button type="button" onClick={onOpenTasks} className={`${linkClass} border-t border-slate-100 lg:border-t-0`} aria-label={t("Apri attività della commessa")}>
           <span className={labelClass}><ListChecks className="h-3.5 w-3.5 shrink-0" /> {t("Prossima attività")} <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0" /></span>
-          <span className="mt-2 line-clamp-2 break-words text-sm font-semibold text-slate-900 sm:text-base">
+          <span className="mt-1 line-clamp-2 break-words text-sm font-semibold text-slate-900">
             {taskError ? t("Dati non disponibili") : taskLoading ? t("Caricamento…") : nextTask?.title || t("Nessuna attività aperta")}
           </span>
           <span className={`mt-1 text-xs ${!nextTask && !taskError && !taskLoading ? "hidden sm:block" : "block"} ${overdue && !taskError && !taskLoading ? "font-medium text-red-700" : "text-muted-foreground"}`}>

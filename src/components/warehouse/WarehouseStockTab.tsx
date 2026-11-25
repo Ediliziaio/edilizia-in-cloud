@@ -1,3 +1,4 @@
+import { RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { formattaQuantitaMovimento } from "@/lib/magazzino/quantitaMovimento";
 import { useEffect, useRef, useState, useMemo, useCallback, memo, lazy, Suspense, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -829,16 +830,16 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
           </DialogContent>
         </Dialog>
 
-        <div className="rounded-xl border bg-white p-3 shadow-sm" aria-label={t("Strumenti giacenze")} role="region">
+        <div className="rounded-xl border bg-white p-2.5 shadow-sm" aria-label={t("Strumenti giacenze")} role="region">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:flex-wrap">
-            <div className="relative col-span-2 min-w-0 flex-1 sm:min-w-[180px]">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-              <Input aria-label={t("Cerca articoli per nome o codice")} placeholder={t("Cerca per nome o codice...")} value={searchQuery} onChange={(e) => setSearchQueryWithReset(e.target.value)} className="h-10 pl-9 max-sm:h-11" />
+            <div className={cn(RICERCA_BARRA, "col-span-2 max-sm:w-full")}>
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input aria-label={t("Cerca articoli per nome o codice")} placeholder={t("Cerca per nome o codice...")} value={searchQuery} onChange={(e) => setSearchQueryWithReset(e.target.value)} className="h-8 pl-8 text-xs max-sm:h-11" />
             </div>
             {warehouseSelect && <div className="min-w-0 sm:w-auto">{warehouseSelect}</div>}
-            <Button variant="outline" className="h-10 gap-1.5 max-sm:h-11" onClick={() => setFiltersOpen(true)} aria-label={activeFilterCount ? t(activeFilterCount === 1 ? "Filtri giacenze ({n} attivo)" : "Filtri giacenze ({n} attivi)", { n: activeFilterCount }) : t("Filtri giacenze")}><Filter className="h-4 w-4" />{t("Filtri")}{activeFilterCount > 0 && <Badge variant="secondary" className="px-1.5">{activeFilterCount}</Badge>}</Button>
+            <Button variant="outline" className="h-8 gap-1.5 px-2.5 text-xs max-sm:h-11 [&_svg]:h-3.5 [&_svg]:w-3.5" onClick={() => setFiltersOpen(true)} aria-label={activeFilterCount ? t(activeFilterCount === 1 ? "Filtri giacenze ({n} attivo)" : "Filtri giacenze ({n} attivi)", { n: activeFilterCount }) : t("Filtri giacenze")}><Filter className="h-4 w-4" />{t("Filtri")}{activeFilterCount > 0 && <Badge variant="secondary" className="px-1.5">{activeFilterCount}</Badge>}</Button>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild><Button variant="outline" className="hidden h-10 gap-1.5 md:inline-flex"><Columns3 className="h-4 w-4" />{t("Colonne")}</Button></DropdownMenuTrigger>
+              <DropdownMenuTrigger asChild><Button variant="outline" className="hidden h-8 gap-1.5 px-2.5 text-xs md:inline-flex"><Columns3 className="h-3.5 w-3.5" />{t("Colonne")}</Button></DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>{t("Colonne aggiuntive")}</DropdownMenuLabel>
                 {OPTIONAL_COLUMNS.filter((c) => (!("costs" in c) || canViewCosts) && (c.key !== "zone" || sections.length > 0)).map((c) => <DropdownMenuCheckboxItem key={c.key} checked={optionalColumns.includes(c.key)} onSelect={(e) => e.preventDefault()} onCheckedChange={(checked) => setOptionalColumns((current) => checked ? [...current.filter((key) => key !== c.key), c.key] : current.filter((key) => key !== c.key))}>{t(c.label)}</DropdownMenuCheckboxItem>)}
@@ -848,13 +849,13 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
             <div className="col-span-2 grid grid-cols-3 gap-2 sm:ml-auto sm:flex sm:flex-wrap sm:items-center">
               {primaryActions}
               {/* Telefono: «Prenota» sta in «Altro», le azioni restano su una riga. */}
-              {!readOnly && permissions.canEditOrders && <Button variant="outline" className="h-10 gap-1.5 max-sm:hidden" onClick={() => setReservation({})}>{t("Prenota")}</Button>}
+              {!readOnly && permissions.canEditOrders && <Button variant="outline" className="h-8 gap-1.5 px-2.5 text-xs max-sm:hidden" onClick={() => setReservation({})}>{t("Prenota")}</Button>}
               {!primaryActions && !readOnly && showMovementActions && <>
-                <Button className="h-10" onClick={() => { if (onRegisterArrival) onRegisterArrival(); else { setCaricoItem(undefined); setCaricoOpen(true); } }}>{t("Carica")}</Button>
-                <Button className="h-10" variant="outline" onClick={() => setUscitaOpen(true)}>{t("Preleva")}</Button>
+                <Button className="h-8 px-3 text-xs" onClick={() => { if (onRegisterArrival) onRegisterArrival(); else { setCaricoItem(undefined); setCaricoOpen(true); } }}>{t("Carica")}</Button>
+                <Button className="h-8 px-2.5 text-xs" variant="outline" onClick={() => setUscitaOpen(true)}>{t("Preleva")}</Button>
               </>}
               <DropdownMenu>
-                <DropdownMenuTrigger asChild><Button ref={toolsTriggerRef} variant="outline" className="h-10 gap-1.5 max-sm:h-11" aria-label={t("Altre azioni del magazzino")}><MoreVertical className="h-4 w-4" />{t("Altro")}</Button></DropdownMenuTrigger>
+                <DropdownMenuTrigger asChild><Button ref={toolsTriggerRef} variant="outline" className="h-8 gap-1.5 px-2.5 text-xs max-sm:h-11 [&_svg]:h-3.5 [&_svg]:w-3.5" aria-label={t("Altre azioni del magazzino")}><MoreVertical className="h-4 w-4" />{t("Altro")}</Button></DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="max-h-[75vh] w-64 overflow-y-auto">
                   {!readOnly && permissions.canEditOrders && <DropdownMenuItem className="sm:hidden" onClick={() => setReservation({})}><CalendarClock className="mr-2 h-4 w-4" />{t("Prenota per una commessa")}</DropdownMenuItem>}
                   <DropdownMenuLabel>{t("Articoli e inventario")}</DropdownMenuLabel>

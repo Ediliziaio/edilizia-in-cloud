@@ -1,3 +1,4 @@
+import { RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -850,7 +851,7 @@ function CustomersListInner() {
               <Users className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-lg font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">
+              <h1 className="text-lg font-bold leading-tight tracking-tight text-slate-900 sm:text-xl">
                 {sonoCommittenti ? t("Committenti") : t("Clienti")}
               </h1>
               <p className="hidden sm:block mt-0.5 text-sm text-slate-500">
@@ -887,7 +888,7 @@ function CustomersListInner() {
               telefono (il menu si vede da 640px). */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" aria-label={t("Importa ed esporta clienti")} className="hidden sm:inline-flex">
+              <Button variant="outline" size="icon" aria-label={t("Importa ed esporta clienti")} className="hidden h-8 w-8 sm:inline-flex">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -944,7 +945,7 @@ function CustomersListInner() {
               su mobile la lista è a card, quindi il bottone è inutile. */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" aria-label={t("Colonne")} className="hidden sm:inline-flex">
+              <Button variant="outline" size="icon" aria-label={t("Colonne")} className="hidden h-8 w-8 sm:inline-flex">
                 <Columns3 className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -983,7 +984,7 @@ function CustomersListInner() {
           {/* New customer — la rotta chiede canEditCustomers: senza, il bottone
               portava a una pagina «Accesso negato». */}
           {canEditCustomers ? (
-            <Button asChild size="sm" variant="brand">
+            <Button asChild size="sm" variant="brand" className="h-8 px-3 text-xs">
               <Link to={sonoCommittenti ? "/azienda/clienti/nuovo?tipo=committente" : "/azienda/clienti/nuovo"}>
                 <Plus className="mr-1.5 h-4 w-4" />
                 <span className="sm:hidden">{t("Nuovo")}</span>
@@ -991,7 +992,7 @@ function CustomersListInner() {
               </Link>
             </Button>
           ) : (
-            <Button size="sm" variant="brand" disabled title={customerPermissions.solaLettura ? t("Sei in sola lettura") : t("Non hai il permesso di modifica")}>
+            <Button size="sm" variant="brand" className="h-8 px-3 text-xs" disabled title={customerPermissions.solaLettura ? t("Sei in sola lettura") : t("Non hai il permesso di modifica")}>
               <Plus className="mr-1.5 h-4 w-4" />
               <span className="sm:hidden">{t("Nuovo")}</span>
               <span className="hidden sm:inline">{t("Nuovo Cliente")}</span>
@@ -1007,11 +1008,11 @@ function CustomersListInner() {
       {/* Mobile no: i numeri erano già nascosti e restava un riquadro blu vuoto
           con scritto «Clienti». */}
       {/* Senza l'etichetta «Clienti»: ripeteva il titolo della pagina. */}
-      <div className="hidden rounded-2xl bg-eic-navy-deep p-3 sm:block sm:p-4">
+      <div className="hidden rounded-2xl bg-eic-navy-deep px-3 py-2 sm:block">
         {statsLoading ? (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
+              <div key={i} className="rounded-lg border border-white/12 bg-white/9 px-2.5 py-1.5">
                 <Skeleton className="mb-2 h-3 w-20 bg-white/20" />
                 <Skeleton className="h-6 w-12 bg-white/20" />
               </div>
@@ -1028,7 +1029,7 @@ function CustomersListInner() {
             </div>
           </div>
         ) : (
-          <div className="hidden sm:grid sm:grid-cols-4 sm:gap-3">
+          <div className="hidden sm:grid sm:grid-cols-4 sm:gap-1.5">
             <NavyStatCard
               label={t("Totale clienti")}
               value={stats?.total ?? 0}
@@ -1071,13 +1072,13 @@ function CustomersListInner() {
       <div className="sm:flex sm:flex-wrap sm:items-center sm:gap-2">
         {/* Riga 1: Search + Filtri avanzati button + Clear */}
         <div className="flex items-center gap-2 sm:contents">
-          <div className="relative flex-1 min-w-0 sm:min-w-[220px]">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <div className={RICERCA_BARRA}>
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder={t("Cerca cliente…")}
               value={searchQuery}
               onChange={(e) => wrapSet(setSearchQuery)(e.target.value)}
-              className="pl-10 pr-9 h-10 sm:h-9 max-sm:h-9 max-sm:bg-white"
+              className="pl-8 pr-9 h-10 sm:h-8 sm:text-xs max-sm:h-9 max-sm:bg-white"
               aria-label={t("Cerca per nome, email, telefono o codice fiscale")}
             />
             {searchQuery && (
@@ -1094,12 +1095,12 @@ function CustomersListInner() {
           <Button
             variant="outline"
             size="sm"
-            className="tap-compact relative h-10 sm:h-9 shrink-0 max-sm:h-9 max-sm:bg-white sm:order-last"
+            className="tap-compact relative h-10 sm:h-8 sm:px-2.5 sm:text-xs shrink-0 max-sm:h-9 max-sm:bg-white sm:order-last"
             onClick={() => setAdvOpen(true)}
             aria-label={t("Apri filtri avanzati")}
             title={t("Filtri avanzati")}
           >
-            <Filter className="h-4 w-4 sm:mr-1.5" />
+            <Filter className="h-4 w-4 sm:mr-1.5 sm:h-3.5 sm:w-3.5" />
             <span className="hidden sm:inline">{t("Filtri avanzati")}</span>
             {activeFiltersCount > 0 && (
               <Badge className="ml-1 sm:ml-2 h-5 min-w-[20px] px-1 text-[10px] bg-primary flex items-center justify-center">
@@ -1112,7 +1113,7 @@ function CustomersListInner() {
               variant="ghost"
               size="icon"
               onClick={clearAllFilters}
-              className="text-muted-foreground h-10 w-10 sm:h-9 sm:w-9 shrink-0 sm:order-last"
+              className="text-muted-foreground h-10 w-10 sm:h-8 sm:w-8 shrink-0 sm:order-last"
               aria-label={t("Azzera tutti i filtri")}
               title={t("Azzera filtri")}
             >
@@ -1148,7 +1149,7 @@ function CustomersListInner() {
           !quickFiltersOpen && "max-sm:hidden",
         )}>
           <Select value={filterSalesperson} onValueChange={wrapSet(setFilterSalesperson)}>
-            <SelectTrigger aria-label={t("Filtra clienti per venditore")} className="w-full h-10 sm:h-9 sm:w-[180px] min-w-0">
+            <SelectTrigger aria-label={t("Filtra clienti per venditore")} className="w-full h-10 sm:h-8 sm:w-[180px] sm:text-xs min-w-0">
               <div className="flex items-center gap-2 min-w-0">
                 <UserCheck className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <SelectValue placeholder={t("Venditore")} />
@@ -1166,7 +1167,7 @@ function CustomersListInner() {
           </Select>
 
           <Select value={filterOrders} onValueChange={wrapSet(setFilterOrders)}>
-            <SelectTrigger aria-label={t("Filtra clienti per presenza di ordini")} className="w-full h-10 sm:h-9 sm:w-[160px] min-w-0">
+            <SelectTrigger aria-label={t("Filtra clienti per presenza di ordini")} className="w-full h-10 sm:h-8 sm:w-[160px] sm:text-xs min-w-0">
               <div className="flex items-center gap-2 min-w-0">
                 <ClipboardList className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <SelectValue placeholder={t("Ordini")} />
@@ -1280,8 +1281,8 @@ function CustomersListInner() {
           ("il troppo non va bene" sul telefono). */}
       {customers.length > 0 && anomalyTotals.total > 0 && (
         <Card className="hidden md:block border-l-4 border-l-amber-500 bg-amber-50/40 dark:bg-amber-950/10">
-          <CardContent className="py-4">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <CardContent className="py-2.5">
+            <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center xl:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-sm font-semibold text-slate-900">{t("Anomalie clienti")}</h2>
@@ -1289,7 +1290,7 @@ function CustomersListInner() {
                   <Badge variant="outline" className="border-amber-300 bg-white text-amber-700">{t("{n} da gestire", { n: anomalyTotals.medium ?? 0 })}</Badge>
                   <Badge variant="outline" className="border-slate-300 bg-white text-slate-700">{t("{n} leggere", { n: anomalyTotals.low ?? 0 })}</Badge>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-1 text-xs text-muted-foreground max-2xl:hidden">
                   {t("Controllo operativo sui clienti visibili: dati mancanti, portale, venditore e cantiere.")}
                 </p>
               </div>

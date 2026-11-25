@@ -15,7 +15,8 @@
 }
 .commessa-heading-copy { flex: 1; }
 .commessa-heading-title {
-  font-size: clamp(19px, 1.6vw, 25px);
+  /* 25/11/2026: da 19-25px a 17-20px, come i titoli delle pagine (Commesse, Clienti, Magazzino). */
+  font-size: clamp(17px, 1.2vw, 20px);
   font-weight: 650;
   line-height: 1.3;
   letter-spacing: -.035em;
@@ -24,10 +25,10 @@
 .commessa-heading-icon {
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   flex-shrink: 0;
-  border-radius: 10px;
+  border-radius: 8px;
   background: hsl(24 90% 96%);
   color: var(--commessa-accent);
 }
@@ -41,13 +42,13 @@
 .commessa-page-actions > .ml-auto { margin-left: 0; }
 .commessa-workspace .commessa-primary-action,
 .commessa-workspace [data-ui="button"][data-variant="brand"] {
-  min-height: 36px;
+  min-height: 32px;
   background: var(--commessa-accent);
   background-image: none;
   color: white;
   border-color: transparent;
   box-shadow: none;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   transform: none;
 }
@@ -60,7 +61,7 @@
 .commessa-workspace .commessa-main-tabs[role="tablist"] {
   display: flex;
   height: auto;
-  min-height: 44px;
+  min-height: 38px;
   align-items: stretch;
   justify-content: flex-start;
   padding: 0;
@@ -74,12 +75,12 @@
 .commessa-workspace .commessa-main-tabs [role="tab"] {
   position: relative;
   flex: 0 1 auto;
-  min-height: 44px;
-  padding: 10px 5px;
-  gap: 7px;
+  min-height: 38px;
+  padding: 8px 4px;
+  gap: 6px;
   border-radius: 0;
   color: var(--commessa-muted);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   box-shadow: none;
   background: transparent;
@@ -153,8 +154,8 @@
 .commessa-workspace .commessa-financial-overview,
 .commessa-workspace .commessa-appalto-overview { border-radius: 12px; box-shadow: none; }
 .commessa-workspace .commessa-summary-card { border-radius: 8px; box-shadow: none; border-color: hsl(0 0% 100% / .16); }
-.commessa-workspace .commessa-summary-value { font-size: clamp(18px, 1.7vw, 24px); font-weight: 650; letter-spacing: -.025em; }
-.commessa-workspace .commessa-summary-note { font-size: 12px; line-height: 1.5; color: hsl(214 45% 86%); }
+.commessa-workspace .commessa-summary-value { font-size: clamp(15px, 1.1vw, 18px); font-weight: 650; letter-spacing: -.02em; }
+.commessa-workspace .commessa-summary-note { font-size: 11px; line-height: 1.4; color: hsl(214 45% 86%); }
 .commessa-counterparty-summary { display: grid; grid-template-columns: auto 1fr; gap: 8px 22px; align-items: center; box-shadow: none; }
 .commessa-counterparty-summary > span:nth-child(2) { margin-top: 0; justify-content: flex-start; gap: 6px 24px; }
 .commessa-counterparty-summary > span:nth-child(3) { margin-top: 0; }
