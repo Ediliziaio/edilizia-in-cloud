@@ -7,6 +7,7 @@
  */
 export * from "./tipi";
 export { numeraLocali, vistaDaPlanimetria, type ModoVista, type SceltaVista } from "./adattatore";
+export { soloEdificio } from "./soloEdificio";
 export { PIANTA_ESEMPIO } from "./esempio";
 export { costruisciScena, type Scena, type Primitiva, type NomeLayer, type OpzioniScena } from "./scena";
 export { esportaSvg, scenaInSvg, type OpzioniSvg, type RisultatoSvg } from "./svg";

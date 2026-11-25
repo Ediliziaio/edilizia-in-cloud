@@ -17,7 +17,8 @@ import { selectedRoomVisuals } from "../../../shared/render-references/roomVisua
 import { makeReferenceImage } from "../../../shared/render-references/referenceUrl.ts";
 import { contenutoFascicolo, type RenderNelFascicolo } from "./fascicoloModello";
 import { descriviScelteFascicolo, richiesteFascicolo } from "./fascicoloScelte";
-import { caricaLogo, esportaPdf, vistaDaPlanimetria, type DatiCartiglio } from "./esporta";
+import { caricaLogo, esportaPdf, soloEdificio, vistaDaPlanimetria, type DatiCartiglio } from "./esporta";
+import { inquadraturaEsterna, limitiCasa } from "./tred/telecamera";
 import { pianteDaPlanimetria, pianiDaPlanimetria, costruisciScena, scenaEdificio, vistaGiroIntorno, vistaInternaArredata } from "./tred";
 import { pianiProspetto, prospettoQuotato, sezione } from "./prospetti";
 import { accodaTavole, accodaFoglioImpianti, impaginaDisegni } from "./tavole";
@@ -160,7 +161,9 @@ export async function esportaFascicolo(d: DatiFascicolo): Promise<{ dati: Uint8A
     const scena = scenaEdificio(edificio, { vista: vista3D, soffitto: true, elementi: true, terreno: 2.5 });
     riscontri3D = scena.avvisi;
     if (!scena.mesh.length) return null;
-    const foto = await catturaVistaProgetto({ pianta: edificio[0].piante[vista3D], scena, telecamera: vistaGiroIntorno(scena.limiti, 1.5), vista: vista3D, larghezza: 1440, altezza: 960 });
+    // La casa riempie l'inquadratura, con intorno un po' di lotto (non tutto il lotto: la casa spariva).
+    const casa = limitiCasa(edificio[0].piante[vista3D], scena.limiti);
+    const foto = await catturaVistaProgetto({ pianta: edificio[0].piante[vista3D], scena, telecamera: inquadraturaEsterna("volo", scena.limiti, 1.5, casa), vista: vista3D, larghezza: 1440, altezza: 960 });
     return new Uint8Array(await foto.arrayBuffer());
   };
   const nomeAmbito = d.ambito === "fatto" ? "Stato di fatto" : d.documento.livelli.flatMap((l) => l.proposte).find((p) => `progetto:${p.id}` === d.ambito)?.nome ?? "Progetto";
@@ -216,10 +219,19 @@ export async function esportaFascicolo(d: DatiFascicolo): Promise<{ dati: Uint8A
     avanza(`Planimetria e 3D - ${piano.livello.nome}`);
     indice.push({ titolo: `Planimetria - ${piano.livello.nome}`, pagina: doc.getPageCount() + 1 });
     const docMateriali = { ...d.documento, livelli: d.documento.livelli.map((l) => l.id === piano.livello.id ? { ...l, fatto: statoConMateriali(l.fatto, comuni), proposte: l.proposte.map((pr) => ({ ...pr, ...statoConMateriali(pr, comuni) })) } : l) };
-    const vista = vistaDaPlanimetria(docMateriali, { livelloId: piano.livello.id, modo: piano.geometria === "fatto" ? "fatto" : "progetto", propostaId });
+    const vistaIntera = vistaDaPlanimetria(docMateriali, { livelloId: piano.livello.id, modo: piano.geometria === "fatto" ? "fatto" : "progetto", propostaId });
+    // Col lotto nella stessa tavola la casa finiva a 1:500, illeggibile (Callimaco, 25/11/2026): le
+    // tavole del piano mostrano l'edificio, il lotto ha la sua tavola, la planimetria generale.
+    const vista = soloEdificio(vistaIntera);
     await aggiungiPdf((await esportaPdf(vista, { ...d.cartiglio, oggetto: `${piano.livello.nome} - ${nomeAmbito}` }, {
       formato: "A4", orientamento: "orizzontale", scala: "auto", stile: "presentazione", quoteAutomatiche: "ingombri",
     })).dati);
+    if (vista !== vistaIntera) {
+      indice.push({ titolo: "Planimetria generale - lotto", pagina: doc.getPageCount() + 1 });
+      await aggiungiPdf((await esportaPdf(vistaIntera, { ...d.cartiglio, oggetto: "Planimetria generale - lotto e sistemazioni esterne" }, {
+        formato: "A4", orientamento: "orizzontale", scala: "auto", stile: "presentazione", quoteAutomatiche: false,
+      })).dati);
+    }
     // Tavola di vendita: le stanze colorate per zona, poi le unità del piano con la legenda del
     // progettista e, dove c'è il lotto, i suoi dati (come le tavole dei progettisti, 24/11/2026).
     const unitaPiano = progetto.unita.filter((u) => u.piani.includes(piano.livello.nome));
@@ -274,7 +286,7 @@ export async function esportaFascicolo(d: DatiFascicolo): Promise<{ dati: Uint8A
     if (piano.stanze.length) {
       const scena = costruisciScena(pianta, { vista: vista3D, soffitto: false, elementi: true });
       const foto = await risorsa(`Vista 3D del piano ${piano.livello.nome}`, () =>
-        catturaVistaProgetto({ pianta, scena, telecamera: vistaGiroIntorno(scena.limiti, 1.5), vista: vista3D, larghezza: 1440, altezza: 960 }));
+        catturaVistaProgetto({ pianta, scena, telecamera: vistaGiroIntorno(limitiCasa(pianta, scena.limiti), 1.5), vista: vista3D, larghezza: 1440, altezza: 960 }));
       if (foto) {
         nuovaPagina(`${piano.livello.nome} - vista 3D aperta`, "Distribuzione degli ambienti e degli arredi", true);
         await immagine(new Uint8Array(await foto.arrayBuffer()), M, y, utile, y - M, true);
