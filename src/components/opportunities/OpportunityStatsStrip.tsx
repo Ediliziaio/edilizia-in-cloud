@@ -54,6 +54,9 @@ export function costruisciSoglieStallo(stages?: OpportunityStage[]): Map<string,
   return m;
 }
 
+/** I soli numeri che restano sotto i 1024px (tablet e telefono): quante sono, quanto valgono, cosa c'è da fare. */
+const NUMERI_SCHERMO_PICCOLO = new Set<string>(["open", "pipeline_value", "azioni_scadute"]);
+
 export function OpportunityStatsStrip({ riepilogo, filtroAttivo, onFiltro }: Props) {
   const t = useT();
   const stats = useMemo(() => {
@@ -86,10 +89,11 @@ export function OpportunityStatsStrip({ riepilogo, filtroAttivo, onFiltro }: Pro
       : formatCount(v);
 
   return (
-    // Tablet (sotto i 1024px): una riga che scorre invece di tre righe di
-    // riquadri sopra la pipeline. Dal computer resta la griglia: cinque per
-    // riga fino a 1280 (a quattro erano tre righe, l'ultima con un riquadro solo).
-    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 gap-1.5 max-lg:flex max-lg:overflow-x-auto max-lg:scrollbar-none">
+    // Dal computer resta la griglia: cinque per riga fino a 1280 (a quattro erano tre righe, l'ultima con un
+    // riquadro solo), nove da 1280.
+    // Sotto i 1024px (tablet e telefono, 25/11/2026): solo tre numeri, Aperte, Pipeline e Da fare, su una riga che
+    // non scorre. Prima erano nove riquadri in fila da scorrere di lato, troncati («733.20…»).
+    <div className="grid grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-1.5">
       {STATS_CONFIG.map(({ key, label, icon: Icon, colorClass }) => {
         const isCurrency = key === "pipeline_value" || key === "weighted_value" || key === "won_value";
         const value = stats[key];
@@ -132,7 +136,8 @@ export function OpportunityStatsStrip({ riepilogo, filtroAttivo, onFiltro }: Pro
         );
 
         const classi = cn(
-          "flex items-center gap-2 rounded-md border-l-2 bg-muted/30 px-2 py-1 max-lg:min-w-[128px] max-lg:shrink-0",
+          "flex items-center gap-2 rounded-md border-l-2 bg-muted/30 px-2 py-1 min-w-0 max-sm:gap-1.5 max-sm:px-1.5",
+          !NUMERI_SCHERMO_PICCOLO.has(key) && "max-lg:hidden",
           colorClass.split(" ")[0],
           cliccabile && "cursor-pointer transition-colors hover:bg-muted/60",
           attivo && "ring-1 ring-primary bg-primary/5",
