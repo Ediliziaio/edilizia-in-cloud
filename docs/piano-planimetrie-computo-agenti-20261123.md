@@ -236,6 +236,10 @@ Non fatto, con il motivo:
   lasciate fuori sono in `escluse` col motivo. La fonte mostrata è «Prezzario Lombardia 2026 ·
   <codice>, da confermare». Fuori ovunque: demolizione di muratura (m³), finestre e rimozioni
   (m² contro cad), macerie, radiante.
+  Il 25/11 la nuova costruzione nel Lazio 2023 (sopraelevazione di Callimaco a Roma): ponteggio
+  (primo mese), solai laterocemento e predalles, tamponatura, cappotto a spessore (base 4 cm +
+  ogni cm in più), portoncino, scavo a m³; fuori, col motivo, i pacchetti (copertura, terrazzo),
+  il calcestruzzo senza ferro e casseri, l'impianto elettrico a punti, massetto e intonaco esterno.
 - **Lotto F (una sola chat)** e **Lotto I (telefono)** — non iniziati.
 
 Regola presa dopo un errore: prima del push il controllo dei tipi dei file toccati deve

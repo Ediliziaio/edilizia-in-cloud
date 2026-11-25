@@ -131,7 +131,11 @@ export function tipoLavorazione(r: Pick<RigaStudio, "id" | "descrizione">): Tipo
   return null;
 }
 
-export interface VoceDiPrezzo { codice: string | null; descrizione: string; unita: string | null; prezzo: number }
+export interface VoceDiPrezzo {
+  codice: string | null; descrizione: string; unita: string | null; prezzo: number;
+  /** Voce a spessore del prezzario: `prezzo` vale per `daCm`, ogni cm in più costa `perCm.prezzo`. */
+  perCm?: { codice: string; prezzo: number; daCm: number };
+}
 export interface FontiPrezzi {
   /** Il listino dell'azienda. */
   listino: readonly VoceDiPrezzo[];
@@ -164,6 +168,23 @@ const impianto = (id: string) => {
   return chiave ? LISTINO_IMPIANTI.find((v) => v.id === chiave) : undefined;
 };
 
+/**
+ * Una voce a spessore (base + ogni cm in più) per la riga che dice lo spessore («Isolamento a
+ * cappotto 12 cm»): 4 cm della base + 8 cm in più. Null se la voce non è a spessore, o se la riga
+ * non dice lo spessore: allora la voce non quota la riga, perché il prezzo dipende da lì.
+ * Uno spessore sotto quello della base prende la base (il prezzario non scende).
+ */
+function conSpessore(v: VoceDiPrezzo, descrizione: string): { importo: number; codici: string } | null {
+  if (!v.perCm || !(v.perCm.prezzo > 0)) return null;
+  const cm = Number(/(\d+(?:[.,]\d+)?)\s*cm\b/.exec(descrizione)?.[1]?.replace(",", "."));
+  if (!(cm > 0)) return null;
+  const inPiu = Math.max(0, Math.ceil(cm - v.perCm.daCm - 1e-9));
+  return {
+    importo: Math.round((v.prezzo + inPiu * v.perCm.prezzo) * 100) / 100,
+    codici: inPiu ? `${v.codice ?? ""} + ${inPiu} × ${v.perCm.codice}` : v.codice ?? "",
+  };
+}
+
 /** Il prezzo proposto per una riga, con la fonte; null se resta da quotare. */
 export function proponiPrezzo(r: Pick<RigaStudio, "id" | "descrizione" | "unita">, fonti: FontiPrezzi = FONTI_VUOTE): PrezzoVocePlanimetria | null {
   const tipo = tipoLavorazione(r);
@@ -176,7 +197,10 @@ export function proponiPrezzo(r: Pick<RigaStudio, "id" | "descrizione" | "unita"
   // Il prezzario: solo la voce abbinata per codice, e solo se l'unità è quella della riga.
   const v = fonti.prezzario[tipo];
   if (v && fonti.prezzarioNome && Number.isFinite(v.prezzo) && v.prezzo > 0 && unitaCompatibili(v.unita, r.unita)) {
-    return { importo: v.prezzo, unita: r.unita, tariffa: (v.codice ?? "").slice(0, 120),
+    const spessore = conSpessore(v, r.descrizione);
+    if (spessore) return { importo: spessore.importo, unita: r.unita, tariffa: spessore.codici.slice(0, 120),
+      fonte: `Prezzario ${fonti.prezzarioNome} · ${spessore.codici}, da confermare`.slice(0, 300) };
+    if (!v.perCm) return { importo: v.prezzo, unita: r.unita, tariffa: (v.codice ?? "").slice(0, 120),
       fonte: `Prezzario ${fonti.prezzarioNome} · ${v.codice ?? ""}, da confermare`.slice(0, 300) };
   }
   // «A corpo» non ha un ordine di grandezza che valga per tutti, tranne le macerie di una parete

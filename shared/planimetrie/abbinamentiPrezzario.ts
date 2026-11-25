@@ -18,13 +18,19 @@
  * - radiante: il «sistema radiante» comprende pannelli e tubo insieme, le righe sono separate;
  * - ripristino del pavimento nella traccia: nessuna voce di rappezzo localizzato.
  *
+ * Nuova costruzione (25/11/2026, solo Lazio per ora): le righe di `nuovaCostruzione.ts`. Le voci
+ * a m³ (scavi) valgono come le altre; calcestruzzo di fondazioni, pilastri e cordoli no, perché
+ * la riga comprende ferro e casseri e il prezzario li conta a parte (kg e m²). Le righe che sono
+ * un pacchetto di strati (copertura, terrazzo: solaio, isolamento, impermeabilizzazione, manto o
+ * pavimento) non hanno una voce sola e restano al prezzo indicativo.
+ *
  * Una voce nuova: cercarla con SQL su `prezzario_voce` della fonte (regione + anno, stato
  * `pubblicato`), leggere la descrizione intera, copiarla qui. Il test
  * `planimetrieAbbinamentiPrezzario.test.ts` controlla nel database che il codice esista e che
  * l'unità sia quella scritta qui.
  */
 
-export type UnitaAbbinamento = "m²" | "m" | "cad";
+export type UnitaAbbinamento = "m²" | "m" | "cad" | "m³";
 
 export interface VoceAbbinata {
   codice: string;
@@ -33,6 +39,12 @@ export interface VoceAbbinata {
   descrizione: string;
   /** Perché questa e non un'altra, quando non è evidente. */
   nota?: string;
+  /**
+   * La voce è a spessore: `codice` vale per `daCm` centimetri e questa voce aggiunge il prezzo
+   * di ogni centimetro in più («A 11.02.1.b.1 spessore 4 cm» + «A 11.02.1.b.2 per ogni cm in
+   * più»). Lo spessore lo dice la riga («Isolamento a cappotto 12 cm»): 4 cm + 8 × 1 cm.
+   */
+  perCm?: { codice: string; daCm: number; descrizione: string };
 }
 
 export interface AbbinamentiRegione {
@@ -908,9 +920,59 @@ export const ABBINAMENTI_PREZZARIO: readonly AbbinamentiRegione[] = [
         descrizione: "Rivestimento di pareti interne con piastrelle di ceramica smaltata di prima scelta, poste in opera … l'allettamento con la stessa malta o con collante, la stuccatura dei giunti con cemento colorato o idoneo sigillante e la pulitura, esclusi i pezzi speciali: — monocottura in pasta bianca: — a tinta unita 20x20 cm",
         nota: "Ceramica monocottura 20x20 per pareti interne; intonaco rustico escluso.",
       },
+      // Nuova costruzione e sopraelevazione (25/11/2026).
+      ponteggio: {
+        codice: "S 1.01.3.3.a", unita: "m²",
+        descrizione: "Ponteggio metallico a telaio prefabbricato realizzato in tubolari metallici in acciaio zincato o verniciato, … per altezze fino a m 20. Valutato a metro quadro di prospetto del ponteggio. — Noleggio, montaggio e smontaggio comprensivo di trasporto, approvvigionamento, scarico e tiro in alto dei materiali, per il primo mese o frazione.",
+        nota: "Il primo mese, montaggio e smontaggio compresi. Ogni mese in più è S 1.01.3.3.b (5,45 €/m²): la riga non sa la durata del cantiere, va aggiunto a mano.",
+      },
+      solaio_laterocemento: {
+        codice: "A 7.01.2.e", unita: "m²",
+        descrizione: "Solaio misto di cemento armato e laterizio per strutture piane costituito da pignatte interposte a travetti prefabbricati in laterizio con traliccio in ferro … escluso il ferro delle armature supplementari agli elementi prefabbricati e l'uso della pompa per il getto del calcestruzzo — per altezza totale di 24 cm",
+        nota: "20+4 cm, il solaio d'abitazione tipico; travetti prefabbricati. Ferro supplementare e pompa esclusi.",
+      },
+      solaio_predalles: {
+        codice: "A 7.01.6.b", unita: "m²",
+        descrizione: "Solaio composto da lastre prefabbricate in calcestruzzo da 6 cm, alleggerite con blocchi di polistirolo espanso … con la sola esclusione dei ferri di armatura supplementare e l'uso della pompa per il getto del calcestruzzo — per altezza totale di 25 cm ed incidenza armatura longitudinale di 5 kg/mq",
+        nota: "Lastre tralicciate alleggerite (predalles), 25 cm; getto, casseforme e rete compresi.",
+      },
+      tamponatura: {
+        codice: "A 9.02.7.b.1", unita: "m²",
+        descrizione: "Muratura per opere in elevazione realizzata con blocchi di laterizio alveolato, di cui alla norma UNI 1745 ad elevate prestazioni termiche, … — con blocchi per murature di tamponamento e divisori allettati con malta tradizionale: — Spess.30 cm x25x25 trasmittanza termica < 0,45 W/mq K",
+        nota: "La sola voce «di tamponamento» con trasmittanza a norma. A 9.02.6 (12,5–20 cm, 77–88 €) si dichiara non adeguata alla normativa termica.",
+      },
+      cappotto: {
+        codice: "A 11.02.1.b.1", unita: "m²",
+        descrizione: "Isolamento termico a cappotto di pareti esterne ed interne già preparate, eseguito mediante pannelli rigidi di materiale isolante … completo di intonaco sottile dello spessore di 5-6 mm applicato in più riprese per dare il supporto pronto per la tinteggiatura, … escluse tinteggiature. — pannelli in lana di roccia",
+        nota: "Lana di roccia: nel Lazio il cappotto in EPS non c'è. Rasatura armata compresa, tinteggiatura esclusa.",
+        perCm: {
+          codice: "A 11.02.1.b.2", daCm: 4,
+          descrizione: "Isolamento termico a cappotto di pareti esterne ed interne già preparate, … — pannelli in lana di roccia … — per ogni cm in più",
+        },
+      },
+      portoncino: {
+        codice: "A 16.01.5.a", unita: "cad",
+        descrizione: "OPERE DA FALEGNAME — Portone blindato realizzato in lamiera spessore di 2 mm interamente saldata in un'unica scocca, … serratura completa di Defender in ottone e di due cilindri europei, spazzolino a pavimento anti-aria, zoccolino interno battiscopa, compreso montaggio: — ad un'anta",
+      },
+      scavo: {
+        codice: "A 2.01.1.b", unita: "m³",
+        descrizione: "SCAVI PER OPERE — Scavo a sezione aperta per sbancamento e splateamento in rocce di qualsiasi natura e consistenza con resistenza inferiore a 8 N/mmq … — eseguito con mezzi meccanici, compreso il carico sui mezzi di trasporto",
+        nota: "Terreno sciolto, carico compreso; il trasporto delle terre è la riga dopo.",
+      },
     },
     escluse: {
       porta: "Le porte interne in legno del Lazio (A 16.01.x) sono tutte a mq; a cad c'è solo la porta in alluminio A 17.03.5.a (1.082,91), che non è tamburata.",
+      copertura: "La riga è un pacchetto (struttura o solaio, isolamento, impermeabilizzazione, manto): il prezzario ha solo gli strati, uno per voce (A 7.01, A 11.01, A 10.01, A 8.01).",
+      terrazzo: "La riga è un pacchetto (solaio, isolamento, impermeabilizzazione, pavimento): il prezzario ha solo gli strati, uno per voce.",
+      intonaco_esterno: "Nessuna voce di intonaco per facciate con la finitura: A 12.01.2 è il solo rustico, A 12.01.4.a (premiscelato) è già l'intonaco interno e non dice esterni.",
+      massetto: "La riga è alleggerito più sabbia-cemento; A 7.03.03 (29,19 €, 6 cm) è il solo sabbia-cemento e l'alleggerito è a m²/cm (A 11.01.1).",
+      isolamento_pavimento: "A pavimento ci sono massetti isolanti a m²/cm (A 11.01.1) e pannelli a secco solo anticalpestio o fibra di legno 2 cm (A 11.01.10).",
+      rimozione_copertura: "A 3.02.1/3.02.2 rimuovono solo il manto in tegole, senza calo in basso né smaltimento; la riga è la copertura intera, con lo smaltimento.",
+      adeguamento_sismico: "Nessuna voce a m² di edificio: il prezzario ha i singoli rinforzi (placcaggi, cerchiature, consolidamenti dei solai).",
+      impianto_elettrico: "Nel Lazio l'impianto elettrico è a punti (luce, presa), a cad; la riga è a m² di alloggio.",
+      fondazioni_ca: "Il calcestruzzo (A 6.01.2) esclude ferro e casseforme, che sono a kg e a m²; la riga li comprende.",
+      struttura_ca: "Il calcestruzzo per elevazioni esclude ferro e casseforme, che sono a kg e a m²; la riga li comprende.",
+      cordoli_ca: "Il calcestruzzo esclude ferro e casseforme, che sono a kg e a m²; la riga li comprende.",
     },
   },
   {
