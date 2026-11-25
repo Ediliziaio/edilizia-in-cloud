@@ -114,17 +114,19 @@ describe("Hub fatture per chi fattura con un altro programma", () => {
     expect(s.filtri.at(-1)?.conImportate).toBe(true);
   });
 
-  it("non vede «Nuovo documento» né la creazione dall'elenco vuoto, ma ha Sincronizza, Report e Abbina", () => {
+  it("non vede «Nuovo documento» né la creazione dall'elenco vuoto, ma ha Sincronizza, Report e Abbina", async () => {
     s.documenti = [];
     monta();
     expect(screen.queryByRole("button", { name: /Nuovo documento/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Crea la tua prima fattura/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sincronizza" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Report fiscali/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Abbina alle commesse/ })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Emesse importate/ })).toBeInTheDocument();
+    // Dal 25/11/2026 report, abbinamento, emesse importate e impostazioni stanno nel «⋯» della testata.
+    fireEvent.keyDown(screen.getAllByRole("button", { name: "Altre azioni" })[0], { key: "Enter", code: "Enter" });
+    expect(await screen.findByRole("menuitem", { name: /Report fiscali/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Abbina alle commesse/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Emesse importate/ })).toBeInTheDocument();
     // Le impostazioni sono quelle del collegamento al gestionale, non la numerazione nativa.
-    expect(screen.getByRole("link", { name: /Impostazioni/ })).toHaveAttribute("href", "/azienda/impostazioni/fatturazione");
+    expect(screen.getByRole("menuitem", { name: /Impostazioni/ })).toHaveAttribute("href", "/azienda/impostazioni/fatturazione");
   });
 
   it("una fattura importata si apre nel suo dettaglio, non nell'editor", () => {
