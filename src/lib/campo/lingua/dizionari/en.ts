@@ -15963,6 +15963,7 @@ const dizionario: Dizionario = {
   "La mia formazione": "My training",
   "Contatti CRM": "CRM Contacts",
   "Preventivi CRM": "CRM Quotes",
+  "Preventivi/Computi": "Quotes/Estimates",
   "Simulatore": "Simulator",
   "Calendario CRM": "CRM Calendar",
   "Sales OS": "Sales OS",

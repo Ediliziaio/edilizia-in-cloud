@@ -4347,6 +4347,7 @@ const dizionario: Dizionario = {
   "La mia formazione": "Trajnimi im",
   "Contatti CRM": "Kontaktet CRM",
   "Preventivi CRM": "Preventivat CRM",
+  "Preventivi/Computi": "Preventivat/Llogaritjet",
   "Simulatore": "Simulatori",
   "Calendario CRM": "Kalendari CRM",
   "Sales OS": "Sales OS",
