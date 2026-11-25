@@ -47,6 +47,7 @@ import {
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { BOTTONE_NUOVO, BOTTONE_SECONDARIO } from "@/components/orders/TestataScheda";
 import { supabase } from "@/integrations/supabase/client";
 import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1229,7 +1230,7 @@ export default function MarketingCalendar() {
             due righe). Sul telefono la riga dei numeri resta. */}
         <div className="flex items-center gap-3 max-sm:min-w-0">
           <div className="max-sm:min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight max-sm:truncate max-sm:text-lg">{tr("Calendario")}<span className="hidden xl:inline"> {tr("appuntamenti")}</span></h1>
+            <h1 className="text-xl font-bold tracking-tight max-sm:truncate max-sm:text-lg">{tr("Calendario")}<span className="hidden xl:inline"> {tr("appuntamenti")}</span></h1>
             <p className="text-sm text-muted-foreground max-sm:text-xs sm:hidden">
               {/* Telefono (founder, 23/11/2026): niente riquadri, una riga sola — quanti oggi e,
                   se ce ne sono, quanti da assegnare (tocco = filtro). */}
@@ -1259,20 +1260,20 @@ export default function MarketingCalendar() {
             variant="outline"
             onClick={handleSyncExternalCalendars}
             disabled={syncingExternal}
-            className="h-9 gap-1.5 max-sm:hidden"
+            className={cn(BOTTONE_SECONDARIO, "max-sm:hidden")}
             title={tr("Sincronizza disponibilità e appuntamenti con i calendari esterni collegati")}
           >
-            <RefreshCw className={cn("h-4 w-4", syncingExternal && "animate-spin")} />
+            <RefreshCw className={cn(syncingExternal && "animate-spin")} />
             <span className="hidden sm:inline">{tr("Sync")}</span>
           </Button>
           <Button
             size="sm"
             variant="ghost"
             onClick={() => navigate(calendarSettingsPath)}
-            className="h-9 gap-1 text-muted-foreground hover:text-foreground max-md:hidden"
+            className={cn(BOTTONE_SECONDARIO, "text-muted-foreground hover:text-foreground max-md:hidden")}
             title={tr("Impostazioni calendari")}
           >
-            <Settings className="h-4 w-4" />
+            <Settings />
             <span className="hidden md:inline">{tr("Impostazioni")}</span>
           </Button>
           <Button
@@ -1282,17 +1283,17 @@ export default function MarketingCalendar() {
             title={hasCalendars && permissions.solaLettura ? tr("Sei in sola lettura") : undefined}
             // Senza calendari il bottone porta alla configurazione, che dal telefono non si fa.
             aria-label={hasCalendars ? tr("Nuovo appuntamento") : tr("Configura calendario")}
-            className={cn("h-9 max-sm:h-11", !hasCalendars && "max-md:hidden")}
+            className={cn(BOTTONE_NUOVO, "max-sm:h-11", !hasCalendars && "max-md:hidden")}
           >
             {hasCalendars ? (
               <>
-                <Plus className="h-4 w-4 mr-1.5" />
+                <Plus />
                 <span className="max-sm:hidden">{tr("Nuovo appuntamento")}</span>
                 <span className="sm:hidden">{tr("Nuovo")}</span>
               </>
             ) : (
               <>
-                <CalendarPlus className="h-4 w-4 mr-1.5" />
+                <CalendarPlus />
                 {tr("Configura calendario")}
               </>
             )}
@@ -1309,7 +1310,7 @@ export default function MarketingCalendar() {
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5 max-sm:hidden">
         <div className="rounded-lg border bg-card px-3 py-2 max-sm:hidden">
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">{tr("Visibili")}</p>
-          <p className="text-xl font-bold tabular-nums max-md:text-base">{headerStats.visible}</p>
+          <p className="text-lg font-bold tabular-nums max-md:text-base">{headerStats.visible}</p>
         </div>
         <button
           type="button"
@@ -1318,11 +1319,11 @@ export default function MarketingCalendar() {
           title={tr("Vai a oggi")}
         >
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">{tr("Oggi")}</p>
-          <p className="text-xl font-bold tabular-nums max-md:text-base">{headerStats.todayCount}</p>
+          <p className="text-lg font-bold tabular-nums max-md:text-base">{headerStats.todayCount}</p>
         </button>
         <div className="rounded-lg border bg-card px-3 py-2 max-sm:hidden">
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">{tr("Settimana")}</p>
-          <p className="text-xl font-bold tabular-nums max-md:text-base">{headerStats.weekCount}</p>
+          <p className="text-lg font-bold tabular-nums max-md:text-base">{headerStats.weekCount}</p>
         </div>
         {/* KPI-filtro (toggle): mostra solo il sottoinsieme sulla griglia/elenco. */}
         <button
@@ -1340,7 +1341,7 @@ export default function MarketingCalendar() {
             {tr("Da assegnare")}<span className="max-sm:hidden">{kpiFilter === "unassigned" && ` ${tr("· filtro attivo")}`}</span>
           </p>
           <p className={cn(
-            "text-xl font-bold tabular-nums max-md:text-base",
+            "text-lg font-bold tabular-nums max-md:text-base",
             headerStats.unassigned > 0 && "text-amber-700 dark:text-amber-400"
           )}>{headerStats.unassigned}</p>
         </button>
@@ -1361,7 +1362,7 @@ export default function MarketingCalendar() {
             {tr("Conflitti")}{kpiFilter === "conflicts" && ` ${tr("· filtro attivo")}`}
           </p>
           <p className={cn(
-            "text-xl font-bold tabular-nums max-md:text-base",
+            "text-lg font-bold tabular-nums max-md:text-base",
             headerStats.conflicts > 0 ? "text-red-700 dark:text-red-400" : "text-foreground"
           )}>{headerStats.conflicts}</p>
         </button>
@@ -1398,7 +1399,7 @@ export default function MarketingCalendar() {
                 setActiveTab(t.key);
               }}
               className={cn(
-                "inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap max-sm:min-h-11 max-sm:px-2",
+                "inline-flex h-8 items-center gap-1.5 border-b-2 px-3 text-xs font-medium transition-colors whitespace-nowrap max-sm:min-h-11 max-sm:px-2",
                 activeTab === t.key
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -1474,38 +1475,38 @@ export default function MarketingCalendar() {
               <Button
                 variant={isCurrentDateToday ? "default" : "outline"}
                 size="sm"
-                className="h-9 px-3 max-sm:h-11"
+                className={cn(BOTTONE_SECONDARIO, "max-sm:h-11")}
                 onClick={goToday}
                 aria-label={tr("Vai a oggi")}
               >
                 {tr("Oggi")}
               </Button>
-              <div className="flex h-9 items-center rounded-md border max-sm:h-11">
+              <div className="flex h-8 items-center rounded-md border max-sm:h-11">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-full w-9 rounded-r-none max-sm:w-11"
+                  className="h-full w-8 rounded-r-none max-sm:w-11"
                   onClick={goPrev}
                   aria-label={tr("Periodo precedente")}
                 >
-                  <ChevronLeft className="h-4 w-4" />
+                  <ChevronLeft className="h-3.5 w-3.5" />
                 </Button>
                 <div className="w-px h-5 bg-border" />
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-full w-9 rounded-l-none max-sm:w-11"
+                  className="h-full w-8 rounded-l-none max-sm:w-11"
                   onClick={goNext}
                   aria-label={tr("Periodo successivo")}
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-3.5 w-3.5" />
                 </Button>
               </div>
 
               <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
                 <PopoverTrigger asChild>
                   <button
-                    className="flex h-9 min-w-0 max-w-[160px] items-center gap-1.5 rounded-md px-2 text-sm font-medium transition-colors hover:bg-muted/50 hover:text-primary max-sm:order-first max-sm:h-11 max-sm:max-w-none max-sm:basis-full max-sm:border md:max-w-none"
+                    className="flex h-8 min-w-0 max-w-[160px] items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors hover:bg-muted/50 hover:text-primary max-sm:order-first max-sm:h-11 max-sm:max-w-none max-sm:basis-full max-sm:border md:max-w-none"
                     aria-label={tr("Apri selezione data")}
                   >
                     <CalendarIcon className="h-3.5 w-3.5 opacity-60 shrink-0" />
@@ -1531,10 +1532,10 @@ export default function MarketingCalendar() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-9 gap-1.5 max-sm:h-11 xl:hidden"
+                    className={cn(BOTTONE_SECONDARIO, "max-sm:h-11 xl:hidden")}
                     aria-label={tr("Apri filtri")}
                   >
-                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                    <SlidersHorizontal />
                     <span>{tr("Filtri")}</span>
                     {activeFilterCount > 0 && (
                       <Badge
@@ -1573,12 +1574,12 @@ export default function MarketingCalendar() {
                   ingannevole perché il rendering condizionale a valle
                   supportava già tutte e 3 le viste. */}
               {/* Telefono: resta il mese con l'elenco del giorno sotto; giorno e settimana a colonne orarie al computer. */}
-              <div className="inline-flex h-9 items-center rounded-md border bg-background p-0.5 text-xs font-medium md:text-sm max-sm:hidden">
+              <div className="inline-flex h-8 items-center rounded-md border bg-background p-0.5 text-xs font-medium max-sm:hidden">
                 <button
                   type="button"
                   onClick={() => setCalendarView("day")}
                   className={cn(
-                    "inline-flex h-8 items-center gap-1.5 rounded-sm px-2.5 transition-colors md:px-3",
+                    "inline-flex h-[26px] items-center gap-1.5 rounded-sm px-2.5 transition-colors",
                     calendarView === "day"
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -1593,7 +1594,7 @@ export default function MarketingCalendar() {
                   type="button"
                   onClick={() => setCalendarView("week")}
                   className={cn(
-                    "inline-flex h-8 items-center gap-1.5 rounded-sm px-2.5 transition-colors md:px-3",
+                    "inline-flex h-[26px] items-center gap-1.5 rounded-sm px-2.5 transition-colors",
                     calendarView === "week"
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -1608,7 +1609,7 @@ export default function MarketingCalendar() {
                   type="button"
                   onClick={() => setCalendarView("month")}
                   className={cn(
-                    "inline-flex h-8 items-center gap-1.5 rounded-sm px-2.5 transition-colors md:px-3",
+                    "inline-flex h-[26px] items-center gap-1.5 rounded-sm px-2.5 transition-colors",
                     calendarView === "month"
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -1631,7 +1632,7 @@ export default function MarketingCalendar() {
                   type="button"
                   onClick={() => setShowOperativi((v) => !v)}
                   className={cn(
-                    "inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors md:text-sm max-sm:hidden",
+                    "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors max-sm:hidden",
                     showOperativi
                       ? "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100"
                       : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground"

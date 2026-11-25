@@ -49,6 +49,7 @@ import { OpportunityStatsStrip, type FiltroStrip } from "@/components/opportunit
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { cn } from "@/lib/utils";
+import { BOTTONE_NUOVO, BOTTONE_SECONDARIO } from "@/components/orders/TestataScheda";
 import { formatCount } from "@/lib/formatters";
 import { CercaConFiltri, GruppoFiltri, PannelloFiltri, PilloleFiltro, SceltaFiltro } from "@/components/mobile/FiltriMobile";
 import { CreateListDialog } from "@/components/marketing/CreateListDialog";
@@ -760,12 +761,13 @@ function MarketingOpportunitiesContent() {
     // Prima avevano un'altezza fissa calcolata a occhio e, con striscia e
     // barre sopra, finivano sotto il bordo: si scorreva la pagina E la colonna.
     <div className="flex flex-col h-full min-h-0 gap-3 md:h-[calc(100vh-137px)] md:pb-0">
-      <h1 className="sr-only">{t("Opportunità")}</h1>
       <div className="shrink-0 empty:hidden">
         <ImportazioniProgrammate companyId={companyId} oggetto="opportunita" onAnnullata={() => queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all })} />
       </div>
       <div className="flex shrink-0 flex-nowrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-3 shadow-sm sm:flex-wrap sm:gap-3 max-md:rounded-none max-md:border-0 max-md:bg-none max-md:p-0 max-md:shadow-none">
         <div className="flex min-w-0 items-center gap-2 max-md:flex-1">
+          {/* Titolo da computer come nelle altre schede (20px); sotto i 1024px lo dicono le pillole. */}
+          <h1 className="min-w-0 shrink-0 text-xl font-bold leading-tight tracking-tight text-slate-900 max-lg:sr-only">{t("Opportunità")}</h1>
           <PipelineSelector pipelines={pipelines} value={selectedPipelineId} onChange={setSelectedPipelineId} />
           {canViewPipelineSettings && (
             <Button variant="ghost" size="icon" className="hidden size-8 shrink-0 md:inline-flex" aria-label={t("Impostazioni pipeline")} title={t("Gestisci pipeline e fasi")} onClick={() => navigate(pipelineSettingsPath)}>
@@ -814,11 +816,11 @@ function MarketingOpportunitiesContent() {
             </TooltipTrigger>
             <TooltipContent>{layout === "mini" ? t("Vista estesa") : t("Vista compatta")}</TooltipContent>
           </Tooltip>
-          <Button variant="outline" size="sm" className="hidden md:inline-flex h-8 text-xs max-xl:w-8 max-xl:px-0" onClick={() => setImportOpen(true)} disabled={stages.length === 0 || !canEditOpportunities} aria-label={t("Importa")}>
-            <Upload className="mr-1.5 h-3.5 w-3.5 max-xl:mr-0" /> <span className="max-xl:hidden">{t("Importa")}</span>
+          <Button variant="outline" size="sm" className={cn(BOTTONE_SECONDARIO, "hidden md:inline-flex max-xl:w-8 max-xl:px-0")} onClick={() => setImportOpen(true)} disabled={stages.length === 0 || !canEditOpportunities} aria-label={t("Importa")}>
+            <Upload /> <span className="max-xl:hidden">{t("Importa")}</span>
           </Button>
-          <Button size="sm" className="h-11 shrink-0 gap-1.5 px-3 text-sm font-semibold md:h-8 md:text-xs" onClick={() => setDialogOpen(true)} disabled={stages.length === 0 || !canEditOpportunities} aria-label={isMobile ? t("Nuova opportunità") : t("Aggiungi opportunità")}>
-            <Plus className="size-4" aria-hidden="true" />
+          <Button size="sm" className={cn(BOTTONE_NUOVO, "shrink-0 max-md:h-11 max-md:gap-1.5 max-md:text-sm")} onClick={() => setDialogOpen(true)} disabled={stages.length === 0 || !canEditOpportunities} aria-label={isMobile ? t("Nuova opportunità") : t("Aggiungi opportunità")}>
+            <Plus className="size-4 md:size-3.5" aria-hidden="true" />
             <span className="md:hidden">{t("Nuova")}</span>
             <span className="hidden md:inline xl:hidden">{t("Aggiungi")}</span>
             <span className="hidden xl:inline">{t("Aggiungi opportunità")}</span>

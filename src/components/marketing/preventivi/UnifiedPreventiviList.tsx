@@ -45,6 +45,7 @@ import {
   SlidersHorizontal, Download, Loader2, Hammer, Bath, Home, Wind, Zap, Flame, LayoutGrid, Waves,
   Trash2, MoreHorizontal, ExternalLink, AlertTriangle, FileX2, Copy, Calculator, Hourglass } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BOTTONE_SECONDARIO, RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/formatters";
 import { UnifiedFiltersSheet, type UnifiedFilters, DEFAULT_FILTERS } from "./UnifiedFiltersSheet";
@@ -1100,7 +1101,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       {/* ─── Striscia navy avanzata: solo desktop. Su mobile è superflua — i 4 KPI
           sopra bastano e conversione/pipeline sono già nei loro hint. ─── */}
       {!isMobile && (
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-eic-navy to-[#2C5184] p-4 sm:p-5 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-eic-navy to-[#2C5184] px-3 py-2 shadow-sm">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <AdvKpi icon={<Target className="h-4 w-4 text-orange-300" />} label={tr("Tasso conversione")} value={kpi.tassoConv !== null ? `${kpi.tassoConv}%` : "—"} hint={kpi.vintaCount + kpi.persoCount > 0 ? tr("{vintaCount}/{vintaCount2} con risposta", { vintaCount: String(kpi.vintaCount ?? ""), vintaCount2: kpi.vintaCount + kpi.persoCount }) : undefined} />
           <AdvKpi icon={<TrendingUp className="h-4 w-4 text-orange-300" />} label={tr("Pipeline attiva")} value={formatCurrency(kpi.pipeline)} hint={tr(kpi.inCorsoCount === 1 ? "{n} offerta" : "{n} offerte", { n: kpi.inCorsoCount })} />
@@ -1189,16 +1190,16 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       {/* ─── Toolbar: search + Filtra + Export + counter ─── */}
       <Card className="max-lg:hidden">
         <CardContent className="p-2.5 sm:p-3 flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[140px]">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder={tr("Cerca per numero, cliente, P.IVA o commerciale…")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-9"
+              className="h-8 pl-8 text-xs"
             />
           </div>
-          <Button variant="outline" size="sm" className="h-9 gap-1.5 px-2.5 sm:px-3" onClick={() => setFiltersOpen(true)} aria-label={tr("Filtri")}>
+          <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} onClick={() => setFiltersOpen(true)} aria-label={tr("Filtri")}>
             <SlidersHorizontal className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">{tr("Filtri")}</span>
             {advancedFiltersCount > 0 && (
@@ -1211,7 +1212,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
               e senza «Esporta Clienti». */}
           {!isMobile && canExportClients && (
           <Button
-            variant="outline" size="sm" className="h-9 gap-1.5 px-2.5 sm:px-3"
+            variant="outline" size="sm" className={BOTTONE_SECONDARIO}
             onClick={handleExportExcel}
             disabled={exporting || filtered.length === 0}
             aria-label={tr("Esporta Excel")}
@@ -1220,12 +1221,12 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
             <span className="hidden sm:inline">Excel</span>
           </Button>
           )}
-          {onApriCestino && <Button variant="outline" size="sm" className="h-9 gap-1.5 px-2.5 sm:px-3" onClick={onApriCestino} aria-label={tr("Cestino")}>
+          {onApriCestino && <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} onClick={onApriCestino} aria-label={tr("Cestino")}>
             <Trash2 className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">{tr("Cestino")}</span>
           </Button>}
           {hasAnyFilter && (
-            <Button variant="ghost" size="sm" onClick={reset} className="h-9 text-xs gap-1 px-2.5" aria-label={tr("Azzera filtri")}>
+            <Button variant="ghost" size="sm" onClick={reset} className={BOTTONE_SECONDARIO} aria-label={tr("Azzera filtri")}>
               <X className="h-3.5 w-3.5" /> <span className="hidden sm:inline">{tr("Azzera")}</span>
             </Button>
           )}
@@ -1667,15 +1668,15 @@ function KpiCard({
       type={onClick ? "button" : undefined}
       onClick={onClick}
       aria-pressed={onClick ? !!attivo : undefined}
-      className={cn("relative block w-full min-w-0 bg-white border-l-4 rounded-lg shadow-sm p-2.5 sm:p-4 text-left", c.border,
+      className={cn("relative block w-full min-w-0 bg-white border-l-4 rounded-lg shadow-sm px-3 py-2 text-left", c.border,
         onClick && "transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         attivo && "ring-2 ring-slate-300")}
       title={titolo ?? (onClick ? (attivo ? t("Mostra tutti i preventivi") : t("Mostra solo: {label}", { label: label.toLowerCase() })) : undefined)}
     >
-      <span className={cn("absolute right-2 top-2 h-6 w-6 sm:h-7 sm:w-7 rounded-md flex items-center justify-center", c.iconBg, c.iconColor)}>{icon}</span>
+      <span className={cn("absolute right-2 top-2 h-6 w-6 rounded-md flex items-center justify-center", c.iconBg, c.iconColor)}>{icon}</span>
       <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wide truncate pr-7 leading-tight">{label}</p>
       {/* Tra 768 e 1280 a 24px gli importi si tagliavano («318.478,…»). */}
-      <p className={cn("text-xl sm:text-2xl md:max-xl:text-xl font-bold leading-tight mt-0.5 sm:mt-1 tabular-nums truncate", c.valueColor)}>{value}</p>
+      <p className={cn("text-lg font-bold leading-tight mt-0.5 tabular-nums truncate", c.valueColor)}>{value}</p>
       {hint && <p className="text-[10px] text-muted-foreground mt-0.5 truncate leading-tight">{hint}</p>}
     </Tag>
   );

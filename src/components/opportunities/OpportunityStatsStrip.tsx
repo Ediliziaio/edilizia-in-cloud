@@ -116,15 +116,17 @@ export function OpportunityStatsStrip({ riepilogo, filtroAttivo, onFiltro }: Pro
               <p className="text-sm font-bold leading-tight text-foreground truncate">
                 {fmt(value, isCurrency)}
               </p>
-              <p className="text-[10px] text-muted-foreground leading-tight truncate">{t(label)}</p>
-              {weightedHint && (
-                <p className="text-[9px] leading-tight text-amber-600 dark:text-amber-400 truncate">{t("{n} senza stima", { n: stats.unscored ?? 0 })}</p>
-              )}
-              {winRateHint && (
-                <p className="text-[9px] leading-tight text-green-600 dark:text-green-400 truncate">
-                  {winRateHint}
-                </p>
-              )}
+              {/* Le note («senza stima», win-rate) sulla riga dell'etichetta: prima erano una
+                  terza riga e alzavano tutti i riquadri a 49px (25/11/2026). */}
+              <p className="text-[10px] text-muted-foreground leading-tight truncate">
+                {t(label)}
+                {weightedHint && (
+                  <span className="text-amber-600 dark:text-amber-400"> · {t("{n} senza stima", { n: stats.unscored ?? 0 })}</span>
+                )}
+                {winRateHint && (
+                  <span className="text-green-600 dark:text-green-400"> · {winRateHint}</span>
+                )}
+              </p>
             </div>
           </>
         );

@@ -23,6 +23,8 @@ import { ConnectNumberWizard } from "./ConnectNumberWizard";
 import { WhatsAppStatsBar } from "./WhatsAppStatsBar";
 import { useWhatsAppBase } from "@/pages/azienda/whatsapp/useWhatsAppBase";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { BOTTONE_NUOVO } from "@/components/orders/TestataScheda";
+import { cn } from "@/lib/utils";
 
 const PURPOSE_ICONS: Record<WAPurpose, typeof MessageSquare> = {
   bot_operativo: MessageSquare,
@@ -110,11 +112,13 @@ export function WhatsAppMultiNumeroTab() {
         {/* Un'etichetta di sezione accanto al bottone. */}
         <h2 className="text-base font-semibold">{t("I tuoi numeri")}</h2>
         <Button
+          size="sm"
+          className={cn(BOTTONE_NUOVO, "self-start md:self-auto")}
           onClick={() => openWizard(null)}
           disabled={!hasAvailablePurposes}
           aria-label={t("Collega nuovo numero WhatsApp")}
         >
-          <Plus className="mr-2 h-4 w-4" />
+          <Plus />
           {hasAvailablePurposes ? t("Collega nuovo numero") : t("Tutti i tipi di numero sono collegati")}
         </Button>
       </div>

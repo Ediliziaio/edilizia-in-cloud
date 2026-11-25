@@ -54,6 +54,7 @@ import { getAddedTags, getRemovedTags, normalizeTagList } from "@/lib/marketingT
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { BOTTONE_NUOVO, BOTTONE_SECONDARIO } from "@/components/orders/TestataScheda";
 import { CercaConFiltri, PannelloFiltri, PilloleFiltro, RigaMobile } from "@/components/mobile/FiltriMobile";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 // Map filter field keys to actual DB columns
@@ -1538,10 +1539,10 @@ export default function MarketingContacts() {
               <DropdownMenuTrigger asChild>
                 {/* Tablet e fino a 1280: a icona, così titolo, schede e azioni
                     stanno su una riga (a 1024 con le etichette andavano a capo). */}
-                <Button variant="outline" size="sm" className="hidden h-9 border-slate-200 bg-white hover:bg-slate-50 sm:flex" disabled={exporting || isLoading} aria-label={t("Esporta")}>
-                  <Download className="mr-2 h-4 w-4 max-xl:mr-0" />
+                <Button variant="outline" size="sm" className={cn(BOTTONE_SECONDARIO, "hidden border-slate-200 bg-white hover:bg-slate-50 sm:flex")} disabled={exporting || isLoading} aria-label={t("Esporta")}>
+                  <Download />
                   <span className="max-xl:hidden">{exporting ? t("Esportando...") : selectedIds.size > 0 ? t("Esporta ({size})", { size: String(selectedIds.size ?? "") }) : t("Esporta")}</span>
-                  <ChevronDown className="ml-1 h-3 w-3 max-xl:hidden" />
+                  <ChevronDown className="max-xl:hidden" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -1557,16 +1558,16 @@ export default function MarketingContacts() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <Button variant="outline" size="sm" className="hidden h-9 border-slate-200 bg-white hover:bg-slate-50 sm:flex" onClick={() => setImportOpen(true)} disabled={!canEditContacts} aria-label={t("Importa")}>
-            <Upload className="mr-2 h-4 w-4 max-xl:mr-0" /> <span className="max-xl:hidden">{t("Importa")}</span>
+          <Button variant="outline" size="sm" className={cn(BOTTONE_SECONDARIO, "hidden border-slate-200 bg-white hover:bg-slate-50 sm:flex")} onClick={() => setImportOpen(true)} disabled={!canEditContacts} aria-label={t("Importa")}>
+            <Upload /> <span className="max-xl:hidden">{t("Importa")}</span>
           </Button>
           {/* Mobile no: il menu «…» aveva solo Importa e Gestisci campi (colonne
               della tabella, che su telefono non c'è): lavoro da scrivania. */}
           {/* Mobile: CTA compatta (richiesta utente: bottone più piccolo). */}
-          <Button className="tap-compact h-8 shrink-0 bg-gradient-to-r from-orange-500 to-eic-amber-strong px-2.5 text-xs text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600 sm:h-9 sm:px-4 sm:text-sm" onClick={() => { setEditingContact(null); setDialogOpen(true); }} disabled={!canEditContacts}>
-            <Plus className="h-4 w-4 sm:mr-1" />
+          <Button size="sm" className={cn(BOTTONE_NUOVO, "tap-compact shrink-0 max-sm:px-2.5")} onClick={() => { setEditingContact(null); setDialogOpen(true); }} disabled={!canEditContacts}>
+            <Plus className="h-3.5 w-3.5" />
             <span className="hidden lg:inline">{t("Aggiungi contatto")}</span>
-            <span className="ml-1 lg:hidden">{t("Aggiungi")}</span>
+            <span className="lg:hidden">{t("Aggiungi")}</span>
           </Button>
         </div>
       </div>

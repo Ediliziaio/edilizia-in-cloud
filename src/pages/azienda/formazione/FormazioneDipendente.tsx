@@ -50,6 +50,7 @@ import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import {
   avanzamentoCorso,
   chiaveModuliSpuntati,
@@ -297,33 +298,33 @@ export default function FormazioneDipendente() {
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 max-sm:space-y-3">
       {/* Mobile: solo il titolo; niente riquadro, spiegazione e contatori. */}
-      <header className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-blue-50/60 to-orange-50/70 p-5 shadow-sm sm:p-6 max-sm:rounded-none max-sm:border-0 max-sm:bg-none max-sm:p-0 max-sm:shadow-none">
+      <header className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-blue-50/60 to-orange-50/70 px-3 py-2.5 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-none max-sm:p-0 max-sm:shadow-none">
         <div className="flex items-start gap-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm max-sm:hidden">
             <GraduationCap className="h-6 w-6" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-950 max-sm:text-lg">{t("La mia formazione")}</h1>
-            <p className="mt-1 text-sm text-slate-600 max-sm:hidden">
+            <h1 className="text-xl font-bold leading-tight text-slate-950 max-sm:text-lg">{t("La mia formazione")}</h1>
+            <p className="sr-only">
               {t("Corsi, procedure e materiali assegnati. Il tuo avanzamento viene salvato automaticamente.")}
             </p>
           </div>
         </div>
 
-        <div className="mt-5 grid grid-cols-3 gap-3 max-sm:hidden">
+        <div className="mt-2 grid grid-cols-3 gap-2 max-sm:hidden">
           <StatCard icon={BookOpen} label={t("Corsi")} value={stats.total} tone="blue" />
           <StatCard icon={Loader2} label={t("In corso")} value={stats.inProgress} tone="amber" />
           <StatCard icon={CheckCircle2} label={t("Completati")} value={stats.completed} tone="emerald" />
         </div>
       </header>
 
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t("Cerca corso o procedura")}
-          className="pl-9"
+          className="h-8 pl-8 text-xs"
         />
       </div>
 
@@ -565,11 +566,11 @@ function StatCard({
         ? "bg-amber-50 text-amber-700"
         : "bg-blue-50 text-blue-700";
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3">
-      <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", toneClass)}>
-        <Icon className="h-4 w-4" />
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+      <div className={cn("flex h-7 w-7 items-center justify-center rounded-lg", toneClass)}>
+        <Icon className="h-3.5 w-3.5" />
       </div>
-      <p className="mt-2 text-2xl font-bold leading-none text-slate-950">{value}</p>
+      <p className="mt-1 text-lg font-bold leading-none text-slate-950">{value}</p>
       <p className="mt-1 text-xs text-slate-500">{label}</p>
     </div>
   );

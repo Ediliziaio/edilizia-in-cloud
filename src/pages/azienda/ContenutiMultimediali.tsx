@@ -102,6 +102,7 @@ import {
   type MediaLibraryView,
 } from "@/lib/mediaLibrary";
 import { cn } from "@/lib/utils";
+import { BOTTONE_NUOVO, BOTTONE_SECONDARIO, RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type DocumentAnalysisRow = Pick<
@@ -1647,15 +1648,15 @@ export default function ContenutiMultimediali() {
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight max-sm:text-lg max-sm:leading-6">EiC Drive</h1>
+              <h1 className="text-xl font-bold tracking-tight max-sm:text-lg max-sm:leading-6">EiC Drive</h1>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 max-sm:shrink-0">
+        <div className="flex flex-wrap gap-1.5 max-sm:shrink-0">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="max-sm:hidden" aria-label={t("Altre azioni")} title={t("Altre azioni")}>
+              <Button variant="outline" size="icon" className="h-8 w-8 max-sm:hidden" aria-label={t("Altre azioni")} title={t("Altre azioni")}>
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -1671,8 +1672,8 @@ export default function ContenutiMultimediali() {
               </DropdownMenuItem>}
             </DropdownMenuContent>
           </DropdownMenu>
-          {puoScrivere && <Button onClick={() => apriCaricamento()} className="tap-compact max-sm:h-8 max-sm:px-3 max-sm:text-xs">
-            <UploadCloud className="mr-2 h-4 w-4 max-sm:mr-1.5" />
+          {puoScrivere && <Button size="sm" onClick={() => apriCaricamento()} className={cn(BOTTONE_NUOVO, "tap-compact max-sm:h-8 max-sm:px-3 max-sm:text-xs")}>
+            <UploadCloud />
             <span className="max-sm:hidden">{t("Carica file")}</span>
             <span className="sm:hidden">{t("Carica")}</span>
           </Button>}
@@ -1781,27 +1782,27 @@ export default function ContenutiMultimediali() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder={t("Cerca per nome, tipo, area o collegamento...")}
-                className="pl-9 pr-9"
+                className="h-8 pl-8 pr-8 text-xs"
               />
               {query ? (
                 <button
                   type="button"
                   aria-label={t("Pulisci ricerca")}
                   onClick={() => setQuery("")}
-                  className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400"
+                  className="absolute right-1 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-3.5 w-3.5" />
                 </button>
               ) : null}
             </div>
-              <Button variant="outline" onClick={() => setFiltriDesktopAperti(!filtriDesktopAperti)} aria-expanded={filtriDesktopAperti}>
-                <SlidersHorizontal className="mr-2 h-4 w-4" /> {t("Filtri")}{filtriAggiuntivi ? ` (${filtriAggiuntivi})` : ""}
+              <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} onClick={() => setFiltriDesktopAperti(!filtriDesktopAperti)} aria-expanded={filtriDesktopAperti}>
+                <SlidersHorizontal /> {t("Filtri")}{filtriAggiuntivi ? ` (${filtriAggiuntivi})` : ""}
               </Button>
             </div>
             {filtriDesktopAperti && <div className="space-y-2 rounded-lg border bg-muted/25 p-3"><FiltriDrive {...impostazioniFiltro} />

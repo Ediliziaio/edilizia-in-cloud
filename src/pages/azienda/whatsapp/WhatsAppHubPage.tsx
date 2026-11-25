@@ -60,7 +60,7 @@ export default function WhatsAppHubPage() {
   return (
     <div>
       <Tabs value={tab} onValueChange={onChangeTab} className="w-full">
-        <h1 className="mb-4 text-2xl font-bold">{isAdminContext ? t("WhatsApp Marketing") : "WhatsApp"}</h1>
+        <h1 className="mb-4 text-xl font-bold tracking-tight">{isAdminContext ? t("WhatsApp Marketing") : "WhatsApp"}</h1>
         {/* Schede larghe quanto il testo (erano colonne uguali su 768px). */}
         <TabsList className="mb-4">
           {/* Parole di tutti i giorni (09/10/2026): «Modelli» e «Invii di massa» al posto di «Template» e «Broadcast».

@@ -139,7 +139,7 @@ function PersonaleContent() {
       <div>
         <div className="flex items-start gap-3">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-950 max-sm:text-lg max-sm:leading-6">{t("Personale & HR")}</h1>
+            <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-950 max-sm:text-lg max-sm:leading-6">{t("Personale & HR")}</h1>
           </div>
         </div>
       </div>

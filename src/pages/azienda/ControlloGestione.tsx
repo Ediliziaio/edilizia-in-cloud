@@ -214,7 +214,7 @@ export default function ControlloGestione() {
           <DashboardSelectorBar title={t("Controllo di Gestione")} soloSelettore />
           {/* mr-auto e non flex-1+truncate: se i filtri non ci stanno vanno a
               capo loro, il titolo non si taglia («Controllo di Ges…»). */}
-          <h1 className="mr-auto whitespace-nowrap text-2xl font-bold tracking-tight text-slate-900">{t("Controllo di Gestione")}</h1>
+          <h1 className="mr-auto whitespace-nowrap text-xl font-bold leading-tight tracking-tight text-slate-900">{t("Controllo di Gestione")}</h1>
           <FilterBar
             value={filters}
             onChange={setFilters}

@@ -69,6 +69,7 @@ import { COLORI_GRAFICO, PillolaVariazione, StatGrafico, TESTO_ASSE, TooltipSche
 import { Tendenza } from "@/components/dashboard/RiquadroNumero";
 import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import { cn } from "@/lib/utils";
+import { BOTTONE_SECONDARIO } from "@/components/orders/TestataScheda";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
@@ -213,11 +214,11 @@ export function CrmSalesReportPanel({
   return (
     <div className="space-y-5 max-sm:space-y-3">
       {/* Telefono: solo il periodo, senza barra fissa né riquadro. */}
-      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm max-sm:static max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2 shadow-sm max-sm:static max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
         <div className="flex flex-wrap items-center gap-2">
-          <Calendar className="h-4 w-4 text-muted-foreground/80 max-sm:hidden" />
+          <Calendar className="h-3.5 w-3.5 text-muted-foreground/80 max-sm:hidden" />
           <Select value={periodKey} onValueChange={setPeriodKey}>
-            <SelectTrigger className="h-9 w-[200px] max-sm:w-[180px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 w-[200px] text-xs max-sm:h-9 max-sm:w-[180px] max-sm:text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
               {PERIOD_OPTIONS.map((o) => (
                 <SelectItem key={o.key} value={o.key}>{tr(o.label)}</SelectItem>
@@ -232,7 +233,7 @@ export function CrmSalesReportPanel({
                 max={customTo || undefined}
                 onChange={(e) => setCustomFrom(e.target.value)}
                 aria-label={tr("Data inizio")}
-                className="h-9 rounded-md border border-border px-2 text-sm text-muted-foreground"
+                className="h-8 rounded-md border border-border px-2 text-xs text-muted-foreground max-sm:h-9 max-sm:text-sm"
               />
               <span className="text-muted-foreground/80">→</span>
               <input
@@ -241,15 +242,15 @@ export function CrmSalesReportPanel({
                 min={customFrom || undefined}
                 onChange={(e) => setCustomTo(e.target.value)}
                 aria-label={tr("Data fine")}
-                className="h-9 rounded-md border border-border px-2 text-sm text-muted-foreground"
+                className="h-8 rounded-md border border-border px-2 text-xs text-muted-foreground max-sm:h-9 max-sm:text-sm"
               />
             </div>
           )}
         </div>
         {/* Niente export su telefono. */}
         {!isMobile && (
-          <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={handleExport} disabled={loading}>
-            <Download className="h-4 w-4" />
+          <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} onClick={handleExport} disabled={loading}>
+            <Download />
             {tr("Esporta CSV")}
           </Button>
         )}
@@ -625,20 +626,20 @@ function ExecutiveKpi({
 }) {
   return (
     // Telefono: nome e cifra; senza icona né riga di dettaglio.
-    <div className={cn("rounded-lg border bg-card p-3 max-sm:min-w-0 max-sm:px-2.5 max-sm:py-2", toneClassName(tone))}>
-      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase text-muted-foreground max-sm:mb-0.5 max-sm:truncate max-sm:text-[11px] max-sm:font-medium max-sm:normal-case">
+    <div className={cn("rounded-lg border bg-card px-3 py-2 max-sm:min-w-0 max-sm:px-2.5 max-sm:py-2", toneClassName(tone))}>
+      <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase text-muted-foreground max-sm:mb-0.5 max-sm:truncate max-sm:text-[11px] max-sm:font-medium max-sm:normal-case">
         <Icon className="h-4 w-4 max-sm:hidden" />
         {label}
       </div>
       {loading ? (
         <>
-          <Skeleton className="h-8 w-28 max-sm:h-6 max-sm:w-20" />
+          <Skeleton className="h-7 w-28 max-sm:h-6 max-sm:w-20" />
           <Skeleton className="mt-2 h-4 w-44 max-sm:hidden" />
         </>
       ) : (
         <>
-          <p className="text-2xl font-semibold tracking-tight text-foreground max-sm:truncate max-sm:text-base">{value}</p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground max-sm:hidden">{detail}</p>
+          <p className="text-lg font-semibold tracking-tight text-foreground max-sm:truncate max-sm:text-base">{value}</p>
+          <p className="mt-0.5 text-xs leading-5 text-muted-foreground max-sm:hidden">{detail}</p>
         </>
       )}
     </div>
@@ -1127,10 +1128,10 @@ function ObiettivoMese({ vintoCents, obiettivoCents }: { vintoCents: number; obi
   const manca = Math.max(0, obiettivoCents - vintoCents);
   const raggiunto = pct >= 100;
   return (
-    <div className="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 p-4 text-slate-50 shadow-sm dark:border-slate-700">
+    <div className="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 px-3 py-2.5 text-slate-50 shadow-sm dark:border-slate-700">
       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">{t("Obiettivo del mese")}</p>
       <div className="mt-1.5 flex items-baseline gap-2">
-        <span className="text-3xl font-bold tabular-nums tracking-tight">{Math.round(pct)}%</span>
+        <span className="text-lg font-bold tabular-nums tracking-tight">{Math.round(pct)}%</span>
         <span className="text-xs text-muted-foreground/80">{raggiunto ? t("raggiunto") : t("{giorniRimasti} giorni alla fine del mese", { giorniRimasti: String(giorniRimasti ?? "") })}</span>
       </div>
       <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(Math.min(pct, 100))} aria-label={t("Obiettivo del mese")}>

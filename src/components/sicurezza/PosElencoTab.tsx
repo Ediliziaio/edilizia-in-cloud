@@ -13,6 +13,7 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Copy, FileDown, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BOTTONE_NUOVO } from "@/components/orders/TestataScheda";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -113,9 +114,9 @@ export function PosElencoTab({ orders }: { orders: Array<{ id: string; descripti
               <Button
                 size="sm"
                 onClick={() => setNuovoAperto(true)}
-                className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
+                className={BOTTONE_NUOVO}
               >
-                <Plus className="mr-1 h-4 w-4" />
+                <Plus />
                 {t("Nuovo POS")}
               </Button>
             ) : null
