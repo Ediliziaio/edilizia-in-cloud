@@ -9,7 +9,7 @@
  * regole e i loro trigger. Migrazioni 20290327110000 e 20290327110100.
  */
 const TABELLE = ["order_work_phases", "order_work_phase_voci"];
-const EMBED = new RegExp(`(^|[,(])(?:(\\w+):)?(${TABELLE.join("|")})((?:![\\w]+)*)\\(`, "g");
+const EMBED = new RegExp(`((?:^|[,(])\\s*)(?:(\\w+):)?(${TABELLE.join("|")})((?:![\\w]+)*)\\(`, "g");
 
 export function protectedPhaseSelect(select: string): string {
   return select.replace(EMBED, (_m, prima: string, alias: string | undefined, tabella: string, hint: string) =>

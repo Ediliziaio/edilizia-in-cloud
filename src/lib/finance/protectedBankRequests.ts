@@ -6,7 +6,7 @@ export function protectedBankUrl(input: string, method = "GET"): string {
   const relation = url.pathname.split("/rest/v1/")[1];
   if (["bank_accounts", "bank_transactions"].includes(relation)) url.pathname = `/rest/v1/${relation}_operativi`;
   const select = url.searchParams.get("select");
-  if (select) url.searchParams.set("select", select.replace(/(^|[,(])(?:(\w+):)?(bank_accounts|bank_transactions)((?:![\w]+)*)\(/g,
+  if (select) url.searchParams.set("select", select.replace(/((?:^|[,(])\s*)(?:(\w+):)?(bank_accounts|bank_transactions)((?:![\w]+)*)\(/g,
     (_match, before: string, alias: string | undefined, table: string, hints: string) => `${before}${alias ?? table}:${table}_operativi${hints}(`));
   return url.toString();
 }
