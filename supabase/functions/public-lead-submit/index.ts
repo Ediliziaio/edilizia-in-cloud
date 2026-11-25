@@ -1,6 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import {
+  leggiProvenienza,
+  rigaProvenienza,
+  type SessioneProvenienza,
+} from "../_shared/provenienzaLead.ts";
 
 const PLATFORM_ADMIN_COMPANY_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -37,6 +42,17 @@ const SITE_LABELS: Array<{ match: RegExp; label: string }> = [
   { match: /tutelai\./i, label: "TutelAI" },
   { match: /aedix\./i, label: "AEDIX" },
 ];
+
+/** Il dominio nudo dell'header Origin/Referer, senza protocollo né percorso. */
+function hostDiOrigine(rawOrigin: string | null | undefined): string | null {
+  const raw = (rawOrigin || "").trim();
+  if (!raw) return null;
+  try {
+    return new URL(raw.includes("://") ? raw : `https://${raw}`).hostname.toLowerCase() || null;
+  } catch {
+    return raw.replace(/^https?:\/\//i, "").split("/")[0].toLowerCase() || null;
+  }
+}
 
 function siteLabelFromOrigin(rawOrigin: string | null | undefined): string | null {
   const raw = cleanText(rawOrigin ?? "", 200);
@@ -110,6 +126,11 @@ Deno.serve(async (req) => {
       siteLabelFromOrigin(body.site_origin) ??
       siteLabelFromOrigin(req.headers.get("origin")) ??
       siteLabelFromOrigin(req.headers.get("referer"));
+    // Il dominio del sito stesso: serve a non scambiare per provenienza un
+    // referrer interno (la sessione che riparte su un'altra pagina nostra).
+    const siteHost = hostDiOrigine(
+      body.site_origin ?? req.headers.get("origin") ?? req.headers.get("referer"),
+    );
     const messaggio = cleanText(body.messaggio, 2000);
     const marketingConsent = Boolean(body.marketing_consent);
     const renderSlug = cleanText(body.render_slug, 80).toLowerCase().replace(/[^a-z0-9-]/g, "");
@@ -228,9 +249,35 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── Da dove è arrivato ──────────────────────────────────────────────────
+    // La visita è già registrata in attribution_sessions: la si legge qui, una
+    // volta, e la provenienza finisce nell'oggetto dell'email, nella nota sul
+    // contatto e nell'attività. Prima restava solo nel CRM e l'avviso diceva
+    // soltanto quale form era stato compilato.
+    let sessioneVisita: SessioneProvenienza | null = null;
+    if (sessionId) {
+      try {
+        const { data: riga } = await supabase
+          .from("attribution_sessions")
+          .select(
+            "referrer, utm_source, utm_medium, utm_campaign, gclid, fbclid, ttclid, msclkid, li_fat_id, pages_viewed",
+          )
+          .eq("session_id", sessionId)
+          .order("started_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        sessioneVisita = (riga as SessioneProvenienza | null) ?? null;
+      } catch (e) {
+        console.warn("[public-lead-submit] provenienza non letta:", e);
+      }
+    }
+    const provenienza = leggiProvenienza(sessioneVisita, siteHost);
+    const provenienzaRiga = rigaProvenienza(provenienza);
+
     const { first_name, last_name } = splitName(nome);
     const now = new Date().toISOString();
     const notes = [
+      `Arrivato da: ${provenienzaRiga}`,
       contextLabel ? `Modulo richiesto: ${contextLabel}` : null,
       messaggio || null,
       `Richiesta da sito: ${source}`,
@@ -366,10 +413,14 @@ Deno.serve(async (req) => {
       company_id: PLATFORM_ADMIN_COMPANY_ID,
       contact_id: contactId,
       activity_type: "site_lead_submitted",
-      description: `Richiesta ricevuta dal sito (${source})`,
+      description: `Richiesta ricevuta dal sito (${source}) — da ${provenienza.etichetta}`,
       metadata: {
         request_id: requestId,
         source,
+        provenienza: provenienza.etichetta,
+        provenienza_dominio: provenienza.dominio,
+        provenienza_campagna: provenienza.campagna,
+        pagine_viste: provenienza.pagineViste,
         azienda,
         telefono,
         marketing_consent: marketingConsent,
@@ -489,9 +540,12 @@ Deno.serve(async (req) => {
       // Prefisso col sito di provenienza (Edilizia in Cloud, Marketing Edile, …)
       // così l'oggetto dice subito da dove arriva il lead.
       const sitePrefix = siteLabel ? `[${siteLabel}] ` : "";
+      // La provenienza sta nell'oggetto: dall'elenco della posta si vede se il
+      // lead arriva da una campagna o dall'organico, senza aprire il messaggio.
+      const daDove = ` — da ${provenienza.etichetta}`;
       const subjectLine = totalRequests > 1
-        ? `${sitePrefix}Lead ricorrente (${totalRequests}ª richiesta): ${nome}`
-        : `${sitePrefix}Nuovo lead sito: ${nome}`;
+        ? `${sitePrefix}Lead ricorrente (${totalRequests}ª richiesta): ${nome}${daDove}`
+        : `${sitePrefix}Nuovo lead sito: ${nome}${daDove}`;
       const ctxLabelEsc = contextLabel ? escapeHtml(contextLabel) : "";
       const html = `
         <div style="font-family:system-ui,-apple-system,sans-serif;color:#0f172a;max-width:560px;margin:auto">
@@ -503,6 +557,8 @@ Deno.serve(async (req) => {
             ${siteLabel ? `<tr><td style="padding:6px 0;color:#64748b">Sito</td><td style="padding:6px 0"><strong>${escapeHtml(siteLabel)}</strong></td></tr>` : ""}
             <tr><td style="padding:6px 0;color:#64748b">Azienda</td><td style="padding:6px 0">${escapeHtml(azienda)}</td></tr>
             ${contextLabel ? `<tr><td style="padding:6px 0;color:#64748b">Modulo</td><td style="padding:6px 0">${ctxLabelEsc}</td></tr>` : ""}
+            <tr><td style="padding:6px 0;color:#64748b">Arrivato da</td><td style="padding:6px 0"><strong>${escapeHtml(provenienza.etichetta)}</strong></td></tr>
+            ${provenienza.pagineViste ? `<tr><td style="padding:6px 0;color:#64748b">Pagine viste</td><td style="padding:6px 0">${provenienza.pagineViste}</td></tr>` : ""}
             ${pagePath ? `<tr><td style="padding:6px 0;color:#64748b">Pagina</td><td style="padding:6px 0">${escapeHtml(pagePath)}</td></tr>` : ""}
             ${renderSlug ? `<tr><td style="padding:6px 0;color:#64748b">Render</td><td style="padding:6px 0">${escapeHtml(renderSlug)}</td></tr>` : ""}
             <tr><td style="padding:6px 0;color:#64748b">Richieste totali</td><td style="padding:6px 0"><strong>${totalRequests}</strong></td></tr>
@@ -519,7 +575,7 @@ Deno.serve(async (req) => {
         to: ADMIN_LEAD_NOTIFY_EMAIL,
         subject: subjectLine,
         html,
-        text: `${subjectLine}\n\nEmail: ${email}\nTel: ${telefono}\nAzienda: ${azienda}\nRichieste totali: ${totalRequests}`,
+        text: `${subjectLine}\n\nEmail: ${email}\nTel: ${telefono}\nAzienda: ${azienda}\nArrivato da: ${provenienzaRiga}\nRichieste totali: ${totalRequests}`,
         templateName: "admin_new_lead_notification",
         replyTo: email,
         metadata: { contact_id: contactId, request_id: requestId, opportunity_id: opportunityId, source, total_requests: totalRequests },
