@@ -61,6 +61,9 @@ export interface NavItem {
    *  Portale: l'admin ha già il Portale come superficie corsi, la voce sarebbe un
    *  doppione. Il dipendente puro (senza canManagePortal) continua a vederla. */
   hideIfPermissionKey?: string;
+  /** Permesso alternativo: la voce c'è anche per chi ha questo invece di `permissionKey`.
+   *  Es. Reportistica, che dal 25/11/2026 contiene Sales OS (scheda «Oggi»). */
+  orPermissionKey?: string;
   moduleKey?: ModuleKey;
   /** Se il `moduleKey` NON è incluso nel piano, nasconde la voce del tutto —
    *  niente teaser DEMO — anche sui piani "limited" (dove di default un modulo
@@ -261,8 +264,9 @@ export const macroAreas: MacroArea[] = [
       // icona e lo stesso nome finivano affiancati in «Recenti», indistinguibili.
       // Dal 25/11/2026 ha un indirizzo suo: da computer i due calendari sono separati (vedi CalendarioUnico).
       { title: "Calendario commerciale", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketingAppointments", featureKey: "crm_modulo" },
-      { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Gauge, permissionKey: "canViewSalesOs", featureKey: "sales_os" },
-      { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: PieChart, permissionKey: "canViewMarketingReports", featureKey: "marketing_reporting" },
+      // 25/11/2026: «Sales OS» non è più una voce: è la scheda «Oggi» di Reportistica
+      // (/azienda/marketing/sales-os rimanda lì), che si apre a chi ha l'uno o l'altro permesso.
+      { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: PieChart, permissionKey: "canViewMarketingReports", orPermissionKey: "canViewSalesOs", featureKey: "marketing_reporting" },
       // ─── Marketing ───
       { title: "Pubblicità", url: "/azienda/marketing/pubblicita", icon: Megaphone, permissionKey: "canViewMarketingDashboard", groupLabel: "Marketing" },
       { title: "Gestione Social", url: "/azienda/marketing/social", icon: Share2, permissionKey: "canViewMarketingDashboard" },
@@ -354,7 +358,6 @@ export const marketingNavItems: NavItem[] = [
   { title: "Centralino", url: "/azienda/centralino", icon: PhoneCall, permissionKey: "canViewMarketingAiAgent", category: "marketing", subcategory: "mkt_comunicazione" },
   { title: "Automazioni", url: "/azienda/automazioni?tab=marketing", icon: Zap, permissionKey: "canViewMarketingAutomations", category: "marketing", subcategory: "mkt_automation" },
   { title: "Agenti AI", url: "/azienda/agenti-ai?tipo=custom", icon: Bot, permissionKey: "canViewMarketingAiAgent", category: "marketing", subcategory: "mkt_automation" },
-  { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Zap, permissionKey: "canViewMarketingOpportunities", category: "marketing", subcategory: "mkt_analisi" },
   { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: BarChart3, permissionKey: "canViewMarketingReports", category: "marketing", subcategory: "mkt_analisi" },
   { title: "Pubblicità", url: "/azienda/marketing/pubblicita", icon: Megaphone, permissionKey: "canViewMarketingDashboard", category: "marketing", subcategory: "mkt_analisi" },
   { title: "Reputazione", url: "/azienda/marketing/reputazione", icon: Star, permissionKey: "canViewMarketingDashboard", category: "marketing", subcategory: "mkt_analisi" },

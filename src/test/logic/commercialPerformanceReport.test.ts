@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { buildCommercialPerformanceReport } from "@/lib/reporting/commercialPerformanceReport";
+import {
+  buildCommercialPerformanceReport,
+  forecastProbability,
+  isOpenOpportunity,
+} from "@/lib/reporting/commercialPerformanceReport";
 
 describe("commercial performance report", () => {
   const now = new Date("2026-05-23T10:00:00.000Z");
@@ -127,7 +131,10 @@ describe("commercial performance report", () => {
     expect(report.quotes.avgQuoteToSaleDays).toBe(5);
 
     expect(report.forecast.weighted30Cents).toBe(21_000_00);
-    expect(report.forecast.weighted60Cents).toBe(15_000_00);
+    // probabilità mancante e nessuna fase: 50% come in vendite_opportunita (prima un 30% fisso)
+    expect(report.forecast.weighted60Cents).toBe(25_000_00);
+    // opp-won non ha won_at: non è una vendita di questo mese (prima contava updated_at)
+    expect(report.forecast.wonThisMonthCents).toBe(0);
     expect(report.forecast.openWithoutNextStep).toBe(1);
     expect(report.forecast.monthlyTargetRisk).toBe("rischio");
 
@@ -252,5 +259,41 @@ describe("commercial performance report", () => {
     expect(report.sync.ordersWithoutQuote).toBe(0);
     expect(report.sync.actions.map((action) => action.key)).toContain("connect-appointments");
     expect(report.sync.actions.map((action) => action.key)).not.toContain("close-sales-loop");
+  });
+
+  describe("le regole di «una definizione» (vendite_una_definizione, sales_os_stati_e_probabilita)", () => {
+    it("aperta vuol dire status 'open' e basta: scartate, vinte e perse no", () => {
+      expect(isOpenOpportunity("open")).toBe(true);
+      expect(isOpenOpportunity("abandoned")).toBe(false);
+      expect(isOpenOpportunity("won")).toBe(false);
+      expect(isOpenOpportunity("lost")).toBe(false);
+      expect(isOpenOpportunity(null)).toBe(false);
+    });
+
+    it("probabilità: la sua; al 50% predefinito o mancante vale quella della fase; senza fase 50%", () => {
+      expect(forecastProbability({ probability: 80, stage_win_probability: 20 })).toBe(0.8);
+      expect(forecastProbability({ probability: 50, stage_win_probability: 20 })).toBe(0.2);
+      expect(forecastProbability({ probability: null, stage_win_probability: 10 })).toBe(0.1);
+      expect(forecastProbability({ probability: null, stage_win_probability: null })).toBe(0.5);
+      // uno 0 scritto è uno 0, non «mancante»
+      expect(forecastProbability({ probability: 0, stage_win_probability: 40 })).toBe(0);
+      expect(forecastProbability({ probability: 140 })).toBe(1);
+    });
+
+    it("le scartate non entrano nel valore aperto né nel forecast; le vinte si datano da won_at", () => {
+      const report = buildCommercialPerformanceReport({
+        now,
+        contacts: [], appointments: [], quotes: [], orders: [],
+        opportunities: [
+          { id: "a", status: "open", value: 10_000, probability: 50, stage_win_probability: 30, expected_close_date: "2026-06-01" },
+          { id: "b", status: "abandoned", value: 99_000, probability: 90, expected_close_date: "2026-06-01" },
+          { id: "c", status: "won", value: 5_000, won_at: "2026-04-10T09:00:00.000Z", updated_at: "2026-05-20T09:00:00.000Z" },
+          { id: "d", status: "won", value: 7_000, won_at: "2026-05-03T09:00:00.000Z" },
+        ],
+      });
+      expect(report.forecast.openValueCents).toBe(10_000_00);
+      expect(report.forecast.weighted30Cents).toBe(3_000_00);
+      expect(report.forecast.wonThisMonthCents).toBe(7_000_00);
+    });
   });
 });

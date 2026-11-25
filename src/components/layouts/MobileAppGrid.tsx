@@ -57,7 +57,6 @@ const MOBILE_HIDDEN_URLS = new Set<string>([
   "/azienda/previsionale",
   "/azienda/prima-nota",
   "/azienda/corsi",
-  "/azienda/marketing/sales-os",
   "/azienda/marketing/reportistica",
   // 2026-09-25: il Portale formazione è la gestione dei corsi, che da
   // telefono non si imposta; i corsi si vedono da «La mia formazione» (le
@@ -316,7 +315,11 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
         if (item.demoCompanyOnly && !isDemoBaseline) return false;
         if (item.url === "/azienda/cruscotto") {
           if (!permissions.canViewCruscotto && !permissions.canViewDashboard && !permissions.canViewMarketingDashboard && !permissions.canViewCallcenterDashboard) return false;
-        } else if (item.permissionKey && permissions[item.permissionKey as keyof typeof permissions] !== true) {
+        } else if (
+          item.permissionKey &&
+          permissions[item.permissionKey as keyof typeof permissions] !== true &&
+          !(item.orPermissionKey && permissions[item.orPermissionKey as keyof typeof permissions] === true)
+        ) {
           return false;
         }
         if (item.moduleKey && !isModuleEnabled(item.moduleKey)) return false;

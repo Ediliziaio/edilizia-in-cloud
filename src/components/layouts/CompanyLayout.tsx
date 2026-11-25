@@ -1182,7 +1182,11 @@ const CompanySidebar = memo(function CompanySidebar({ badgePronti }: { badgePron
         ) {
           return false;
         }
-      } else if (item.permissionKey && permissions[item.permissionKey as keyof typeof permissions] !== true) {
+      } else if (
+        item.permissionKey &&
+        permissions[item.permissionKey as keyof typeof permissions] !== true &&
+        !(item.orPermissionKey && permissions[item.orPermissionKey as keyof typeof permissions] === true)
+      ) {
         return false;
       }
       // Gate inverso: nascondi la voce a chi HA questo permesso (evita doppioni tra

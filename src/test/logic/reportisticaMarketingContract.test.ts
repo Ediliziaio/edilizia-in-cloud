@@ -77,9 +77,32 @@ describe("reportistica marketing contract", () => {
   it("keeps construction-site reporting out of the marketing reporting page", () => {
     expect(reportisticaPage).not.toContain("CantiereDashboard");
     expect(reportisticaPage).not.toMatch(/cantier/i);
-    expect(reportisticaPage).toContain('searchParams.get("tab") || DEFAULT_TAB');
+    expect(reportisticaPage).toContain('searchParams.get("tab") || defaultTab');
     expect(reportisticaPage).toContain("Meta Business Manager");
     expect(reportisticaPage).toContain("CRM e vendite");
+  });
+
+  it("ospita Sales OS come prima scheda «Oggi», a chi ha il permesso e la funzione di piano", () => {
+    // 25/11/2026: una pagina sola. «Oggi» per chi ha canViewSalesOs + sales_os, le altre
+    // schede per chi ha la Reportistica; la rotta apre con l'uno o con l'altro.
+    expect(reportisticaPage).toContain('{ key: "oggi", label: "Oggi"');
+    expect(reportisticaPage).toContain("permissions.canViewSalesOs && (salesOs.isEnabled || salesOs.isPreview)");
+    expect(reportisticaPage).toContain("<SalesOSDashboard incorporata />");
+    // il muro del piano Scopri non copre «Oggi»
+    expect(reportisticaPage).toContain("if (reportBloccati && !puoOggi)");
+    const rotte = readFileSync(resolve(process.cwd(), "src/routes/companyRoutes.tsx"), "utf8");
+    expect(rotte).toContain("(p) => p.canViewMarketingReports || p.canViewSalesOs)");
+    expect(rotte).toContain('<Route path="marketing/sales-os" element={<RimandoSalesOs />} />');
+    expect(rotte).toContain("/azienda/marketing/reportistica?tab=oggi");
+    const menu = readFileSync(resolve(process.cwd(), "src/lib/sidebarConfig.ts"), "utf8");
+    expect(menu).not.toContain('url: "/azienda/marketing/sales-os"');
+    expect(menu).toContain('orPermissionKey: "canViewSalesOs"');
+  });
+
+  it("non ripete in «CRM e vendite» i numeri di «Oggi» calcolati con altre regole", () => {
+    expect(crmSalesReport).not.toContain('tr("Sales velocity")');
+    expect(crmSalesReport).not.toContain('tr("Ticket medio")');
+    expect(crmSalesReport).not.toContain("buildSalesEfficiency");
   });
 
   it("does not expose standalone web attribution when the website is not connected", () => {
