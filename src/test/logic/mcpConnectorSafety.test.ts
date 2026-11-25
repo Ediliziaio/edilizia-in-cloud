@@ -93,6 +93,8 @@ function server(options: { companyId?: string | null; superAdmin?: boolean; emai
     emailSuperAdminConsentita: () => options.emailAmmessa === true,
     ruoloPrincipaleSilvio: (ruoli: string[]) => ruoli[0] ?? "company_staff",
     STRUMENTI_SILVIO: {},
+    planimetriaDaSopralluogo: () => { throw new Error("Plan drawing is not exercised here"); },
+    calcolaQuantita: () => ({}),
     fetch: () => { throw new Error("Network calls are forbidden in this test"); },
     crypto: webcrypto, TextEncoder, TextDecoder, Request, Response, Headers, URL, atob,
     console: { error() {} },
@@ -144,7 +146,7 @@ describe("MCP handler offline integration", () => {
     const s = server();
     expect((await s.post({ jsonrpc: "2.0", id: 1, method: "initialize" }, false)).status).toBe(200);
     const listing = await s.post({ jsonrpc: "2.0", id: 2, method: "tools/list" }, false);
-    expect(listing.body.result.tools).toHaveLength(84); // +3 commesse generali (tappa 7), +26 preventivi, fatture, rapportini, calendario e file (25/11/2026)
+    expect(listing.body.result.tools).toHaveLength(98); // +3 commesse generali (tappa 7), +40 preventivi, fatture, rapportini, fasi, posta, WhatsApp, calendario e file (25/11/2026)
     for (const tool of listing.body.result.tools) expect(tool.securitySchemes).toEqual([{ type: "oauth2", scopes: [] }]);
     const unauth = await s.post({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "kpi_azienda" } }, false);
     expect(unauth.status).toBe(401);
@@ -292,6 +294,21 @@ describe("MCP permessi dell'utente che collega", () => {
   it("clienti, worker e strumenti non elencati restano chiusi", () => {
     expect(motivoNegato(dipendente({ can_view_orders: true }, "customer"), "commesse_generali", false)).toMatch(/ruolo/);
     expect(motivoNegato(dipendente({ can_view_orders: true }), "strumento_nuovo", false)).toMatch(/amministratori/);
+  });
+});
+
+describe("MCP strumenti col token dell'utente", () => {
+  it("con una chiave API (senza accesso dell'utente) si rifiutano senza toccare niente", async () => {
+    const s = server({ scopes: ["*"] });
+    const res = await s.call("modifica_contatto", { contatto_id: ENTITY, nome: "Mario", request_id: REQUEST });
+    expect(res.body.result.content[0].text).toMatch(/solo collegando l'assistente con l'accesso/);
+  });
+  it("le fatture restano agli amministratori; un'emissione chiede conferma", async () => {
+    expect(motivoNegato({ admin: false, ruolo: "company_staff", permessi: { can_view_billing: true, can_manage_payments: true } }, "crea_bozza_fattura", true)).toMatch(/amministratori/);
+    const s = server({ scopes: ["*"] });
+    const tools = (await s.post({ jsonrpc: "2.0", id: 1, method: "tools/list" })).body.result.tools as { name: string; inputSchema: { required: string[] } }[];
+    expect(tools.find(t => t.name === "emetti_fattura")?.inputSchema.required).toContain("confirmed");
+    expect(tools.find(t => t.name === "invia_whatsapp")?.inputSchema.required).toContain("confirmed");
   });
 });
 

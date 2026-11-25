@@ -121,6 +121,20 @@ export const REGOLE_STRUMENTI: Record<string, RegolaStrumento> = {
   aggiorna_stato_commessa: { permessi: ["can_edit_orders"], ampio: true },
   aggiungi_nota_commessa: { permessi: ["can_view_orders"], ampio: true },
   agenda: { permessi: [CALENDARIO], ampio: true },
+  // Modifiche, pianta, fasi, contatti, posta, WhatsApp (25/11 sera). Le scritture passano col token
+  // dell'utente: valgono anche le regole sulle righe del database.
+  voci_preventivo: { permessi: ["can_view_preventivi"] },
+  modifica_voci_preventivo: { permessi: ["can_edit_preventivi"] },
+  trasforma_preventivo_in_commessa: { permessi: ["can_edit_orders", "can_edit_preventivi"] },
+  disegna_planimetria: { permessi: [["can_edit_preventivi", "can_edit_orders"], "can_view_render_ai"] },
+  aggiorna_fase_commessa: { permessi: ["can_edit_orders"] },
+  modifica_contatto: { permessi: ["can_edit_marketing_contacts"], ampio: true },
+  email_conversazioni: { permessi: [] },
+  leggi_email: { permessi: [] },
+  rispondi_email: { permessi: [] },
+  conversazioni_whatsapp: { permessi: ["can_view_marketing_whatsapp"], ampio: true },
+  leggi_whatsapp: { permessi: ["can_view_marketing_whatsapp"], ampio: true },
+  invia_whatsapp: { permessi: ["can_view_marketing_whatsapp"] },
   blocca_slot_calendario: { permessi: [CALENDARIO] },
   // File dall'assistente
   link_caricamento: { permessi: [["can_edit_preventivi", "can_edit_orders"]] },
@@ -132,6 +146,8 @@ export const REGOLE_STRUMENTI: Record<string, RegolaStrumento> = {
 /** Strumenti che restano agli amministratori (come in Silvio): di proposito fuori dalla tabella. */
 export const SOLO_AMMINISTRATORI = [
   "lista_aziende", "quadro_commessa", "report_commessa", "approva_rapportini", "registra_incasso_commessa", "ore_assenze_dipendente",
+  // Fatture: nell'app le gestisce chi amministra i documenti fiscali; per ora solo gli amministratori.
+  "crea_bozza_fattura", "emetti_fattura",
 ];
 
 function vero(permessi: Record<string, unknown>, chiave: string): boolean {

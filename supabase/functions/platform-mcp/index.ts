@@ -33,7 +33,7 @@ import {
 } from "./lib.ts";
 import { SILVIO_TOOLS } from "./silvioTools.ts";
 import { PLATFORM_TOOLS, ISTRUZIONI_PIATTAFORMA } from "./platformTools.ts";
-import { AZIENDA_TOOLS, PONTE_SILVIO_TOOLS, ALTRI_TOOLS } from "./aziendaTools.ts";
+import { AZIENDA_TOOLS, PONTE_SILVIO_TOOLS, ALTRI_TOOLS, COMPLETI_TOOLS } from "./aziendaTools.ts";
 import { type Attore, motivoNegato } from "./permessiStrumenti.ts";
 import { ruoloPrincipaleSilvio } from "../_shared/ruoloSilvio.ts";
 import { argumentError, canonicalJson, isRecord, validOAuthClaims, validRpcMessage } from "./protocol.ts";
@@ -633,7 +633,7 @@ const TOOLS_MANUALI: ToolDef[] = [
 
 // Tool scritti a mano + ponte verso il catalogo silvio_tool_* (silvioTools.ts)
 // + area superadmin (platformTools.ts, solo per i collegamenti di piattaforma).
-const TOOLS: ToolDef[] = [...TOOLS_MANUALI, ...SILVIO_TOOLS, ...AZIENDA_TOOLS, ...PONTE_SILVIO_TOOLS, ...ALTRI_TOOLS, ...PLATFORM_TOOLS, {
+const TOOLS: ToolDef[] = [...TOOLS_MANUALI, ...SILVIO_TOOLS, ...AZIENDA_TOOLS, ...PONTE_SILVIO_TOOLS, ...ALTRI_TOOLS, ...COMPLETI_TOOLS, ...PLATFORM_TOOLS, {
   name: "stato_invio",
   description: "Verifica un'email accodata tramite outbound_id. queued = in attesa, failed = errore, sent = accettata dal provider (non prova di lettura o consegna).",
   scope: "email:read",
