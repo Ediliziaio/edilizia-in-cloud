@@ -193,7 +193,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
     },
   });
   const conViaggi = useMemo(() => (Array.isArray(viaggiLetti) ? new Set(viaggiLetti) : NESSUN_VIAGGIO), [viaggiLetti]);
-  const filtrati = useMemo(() => (conFiltri ? filtraRapportini(rapportini, filtri, statoDi, conViaggi) : rapportini), [conFiltri, rapportini, filtri, conViaggi]);
+  const filtrati = useMemo(() => (conFiltri ? filtraRapportini<(typeof rapportini)[number]>(rapportini, filtri, statoDi, conViaggi) : rapportini), [conFiltri, rapportini, filtri, conViaggi]);
   const conteggi = useMemo(() => {
     const c = { inviato: 0, approvato: 0, rifiutato: 0, trasporti: 0 };
     for (const r of rapportini) {

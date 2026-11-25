@@ -32,7 +32,7 @@ export function filtriAttivi(f: FiltriRapportini): boolean {
 export function filtraRapportini<T extends RigaFiltrabile>(
   righe: readonly T[],
   f: FiltriRapportini,
-  statoDi: (r: T) => StatoRapportino,
+  statoDi: (r: T) => string,
   conViaggi: ReadonlySet<string>,
 ): T[] {
   const parole = f.cerca.trim().toLocaleLowerCase("it").split(/\s+/).filter(Boolean);
