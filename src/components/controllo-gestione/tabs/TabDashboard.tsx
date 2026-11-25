@@ -823,7 +823,7 @@ function CardObiettivo({ obiettivo, anno, caricamento }: { obiettivo: Obiettivo 
         </Link>
       </div>
       <div className="mt-2 flex items-baseline gap-2">
-        <span className="text-3xl font-bold tabular-nums tracking-tight">{formatNumero(Math.min(pct, 999), 0)}%</span>
+        <span className="text-lg font-bold tabular-nums tracking-tight">{formatNumero(Math.min(pct, 999), 0)}%</span>
         <span className="text-xs text-slate-400">{raggiunto ? t("raggiunto") : t("fatto")}</span>
       </div>
       <div

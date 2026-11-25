@@ -221,7 +221,7 @@ export default function Preventivi() {
             label: t("Approvazioni sconto"),
             icon: <Percent className="h-4 w-4" />,
             badge: pendingApprovalsCount > 0 ? (
-              <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-[10px]">
+              <Badge variant="destructive" className="ml-0.5 h-4 px-1.5 text-[10px]">
                 {pendingApprovalsCount}
               </Badge>
             ) : null,
