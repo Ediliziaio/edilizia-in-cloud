@@ -7,13 +7,13 @@ const rpc = vi.fn();
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: (...a: unknown[]) => rpc(...a) } }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-import { CellaProtocolloCommessa, NumeraProtocolliCommesse, etichettaProtocolloCantiere, type ProtocolliCommessa } from "@/components/fatturazione/ProtocolloCommessa";
+import { CellaProtocolloCommessa, NumeraProtocolliCommesse, etichettaProtocolloCantiere, type FatturaPerProtocolloCommessa, type ProtocolliCommessa } from "@/components/fatturazione/ProtocolloCommessa";
 
 const CANTIERI = [
   { id: "o1", codice: "O-0001", descrizione: "Cherubini — lotto Via Luigi Cherubini", sigla: "Che" },
   { id: "o2", codice: "O-0002", descrizione: "Via Callimaco 28", sigla: "Cal" },
 ];
-const fattura = { id: "f1", numero_fattura: "53", cedente_ragione_sociale: "Fornitore Srl", stato: "letta" };
+const fattura: FatturaPerProtocolloCommessa = { id: "f1", numero_fattura: "53", cedente_ragione_sociale: "Fornitore Srl", stato: "letta" };
 
 function finto(over: Partial<ProtocolliCommessa> = {}): ProtocolliCommessa {
   const base: ProtocolliCommessa = {
