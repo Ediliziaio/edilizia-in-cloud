@@ -24649,6 +24649,7 @@ const dizionario: Dizionario = {
   "Perdita dell'esercizio": "Pierderea exercițiului",
   "Utile progressivo mese per mese": "Profit cumulat lună de lună",
   "Grafici di bilancio": "Grafice de bilanț",
+  "Grafici": "Grafice",
   "Com'è fatto l'attivo": "Cum este compus activul",
   "Com'è fatto il passivo e netto": "Cum este compus pasivul și capitalurile proprii",
   "Ricavi e costi mese per mese": "Venituri și costuri lună de lună",

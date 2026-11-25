@@ -19,12 +19,15 @@ export function KpiCard({
   onClick,
   active = false,
   variazione,
+  compatta = false,
 }: {
   label: string;
   value: string;
   sub?: string;
   icon: LucideIcon;
   accent: string;
+  /** Riquadro basso (cifra a 16px, sottotitolo su una riga): per le testate delle pagine di analisi. */
+  compatta?: boolean;
   onClick?: () => void;
   active?: boolean;
   /** Pillola della variazione accanto al numero (es. sull'anno prima). */
@@ -34,23 +37,23 @@ export function KpiCard({
     <>
       <div className={cn("absolute inset-y-0 left-0 w-1", accent)} />
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <span className={cn("font-medium uppercase tracking-wide text-muted-foreground", compatta ? "truncate text-[11px]" : "text-xs")}>
           {label}
         </span>
-        <Icon className="h-4 w-4 text-muted-foreground" />
+        <Icon className={cn("text-muted-foreground", compatta ? "h-3.5 w-3.5 shrink-0" : "h-4 w-4")} />
       </div>
-      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="text-lg font-semibold tabular-nums tracking-tight text-foreground">{value}</span>
+      <div className={cn("flex flex-wrap items-center gap-x-2 gap-y-1", compatta ? "mt-0.5" : "mt-1")}>
+        <span className={cn("font-semibold tabular-nums tracking-tight text-foreground", compatta ? "text-base" : "text-lg")}>{value}</span>
         {variazione && (
           <PillolaVariazione pct={variazione.pct} piuEMeglio={variazione.piuEMeglio} neutra={variazione.neutra} titolo={variazione.nota} />
         )}
       </div>
-      {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
+      {sub && <p className={cn("text-muted-foreground", compatta ? "truncate text-[11px] leading-4" : "mt-1 text-xs")} title={compatta ? sub : undefined}>{sub}</p>}
     </>
   );
 
   // 14/11/2026: colori del tema (anche scuro) ed entrata dal basso.
-  const baseClass = "relative overflow-hidden rounded-xl border bg-gradient-to-br from-card to-muted/40 p-3 shadow-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-500 motion-safe:fill-mode-both";
+  const baseClass = cn("relative overflow-hidden rounded-xl border bg-gradient-to-br from-card to-muted/40 shadow-sm", compatta ? "px-3 py-2" : "p-3", "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-500 motion-safe:fill-mode-both");
 
   if (onClick) {
     return (
