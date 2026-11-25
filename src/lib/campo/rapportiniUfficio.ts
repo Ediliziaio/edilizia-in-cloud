@@ -65,6 +65,18 @@ export function commessaDeiTrasporti(nome?: string | null): boolean {
   return /(^|[^\p{L}])trasport[oi]([^\p{L}]|$)/iu.test(nome ?? "");
 }
 
+/**
+ * Rapportino «lavori» o «trasporti» (25/11/2026): la scelta vale su ogni commessa, non solo su quelle
+ * chiamate TRASPORTI. Tornando a «lavori» si tolgono solo i viaggi ancora vuoti: quelli già compilati restano.
+ */
+export type TipoRapportinoUfficio = "lavori" | "trasporti";
+
+export function senzaViaggiVuoti(g: GiornoUfficio): GiornoUfficio {
+  if (!g.voci?.length) return g;
+  const voci = g.voci.filter((v) => !v.viaggio || Object.values(v.viaggio).some((x) => x?.trim()));
+  return voci.length === g.voci.length ? g : { ...g, voci };
+}
+
 /** La voce del viaggio da aggiungere: quella del catalogo dell'azienda, se ce n'è una, con i suoi prezzi. */
 export function voceViaggioNuova(
   chiave: string,

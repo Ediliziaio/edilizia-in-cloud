@@ -68874,5 +68874,17 @@ const dizionario: Dizionario = {
   "Correggi i lati qui sotto scrivendo le misure della tavola.": "Korrigjo brinjët më poshtë duke shkruar masat e tabelës.",
   "Clic dentro le pareti: la stanza si chiude da sola lungo il filo interno. Poi dalle un nome a destra.": "Kliko brenda mureve: dhoma mbyllet vetë përgjatë faqes së brendshme. Pastaj jepi një emër djathtas.",
   "Tocca dentro le pareti: la stanza si chiude da sola.": "Prek brenda mureve: dhoma mbyllet vetë.",
+  "Tipo di rapportino": "Lloji i raportit",
+  "Rapportino lavori": "Raport punimesh",
+  "Rapportino trasporti": "Raport transporti",
+  "Lavori, ore, mezzi e materiali della giornata": "Punimet, orët, mjetet dhe materialet e ditës",
+  "Ogni giorno un viaggio: carico, scarico, mezzo, DDT, km": "Çdo ditë një udhëtim: ngarkim, shkarkim, mjet, DDT, km",
+  "Serve il permesso Costi o Acquisti": "Duhet leja Kostot ose Blerjet",
+  "Nessun rapportino approvato: {n} è ancora da approvare": "Asnjë raport i miratuar: {n} pret ende miratimin",
+  "Nessun rapportino approvato: {n} sono ancora da approvare": "Asnjë raport i miratuar: {n} presin ende miratimin",
+  "Nessun rapportino approvato in questo periodo": "Asnjë raport i miratuar në këtë periudhë",
+  "Compaiono solo le commesse con rapportini approvati nel periodo.": "Shfaqen vetëm porositë me raporte të miratuara në periudhë.",
+  "{n} rapportino è ancora da approvare: approvalo per includere la sua commessa.": "{n} raport pret ende miratimin: miratoje për të përfshirë porosinë e tij.",
+  "{n} rapportini sono ancora da approvare: approvali per includere le loro commesse.": "{n} raporte presin ende miratimin: miratoji për të përfshirë porositë e tyre.",
 };
 export default dizionario;

@@ -6,7 +6,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useMemo, useState, type ReactNode } from "react";
 import { useCatalogoVociRapportino } from "@/hooks/useCatalogoVociRapportino";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarRange, Camera, Check, FileUp, Hammer, Loader2, NotebookPen, Plus, Sparkles, Trash2, Users, X } from "lucide-react";
+import { CalendarRange, Camera, Check, FileUp, Hammer, Loader2, NotebookPen, Plus, Sparkles, Trash2, Truck, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -27,7 +27,7 @@ import { refreshRapportinoQueries } from "@/lib/orders/refreshRapportinoQueries"
 import { messaggioErrore } from "@/lib/orders/sottofasi";
 import { giornoLocale } from "@/lib/orders/cronoprogramma";
 import { compressImage } from "@/lib/campo/compressImage";
-import { applicaParti, commessaDeiTrasporti, fasiDelGiorno, voceViaggioNuova,
+import { applicaParti, commessaDeiTrasporti, fasiDelGiorno, senzaViaggiVuoti, voceViaggioNuova, type TipoRapportinoUfficio,
   METEO, caricoRapportini, erroriGiorni, giornoDaLetto, giorniDaPeriodo, giornoVuoto,
   type GiornoUfficio, type PersonaPresenza, type RapportinoLetto,
 } from "@/lib/campo/rapportiniUfficio";
@@ -168,16 +168,21 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
     },
   });
   const catalogoVoci = useCatalogoVociRapportino(companyId, canViewCosts);
-  const trasporti = canViewCosts && commessaDeiTrasporti(commessa.data?.description) && (catalogoVoci.isFetched || catalogoVoci.isError);
+  // Lavori o trasporti (25/11/2026): si sceglie su ogni commessa; sulle commesse «TRASPORTI…» parte già su trasporti.
+  // Il viaggio è una voce del rapportino: serve chi vede i costi (Costi o Acquisti), come per le altre voci.
+  const [tipoScelto, setTipoScelto] = useState<TipoRapportinoUfficio | null>(null);
+  const tipo: TipoRapportinoUfficio = tipoScelto ?? (canViewCosts && commessaDeiTrasporti(commessa.data?.description) ? "trasporti" : "lavori");
+  const pronto = canViewCosts && commessa.isFetched && (catalogoVoci.isFetched || catalogoVoci.isError);
+  const trasporti = pronto && tipo === "trasporti";
   const conViaggio = (g: GiornoUfficio): GiornoUfficio =>
-    trasporti && !(g.voci ?? []).length ? { ...g, voci: [voceViaggioNuova(crypto.randomUUID(), catalogoVoci.data?.voci ?? [])] } : g;
-  // Una volta sola, appena si sa che è una commessa dei trasporti: i giorni ancora senza voci ricevono il viaggio.
-  const [viaggioMesso, setViaggioMesso] = useState(false);
+    trasporti && !(g.voci ?? []).some((v) => v.viaggio) ? { ...g, voci: [voceViaggioNuova(crypto.randomUUID(), catalogoVoci.data?.voci ?? []), ...(g.voci ?? [])] } : g;
+  // A ogni cambio di tipo: con «trasporti» i giorni senza viaggio lo ricevono, con «lavori» si tolgono i viaggi vuoti.
+  const [tipoApplicato, setTipoApplicato] = useState<TipoRapportinoUfficio>("lavori");
   const [tentato, setTentato] = useState(false);
   const [caricando, setCaricando] = useState<string | null>(null);
-  if (trasporti && !viaggioMesso) {
-    setViaggioMesso(true);
-    setGiorni((gs) => gs.map(conViaggio));
+  if (pronto && tipoApplicato !== tipo) {
+    setTipoApplicato(tipo);
+    setGiorni((gs) => gs.map(tipo === "trasporti" ? conViaggio : senzaViaggiVuoti));
   }
   const [periodo, setPeriodo] = useState<{ dal: string; al: string; feriali: boolean } | null>(null);
   const [lettura, setLettura] = useState<{ stato: "legge" } | { stato: "letto"; n: number; avvisi: string[] } | null>(null);
@@ -279,6 +284,22 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
 
   return (
     <div className="space-y-4">
+      <div role="radiogroup" aria-label={tr("Tipo di rapportino")} className="grid gap-2 sm:grid-cols-2">
+        {([
+          { v: "lavori" as const, icona: Hammer, titolo: tr("Rapportino lavori"), sotto: tr("Lavori, ore, mezzi e materiali della giornata") },
+          { v: "trasporti" as const, icona: Truck, titolo: tr("Rapportino trasporti"),
+            sotto: canViewCosts ? tr("Ogni giorno un viaggio: carico, scarico, mezzo, DDT, km") : tr("Serve il permesso Costi o Acquisti") },
+        ]).map(({ v, icona: Icona, titolo, sotto }) => (
+          <button key={v} type="button" role="radio" aria-checked={tipo === v} disabled={v === "trasporti" && !canViewCosts}
+            onClick={() => setTipoScelto(v)}
+            className={cn("flex items-start gap-2 rounded-lg border p-2.5 text-left disabled:cursor-not-allowed disabled:opacity-60",
+              tipo === v ? "border-blue-600 bg-blue-50 text-blue-950" : "border-border hover:bg-slate-50")}>
+            <Icona className="mt-0.5 h-4 w-4 shrink-0" />
+            <span className="min-w-0"><span className="block text-sm font-medium">{titolo}</span>
+              <span className="block text-xs text-muted-foreground">{sotto}</span></span>
+          </button>
+        ))}
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant="outline" size="sm" className="h-8" aria-expanded={!!periodo}
           onClick={() => setPeriodo(periodo ? null : { dal: giorni[giorni.length - 1].data, al: oggi, feriali: true })}>

@@ -139,3 +139,17 @@ describe("commessa dei trasporti (24/11/2026)", () => {
     expect(voceViaggioNuova("k")).toEqual({ chiave: "k", descrizione: "Trasporto", quantita: "1", unita: "viaggio", costo: "", vendita: "", viaggio: {} });
   });
 });
+
+describe("senzaViaggiVuoti", () => {
+  it("toglie i viaggi ancora vuoti e lascia quelli compilati e le altre voci", async () => {
+    const { senzaViaggiVuoti } = await import("@/lib/campo/rapportiniUfficio");
+    const base = { chiave: "g", data: "2026-11-20", descrizione: "", fasi: [] as string[], percentuali: {}, sottofasi: {}, note: "" };
+    const vuoto = { chiave: "a", descrizione: "TRASPORTI", quantita: "1", unita: "cad", costo: "", vendita: "", viaggio: { carico: "  " } };
+    const pieno = { chiave: "b", descrizione: "TRASPORTI", quantita: "1", unita: "cad", costo: "", vendita: "", viaggio: { carico: "Maranello" } };
+    const altra = { chiave: "c", descrizione: "Nolo", quantita: "1", unita: "cad", costo: "", vendita: "" };
+    const g = { ...base, voci: [vuoto, pieno, altra] } as unknown as Parameters<typeof senzaViaggiVuoti>[0];
+    expect(senzaViaggiVuoti(g).voci?.map((v) => v.chiave)).toEqual(["b", "c"]);
+    const solo = { ...base, voci: [altra] } as unknown as Parameters<typeof senzaViaggiVuoti>[0];
+    expect(senzaViaggiVuoti(solo)).toBe(solo);
+  });
+});

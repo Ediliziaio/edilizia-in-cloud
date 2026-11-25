@@ -68874,5 +68874,17 @@ const dizionario: Dizionario = {
   "Correggi i lati qui sotto scrivendo le misure della tavola.": "Corectează laturile de mai jos scriind măsurile din planșă.",
   "Clic dentro le pareti: la stanza si chiude da sola lungo il filo interno. Poi dalle un nome a destra.": "Clic în interiorul pereților: camera se închide singură pe fața interioară. Apoi dă-i un nume în dreapta.",
   "Tocca dentro le pareti: la stanza si chiude da sola.": "Atinge în interiorul pereților: camera se închide singură.",
+  "Tipo di rapportino": "Tipul raportului",
+  "Rapportino lavori": "Raport de lucrări",
+  "Rapportino trasporti": "Raport de transport",
+  "Lavori, ore, mezzi e materiali della giornata": "Lucrări, ore, utilaje și materiale ale zilei",
+  "Ogni giorno un viaggio: carico, scarico, mezzo, DDT, km": "În fiecare zi o cursă: încărcare, descărcare, vehicul, aviz (DDT), km",
+  "Serve il permesso Costi o Acquisti": "Necesită permisiunea Costuri sau Achiziții",
+  "Nessun rapportino approvato: {n} è ancora da approvare": "Niciun raport aprobat: {n} așteaptă încă aprobarea",
+  "Nessun rapportino approvato: {n} sono ancora da approvare": "Niciun raport aprobat: {n} așteaptă încă aprobarea",
+  "Nessun rapportino approvato in questo periodo": "Niciun raport aprobat în această perioadă",
+  "Compaiono solo le commesse con rapportini approvati nel periodo.": "Apar doar comenzile cu rapoarte aprobate în perioadă.",
+  "{n} rapportino è ancora da approvare: approvalo per includere la sua commessa.": "{n} raport așteaptă încă aprobarea: aprobă-l pentru a include comanda lui.",
+  "{n} rapportini sono ancora da approvare: approvali per includere le loro commesse.": "{n} rapoarte așteaptă încă aprobarea: aprobă-le pentru a include comenzile lor.",
 };
 export default dizionario;
