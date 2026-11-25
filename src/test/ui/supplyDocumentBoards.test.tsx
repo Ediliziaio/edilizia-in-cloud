@@ -425,7 +425,8 @@ describe("Colonne dell’elenco documenti", () => {
         name: "Cantiere: 2,5 mq · Magazzino: 3,25 mq",
       }),
     ).toBeInTheDocument();
-    fireEvent.keyDown(screen.getByRole("button", { name: "Esporta" }), {
+    // L'esportazione sta nel menu «⋯» della testata comune (25/11/2026).
+    fireEvent.keyDown(screen.getByRole("button", { name: "Altre azioni" }), {
       key: "Enter",
       code: "Enter",
     });
@@ -608,7 +609,8 @@ describe("Elenco DDT operativo", () => {
       expect(recap).toHaveTextContent("20 file ricevuti");
       expect(recap).toHaveTextContent("7 da leggere · 12 da controllare · 1 già in archivio");
       expect(recap).toHaveTextContent("1 da rimandare");
-      expect(screen.getByRole("link", { name: "Confronta bolla" })).toHaveAttribute("href", `/azienda/ddt/${altroId}`);
+      // Sulla riga dell'elenco è l'etichetta «Possibile duplicato», che apre il confronto (25/11/2026).
+      expect(screen.getByRole("link", { name: /Possibile duplicato.*Confronta bolla/ })).toHaveAttribute("href", `/azienda/ddt/${altroId}`);
       fireEvent.click(within(recap).getByRole("button", { name: "Apri invio" }));
       expect(screen.getByTestId("url")).toHaveTextContent(`ddt_invio=${invio}`);
       expect(screen.getByText("Bolla da WhatsApp.jpg")).toBeInTheDocument();

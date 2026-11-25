@@ -12,6 +12,8 @@ import { format, parseISO } from "date-fns";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ArrowUpRight, ChevronLeft, ChevronRight, ClipboardList, Download, FileDown, Image as ImageIcon, Loader2, NotebookPen, RefreshCcw, Search, X } from "lucide-react";
 import { RapportiPeriodoDialog } from "@/components/documentiOperativi/RapportiPeriodoDialog";
+import { TestataScheda, RICERCA_BARRA, TENDINA_STATO_BARRA } from "@/components/orders/TestataScheda";
+import { ScriviRapportiniScegliCommessa } from "@/components/orders/ScriviRapportiniScegliCommessa";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
@@ -231,18 +233,22 @@ function Pagina({ companyId }: { companyId?: string }) {
     }] : []),
   ];
 
+  const esportaCsv = () => {
+    const suffisso = giorno || (periodo === "mese" ? mese : intervallo?.da ? `${intervallo.da}_${intervallo.a}` : "tutti");
+    if (tipo !== "rapportino") exportToCSV(righeCsvDocumenti(documenti), COLONNE_DOCUMENTI_CANTIERE, `documenti-cantiere-${suffisso}.csv`);
+    else exportToCSV(righeCsv(filtrate, canViewCosts), COLONNE_CSV.filter((c) => canViewCosts || c.key !== "costo"), `rapportini-${suffisso}.csv`);
+  };
+
   return (
     <div className="space-y-3">
-      {/* Testata: titolo e mese */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-bold tracking-tight text-slate-900 max-sm:sr-only sm:text-2xl">{t("Rapportini")}</h1>
-        <div className="flex max-w-full flex-wrap items-center gap-1.5 max-sm:w-full">
+      {/* Testata comune delle schede di Commesse (25/11/2026): titolo, periodo, «Crea documento PDF» e,
+          nel «⋯», l'esportazione. Comandi da 32px come in Commesse. */}
+      <TestataScheda
+        titolo={t("Rapportini")}
+        nuovo={canEditOrders ? <ScriviRapportiniScegliCommessa /> : undefined}
+        altre={!isMobile && !isLoading && !isError && documenti.length > 0 ? [{ gruppo: t("Esporta"), etichetta: "CSV (Excel)", icona: FileDown, onSelect: esportaCsv }] : undefined}
+        azioni={<>
           {isFetching && !isLoading && <Loader2 className="h-4 w-4 animate-spin text-slate-400" aria-label={t("Aggiornamento")} />}
-          {!isMobile && !isLoading && !isError && documenti.length > 0 && (
-            <Button variant="outline" size="sm" className="h-9" onClick={() => tipo !== "rapportino" ? exportToCSV(righeCsvDocumenti(documenti), COLONNE_DOCUMENTI_CANTIERE, `documenti-cantiere-${giorno || (periodo === "mese" ? mese : intervallo?.da ? `${intervallo.da}_${intervallo.a}` : "tutti")}.csv`) : exportToCSV(righeCsv(filtrate, canViewCosts), COLONNE_CSV.filter((c) => canViewCosts || c.key !== "costo"), `rapportini-${giorno || (periodo === "mese" ? mese : intervallo?.da ? `${intervallo.da}_${intervallo.a}` : "tutti")}.csv`)}>
-              <FileDown className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />{t("Esporta")}
-            </Button>
-          )}
           {/* Telefono: il tipo a pillole tonde come le sezioni; periodo e mese sulla riga sotto. */}
           {puoLeggereGiornali && telefonoRap && <div role="group" aria-label={t("Tipo documento")} className={cn(RIGA_PILLOLE, "w-full")}>
             {([["tutti", t("Tutti")], ["rapportino", t("Rapportini")], ["giornale", t("Giornali lavori")]] as const).map(([v, etichetta]) => (
@@ -251,32 +257,33 @@ function Pagina({ companyId }: { companyId?: string }) {
             ))}
           </div>}
           {puoLeggereGiornali && !telefonoRap && <OfficeSelect label={t("Tipo documento")} value={tipo} onValueChange={(v) => imposta({ rap_tipo: v, rap_vista: null, rap_persona: null, rap_stato: null })}
-            options={[{ value: "tutti", label: t("Tutti i documenti") }, { value: "rapportino", label: t("Rapportini") }, { value: "giornale", label: t("Giornali lavori") }]} className="h-9 w-48" />}
+            options={[{ value: "tutti", label: t("Tutti i documenti") }, { value: "rapportino", label: t("Rapportini") }, { value: "giornale", label: t("Giornali lavori") }]} className="h-8 w-44 text-xs" />}
           <OfficeSelect label={t("Periodo")} value={periodo} onValueChange={(v) => imposta({ rap_periodo: v, rap_giorno: null, rap_da: null, rap_a: null })}
-            options={[{ value: "tutti", label: t("Tutti i periodi") }, { value: "ultimi30", label: t("Ultimi 30 giorni") }, { value: "mese", label: t("Mese") }, { value: "anno", label: t("Quest’anno") }, { value: "personalizzato", label: t("Periodo personalizzato") }]} className="h-9 w-48 max-sm:w-auto max-sm:flex-1" />
+            options={[{ value: "tutti", label: t("Tutti i periodi") }, { value: "ultimi30", label: t("Ultimi 30 giorni") }, { value: "mese", label: t("Mese") }, { value: "anno", label: t("Quest’anno") }, { value: "personalizzato", label: t("Periodo personalizzato") }]} className="h-8 w-44 text-xs max-sm:w-auto max-sm:flex-1" />
           {periodo === "personalizzato" && <div className="flex flex-wrap items-center gap-2">
-            <Input type="date" aria-label={t("Dal giorno")} className="h-9 w-36" value={params.get("rap_da") ?? ""} onChange={(e) => imposta({ rap_da: e.target.value, rap_giorno: null })} />
+            <Input type="date" aria-label={t("Dal giorno")} className="h-8 w-36 text-xs" value={params.get("rap_da") ?? ""} onChange={(e) => imposta({ rap_da: e.target.value, rap_giorno: null })} />
             <span className="text-xs text-slate-500">{t("al")}</span>
-            <Input type="date" aria-label={t("Al giorno")} className="h-9 w-36" value={params.get("rap_a") ?? ""} onChange={(e) => imposta({ rap_a: e.target.value, rap_giorno: null })} />
+            <Input type="date" aria-label={t("Al giorno")} className="h-8 w-36 text-xs" value={params.get("rap_a") ?? ""} onChange={(e) => imposta({ rap_a: e.target.value, rap_giorno: null })} />
           </div>}
           {periodo === "mese" && mese !== meseCorrente && (
-            <Button variant="ghost" size="sm" onClick={() => imposta({ rap_periodo: "mese", rap_mese: null, rap_giorno: null })}>{t("Questo mese")}</Button>
+            <Button variant="ghost" size="sm" className="h-8 px-2.5 text-xs" onClick={() => imposta({ rap_periodo: "mese", rap_mese: null, rap_giorno: null })}>{t("Questo mese")}</Button>
           )}
           {periodo === "mese" && <div className="flex items-center rounded-lg border border-slate-200 bg-white max-sm:shrink-0">
-            <Button variant="ghost" size="icon" className="h-9 w-9" aria-label={t("Mese precedente")}
+            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t("Mese precedente")}
               onClick={() => imposta({ rap_mese: spostaMese(mese, -1), rap_giorno: null })}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="min-w-[8.5rem] text-center text-sm font-semibold text-slate-900 max-sm:min-w-[7rem]" aria-live="polite">{etichettaMese(mese)}</span>
-            <Button variant="ghost" size="icon" className="h-9 w-9" aria-label={t("Mese successivo")} disabled={mese >= meseCorrente}
+            <span className="min-w-[8rem] text-center text-xs font-semibold text-slate-900 max-sm:min-w-[7rem]" aria-live="polite">{etichettaMese(mese)}</span>
+            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t("Mese successivo")} disabled={mese >= meseCorrente}
               onClick={() => imposta({ rap_mese: spostaMese(mese, 1), rap_giorno: null })}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>}
-        </div>
-      </div>
+          {tipo !== "giornale" && intervallo && !isError && !isLoading && !isMobile && <RapportiPeriodoDialog compatto key={companyId} companyId={companyId} mese={periodo === "mese" ? mese : periodoLabel} righe={filtrate as RapportinoCompleto[]} conDatiEconomici={canViewCosts} />}
+        </>}
+      />
 
-      {tipo !== "giornale" && intervallo && !isError && !isLoading && <RapportiPeriodoDialog key={companyId} companyId={companyId} mese={periodo === "mese" ? mese : periodoLabel} righe={filtrate as RapportinoCompleto[]} conDatiEconomici={canViewCosts} />}
+      {tipo !== "giornale" && intervallo && !isError && !isLoading && isMobile && <RapportiPeriodoDialog key={companyId} companyId={companyId} mese={periodo === "mese" ? mese : periodoLabel} righe={filtrate as RapportinoCompleto[]} conDatiEconomici={canViewCosts} />}
       {!intervallo ? <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{t("Scegli una data iniziale e una finale valide. La data finale deve essere uguale o successiva a quella iniziale.")}</p> : isError ? (
         <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           {t("Non riesco a leggere tutti i documenti: i numeri non sarebbero affidabili.")}
@@ -305,16 +312,16 @@ function Pagina({ companyId }: { companyId?: string }) {
           {/* Il riepilogo del mese: stessa fascia blu della scheda Commesse */}
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="grid gap-0">
-              <OperationalSummary embedded label={t("Riepilogo rapportini")} title={giorno ? giornoLungo(giorno) : periodo === "mese" ? t("Il lavoro del mese") : periodo === "tutti" ? tipo === "rapportino" ? t("Tutti i rapportini") : t("Tutti i documenti del cantiere") : periodoLabel} icon={NotebookPen}>
+              <OperationalSummary embedded compatto label={t("Riepilogo rapportini")} title={giorno ? giornoLungo(giorno) : periodo === "mese" ? t("Il lavoro del mese") : periodo === "tutti" ? tipo === "rapportino" ? t("Tutti i rapportini") : t("Tutti i documenti del cantiere") : periodoLabel} icon={NotebookPen}>
                 {numeri.filter(n => !n.soloScrivania).map(n => <OperationalSummaryMetric key={n.label} label={n.label} value={n.valore} hint={n.nota} tone={n.evidenza ? "amber" : undefined} onClick={n.onClick} active={!!n.onClick && stato === (tipo === "giornale" ? "bozza" : "inviato")} />)}
               </OperationalSummary>
 
               {tipo !== "giornale" && <details className="group border-t border-slate-200">
-                <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">{tipo === "tutti" ? t("Statistiche dei rapportini") : periodo === "mese" ? t("Statistiche del mese") : t("Statistiche del periodo")}</summary>
+                <summary className="cursor-pointer px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">{tipo === "tutti" ? t("Statistiche dei rapportini") : periodo === "mese" ? t("Statistiche del mese") : t("Statistiche del periodo")}</summary>
                 <div className="grid grid-cols-2 gap-3 px-4 pb-3 sm:grid-cols-4">
                   {numeri.filter((n) => n.soloScrivania).map((n) => <div key={n.label}>
                     <span className="block text-xs font-semibold uppercase text-slate-500">{n.label}</span>
-                    <span className="block text-lg font-bold tabular-nums text-slate-900">{n.valore}</span>
+                    <span className="block text-base font-semibold tabular-nums text-slate-900">{n.valore}</span>
                     {n.nota && <span className="text-xs text-slate-500">{n.nota}</span>}
                   </div>)}
                 </div>
@@ -375,26 +382,27 @@ function Pagina({ companyId }: { companyId?: string }) {
           {/* Divisioni e filtri nella stessa scheda dell'elenco */}
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-2">
-              <div role="tablist" aria-label={t("Dividi i rapportini")} className="flex max-w-full gap-1 overflow-x-auto rounded-lg p-0.5 [scrollbar-width:none]">
+              <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
+                <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                  <Input value={testo} onChange={(e) => imposta({ rap_q: e.target.value || null })} placeholder={t("Cerca nei rapportini")}
+                    aria-label={t("Cerca nei rapportini")} className="h-8 w-full pl-8 text-xs" />
+                </div>
+                <OfficeSelect label={t("Cantiere")} value={cantiere} onValueChange={(v) => imposta({ rap_cantiere: v || null })} options={opzioniCantieri} className="h-8 w-44 text-xs max-sm:flex-1" />
+                {tipo === "rapportino" && <OfficeSelect label={t("Persona")} value={persona} onValueChange={(v) => imposta({ rap_persona: v || null })} options={opzioniPersone} className="h-8 w-40 text-xs max-sm:flex-1" />}
+                <OfficeSelect label={t("Stato")} value={stato} onValueChange={(v) => imposta({ rap_stato: v || null })} className={cn(TENDINA_STATO_BARRA, "max-sm:flex-1")}
+                  options={[{ value: "", label: t("Stati") }, ...(tipo === "giornale" ? [] : (["inviato", "approvato", "rifiutato"] as const).map((s) => ({ value: s, label: t(STATI[s].label) }))), { value: "bozza", label: t("Bozza") }, ...(tipo === "rapportino" ? [] : [{ value: "firmata", label: t("Firmata") }])]} />
+              </div>
+              {/* Ricerca e filtri a sinistra, il modo di dividere l'elenco a destra: come nelle altre schede. */}
+              <div role="tablist" aria-label={t("Dividi i rapportini")} className="ml-auto flex max-w-full gap-1 overflow-x-auto rounded-lg p-0.5 [scrollbar-width:none] max-sm:ml-0">
                 {visteDisponibili.map((v) => (
                   <button key={v.id} type="button" role="tab" aria-selected={vista === v.id}
                     onClick={() => imposta({ rap_vista: v.id === "elenco" ? null : v.id })}
-                    className={cn("shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-sm transition-colors",
+                    className={cn("shrink-0 whitespace-nowrap rounded-md px-2.5 py-1 text-xs transition-colors",
                       vista === v.id ? "bg-orange-50 font-semibold text-slate-950 shadow-sm ring-1 ring-orange-100" : "text-slate-500 hover:text-slate-900")}>
                     {t(v.label)}
                   </button>
                 ))}
-              </div>
-              <div className="ml-auto flex flex-wrap items-center gap-2 max-sm:ml-0 max-sm:w-full">
-                <div className="relative max-sm:w-full">
-                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-                  <Input value={testo} onChange={(e) => imposta({ rap_q: e.target.value || null })} placeholder={t("Cerca nei rapportini")}
-                    aria-label={t("Cerca nei rapportini")} className="h-9 w-56 pl-8 text-sm max-sm:w-full" />
-                </div>
-                <OfficeSelect label={t("Cantiere")} value={cantiere} onValueChange={(v) => imposta({ rap_cantiere: v || null })} options={opzioniCantieri} className="h-9 w-44 text-sm max-sm:flex-1" />
-                {tipo === "rapportino" && <OfficeSelect label={t("Persona")} value={persona} onValueChange={(v) => imposta({ rap_persona: v || null })} options={opzioniPersone} className="h-9 w-40 text-sm max-sm:flex-1" />}
-                <OfficeSelect label={t("Stato")} value={stato} onValueChange={(v) => imposta({ rap_stato: v || null })} className="h-9 w-36 text-sm max-sm:flex-1"
-                  options={[{ value: "", label: t("Stati") }, ...(tipo === "giornale" ? [] : (["inviato", "approvato", "rifiutato"] as const).map((s) => ({ value: s, label: t(STATI[s].label) }))), { value: "bozza", label: t("Bozza") }, ...(tipo === "rapportino" ? [] : [{ value: "firmata", label: t("Firmata") }])]} />
               </div>
             </div>
             {filtriAttivi && (

@@ -1,3 +1,4 @@
+import { TestataScheda, RICERCA_BARRA, TENDINA_STATO_BARRA } from "@/components/orders/TestataScheda";
 import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
 import { AnomalyDetailDialog, type AnomalyActor } from "@/components/orders/AnomalyDetailDialog";
 import { anomalyNotes, anomalyPriority, anomalyClosed } from "@/lib/orders/anomalyWorkflow";
@@ -32,6 +33,7 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Clock3,
+  FileDown,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -1163,44 +1165,39 @@ export default function GlobalErrors() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 py-3 sm:py-5 shadow-sm sm:px-6">
-        <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex items-start gap-2.5 sm:gap-3">
-            <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
-              <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-lg font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">
-                {t("Anomalie operative")}
-              </h1>
-              <p className="hidden sm:block mt-0.5 text-sm text-slate-500">
-                {t("Capisci dove nasce la perdita, chi deve intervenire e quali cause si ripetono.")}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="space-y-3">
+      {/* Testata comune delle schede di Commesse (25/11/2026): «Nuova anomalia» arancio come gli altri
+          «Nuovo» (era l'unico blu, alto 40px), «Esporta» nel «⋯». Poi riepilogo e barra, nello stesso
+          ordine delle altre schede (prima la barra veniva sopra il riepilogo). */}
+      <TestataScheda
+        titolo={t("Anomalie operative")}
+        altre={[{ gruppo: t("Esporta"), etichetta: "CSV (Excel)", icona: FileDown, onSelect: exportFilteredCsv, disabled: filtered.length === 0 }]}
+        nuovo={canEdit ? { etichetta: t("Nuova anomalia"), onClick: () => setCreating(true) } : undefined}
+      />
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2.5">
-          <div className="relative w-full sm:min-w-[260px] sm:flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      {view === "register" && <OperationalSummary compatto label={t("Riepilogo anomalie")} title={t("I problemi da gestire")} icon={AlertTriangle} columns={3} note={t("Indicatori riferiti ai filtri attivi.")}>
+        <OperationalSummaryMetric isLoading={isLoading} label={t("Anomalie aperte")} value={String(openRows.length)} hint={t("Da verificare, assegnare o risolvere")} icon={AlertTriangle} tone="orange" />
+        <OperationalSummaryMetric isLoading={isLoading} label={t("Interventi scaduti")} value={String(overdueRows.length)} hint={t("Scadenza correttiva superata, caso ancora aperto")} icon={Clock3} tone={overdueRows.length ? "red" : "green"} />
+        <OperationalSummaryMetric isLoading={isLoading} label={t("Costo stimato problemi aperti")} value={formatCurrency(openRows.reduce((sum, e) => sum + anomalyNotes(e).estimate, 0))} hint={t("Stime dei casi aperti nei filtri attivi")} icon={TrendingDown} tone="red" />
+      </OperationalSummary>}
+
+      <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
               value={search}
               onChange={(event) => { setSearch(event.target.value); setPage(1); }}
               placeholder={t("Cerca anomalia…")}
               aria-label={t("Cerca commessa, causa o responsabile")}
-              className="h-10 w-full rounded-md border border-slate-200 bg-background pl-9 pr-3 text-sm shadow-none outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-8 w-full rounded-md border border-slate-200 bg-background pl-8 pr-3 text-xs shadow-none outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
-          <Select value={statusFilter} onValueChange={value => {setStatusFilter(value);setPage(1);}}><SelectTrigger aria-label={t("Stato anomalie")} className="h-10 w-full sm:w-[180px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{t("Tutti gli stati")}</SelectItem><SelectItem value="open">{t("Da gestire")}</SelectItem><SelectItem value="overdue">{t("Interventi scaduti")}</SelectItem>{Object.entries(REVIEW_STATUS_META).map(([key, meta]) => <SelectItem key={key} value={key}>{t(meta.label)}</SelectItem>)}</SelectContent></Select>
-          {canEdit && <Button className="h-10 shrink-0" onClick={() => setCreating(true)}>{t("Nuova anomalia")}</Button>}
-          <Button variant="outline" className="h-10 shrink-0" onClick={exportFilteredCsv} disabled={filtered.length === 0}>{t("Esporta")}</Button>
+          <Select value={statusFilter} onValueChange={value => {setStatusFilter(value);setPage(1);}}><SelectTrigger aria-label={t("Stato anomalie")} className={cn(TENDINA_STATO_BARRA, "max-sm:w-full")}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{t("Tutti gli stati")}</SelectItem><SelectItem value="open">{t("Da gestire")}</SelectItem><SelectItem value="overdue">{t("Interventi scaduti")}</SelectItem>{Object.entries(REVIEW_STATUS_META).map(([key, meta]) => <SelectItem key={key} value={key}>{t(meta.label)}</SelectItem>)}</SelectContent></Select>
           <Button
             variant="outline"
             size="sm"
-            className="relative h-10 shrink-0 text-xs w-full sm:w-auto"
+            className="relative h-8 shrink-0 px-2.5 text-xs w-full sm:w-auto"
             onClick={handleOpenFilters}
             aria-label={t("Apri filtri anomalie")}
           >
@@ -1212,15 +1209,12 @@ export default function GlobalErrors() {
               </span>
             )}
           </Button>
+          <div className="flex items-center gap-2 sm:ml-auto">
+            <p className="whitespace-nowrap text-xs text-muted-foreground max-xl:hidden">{t("{n} anomalie · Importi riferiti ai filtri attivi", { n: filtered.length })}</p>
+            <div className="flex shrink-0 gap-0.5 rounded-lg border p-0.5"><Button size="sm" className="h-7 px-2.5 text-xs" variant={view === "register" ? "secondary" : "ghost"} aria-pressed={view === "register"} onClick={() => setView("register")}>{t("Registro anomalie")}</Button><Button size="sm" className="h-7 px-2.5 text-xs" variant={view === "analytics" ? "secondary" : "ghost"} aria-pressed={view === "analytics"} onClick={() => setView("analytics")}>{t("Analisi e statistiche")}</Button></div>
+          </div>
         </div>
       </div>
-
-      {view === "register" && <OperationalSummary label={t("Riepilogo anomalie")} title={t("I problemi da gestire")} icon={AlertTriangle} columns={3} note={t("Indicatori riferiti ai filtri attivi.")}>
-        <OperationalSummaryMetric isLoading={isLoading} label={t("Anomalie aperte")} value={String(openRows.length)} hint={t("Da verificare, assegnare o risolvere")} icon={AlertTriangle} tone="orange" />
-        <OperationalSummaryMetric isLoading={isLoading} label={t("Interventi scaduti")} value={String(overdueRows.length)} hint={t("Scadenza correttiva superata, caso ancora aperto")} icon={Clock3} tone={overdueRows.length ? "red" : "green"} />
-        <OperationalSummaryMetric isLoading={isLoading} label={t("Costo stimato problemi aperti")} value={formatCurrency(openRows.reduce((sum, e) => sum + anomalyNotes(e).estimate, 0))} hint={t("Stime dei casi aperti nei filtri attivi")} icon={TrendingDown} tone="red" />
-      </OperationalSummary>}
-      <div className="flex items-center justify-between gap-3 overflow-x-auto"><div className="flex shrink-0 gap-1 rounded-lg border p-1"><Button size="sm" variant={view === "register" ? "secondary" : "ghost"} aria-pressed={view === "register"} onClick={() => setView("register")}>{t("Registro anomalie")}</Button><Button size="sm" variant={view === "analytics" ? "secondary" : "ghost"} aria-pressed={view === "analytics"} onClick={() => setView("analytics")}>{t("Analisi e statistiche")}</Button></div><p className="whitespace-nowrap text-sm text-muted-foreground">{t("{n} anomalie · Importi riferiti ai filtri attivi", { n: filtered.length })}</p></div>
       {view === "analytics" && <div className="space-y-5">
       <div><h2 className="text-base font-semibold">{t("Impatto economico")}</h2><p className="mt-1 mb-3 text-xs text-muted-foreground">{t("Importo complessivo: {importo} · comprende stime e costi finali netti. I tre valori sotto distinguono solo i costi confermati e non vanno sommati.", { importo: formatCurrency(stats.totalLoss) })}</p><div className="grid gap-3 sm:grid-cols-3">
         <OperationalKpiCard label={t("Costi finali confermati")} value={formatCurrency(filtered.reduce((sum, e) => sum + (anomalyNotes(e).finalCost ?? 0), 0))} hint={t("Solo casi con costo finale registrato")} icon={TrendingDown} tone="orange" />

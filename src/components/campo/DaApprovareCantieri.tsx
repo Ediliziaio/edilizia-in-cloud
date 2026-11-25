@@ -8,7 +8,7 @@ import { lazy, Suspense, useId, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
-import { ClipboardList, Loader2 } from "lucide-react";
+import { ChevronDown, ClipboardList, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -250,5 +250,34 @@ export function DaApprovareCantieri() {
         </DialogContent>
       </Dialog>
     </section>
+  );
+}
+
+/**
+ * La stessa cosa in una pastiglia, per la riga «Da sistemare» di Attività (25/11/2026):
+ * il riquadro intero, con una riga per cantiere, stava sempre aperto sopra le attività.
+ * La pastiglia dice quanti sono e apre il riquadro sotto; senza niente in attesa non c'è.
+ */
+export function DaApprovareChip({ aperto, onToggle }: { aperto: boolean; onToggle: () => void }) {
+  const t = useT();
+  const puoApprovare = usePuoApprovareCantiere();
+  const approvare = useDaApprovareCantieri(puoApprovare);
+  const tot = totaleDaApprovare(approvare.data);
+  if (!puoApprovare || tot === 0) return null;
+  return (
+    <button
+      type="button"
+      aria-expanded={aperto}
+      onClick={onToggle}
+      className={cn(
+        "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+        aperto ? "border-amber-300 bg-amber-50 text-amber-900" : "border-amber-200 bg-card hover:bg-amber-50/60",
+      )}
+    >
+      <ClipboardList className="h-3.5 w-3.5 shrink-0 text-amber-600" aria-hidden />
+      {t("Dal cantiere, da approvare")}
+      <span className="rounded-full bg-amber-100 px-1.5 text-[11px] font-semibold tabular-nums text-amber-800">{tot}</span>
+      <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", aperto && "rotate-180")} aria-hidden />
+    </button>
   );
 }

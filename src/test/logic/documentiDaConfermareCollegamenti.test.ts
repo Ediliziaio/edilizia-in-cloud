@@ -28,7 +28,8 @@ describe("agganci", () => {
 
   it("il riquadro sta in Attività subito sotto «Dal cantiere, da approvare»", () => {
     const attivita = leggi("src/pages/azienda/AttivitaStaff.tsx");
-    expect(attivita).toMatch(/<DaApprovareCantieri \/>[\s\S]{0,260}<DocumentiDaConfermareBox \/>/);
+    // Dal 25/11/2026 sono pastiglie nella riga «Da sistemare», una accanto all'altra.
+    expect(attivita).toMatch(/<DaApprovareChip [\s\S]{0,160}<DocumentiDaConfermareBox compatto \/>/);
   });
 
   it("la home da computer lo conta tra le cose da sbloccare, solo per chi vede le email", () => {

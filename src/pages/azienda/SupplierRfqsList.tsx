@@ -38,7 +38,6 @@ import {
 import {
   FileQuestion,
   ShoppingCart,
-  Plus,
   Search,
   Clock,
   Inbox,
@@ -46,6 +45,7 @@ import {
   CalendarClock,
   AlertTriangle,
   X,
+  FileDown,
 } from "lucide-react";
 import { OperationalViewSwitch } from "@/components/orders/OperationalViewSwitch";
 import {
@@ -56,6 +56,8 @@ import { useSupplierRfqs, type SupplierRfq } from "@/hooks/useSupplierRfqs";
 import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
 import { usePermissions } from "@/hooks/usePermissions";
 import { RDO_STATUS_LABELS, RDO_STATUS_COLORS } from "@/lib/rdoStatus";
+import { TestataScheda, RICERCA_BARRA, TENDINA_STATO_BARRA } from "@/components/orders/TestataScheda";
+import { exportToCSV } from "@/lib/csvExport";
 import { formatCurrency } from "@/lib/formatters";
 import {
   inOperationalPeriod,
@@ -386,27 +388,22 @@ export default function SupplierRfqsList() {
     );
   };
 
+  // Quello che si vede con i filtri attivi, tutte le pagine: le stesse colonne della selezione.
+  const esportaCsv = () => exportToCSV(filtered.map((r) => ({
+    documento: r.rfq_number ?? "", titolo: r.titolo ?? "", stato: RDO_STATUS_LABELS[r.status] ?? r.status,
+    scadenza: r.scadenza_offerte ?? "", risposte: String(contatori[r.id]?.risposte ?? 0),
+  })), [{ key: "documento", label: "N° RdO" }, { key: "titolo", label: "Titolo" }, { key: "stato", label: "Stato" }, { key: "scadenza", label: "Scadenza offerte" }, { key: "risposte", label: "Risposte ricevute" }], "richieste-offerta.csv");
+
   return (
-    <div className="min-w-0 space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            {t("Richieste d’offerta")}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("Inviti, risposte e confronto delle offerte, fino all’ordine al fornitore.")}
-          </p>
-        </div>
-        <Button
-          disabled={!canCreate}
-          onClick={() => setNewOpen(true)}
-          className="bg-orange-500 text-white hover:bg-orange-600"
-        >
-          <Plus className="mr-1.5 h-4 w-4" />
-          {t("Nuova richiesta")}
-        </Button>
-      </div>
-      <OperationalSummary label={t("Riepilogo richieste d’offerta")} title={t("Le richieste ai fornitori")} icon={FileQuestion} error={isError} note={t("Richieste aperte, risposte e aggiudicazioni nel perimetro corrente.")}>
+    <div className="min-w-0 space-y-3">
+      {/* Testata comune delle schede di Commesse (25/11/2026): «Nuova richiesta» da 32px arancio
+          sfumato (era alta 40px) e, nel «⋯», l'esportazione che qui mancava. */}
+      <TestataScheda
+        titolo={t("Richieste d’offerta")}
+        altre={filtered.length > 0 ? [{ gruppo: t("Esporta"), etichetta: "CSV (Excel)", icona: FileDown, onSelect: esportaCsv }] : undefined}
+        nuovo={{ etichetta: t("Nuova richiesta"), onClick: () => setNewOpen(true), disabled: !canCreate }}
+      />
+      <OperationalSummary compatto label={t("Riepilogo richieste d’offerta")} title={t("Le richieste ai fornitori")} icon={FileQuestion} error={isError} note={t("Richieste aperte, risposte e aggiudicazioni nel perimetro corrente.")}>
         <OperationalSummaryMetric
           icon={FileQuestion}
           label={t("Aperte")}
@@ -449,7 +446,7 @@ export default function SupplierRfqsList() {
         />
       </OperationalSummary>
       <section aria-label={t("Filtri richieste d’offerta")} className="rounded-xl border bg-white p-2.5 shadow-sm">
-        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto"><div className="relative min-w-[200px] flex-1">
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto"><div className={RICERCA_BARRA}>
             <Search className="absolute left-3 top-2 h-4 w-4 text-muted-foreground" />
             <Input
               aria-label={t("Cerca richieste d’offerta")}
@@ -458,7 +455,7 @@ export default function SupplierRfqsList() {
               onChange={(e) => update({ cerca: e.target.value })}
               className="h-8 pl-9 text-xs"
             />
-          </div><UniformSelect aria-label={t("Stato richieste d’offerta")} className="h-8 max-w-full rounded-md border bg-background px-3 text-xs" value={status} onChange={e => update({ stato: e.target.value, focus: null })}>{STATUSES.map(id => <option key={id} value={id}>{id === "tutti" ? t("Tutti gli stati") : id === "aperte" ? t("Aperte") : RDO_STATUS_LABELS[id]}</option>)}</UniformSelect><OperationalViewSwitch
+          </div><UniformSelect aria-label={t("Stato richieste d’offerta")} className={cn(TENDINA_STATO_BARRA, "rounded-md border bg-background px-3")} value={status} onChange={e => update({ stato: e.target.value, focus: null })}>{STATUSES.map(id => <option key={id} value={id}>{id === "tutti" ? t("Tutti gli stati") : id === "aperte" ? t("Aperte") : RDO_STATUS_LABELS[id]}</option>)}</UniformSelect><OperationalViewSwitch
             value={view}
             onChange={(v) => update({ vista: v, ambito: archive.scope })}
           /><OperationalExtraFilters count={Number(order !== "all") + Number(supplier !== "all") + Number(period !== "tutto") + Number(!!focus) + Number(archive.scope !== "all")}>      <div className="space-y-3">

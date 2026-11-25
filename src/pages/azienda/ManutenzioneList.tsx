@@ -1,3 +1,4 @@
+import { RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
 import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -425,7 +426,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
       {/* Riepilogo condiviso; i contratti e i canoni restano disponibili sotto. Fino a 1024 non c'è:
           ripeteva le stesse quattro scelte delle pillole qui sopra (stessi numeri, stesso filtro). */}
       <div className="max-lg:hidden">
-      <OperationalSummary label={t("Riepilogo manutenzioni")} title={t("Impianti e scadenze")} icon={ClipboardList} error={impiantiError || contrattiError || pianiError} note={t("Impianti e piani accessibili al tuo utente.")}>
+      <OperationalSummary compatto label={t("Riepilogo manutenzioni")} title={t("Impianti e scadenze")} icon={ClipboardList} error={impiantiError || contrattiError || pianiError} note={t("Impianti e piani accessibili al tuo utente.")}>
         <OperationalSummaryMetric label={t("Impianti")} value={impianti.length} isLoading={loadingImpianti || loadingPiani} onClick={() => setPill("all")} active={pill === "all"} />
         <OperationalSummaryMetric label={t("Scadenza imminente")} value={nScaduteInScadenza} tone={nScaduteInScadenza > 0 ? "amber" : undefined} isLoading={loadingImpianti || loadingContratti || loadingPiani} onClick={() => setPill("urgenti")} active={pill === "urgenti"} hint={t("Scadute o in scadenza")} />
         <OperationalSummaryMetric label={t("In regola")} value={contaStato.in_regola} isLoading={loadingImpianti || loadingPiani} onClick={() => setPill("in_regola")} active={pill === "in_regola"} />
@@ -443,14 +444,14 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
 
       {/* Toolbar: ricerca + (per gli impianti) filtro stato e toggle vista */}
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-        <div className="relative flex-1 min-w-0 sm:min-w-[220px]">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-label={mostraContratti ? t("Cerca contratti di manutenzione") : t("Cerca impianti per cliente o tipo")}
             placeholder={mostraContratti ? t("Cerca un contratto…") : t("Cerca per cliente o impianto…")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-9 bg-white pl-10"
+            className="h-8 bg-white pl-8 text-xs"
           />
         </div>
         {/* Toggle elenco/kanban: solo da tablet in su. Su telefono la vista è

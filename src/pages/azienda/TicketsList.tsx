@@ -1,3 +1,4 @@
+import { RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
 import React, { useState, useMemo } from "react";
@@ -724,7 +725,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
       </div>
 
       {/* Stesso riepilogo su desktop e telefono, con i filtri originali. */}
-      <OperationalSummary label={tr("Riepilogo assistenza")} title={tr("Gli interventi da seguire")} icon={LifeBuoy} note={tr("Indicatori dell’assistenza nel perimetro caricato.")}>
+      <OperationalSummary compatto label={tr("Riepilogo assistenza")} title={tr("Gli interventi da seguire")} icon={LifeBuoy} note={tr("Indicatori dell’assistenza nel perimetro caricato.")}>
         {([
           { key: "aperti", label: tr("Da lavorare"), n: metrics.aperti, tono: "red", attivo: statusFilter === "aperto", onClick: () => setStatusFilter(statusFilter === "aperto" ? "all" : "aperto") },
           { key: "urgenti", label: tr("Urgenti"), n: metrics.urgenti, tono: "amber", attivo: priorityFilter === "urgente" || priorityFilter === "alta", onClick: () => setPriorityFilter(priorityFilter === "urgente" ? "all" : "urgente") },
@@ -765,13 +766,13 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
         {/* Fino a 1024 (telefono e tablet): ricerca + «Filtri» su una riga; a 768 le tre tendine
             e «Altri filtri» andavano su due righe (segnalazione del founder). */}
         <div className="flex items-center gap-2 lg:contents">
-          <div className="relative flex-1 min-w-0 lg:min-w-[220px]">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <div className={cn(RICERCA_BARRA, "max-lg:w-auto max-lg:min-w-0 max-lg:flex-1 max-lg:shrink")}>
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder={isMobile ? tr("Cerca") : tr("Cerca per cliente, oggetto o email…")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 max-sm:h-9 max-sm:bg-white sm:h-9 sm:bg-white"
+              className="pl-8 max-sm:h-9 max-sm:bg-white sm:h-8 sm:bg-white sm:text-xs"
             />
           </div>
           <Button
@@ -792,7 +793,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
         </div>
         <div className="flex flex-wrap items-center gap-2 max-lg:hidden lg:contents">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger aria-label={tr("Filtra assistenze per stato")} className="flex-1 sm:h-9 sm:w-auto sm:flex-none"><SelectValue placeholder={tr("Stato")} /></SelectTrigger>
+            <SelectTrigger aria-label={tr("Filtra assistenze per stato")} className="flex-1 sm:h-8 sm:w-[180px] sm:flex-none sm:text-xs"><SelectValue placeholder={tr("Stato")} /></SelectTrigger>
             <SelectContent className="max-h-[380px]">
               <SelectItem value="all">{tr("Tutti gli stati ({all})", { all: String(statusCounts.all ?? "") })}</SelectItem>
               {TICKET_FASI.map((fase) => {
@@ -816,7 +817,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
             </SelectContent>
           </Select>
           <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger aria-label={tr("Filtra assistenze per priorità")} className="flex-1 sm:h-9 sm:w-auto sm:flex-none"><SelectValue placeholder={tr("Priorità")} /></SelectTrigger>
+            <SelectTrigger aria-label={tr("Filtra assistenze per priorità")} className="flex-1 sm:h-8 sm:w-auto sm:flex-none sm:text-xs"><SelectValue placeholder={tr("Priorità")} /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{tr("Tutte le priorità")}</SelectItem>
               <SelectItem value="urgente">{tr("🔴 Urgente")}</SelectItem>
@@ -826,7 +827,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
             </SelectContent>
           </Select>
           <Select value={assegnatoFilter} onValueChange={setAssegnatoFilter}>
-            <SelectTrigger aria-label={tr("Filtra assistenze per assegnatario")} className="flex-1 sm:h-9 sm:w-auto sm:flex-none"><SelectValue placeholder={tr("Assegnato a")} /></SelectTrigger>
+            <SelectTrigger aria-label={tr("Filtra assistenze per assegnatario")} className="flex-1 sm:h-8 sm:w-auto sm:flex-none sm:text-xs"><SelectValue placeholder={tr("Assegnato a")} /></SelectTrigger>
             <SelectContent>
               <SelectItem value="tutti">{tr("Tutti (assegnato o no)")}</SelectItem>
               <SelectItem value="unassigned">{tr("Non assegnato")}</SelectItem>
@@ -841,8 +842,8 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
               numero di quelli attivi sul bottone. */}
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9 gap-1.5">
-                <Filter className="h-4 w-4" />
+              <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs">
+                <Filter className="h-3.5 w-3.5" />
                 {tr("Altri filtri")}
                 {nAltriFiltri > 0 && (
                   <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold leading-4 text-primary-foreground">{nAltriFiltri}</span>

@@ -3,6 +3,8 @@ import { Search, X, CheckCircle2, ChevronRight } from "lucide-react";
 import { DettaglioFiltri, GruppoFiltri, SceltaFiltro } from "@/components/mobile/FiltriMobile";
 import { Input } from "@/components/ui/input";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { RICERCA_BARRA } from "@/components/orders/TestataScheda";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -64,7 +66,8 @@ interface OrdersFiltersProps {
 
 export function OrderSearch({value, onChange, expand = false}: {value: string; onChange: (text: string) => void; expand?: boolean}) {
   const t = useT();
-  return (<div className={expand ? "relative min-w-32 flex-1" : "relative col-span-2 min-w-0 sm:w-[150px] sm:shrink-0 xl:w-[116px]"}>
+  // Stessa misura della ricerca nelle altre schede di Commesse (25/11/2026): era 116-150px.
+  return (<div className={expand ? "relative min-w-32 flex-1" : cn(RICERCA_BARRA, "col-span-2 max-sm:w-full")}>
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             placeholder={t("Cerca…")}
@@ -116,7 +119,7 @@ export function OrdersFilters({
         <FilterField panel={panel} title={t("Stato commessa")}><Select value={statusFilter} onValueChange={onStatusFilterChange}>
           <SelectTrigger
             aria-label={t("Stato commessa")}
-            className={panel ? "h-9 w-full bg-background text-sm" : "h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[106px] sm:px-2 sm:text-xs sm:shrink-0"}
+            className={panel ? "h-9 w-full bg-background text-sm" : cn("h-10 w-full border-slate-200 bg-white shadow-none sm:px-2", "sm:h-8 sm:w-[180px] sm:shrink-0 sm:text-xs")}
           >
             <SelectValue placeholder={t("Stato")} />
           </SelectTrigger>

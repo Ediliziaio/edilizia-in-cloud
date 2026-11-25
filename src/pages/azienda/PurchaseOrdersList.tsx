@@ -1,3 +1,4 @@
+import { TestataScheda, BOTTONE_SECONDARIO, RICERCA_BARRA, TENDINA_STATO_BARRA } from "@/components/orders/TestataScheda";
 import { createPortal } from "react-dom";
 import { useSlotAzioniSezione } from "@/hooks/useSlotAzioniSezione";
 import { OperationalDateRange } from "@/components/orders/OperationalDateRange";
@@ -52,7 +53,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -62,7 +62,6 @@ import {
   Truck,
   ShieldCheck,
   FileText,
-  Download,
   ChevronDown,
   FileSpreadsheet,
   X,
@@ -109,7 +108,6 @@ import { OperationalViewSwitch } from "@/components/orders/OperationalViewSwitch
 import { useIsMobile } from "@/hooks/use-mobile";
 import { PipelineAcquisti } from "@/components/acquisti/PipelineAcquisti";
 import {
-  QuotePageHeader,
   QuoteChip,
   QuotePrimaryButton,
   type HubTab,
@@ -1045,7 +1043,7 @@ export default function PurchaseOrdersList() {
   );
 
   return (
-    <div className="space-y-6 max-sm:space-y-3">
+    <div className="space-y-3">
       {odaMovement.dialog}
       {rfqMovement.dialog}
       {/* Telefono: «+» tondo sulla riga delle sezioni di Commesse, niente barra arancio a tutta riga. */}
@@ -1053,62 +1051,26 @@ export default function PurchaseOrdersList() {
         <QuotePrimaryButton disabled={!puoAgire} onClick={() => setNewOpen(true)} size="sm" aria-label={tTesto("Nuovo ordine d'acquisto")} className="h-9 w-9 justify-center rounded-full p-0">
           <Plus className="h-4 w-4" />
         </QuotePrimaryButton>, slotAzioni)}
-      {!slotAzioni && <QuotePageHeader
-        title={tTesto("Acquisti")}
-        subtitle={tTesto("Dai materiali validati all'arrivo in cantiere: offerte, ordini e consegne, commessa per commessa.")}
-        icon={<ShoppingCart className="h-5 w-5" />}
-        className="testata-pagina bg-gradient-to-br from-white via-white to-orange-50/40"
-        titoloSoloDaComputer
-        actions={
-          <>
-            {/* Cosa manca da ordinare ed entro quando, in tutte le commesse. Dal telefono no
-                (decisione del founder, 23/11/2026): si usa da tablet e computer. */}
-            <Button asChild variant="outline" size="sm" className="max-sm:hidden">
-              <Link to="/azienda/fabbisogno-materiali">
-                <CalendarClock className="h-4 w-4 mr-1.5" />
-                {tTesto("Fabbisogno")}
-              </Link>
-            </Button>
-            {/* Telefono no: niente esportazioni. */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  disabled={!vedeCosti}
-                  variant="outline"
-                  size="sm"
-                  className="max-sm:hidden"
-                >
-                  <Download className="h-4 w-4 mr-1.5" />
-                  <span className="hidden sm:inline">{tTesto("Esporta")}</span>
-                  <ChevronDown className="h-3.5 w-3.5 ml-1" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuLabel className="text-[11px]">{tTesto("OdA filtrati ({n})", { n: filtered.length })}</DropdownMenuLabel>
-                <DropdownMenuItem onClick={exportCSV}>
-                  <FileText className="h-4 w-4 mr-2" /> CSV
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={exportXLSX}>
-                  <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={exportPDF}>
-                  <FileText className="h-4 w-4 mr-2" /> PDF
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <QuotePrimaryButton
-              disabled={!puoAgire}
-              onClick={() => setNewOpen(true)}
-              size="sm"
-              className="max-sm:flex-1 max-sm:justify-center"
-            >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">{tTesto("Nuovo OdA")}</span>
-              <span className="sm:hidden">{tTesto("Nuovo")}</span>
-            </QuotePrimaryButton>
-          </>
+      {/* Testata comune delle schede di Commesse (25/11/2026): «Esporta» nel «⋯», «Nuovo OdA»
+          come «Nuova Commessa», niente frase sotto il titolo. */}
+      {!slotAzioni && <TestataScheda
+        titolo={tTesto("Acquisti")}
+        azioni={
+          /* Cosa manca da ordinare ed entro quando, in tutte le commesse. Dal telefono no
+             (decisione del founder, 23/11/2026): si usa da tablet e computer. */
+          <Button asChild variant="outline" size="sm" className={cn(BOTTONE_SECONDARIO, "max-sm:hidden")}>
+            <Link to="/azienda/fabbisogno-materiali">
+              <CalendarClock />
+              {tTesto("Fabbisogno")}
+            </Link>
+          </Button>
         }
+        altre={[
+          { gruppo: tTesto("OdA filtrati ({n})", { n: filtered.length }), etichetta: "CSV", icona: FileText, onSelect: exportCSV, disabled: !vedeCosti },
+          { gruppo: tTesto("OdA filtrati ({n})", { n: filtered.length }), etichetta: "Excel", icona: FileSpreadsheet, onSelect: exportXLSX, disabled: !vedeCosti },
+          { gruppo: tTesto("OdA filtrati ({n})", { n: filtered.length }), etichetta: "PDF", icona: FileText, onSelect: exportPDF, disabled: !vedeCosti },
+        ]}
+        nuovo={{ etichetta: tTesto("Nuovo OdA"), onClick: () => setNewOpen(true), disabled: !puoAgire }}
       />}
 
       {/* KPI — cliccabili: ognuno filtra la lista sotto, cosi' il numero
@@ -1116,7 +1078,7 @@ export default function PurchaseOrdersList() {
       {/* Riepilogo comune a pipeline ed elenco; segue i filtri di ricerca e di emissione. */}
       {(vistaPrincipale === "elenco" ||
         ["tutte", "ordini"].includes(fonte)) && (
-        <OperationalSummary label={tTesto("Riepilogo acquisti")} title={tTesto("Materiali e consegne")} icon={ShoppingCart} error={isError} note={tTesto("Segue i filtri di ricerca e di emissione degli ordini.")}>
+        <OperationalSummary compatto label={tTesto("Riepilogo acquisti")} title={tTesto("Materiali e consegne")} icon={ShoppingCart} error={isError} note={tTesto("Segue i filtri di ricerca e di emissione degli ordini.")}>
           <OperationalSummaryMetric
             isLoading={isLoading}
             label={tTesto("In ritardo")}
@@ -1178,7 +1140,7 @@ export default function PurchaseOrdersList() {
 
       {/* Vista e filtri comuni: valgono per la pipeline e per l'elenco, e stanno nell'URL. */}
       <section aria-label={tTesto("Filtri acquisti")} className="rounded-xl border bg-white p-2.5 shadow-sm max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
-        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto max-sm:overflow-visible"><div className="relative min-w-[180px] flex-1 max-sm:min-w-0 sm:max-w-xs">
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto max-sm:overflow-visible"><div className={RICERCA_BARRA}>
             <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder={
@@ -1191,7 +1153,7 @@ export default function PurchaseOrdersList() {
               onChange={(e) => setSearch(e.target.value)}
               className="h-8 border-slate-200 pl-8 text-xs shadow-none max-sm:h-9 max-sm:text-sm"
             />
-          </div>{(vistaPrincipale === "elenco" || ["tutte", "ordini"].includes(fonte)) && <Select value={tab} onValueChange={setTab}><SelectTrigger aria-label={tTesto("Stato degli OdA")} className="h-8 w-[180px] max-w-full text-xs max-sm:h-9 max-sm:w-[8.5rem] max-sm:shrink-0 max-sm:text-sm"><SelectValue /></SelectTrigger><SelectContent>{hubTabs.map(item => <SelectItem key={item.key} value={item.key}>{item.key === "tutti" ? tTesto("Tutti gli stati") : item.label}</SelectItem>)}</SelectContent></Select>}{!telefono && <OperationalViewSwitch
+          </div>{(vistaPrincipale === "elenco" || ["tutte", "ordini"].includes(fonte)) && <Select value={tab} onValueChange={setTab}><SelectTrigger aria-label={tTesto("Stato degli OdA")} className={cn(TENDINA_STATO_BARRA, "max-sm:h-9 max-sm:w-[8.5rem] max-sm:text-sm")}><SelectValue /></SelectTrigger><SelectContent>{hubTabs.map(item => <SelectItem key={item.key} value={item.key}>{item.key === "tutti" ? tTesto("Tutti gli stati") : item.label}</SelectItem>)}</SelectContent></Select>}{!telefono && <OperationalViewSwitch
             value={vistaPrincipale}
             onChange={(v) =>
               setParams(

@@ -223,10 +223,13 @@ describe("Commesse → Rapportini", () => {
     await waitFor(() => expect(stato.toastErrore).toHaveBeenCalledWith("PDF non generato"));
   });
 
-  it("esporta quello che vedi, e il costo solo a chi può vederlo", () => {
+  it("esporta quello che vedi, e il costo solo a chi può vederlo", async () => {
     stato.canViewCosts = false;
     apri("?tab=rapportini&rap_cantiere=o1");
-    fireEvent.click(screen.getByRole("button", { name: "Esporta" }));
+    // L'esportazione sta nel menu «⋯» della testata comune (25/11/2026).
+    const menu = screen.getByRole("button", { name: "Altre azioni" });
+    fireEvent.keyDown(menu, { key: "Enter", code: "Enter" });
+    fireEvent.click(await screen.findByRole("menuitem", { name: "CSV (Excel)" }));
     const [righe, colonne, nome] = stato.esporta.mock.calls[0];
     expect(righe).toHaveLength(1);
     expect(righe[0]).not.toHaveProperty("costo");
@@ -381,9 +384,12 @@ describe("giornali e rapportini nell'elenco comune", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByRole("table").querySelectorAll("tbody tr")).toHaveLength(3);
   });
-  it("l'export di tutti i documenti mantiene i giornali ma non duplica ore e costi", () => {
+  it("l'export di tutti i documenti mantiene i giornali ma non duplica ore e costi", async () => {
     apri("?tab=rapportini", false);
-    fireEvent.click(screen.getByRole("button", { name: "Esporta" }));
+    // L'esportazione sta nel menu «⋯» della testata comune (25/11/2026).
+    const menu = screen.getByRole("button", { name: "Altre azioni" });
+    fireEvent.keyDown(menu, { key: "Enter", code: "Enter" });
+    fireEvent.click(await screen.findByRole("menuitem", { name: "CSV (Excel)" }));
     const [righe] = stato.esporta.mock.calls[0];
     expect(righe).toHaveLength(5);
     expect(righe.filter((r: { tipo: string }) => r.tipo === "Giornale lavori").every((r: { ore: string }) => r.ore === "")).toBe(true);

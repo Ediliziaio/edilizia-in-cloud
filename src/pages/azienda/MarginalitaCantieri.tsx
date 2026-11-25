@@ -1,3 +1,5 @@
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TestataScheda, BOTTONE_SECONDARIO, RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -919,48 +921,34 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
 
   return (
     <div className="space-y-3">
-      {/* ── Header ─────────────────────────────────────────── */}
-      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-4 py-3 shadow-sm">
-        <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex items-start gap-2.5 sm:gap-3">
-          <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
-            <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight">{t("Marginalità Cantieri")}</h1>
-            <p className="hidden sm:block text-sm text-slate-500 mt-0.5">
-              {t("Controlla preventivo, costi diretti e struttura per capire quali commesse stanno erodendo margine.")}
-            </p>
-          </div>
-        </div>
-          <div className="flex flex-wrap gap-1.5 sm:gap-2">
-            <Button variant="outline" size="sm" onClick={exportFilteredCsv} disabled={isLoading || !!error || filtered.length === 0} className="shrink-0" aria-label={t("Esporta vista CSV")}>
-              <FileDown className="h-3.5 w-3.5 sm:mr-1.5" />
-              <span className="hidden sm:inline">{t("Esporta vista")}</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={async () => {
-                setRefreshing(true);
-                try {
-                  await Promise.allSettled([
-                    refetch(), refetchVehicleEstimates(), refetchAnomalies(),
-                    structure.refetch(), commesseCdg.refetch(), refetchMarginSettings(),
-                    refetchSediData(), ...(piuSedi ? [refetchSedePerCommessa()] : []),
-                  ]);
-                } finally { setRefreshing(false); }
-              }}
-              disabled={isFetching || refreshing}
-              className="shrink-0"
-              aria-label={t("Aggiorna dati")}
-            >
-              <RefreshCw className={cn("h-3.5 w-3.5 sm:mr-1.5", (isFetching || refreshing) && "animate-spin")} />
-              <span className="hidden sm:inline">{t("Aggiorna dati")}</span>
-            </Button>
-          </div>
-        </div>
-      </div>
+      {/* Testata comune delle schede di Commesse (25/11/2026): «Esporta vista» nel «⋯»; «Aggiorna dati»
+          resta in vista perché gli avvisi di errore dicono di premerlo. */}
+      <TestataScheda
+        titolo={t("Marginalità Cantieri")}
+        azioni={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              setRefreshing(true);
+              try {
+                await Promise.allSettled([
+                  refetch(), refetchVehicleEstimates(), refetchAnomalies(),
+                  structure.refetch(), commesseCdg.refetch(), refetchMarginSettings(),
+                  refetchSediData(), ...(piuSedi ? [refetchSedePerCommessa()] : []),
+                ]);
+              } finally { setRefreshing(false); }
+            }}
+            disabled={isFetching || refreshing}
+            className={BOTTONE_SECONDARIO}
+            aria-label={t("Aggiorna dati")}
+          >
+            <RefreshCw className={cn((isFetching || refreshing) && "animate-spin")} />
+            <span className="hidden sm:inline">{t("Aggiorna dati")}</span>
+          </Button>
+        }
+        altre={[{ gruppo: t("Esporta"), etichetta: t("Esporta vista CSV"), icona: FileDown, onSelect: exportFilteredCsv, disabled: isLoading || !!error || filtered.length === 0 }]}
+      />
 
       {(structure.error || marginSettingsError) && <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
         {structure.error ? `${t("Struttura aziendale non caricata: la quota automatica non è disponibile.")} ` : ""}
@@ -968,17 +956,17 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
         {t("Premi Aggiorna dati per riprovare.")}
       </div>}
 
-      <section aria-label={t("Riepilogo marginalità")} className="rounded-2xl border border-slate-200 bg-eic-navy-deep p-3 text-white shadow-sm">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-base font-semibold">{t("Marginalità della vista")}</h2>
-            <p className="mt-0.5 text-xs text-blue-100/80">{t("Importi imponibili · percentuali ponderate sui ricavi")}</p>
+      <section aria-label={t("Riepilogo marginalità")} className="rounded-2xl border border-slate-200 bg-eic-navy-deep px-3 py-2 text-white shadow-sm">
+        <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 items-baseline gap-2">
+            <h2 className="shrink-0 text-base font-semibold">{t("Marginalità della vista")}</h2>
+            <p className="min-w-0 truncate text-xs text-blue-100/70 max-xl:hidden">· {t("Importi imponibili · percentuali ponderate sui ricavi")}</p>
           </div>
           <Badge className="border border-white/20 bg-white/10 text-white hover:bg-white/10">{t("Target dopo struttura {percento}%", { percento: targetMarginPct.toLocaleString(intlCampo(), {maximumFractionDigits:1}) })}</Badge>
         </div>
         {error && <p role="alert" className="mb-3 rounded-lg bg-red-400/10 px-3 py-2 text-sm text-red-100">{t("Dati non caricati: premi Aggiorna dati per riprovare.")}</p>}
         {anomaliesError && <p role="alert" className="mb-2 text-xs text-amber-100">{t("Anomalie non caricate: premi Aggiorna dati per riprovare.")}</p>}
-        <div className="grid gap-2 min-[420px]:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-1.5 min-[420px]:grid-cols-2 xl:grid-cols-4">
           <OrdersSummaryCard id="margine-diretto" title={t("Margine diretto")} icon={BarChart3}
             value={error || kpi.reliableCount === 0 ? "—" : formatCurrency(kpi.totMargine)} loading={isLoading}
             note={t("{n} commesse calcolabili", { n: String(kpi.reliableCount ?? "") })}
@@ -1120,20 +1108,50 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
         </div>
       )}
 
-      {/* ── Filtri ─────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
-      <div className="flex flex-col flex-wrap gap-2.5 sm:flex-row">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      {/* ── Filtri (25/11/2026): tutto alto 32px, testo 12px; l'anno in una tendina (erano N chip). ── */}
+      <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
+      <div className="flex flex-col flex-wrap gap-2 sm:flex-row sm:items-center">
+        <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             placeholder={t("Cerca ordine, cliente...")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-9 border-slate-200 pl-9 shadow-none"
+            className="h-8 border-slate-200 pl-8 text-xs shadow-none"
           />
         </div>
+        {/* Stato del margine: un gruppo compatto, alto come gli altri comandi (erano sei chip sciolti). */}
+        <div className="flex h-8 shrink-0 items-center gap-0.5 overflow-x-auto rounded-lg border border-slate-200 p-0.5" role="group" aria-label={t("Stato del margine")}>
+          {[
+            { key: "tutti", label: t("Tutti") },
+            { key: "perdita", label: t("In perdita") },
+            { key: "sotto_target", label: t("Sotto target") },
+            { key: "da_monitorare", label: t("Da monitorare") },
+            { key: "sano", label: t("Sani") },
+            { key: "incompleto", label: t("Dati incompleti") },
+          ].map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              aria-pressed={healthFilter === item.key}
+              onClick={() => setHealthFilter(item.key as typeof healthFilter)}
+              className={cn(
+                "h-7 shrink-0 whitespace-nowrap rounded-md px-2 text-xs transition-colors",
+                healthFilter === item.key ? "bg-orange-50 font-semibold text-slate-950 ring-1 ring-orange-100" : "text-muted-foreground hover:bg-slate-50 hover:text-slate-900",
+              )}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <Select value={annoFilter} onValueChange={setAnnoFilter}>
+          <SelectTrigger aria-label={t("Anno di creazione")} className="h-8 w-full text-xs sm:w-[140px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {anniDisponibili.map((anno) => <SelectItem key={anno} value={anno}>{anno === "tutti" ? t("Tutti gli anni") : anno}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <div className="flex items-center gap-2">
-          <label htmlFor="marginalita-overhead" className="text-sm text-muted-foreground whitespace-nowrap">{t("Struttura % se mancano dati")}</label>
+          <label htmlFor="marginalita-overhead" className="text-xs text-muted-foreground whitespace-nowrap">{t("Struttura % se mancano dati")}</label>
           <Input
             type="number"
             min={0}
@@ -1143,7 +1161,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
             value={overheadPct ?? ""}
             placeholder="—"
             onChange={(e) => setOverheadPct(e.target.value === "" ? null : clampPercentage(Number(e.target.value)))}
-            className="w-20 h-8 text-sm"
+            className="w-20 h-8 text-xs"
           />
           <Popover>
             <PopoverTrigger asChild>
@@ -1155,7 +1173,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
           </Popover>
         </div>
         <div className="flex items-center gap-2">
-          <label htmlFor="marginalita-target" className="text-sm text-muted-foreground whitespace-nowrap">{t("Target dopo struttura %")}</label>
+          <label htmlFor="marginalita-target" className="text-xs text-muted-foreground whitespace-nowrap">{t("Target dopo struttura %")}</label>
           <Input
             type="number"
             min={0}
@@ -1164,7 +1182,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
             id="marginalita-target"
             value={targetMarginPct}
             onChange={(e) => setTargetMarginPct(clampPercentage(Number(e.target.value)))}
-            className="w-20 h-8 text-sm"
+            className="w-20 h-8 text-xs"
           />
           <Popover>
             <PopoverTrigger asChild>
@@ -1175,48 +1193,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
             </PopoverContent>
           </Popover>
         </div>
-        <div className="flex gap-2 flex-wrap" role="group" aria-label={t("Stato del margine")}>
-          {[
-            { key: "tutti", label: t("Tutti") },
-            { key: "perdita", label: t("In perdita") },
-            { key: "sotto_target", label: t("Sotto target") },
-            { key: "da_monitorare", label: t("Da monitorare") },
-            { key: "sano", label: t("Sani") },
-            { key: "incompleto", label: t("Dati incompleti") },
-          ].map((item) => (
-            <button
-              key={item.key}
-              aria-pressed={healthFilter === item.key}
-              onClick={() => setHealthFilter(item.key as typeof healthFilter)}
-              className={cn(
-                "rounded-lg border px-2.5 py-1.5 text-xs transition-colors",
-                healthFilter === item.key
-                  ? "border-orange-200 bg-orange-50 font-semibold text-slate-950 shadow-sm"
-                  : "border-slate-200 text-muted-foreground hover:bg-slate-50 hover:text-slate-900",
-              )}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-2 flex-wrap" role="group" aria-label={t("Anno di creazione")}>
-          {anniDisponibili.map((anno) => (
-            <button
-              key={anno}
-              aria-pressed={annoFilter === anno}
-              onClick={() => setAnnoFilter(anno)}
-              className={cn(
-                "rounded-lg border px-2.5 py-1.5 text-xs transition-colors",
-                annoFilter === anno
-                  ? "border-orange-200 bg-orange-50 font-semibold text-slate-950 shadow-sm"
-                  : "border-slate-200 text-muted-foreground hover:bg-slate-50 hover:text-slate-900",
-              )}
-            >
-              {anno === "tutti" ? t("Tutti gli anni") : anno}
-            </button>
-          ))}
-        </div>
-        </div>
+      </div>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">

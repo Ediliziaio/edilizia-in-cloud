@@ -1,3 +1,4 @@
+import { TestataScheda, BOTTONE_SECONDARIO, RICERCA_BARRA, TENDINA_STATO_BARRA } from "@/components/orders/TestataScheda";
 import { createPortal } from "react-dom";
 import { useSlotAzioniSezione } from "@/hooks/useSlotAzioniSezione";
 import { OperationalDateRange } from "@/components/orders/OperationalDateRange";
@@ -56,7 +57,6 @@ import {
   ArrowLeft,
   AlertTriangle,
   Paperclip,
-  Download,
   ChevronDown,
   FileSpreadsheet,
   X,
@@ -869,7 +869,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
   );
 
   return (
-    <div className="space-y-5 max-sm:space-y-3">
+    <div className="space-y-3">
       {/* Telefono: «⋯» e «+» tondi sulla riga delle sezioni di Commesse; niente titolo né barra. */}
       {slotAzioni && createPortal(
         <>
@@ -895,82 +895,38 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
             <Plus className="h-4 w-4" />
           </Button>
         </>, slotAzioni)}
-      {/* ─── Header ── telefono: il titolo lo dice già la scheda «DDT»; restano
-          filtri e «Nuovo», senza esportazioni. ─────────────────────── */}
-      <div className={cn("flex flex-wrap items-start justify-between gap-3", slotAzioni && "hidden")}>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{t("DDT fornitori")}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("Ricezione, controllo della merce e documenti collegati a ordini e commesse.")}
-          </p>
-        </div>
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap max-sm:w-full max-sm:flex-nowrap">
-          {/* Export */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="max-sm:hidden">
-                <Download className="h-4 w-4 mr-1.5" />
-                <span className="hidden sm:inline">{t("Esporta")}</span>
-                <ChevronDown className="h-3.5 w-3.5 ml-1" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuLabel className="text-[11px]">{t("DDT filtrati ({n})", { n: filtered.length })}</DropdownMenuLabel>
-              <DropdownMenuItem onClick={exportCSV}>
-                <FileText className="h-4 w-4 mr-2" /> CSV
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportXLSX}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportPDF}>
-                <FileText className="h-4 w-4 mr-2" /> PDF
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {canCreate && (pendingBase.length > 0 || ingresso.invii.length > 0 || !!invioSelezionato) && (
+      {/* Testata comune delle schede di Commesse (25/11/2026): «Esporta» nel «⋯», comandi da 32px,
+          niente frase sotto il titolo. Da telefono «⋯» e «+» stanno nelle pillole (qui sopra). */}
+      <TestataScheda
+        className={cn(slotAzioni && "hidden")}
+        titolo={t("DDT fornitori")}
+        azioni={canCreate && <>
+          {(pendingBase.length > 0 || ingresso.invii.length > 0 || !!invioSelezionato) && (
             <Button
               variant={tab === "da_registrare" ? "secondary" : "outline"}
               size="sm"
-              className="shrink-0"
+              className={BOTTONE_SECONDARIO}
               aria-label={t("Documenti in ingresso ({n})", { n: pendingBase.length })}
               aria-pressed={tab === "da_registrare"}
               onClick={() => setTab(tab === "da_registrare" ? "tutti" : "da_registrare")}
             >
-              <span className="hidden sm:inline">{t("Documenti in ingresso")}</span>
-              <span className="sm:hidden">{t("In ingresso")}</span>
-              <span className="ml-1 tabular-nums">({pendingBase.length})</span>
+              {t("Documenti in ingresso")}
+              <span className="tabular-nums">({pendingBase.length})</span>
             </Button>
           )}
-
-          {canCreate && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="shrink-0"
-              onClick={() => setBloccoOpen(true)}
-            >
-              <span className="hidden sm:inline">{t("Carica più bolle")}</span>
-              <span className="sm:hidden">{t("Più bolle")}</span>
-            </Button>
-          )}
-
-          <Button
-            onClick={() => {
-              if (canCreate) setNewOpen(true);
-            }}
-            size="sm"
-            disabled={!canCreate}
-            className="shrink-0 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-sm:flex-1"
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            <span className="hidden sm:inline">{t("Nuovo DDT")}</span>
-            <span className="sm:hidden">{t("Nuovo")}</span>
+          <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} onClick={() => setBloccoOpen(true)}>
+            {t("Carica più bolle")}
           </Button>
-        </div>
-      </div>
+        </>}
+        altre={[
+          { gruppo: t("DDT filtrati ({n})", { n: filtered.length }), etichetta: "CSV", icona: FileText, onSelect: exportCSV },
+          { gruppo: t("DDT filtrati ({n})", { n: filtered.length }), etichetta: "Excel", icona: FileSpreadsheet, onSelect: exportXLSX },
+          { gruppo: t("DDT filtrati ({n})", { n: filtered.length }), etichetta: "PDF", icona: FileText, onSelect: exportPDF },
+        ]}
+        nuovo={{ etichetta: t("Nuovo DDT"), onClick: () => { if (canCreate) setNewOpen(true); }, disabled: !canCreate }}
+      />
 
-      <OperationalSummary label={t("Riepilogo DDT")} title={t("Ricezioni e controlli")} icon={Truck} error={isError}>
+      <OperationalSummary compatto label={t("Riepilogo DDT")} title={t("Ricezioni e controlli")} icon={Truck} error={isError}>
         {([{ key: "atteso", label: t("Attesi") }, { key: "parziale", label: t("Ricezioni parziali") }, { key: "ricevuto", label: t("Da verificare") }, { key: "non_conforme", label: t("Non conformi") }] as const).map(item => {
           const registrati = baseFiltered.filter(ddt => stage(ddt) === item.key).length;
           const totale = registrati + (item.key === "ricevuto" ? pendingDaVerificare.length : 0);
@@ -982,7 +938,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
       </OperationalSummary>
 
       <section aria-label={t("Filtri DDT")} className="rounded-xl border bg-white p-2.5 shadow-sm max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
-        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto max-sm:overflow-visible"><div className="relative min-w-[200px] flex-1 max-sm:min-w-0">
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto max-sm:overflow-visible"><div className={RICERCA_BARRA}>
             <Search className="absolute left-3 top-2 h-4 w-4 text-muted-foreground" />
             <Input
               aria-label={t("Cerca DDT")}
@@ -991,7 +947,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
               onChange={(e) => setSearch(e.target.value)}
               className="h-8 pl-9 text-xs max-sm:h-9 max-sm:text-sm"
             />
-          </div><Select value={tab} onValueChange={value => setTab(value as FilterKey)}><SelectTrigger aria-label={t("Stato DDT")} className="h-8 w-[180px] max-w-full text-xs max-sm:h-9 max-sm:w-[8.5rem] max-sm:shrink-0 max-sm:text-sm"><SelectValue /></SelectTrigger><SelectContent>{FILTERS.map(f => <SelectItem key={f.key} value={f.key}>{f.key === "tutti" ? t("Tutti gli stati") : f.label}</SelectItem>)}</SelectContent></Select>{!telefono && <OperationalViewSwitch
+          </div><Select value={tab} onValueChange={value => setTab(value as FilterKey)}><SelectTrigger aria-label={t("Stato DDT")} className={cn(TENDINA_STATO_BARRA, "max-sm:h-9 max-sm:w-[8.5rem] max-sm:text-sm")}><SelectValue /></SelectTrigger><SelectContent>{FILTERS.map(f => <SelectItem key={f.key} value={f.key}>{f.key === "tutti" ? t("Tutti gli stati") : f.label}</SelectItem>)}</SelectContent></Select>{!telefono && <OperationalViewSwitch
             value={view}
             onChange={(v) => update({ vista: v, ambito: archive.scope })}
           />}<OperationalExtraFilters count={Number(filterOrder !== "all") + Number(filterSupplier !== "all") + Number(filterPeriodo !== "tutto") + Number(!!focus) + Number(archive.scope !== "all")}>      <div className="space-y-3">

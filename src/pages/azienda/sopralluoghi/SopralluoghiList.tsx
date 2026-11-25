@@ -2,6 +2,7 @@ import { OperationalDateRange } from "@/components/orders/OperationalDateRange";
 import { useOperationalDeletion } from "@/hooks/useOperationalDeletion";
 import { OperationalExtraFilters } from "@/components/orders/OperationalExtraFilters";
 import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
+import { TestataScheda, RICERCA_BARRA, TENDINA_STATO_BARRA } from "@/components/orders/TestataScheda";
 import { PipelineCardHeading } from "@/components/orders/PipelineDrag";
 import { useOperationalViewMemory } from "@/hooks/useOperationalViewMemory";
 import {
@@ -267,6 +268,7 @@ function PipelineSopralluoghi({
 
 export default function SopralluoghiList() {
   const t = useT();
+  const vaiA = useNavigate();
   const permessi = usePermissions();
   const puoCreare = !permessi.solaLettura;
   const companyId = useEffectiveCompanyId();
@@ -374,54 +376,25 @@ export default function SopralluoghiList() {
     Number(!!filtri.soloBozzeFerme);
 
   return (
-    <div className="min-w-0 space-y-4 max-sm:space-y-3">
+    <div className="min-w-0 space-y-3">
       {/* Telefono: «+» tondo sulla riga delle sezioni di Commesse, niente titolo (lo dice la pillola). */}
       {slotAzioni && puoCreare && createPortal(
         <Button asChild size="icon" className="h-9 w-9 rounded-full bg-orange-600 hover:bg-orange-700">
           <Link to="/azienda/sopralluoghi/nuovo" aria-label={t("Nuovo sopralluogo")}><Plus className="h-4 w-4" /></Link>
         </Button>, slotAzioni)}
-      <header className={cn("flex flex-wrap items-center justify-between gap-3", slotAzioni && "hidden")}>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 max-md:text-xl">
-            {t("Sopralluoghi")}
-          </h1>
-          <p className="mt-1 text-sm text-slate-500 max-md:hidden">
-            {t("Dalla pianificazione al preventivo: cliente, tecnico e prossima azione sempre visibili.")}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {(permessi.isAdmin || permessi.canViewSettingsCustomization) && (
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              className="gap-1.5 max-sm:hidden"
-            >
-              <Link to="/azienda/impostazioni/sopralluoghi">
-                <Settings className="h-3.5 w-3.5" />
-                {t("Modelli e impostazioni")}
-              </Link>
-            </Button>
-          )}
-          {puoCreare && (
-            <Button
-              asChild
-              size="sm"
-              className="gap-1.5 bg-orange-600 hover:bg-orange-700"
-            >
-              <Link to="/azienda/sopralluoghi/nuovo">
-                <Plus className="h-4 w-4" />
-                {t("Nuovo sopralluogo")}
-              </Link>
-            </Button>
-          )}
-        </div>
-      </header>
+      {/* Testata comune delle schede di Commesse (25/11/2026): niente frase sotto il titolo,
+          «Modelli e impostazioni» nel «⋯», «Nuovo» arancio sfumato come «Nuova Commessa». */}
+      <TestataScheda
+        className={cn(slotAzioni && "hidden")}
+        titolo={t("Sopralluoghi")}
+        altre={permessi.isAdmin || permessi.canViewSettingsCustomization ? [{ etichetta: t("Modelli e impostazioni"), icona: Settings, onSelect: () => vaiA("/azienda/impostazioni/sopralluoghi") }] : undefined}
+        nuovo={puoCreare ? { etichetta: t("Nuovo sopralluogo"), onClick: () => vaiA("/azienda/sopralluoghi/nuovo") } : undefined}
+      />
       {!isError && (
-        <OperationalSummary label={t("Riepilogo sopralluoghi")} title={t("Dalla visita al preventivo")} icon={Calendar} note={t("I numeri principali seguono le regole dell’agenda e delle fasi. Seleziona un indicatore per filtrare.")}>
+        <OperationalSummary compatto label={t("Riepilogo sopralluoghi")} title={t("Dalla visita al preventivo")} icon={Calendar} note={t("I numeri principali seguono le regole dell’agenda e delle fasi. Seleziona un indicatore per filtrare.")}>
           {isLoading ? (
             [0, 1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-24 rounded-xl" />
+              <Skeleton key={i} className="h-12 rounded-lg" />
             ))
           ) : (
             <>
@@ -471,7 +444,7 @@ export default function SopralluoghiList() {
         </OperationalSummary>
       )}
       <section aria-label={t("Filtri sopralluoghi")} className="rounded-xl border bg-white p-2.5 shadow-sm max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
-        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto max-sm:overflow-visible"><div className="relative min-w-[180px] max-w-sm flex-1 max-sm:min-w-0 max-sm:max-w-none">
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto max-sm:overflow-visible"><div className={RICERCA_BARRA}>
             <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
             <Input
               aria-label={t("Cerca per cliente, telefono, indirizzo o codice")}
@@ -481,7 +454,7 @@ export default function SopralluoghiList() {
               onChange={(e) => imposta({ testo: e.target.value })}
             />
           </div><Select value={filtri.fase} onValueChange={value => imposta({fase:value as FasePratica | "tutte"})}>
-          <SelectTrigger aria-label={t("Fase dei sopralluoghi")} className="h-8 w-[180px] max-w-full text-xs max-sm:h-9 max-sm:w-[8.5rem] max-sm:text-sm"><SelectValue /></SelectTrigger>
+          <SelectTrigger aria-label={t("Fase dei sopralluoghi")} className={cn(TENDINA_STATO_BARRA, "max-sm:h-9 max-sm:w-[8.5rem] max-sm:text-sm")}><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="tutte">{t("Tutte le fasi")}</SelectItem>{FASI.map(f => <SelectItem key={f.fase} value={f.fase}>{t(f.etichetta)}</SelectItem>)}</SelectContent>
         </Select><Select value={filtri.ambito ?? "tutti"} onValueChange={value => imposta({ambito:value as FiltriBacheca["ambito"]})}>
           <SelectTrigger aria-label={t("Tipo di sopralluogo")} className="h-8 w-[150px] max-w-full text-xs max-sm:h-9 max-sm:w-[8.5rem] max-sm:text-sm"><SelectValue /></SelectTrigger>

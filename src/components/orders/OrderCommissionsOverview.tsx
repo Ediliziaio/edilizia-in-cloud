@@ -1,3 +1,5 @@
+import { TestataScheda, BOTTONE_SECONDARIO, RICERCA_BARRA, TENDINA_STATO_BARRA } from "@/components/orders/TestataScheda";
+import { cn } from "@/lib/utils";
 import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
 import { CommissionContractDetails } from "./CommissionContractDetails";
 import { leggiModalitaCommesse } from "@/lib/finanziamenti/leggiModalitaCommesse";
@@ -11,12 +13,10 @@ import {
   BadgeCheck,
   CheckCircle2,
   Clock3,
-  Download,
   Euro,
   FileText,
   Loader2,
   MoreHorizontal,
-  Plus,
   Search,
   Undo2,
   UsersRound,
@@ -1260,41 +1260,45 @@ export function OrderCommissionsOverview() {
   }
 
   return (
-    <div className="space-y-4 min-w-0">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold tracking-tight">{t("Provvigioni e compensi")}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{t("Controlla quanto spetta a ogni venditore o beneficiario e registra i pagamenti.")}</p>
-        </div>
-        {!readOnly && <Button asChild variant="outline" size="sm"><Link to="/azienda/impostazioni/persone?tab=venditori">{t("Configura venditori")}</Link></Button>}
-      </div>
+    <div className="space-y-3 min-w-0">
+      {/* Testata comune delle schede di Commesse (25/11/2026): «Aggiungi compenso» arancio come gli
+          altri «Nuovo» (era blu, dentro la barra dei filtri), «Esporta» nel «⋯». */}
+      <TestataScheda
+        titolo={t("Provvigioni e compensi")}
+        azioni={!readOnly && <Button asChild variant="outline" size="sm" className={BOTTONE_SECONDARIO}><Link to="/azienda/impostazioni/persone?tab=venditori">{t("Configura venditori")}</Link></Button>}
+        altre={[
+          { gruppo: t("Esporta"), etichetta: t("Compensi (righe filtrate) CSV"), icona: FileText, onSelect: exportCompensationsCsv, disabled: filteredRows.length === 0 },
+          { gruppo: t("Esporta"), etichetta: t("Riepilogo per beneficiario CSV"), icona: UsersRound, onSelect: exportBeneficiariesCsv, disabled: filteredRows.length === 0 },
+        ]}
+        nuovo={readOnly ? undefined : { etichetta: t("Aggiungi compenso"), onClick: openAddDialog }}
+      />
       {(legacyError || genericError || ledgerError) && <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
         {t("Non è stato possibile caricare tutti i compensi. Gli importi potrebbero essere incompleti.")}
         <Button variant="outline" size="sm" className="ml-3" onClick={() => { queryClient.invalidateQueries({ queryKey: ["orders-commissions-overview"] }); queryClient.invalidateQueries({ queryKey: ["orders-variable-compensations"] }); queryClient.invalidateQueries({ queryKey: ["orders-commissions-overview-ledger"] }); }}>{t("Riprova")}</Button>
       </div>}
-      <OperationalSummary label={t("Riepilogo provvigioni")} title={t("Compensi e pagamenti")} icon={WalletCards} columns={3} error={!!legacyError || !!genericError || !!ledgerError} note={t("Importi riferiti ai filtri attivi.")}>
+      <OperationalSummary compatto label={t("Riepilogo provvigioni")} title={t("Compensi e pagamenti")} icon={WalletCards} columns={3} error={!!legacyError || !!genericError || !!ledgerError} note={t("Importi riferiti ai filtri attivi.")}>
         <OperationalSummaryMetric label={t("Da pagare ora")} isLoading={isLoading} value={formatCurrency(totals.payable)} icon={WalletCards} tone="green" />
         <OperationalSummaryMetric label={t("In attesa")} isLoading={isLoading} value={formatCurrency(totals.held)} icon={Clock3} tone="orange" />
         <OperationalSummaryMetric label={t("Già pagato")} isLoading={isLoading} value={formatCurrency(totals.paid)} icon={CheckCircle2} tone="blue" />
       </OperationalSummary>
       <p className="text-xs text-muted-foreground">{t("Importi riferiti ai filtri attivi · Totale netto {netto} · Premi {premi} · Decurtazioni {decurtazioni}. In attesa include stime, scadenze future, verifiche e blocchi.", { netto: formatCurrency(totals.net), premi: formatCurrency(totals.bonus), decurtazioni: formatCurrency(totals.deductions) })}</p>
 
-      <Card>
-        <CardContent className="flex flex-col gap-2 p-3 lg:flex-row lg:items-center lg:overflow-x-auto">
-          <div className="relative min-w-0 lg:min-w-[180px] lg:flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:overflow-x-auto">
+          <div className={cn(RICERCA_BARRA, "max-lg:w-full")}>
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
               onChange={(event) => { setSearch(event.target.value); setPage(1); }}
               placeholder={t("Cerca commessa, cliente o beneficiario")}
               aria-label={t("Cerca commessa, cliente o beneficiario")}
-              className="pl-9 h-9"
+              className="h-8 pl-8 text-xs"
             />
           </div>
           {/* Keep desktop filters and actions on a single line. */}
           <div className="grid min-w-0 grid-cols-2 gap-2 lg:contents">
             <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value as StatusFilter); setPage(1); }}>
-              <SelectTrigger aria-label={t("Stato del compenso")} className="h-9 min-w-0 lg:w-[140px] lg:shrink-0"><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label={t("Stato del compenso")} className={cn(TENDINA_STATO_BARRA, "max-lg:w-auto max-lg:min-w-0")}><SelectValue /></SelectTrigger>
               <SelectContent>
                 {Object.entries(STATUS_FILTER_LABELS).map(([value, label]) => (
                   <SelectItem key={value} value={value}>{t(label)}</SelectItem>
@@ -1302,7 +1306,7 @@ export function OrderCommissionsOverview() {
               </SelectContent>
             </Select>
             <Select value={beneficiaryFilter} onValueChange={(value) => { setBeneficiaryFilter(value); setPage(1); }}>
-              <SelectTrigger aria-label={t("Beneficiario")} className="h-9 min-w-0 lg:w-[170px] lg:shrink-0"><SelectValue placeholder={t("Beneficiario")} /></SelectTrigger>
+              <SelectTrigger aria-label={t("Beneficiario")} className="h-8 min-w-0 text-xs lg:w-[170px] lg:shrink-0"><SelectValue placeholder={t("Beneficiario")} /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{t("Tutti i beneficiari")}</SelectItem>
                 {filterBeneficiaries.map(([id, name]) => (
@@ -1311,7 +1315,7 @@ export function OrderCommissionsOverview() {
               </SelectContent>
             </Select>
             <Select value={periodFilter} onValueChange={(value) => { setPeriodFilter(value as PeriodFilter); setPage(1); }}>
-              <SelectTrigger aria-label={t("Periodo")} className="h-9 col-span-2 min-w-0 lg:w-[145px] lg:shrink-0"><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label={t("Periodo")} className="h-8 col-span-2 min-w-0 text-xs lg:w-[145px] lg:shrink-0"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{t("Tutti i periodi")}</SelectItem>
                 <SelectItem value="current_month">{t("Mese corrente")}</SelectItem>
@@ -1323,48 +1327,20 @@ export function OrderCommissionsOverview() {
           <div className="flex items-center gap-2 text-xs text-muted-foreground lg:contents">
             <span className="lg:sr-only">{t("Date riferite a:")}</span>
             <Select value={dateBasis} onValueChange={(value) => { setDateBasis(value as typeof dateBasis); setPage(1); }}>
-              <SelectTrigger aria-label={t("Data di riferimento del periodo")} className="h-9 w-full lg:w-[180px] lg:shrink-0"><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label={t("Data di riferimento del periodo")} className="h-8 w-full text-xs lg:w-[180px] lg:shrink-0"><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="expected">{t("Pagamento previsto")}</SelectItem><SelectItem value="paid">{t("Pagamento effettuato")}</SelectItem><SelectItem value="created">{t("Inserimento compenso")}</SelectItem></SelectContent>
             </Select>
           </div>
-          {/* Actions share the filter row on desktop. */}
-          <div className="flex gap-2 lg:contents">
-            {!readOnly && (
-              <Button className="h-9 shrink-0 gap-2 whitespace-nowrap" onClick={openAddDialog}>
-                <Plus className="h-4 w-4" />
-                <span className="sm:hidden">{t("Compenso")}</span>
-                <span className="hidden sm:inline">{t("Aggiungi compenso")}</span>
-              </Button>
-            )}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-9 shrink-0 gap-2 whitespace-nowrap" disabled={filteredRows.length === 0}>
-                  <Download className="h-4 w-4" />
-                  {t("Esporta")}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64">
-                <DropdownMenuItem onClick={exportCompensationsCsv}>
-                  <FileText className="h-4 w-4 mr-2" />
-                  {t("Compensi (righe filtrate) CSV")}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={exportBeneficiariesCsv}>
-                  <UsersRound className="h-4 w-4 mr-2" />
-                  {t("Riepilogo per beneficiario CSV")}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {(search || statusFilter !== "all" || beneficiaryFilter !== "all" || periodFilter !== "all") && <Button variant="ghost" className="h-9 shrink-0 whitespace-nowrap" onClick={() => { setSearch(""); setStatusFilter("all"); setBeneficiaryFilter("all"); setPeriodFilter("all"); setPage(1); }}>{t("Azzera filtri")}</Button>}
-          </div>
-        </CardContent>
-      </Card>
+          {(search || statusFilter !== "all" || beneficiaryFilter !== "all" || periodFilter !== "all") && <Button variant="ghost" size="sm" className="h-8 shrink-0 whitespace-nowrap px-2.5 text-xs" onClick={() => { setSearch(""); setStatusFilter("all"); setBeneficiaryFilter("all"); setPeriodFilter("all"); setPage(1); }}>{t("Azzera filtri")}</Button>}
+        </div>
+      </div>
 
       <div className="flex items-center justify-between gap-3 overflow-x-auto">
-        <div className="flex shrink-0 gap-1 whitespace-nowrap rounded-lg border p-1" aria-label={t("Vista provvigioni")}>
-          <Button size="sm" variant={view === "rows" ? "secondary" : "ghost"} aria-pressed={view === "rows"} onClick={() => setView("rows")}>{t("Elenco compensi")}</Button>
-          <Button size="sm" variant={view === "beneficiaries" ? "secondary" : "ghost"} aria-pressed={view === "beneficiaries"} onClick={() => setView("beneficiaries")}>{t("Per venditore / beneficiario")}</Button>
+        <div className="flex shrink-0 gap-0.5 whitespace-nowrap rounded-lg border p-0.5" aria-label={t("Vista provvigioni")}>
+          <Button size="sm" className="h-7 px-2.5 text-xs" variant={view === "rows" ? "secondary" : "ghost"} aria-pressed={view === "rows"} onClick={() => setView("rows")}>{t("Elenco compensi")}</Button>
+          <Button size="sm" className="h-7 px-2.5 text-xs" variant={view === "beneficiaries" ? "secondary" : "ghost"} aria-pressed={view === "beneficiaries"} onClick={() => setView("beneficiaries")}>{t("Per venditore / beneficiario")}</Button>
         </div>
-        <span className="shrink-0 whitespace-nowrap text-sm text-muted-foreground">{t("{compensi} compensi · {beneficiari} beneficiari", { compensi: filteredRows.length, beneficiari: beneficiarySummaries.length })}</span>
+        <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">{t("{compensi} compensi · {beneficiari} beneficiari", { compensi: filteredRows.length, beneficiari: beneficiarySummaries.length })}</span>
       </div>
       {periodFilter !== "all" && dateBasis === "expected" && <p className="text-xs text-muted-foreground">{t("I compensi senza una data prevista non rientrano nel periodo scelto. Seleziona “Tutti i periodi” per vederli.")}</p>}
       <div className="min-w-0">

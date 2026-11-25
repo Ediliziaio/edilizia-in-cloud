@@ -38,6 +38,7 @@ export function RapportiPeriodoDialog({
   companyId,
   conDatiEconomici = false,
   orderId,
+  compatto = false,
 }: {
   righe: RapportinoCompleto[];
   mese: string;
@@ -45,6 +46,8 @@ export function RapportiPeriodoDialog({
   conDatiEconomici?: boolean;
   /** Accesso dalla commessa: il rapporto manuale parte con riferimento e indirizzo. */
   orderId?: string;
+  /** Nella testata delle schede di Commesse: bottone da 32px come gli altri comandi. */
+  compatto?: boolean;
 }) {
   const t = useT();
   const [doc, setDoc] = useState<DocumentoOperativo | null>(null);
@@ -158,7 +161,7 @@ export function RapportiPeriodoDialog({
       <div className="flex flex-wrap items-center gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="sm" variant="outline" disabled={busy || !companyId}>
+            <Button size="sm" variant="outline" disabled={busy || !companyId} className={compatto ? "h-8 px-2.5 text-xs [&_svg]:h-3.5 [&_svg]:w-3.5" : undefined}>
               {busy ? (
                 <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
               ) : (
@@ -207,7 +210,9 @@ export function RapportiPeriodoDialog({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <span className="text-xs text-slate-500" role="status">
+        {/* Nella testata delle schede (compatto) la frase resta per i lettori di schermo: in vista
+            spingeva fuori dallo schermo «⋯» e «Scrivi rapportini» (25/11/2026). */}
+        <span className={compatto ? "sr-only" : "text-xs text-slate-500"} role="status">
           {busy
             ? t("Preparo il riepilogo con i dati registrati…")
             : approvati.length

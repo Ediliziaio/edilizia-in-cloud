@@ -23,6 +23,12 @@ const stato = vi.hoisted(() => ({
 }));
 
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => stato.companyId }));
+// Il dettaglio costi della voce (useCostiVociCollegati) legge l'azienda da useAuth: senza questo
+// finto tutto il file andava rosso («useAuth must be used within an AuthProvider»).
+vi.mock("@/contexts/AuthContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/contexts/AuthContext")>()),
+  useAuth: () => ({ effectiveCompany: { id: stato.companyId }, user: { id: "utente-prova" }, role: "company_admin" }),
+}));
 vi.mock("@/lib/orders/archivedOrderScope", () => ({
   loadArchivedOrderIds: async (): Promise<string[]> => [],
   excludeArchivedOrders: <T,>(q: T) => q,
@@ -270,7 +276,9 @@ describe("Audit pulsanti e stati limite marginalità", () => {
     fireEvent.change(screen.getByPlaceholderText("Cerca ordine, cliente..."), {target:{value:"INESISTENTE"}});
     expect(screen.queryByText(/sono sopra il target/)).toBeNull();
     expect(screen.queryByText(/Nessuna commessa sotto soglia/)).toBeNull();
-    expect(screen.getByRole("button",{name:"Esporta vista CSV"}).hasAttribute("disabled")).toBe(true);
+    // «Esporta vista» sta nel «⋯» della testata comune (25/11/2026): senza risultati è spenta.
+    fireEvent.keyDown(screen.getByRole("button",{name:"Altre azioni"}),{key:"Enter",code:"Enter"});
+    expect(await screen.findByRole("menuitem",{name:"Esporta vista CSV"})).toHaveAttribute("aria-disabled","true");
   });
   it("gli scenari sono locali e si possono ripristinare ai valori aziendali", async () => {
     stato.impostazioni={overhead_percentuale:8,margine_target_default:30};
