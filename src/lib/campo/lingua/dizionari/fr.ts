@@ -68767,5 +68767,16 @@ const dizionario: Dizionario = {
   "Cerca commessa": "Rechercher un chantier",
   "Commesse del cliente": "Chantiers du client",
   "Cartelle di tutte le commesse": "Dossiers de tous les chantiers",
+  "Inclusi": "Inclus",
+  "Lettura…": "Lecture…",
+  "Scanner non disponibile. Riprova, o scegli Foto o PDF.": "Scanner indisponible. Réessaie, ou choisis Photo ou PDF.",
+  "Altre pagine": "Autres pages",
+  "Scansiona la bolla": "Scanner le bon",
+  "Scansione in corso…": "Numérisation en cours…",
+  "Dati DDT": "Données du bon",
+  "Dati facoltativi del DDT": "Données facultatives du bon",
+  "Letti dal telefono: correggili se sbagliano. Servono all'ufficio a riconoscere la bolla prima dell'AI.": "Lues par le téléphone : corrige-les si elles sont fausses. Elles aident le bureau à reconnaître le bon avant l'IA.",
+  "Escludi i dati": "Ne pas envoyer les données",
+  "Allega i dati": "Envoyer les données",
 };
 export default dizionario;

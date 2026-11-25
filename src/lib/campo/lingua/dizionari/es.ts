@@ -68767,5 +68767,16 @@ const dizionario: Dizionario = {
   "Cerca commessa": "Buscar obra",
   "Commesse del cliente": "Obras del cliente",
   "Cartelle di tutte le commesse": "Carpetas de todas las obras",
+  "Inclusi": "Incluidos",
+  "Lettura…": "Leyendo…",
+  "Scanner non disponibile. Riprova, o scegli Foto o PDF.": "Escáner no disponible. Inténtalo de nuevo o elige Foto o PDF.",
+  "Altre pagine": "Más páginas",
+  "Scansiona la bolla": "Escanea el albarán",
+  "Scansione in corso…": "Escaneando…",
+  "Dati DDT": "Datos del albarán",
+  "Dati facoltativi del DDT": "Datos opcionales del albarán",
+  "Letti dal telefono: correggili se sbagliano. Servono all'ufficio a riconoscere la bolla prima dell'AI.": "Leídos por el teléfono: corrígelos si están mal. Ayudan a la oficina a reconocer el albarán antes de la IA.",
+  "Escludi i dati": "No enviar los datos",
+  "Allega i dati": "Enviar los datos",
 };
 export default dizionario;

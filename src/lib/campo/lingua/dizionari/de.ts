@@ -68767,5 +68767,16 @@ const dizionario: Dizionario = {
   "Cerca commessa": "Auftrag suchen",
   "Commesse del cliente": "Aufträge des Kunden",
   "Cartelle di tutte le commesse": "Ordner aller Aufträge",
+  "Inclusi": "Enthalten",
+  "Lettura…": "Wird gelesen…",
+  "Scanner non disponibile. Riprova, o scegli Foto o PDF.": "Scanner nicht verfügbar. Versuche es erneut oder wähle Foto oder PDF.",
+  "Altre pagine": "Weitere Seiten",
+  "Scansiona la bolla": "Lieferschein scannen",
+  "Scansione in corso…": "Wird gescannt…",
+  "Dati DDT": "Lieferschein-Daten",
+  "Dati facoltativi del DDT": "Optionale Daten des Lieferscheins",
+  "Letti dal telefono: correggili se sbagliano. Servono all'ufficio a riconoscere la bolla prima dell'AI.": "Vom Handy gelesen: korrigiere sie, wenn sie falsch sind. Damit erkennt das Büro den Lieferschein schon vor der KI.",
+  "Escludi i dati": "Daten nicht mitsenden",
+  "Allega i dati": "Daten mitsenden",
 };
 export default dizionario;

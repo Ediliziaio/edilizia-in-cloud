@@ -68903,5 +68903,16 @@ const dizionario: Dizionario = {
   "Il mese vale per le voci selezionate che non ne hanno uno; puoi cambiarlo riga per riga.": "Luna se aplică pozițiilor selectate care nu au una; o poți schimba rând cu rând.",
   "Periodo dei lavori letto nel foglio:": "Perioada lucrărilor citită în foaie:",
   "Distribuisci i costi sui {n} mesi dei lavori": "Distribuie costurile pe cele {n} luni de lucrări",
+  "Inclusi": "Incluse",
+  "Lettura…": "Citire…",
+  "Scanner non disponibile. Riprova, o scegli Foto o PDF.": "Scanerul nu este disponibil. Mai încearcă, sau alege Poză sau PDF.",
+  "Altre pagine": "Alte pagini",
+  "Scansiona la bolla": "Scanează avizul",
+  "Scansione in corso…": "Scanare în curs…",
+  "Dati DDT": "Date aviz",
+  "Dati facoltativi del DDT": "Date opționale ale avizului",
+  "Letti dal telefono: correggili se sbagliano. Servono all'ufficio a riconoscere la bolla prima dell'AI.": "Citite de telefon: corectează-le dacă greșesc. Ajută biroul să recunoască avizul înainte de AI.",
+  "Escludi i dati": "Nu trimite datele",
+  "Allega i dati": "Trimite datele",
 };
 export default dizionario;

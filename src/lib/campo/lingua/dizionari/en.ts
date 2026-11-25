@@ -68767,5 +68767,16 @@ const dizionario: Dizionario = {
   "Cerca commessa": "Search job",
   "Commesse del cliente": "Customer's jobs",
   "Cartelle di tutte le commesse": "Folders of all jobs",
+  "Inclusi": "Included",
+  "Lettura…": "Reading…",
+  "Scanner non disponibile. Riprova, o scegli Foto o PDF.": "Scanner unavailable. Try again, or choose Photo or PDF.",
+  "Altre pagine": "More pages",
+  "Scansiona la bolla": "Scan the delivery note",
+  "Scansione in corso…": "Scanning…",
+  "Dati DDT": "Delivery note details",
+  "Dati facoltativi del DDT": "Optional delivery note details",
+  "Letti dal telefono: correggili se sbagliano. Servono all'ufficio a riconoscere la bolla prima dell'AI.": "Read by the phone: correct them if they are wrong. They help the office recognise the delivery note before the AI.",
+  "Escludi i dati": "Leave the details out",
+  "Allega i dati": "Send the details",
 };
 export default dizionario;

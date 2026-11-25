@@ -68767,5 +68767,16 @@ const dizionario: Dizionario = {
   "Cerca commessa": "دوّر على شغلانة",
   "Commesse del cliente": "شغلانات العميل",
   "Cartelle di tutte le commesse": "فولدرات كل الشغلانات",
+  "Inclusi": "مضمّنة",
+  "Lettura…": "جاري القراية…",
+  "Scanner non disponibile. Riprova, o scegli Foto o PDF.": "السكانر مش متاح. حاول تاني، أو اختار صورة أو PDF.",
+  "Altre pagine": "صفحات تانية",
+  "Scansiona la bolla": "اسكان البوليصة",
+  "Scansione in corso…": "جاري المسح…",
+  "Dati DDT": "بيانات البوليصة",
+  "Dati facoltativi del DDT": "بيانات اختيارية للبوليصة",
+  "Letti dal telefono: correggili se sbagliano. Servono all'ufficio a riconoscere la bolla prima dell'AI.": "اتقروا من التليفون: صححهم لو غلط. بيساعدوا المكتب إنه يعرف البوليصة قبل الذكاء الاصطناعي.",
+  "Escludi i dati": "متبعتش البيانات",
+  "Allega i dati": "ابعت البيانات",
 };
 export default dizionario;

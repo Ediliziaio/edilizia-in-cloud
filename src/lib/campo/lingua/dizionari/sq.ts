@@ -68903,5 +68903,16 @@ const dizionario: Dizionario = {
   "Il mese vale per le voci selezionate che non ne hanno uno; puoi cambiarlo riga per riga.": "Muaji vlen për zërat e zgjedhur që nuk kanë një; mund ta ndryshosh rresht pas rreshti.",
   "Periodo dei lavori letto nel foglio:": "Periudha e punimeve e lexuar në fletë:",
   "Distribuisci i costi sui {n} mesi dei lavori": "Shpërndaji kostot në {n} muajt e punimeve",
+  "Inclusi": "Të përfshira",
+  "Lettura…": "Leximi…",
+  "Scanner non disponibile. Riprova, o scegli Foto o PDF.": "Skaneri nuk është i disponueshëm. Provo përsëri, ose zgjidh Foto ose PDF.",
+  "Altre pagine": "Faqe të tjera",
+  "Scansiona la bolla": "Skano fletëdërgesën",
+  "Scansione in corso…": "Skanimi në vazhdim…",
+  "Dati DDT": "Të dhënat e fletëdërgesës",
+  "Dati facoltativi del DDT": "Të dhëna opsionale të fletëdërgesës",
+  "Letti dal telefono: correggili se sbagliano. Servono all'ufficio a riconoscere la bolla prima dell'AI.": "Të lexuara nga telefoni: korrigjoji nëse nuk janë të sakta. I shërbejnë zyrës për të njohur fletëdërgesën para AI.",
+  "Escludi i dati": "Mos i dërgo të dhënat",
+  "Allega i dati": "Dërgo të dhënat",
 };
 export default dizionario;
