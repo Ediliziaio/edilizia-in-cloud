@@ -175,5 +175,8 @@ describe("esterni disegnati nel computo della costruzione", () => {
     const capitoli = [...new Set(bozza.voci.map((v) => v.capitolo))];
     expect(capitoli).toEqual([...capitoli].sort());
     expect(capitoli[0]).toBe("01 Opere provvisionali");
+    // Costo stimato: il prezzo senza spese generali (15%) e utile (10%).
+    const piscina = bozza.voci.find((v) => tipoCostruzione(v.id) === "piscina")!;
+    expect(Number(piscina.costo)).toBeCloseTo(Number(piscina.prezzo) / 1.265, 2);
   });
 });

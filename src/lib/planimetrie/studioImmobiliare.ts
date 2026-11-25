@@ -486,6 +486,19 @@ export function misuraRigaStudio(r: RigaStudio) {
   };
 }
 
+/**
+ * Il costo per l'impresa, stimato dal prezzo (25/11/2026). I prezzi del prezzario regionale e quelli
+ * indicativi sono prezzi di vendita: comprendono spese generali (dal 13 al 17% per l'art. 32 del
+ * DPR 207/2010, qui il 15%) e utile d'impresa (10%). Il costo stimato li toglie, così il passo
+ * Economia del computo mostra costo e margine. Il listino aziendale no: dice il prezzo all'impresa
+ * cliente, il costo lo sa solo l'impresa. Si corregge voce per voce («Costo unitario stimato»).
+ */
+export const RICARICO_PREZZARIO = 1.15 * 1.10;
+function costoStimato(p: PrezzoVocePlanimetria): { costo?: string } {
+  if (p.fonte === "Listino aziendale" || !(p.importo > 0)) return {};
+  return { costo: String(Math.round(p.importo / RICARICO_PREZZARIO * 100) / 100) };
+}
+
 const NUMERO_CAPITOLO = /^(\d{2}) /;
 /** Ordine stabile: prima i capitoli numerati, per numero; gli altri dopo, come sono arrivati. */
 function inOrdineDiCapitolo(righe: RigaStudio[]): RigaStudio[] {
@@ -505,6 +518,7 @@ export function computoStudio(fonte: FonteStudio, titolo: string, righe: RigaStu
       descrizione:`${r.descrizione}\n${r.piano} · ${r.criterio}`,
       ...misuraRigaStudio(r),
       ...(r.prezzo ? { prezzo: String(r.prezzo.importo), fonte: r.prezzo.fonte, tariffa: r.prezzo.tariffa } : {}),
+      ...(r.prezzo ? costoStimato(r.prezzo) : {}),
       ...(r.aParte ? { opzionale: true } : {}),
       noteMisure:r.stimata ? "Quantità indicativa. Verifica le misure di riferimento." : "",
     })),
