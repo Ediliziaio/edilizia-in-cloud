@@ -68903,5 +68903,7 @@ const dizionario: Dizionario = {
   "Il mese vale per le voci selezionate che non ne hanno uno; puoi cambiarlo riga per riga.": "Luna se aplică pozițiilor selectate care nu au una; o poți schimba rând cu rând.",
   "Periodo dei lavori letto nel foglio:": "Perioada lucrărilor citită în foaie:",
   "Distribuisci i costi sui {n} mesi dei lavori": "Distribuie costurile pe cele {n} luni de lucrări",
+  "Questa app è vecchia (del {data}): i cantieri e i dati che vedi possono essere sbagliati.": "Aplicația asta e veche (din {data}): șantierele și datele pe care le vezi pot fi greșite.",
+  "Scarica l’aggiornamento dallo store.": "Descarcă actualizarea din magazinul de aplicații.",
 };
 export default dizionario;

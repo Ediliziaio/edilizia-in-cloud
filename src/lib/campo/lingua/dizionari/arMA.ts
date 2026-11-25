@@ -68767,5 +68767,7 @@ const dizionario: Dizionario = {
   "Cerca commessa": "قلب على الخدمة",
   "Commesse del cliente": "الخدمات ديال الكليان",
   "Cartelle di tutte le commesse": "دوسيات جميع الخدمات",
+  "Questa app è vecchia (del {data}): i cantieri e i dati che vedi possono essere sbagliati.": "هاد التطبيق قديم (من {data}): الأوراش والمعلومات اللي كتشوف يمكن يكونو غالطين.",
+  "Scarica l’aggiornamento dallo store.": "حمّل التحديث من المتجر.",
 };
 export default dizionario;

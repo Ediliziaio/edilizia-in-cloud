@@ -68767,5 +68767,7 @@ const dizionario: Dizionario = {
   "Cerca commessa": "Auftrag suchen",
   "Commesse del cliente": "Aufträge des Kunden",
   "Cartelle di tutte le commesse": "Ordner aller Aufträge",
+  "Questa app è vecchia (del {data}): i cantieri e i dati che vedi possono essere sbagliati.": "Diese App ist alt (vom {data}): Die Baustellen und Daten, die du siehst, können falsch sein.",
+  "Scarica l’aggiornamento dallo store.": "Lade das Update im Store herunter.",
 };
 export default dizionario;

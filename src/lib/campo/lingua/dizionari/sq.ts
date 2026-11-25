@@ -68903,5 +68903,7 @@ const dizionario: Dizionario = {
   "Il mese vale per le voci selezionate che non ne hanno uno; puoi cambiarlo riga per riga.": "Muaji vlen për zërat e zgjedhur që nuk kanë një; mund ta ndryshosh rresht pas rreshti.",
   "Periodo dei lavori letto nel foglio:": "Periudha e punimeve e lexuar në fletë:",
   "Distribuisci i costi sui {n} mesi dei lavori": "Shpërndaji kostot në {n} muajt e punimeve",
+  "Questa app è vecchia (del {data}): i cantieri e i dati che vedi possono essere sbagliati.": "Ky aplikacion është i vjetër (i datës {data}): kantieret dhe të dhënat që shikon mund të jenë të gabuara.",
+  "Scarica l’aggiornamento dallo store.": "Shkarko përditësimin nga store-i.",
 };
 export default dizionario;
