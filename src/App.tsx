@@ -173,6 +173,8 @@ const AccettaPreventivo = lazy(() => import("@/pages/public/AccettaPreventivo"))
 const NpsSurvey = lazy(() => import("@/pages/feedback/NpsSurvey"));
 const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
 const OAuthConsent = lazy(() => import("@/pages/oauth/OAuthConsent"));
+// Caricamento di un file per l'assistente AI, col link firmato di link_caricamento (25/11/2026).
+const CaricaFile = lazy(() => import("@/pages/CaricaFile"));
 const PublicBooking = lazy(() => import("@/pages/public/PublicBooking"));
 const PublicAppointmentManage = lazy(() => import("./pages/public/PublicAppointmentManage"));
 const PublicChatWidgetPage = lazy(() => import("@/pages/widget/PublicChatWidgetPage"));
@@ -478,7 +480,7 @@ function CityOrNotFound() {
 
 const MARKETING_ANALYTICS_HOSTS = new Set(["ediliziaincloud.com", "www.ediliziaincloud.com"]);
 const PRIVATE_ANALYTICS_PREFIXES =
-  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|produttore|produttore-login|tecnico|campo|entra|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|referral-login|commercialista-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|firma-sal|booking|prenota|appuntamento|nps|feedback|ref|talent-profile|candidatura|q)(\/|$)/;
+  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|produttore|produttore-login|tecnico|campo|entra|portale|portale-cliente|login|carica-file|admin-login|clienti-login|lavori-login|referral-login|commercialista-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|firma-sal|booking|prenota|appuntamento|nps|feedback|ref|talent-profile|candidatura|q)(\/|$)/;
 
 const PRIVATE_APP_PREFIXES =
   /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|produttore|tecnico|campo|entra|portale|portale-cliente|talent-profile|candidatura|q)(\/|$)/;
@@ -530,7 +532,7 @@ function MarketingMetaRouteTracker(): null {
 // Pagine che un CLIENTE dell'azienda apre dal link ricevuto (firma, accettazione
 // preventivo): lì la bolla «Scrivici su WhatsApp» del sito EiC è fuori posto —
 // il cliente parlerebbe con noi credendo di parlare con la sua impresa.
-const CUSTOMER_FACING_PREFIXES = /^\/(firma|firma-fea|firma-odv|preventivo|accetta-preventivo|prenota)(\/|$)/;
+const CUSTOMER_FACING_PREFIXES = /^\/(firma|firma-fea|firma-odv|preventivo|accetta-preventivo|prenota|carica-file)(\/|$)/;
 
 function PublicSiteChatWidgetGate() {
   const { pathname } = useLocation();
@@ -769,6 +771,7 @@ const Gestionale = () => (
               <Route path="/seleziona-azienda" element={<ProtectedRoute><Suspense fallback={<div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"60vh"}}><Loader2 className="h-6 w-6 animate-spin" /></div>}><SelezionaAzienda /></Suspense></ProtectedRoute>} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/oauth/consent" element={<OAuthConsent />} />
+              <Route path="/carica-file" element={<CaricaFile />} />
               <Route path="/prenota/:slug" element={<PublicBooking />} />
               <Route path="/appuntamento/:token" element={<PublicAppointmentManage />} />
               {/* Widget chatbot pubblico embeddable (usato da public/embed.js dentro iframe) */}

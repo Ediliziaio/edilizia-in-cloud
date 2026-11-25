@@ -38,6 +38,7 @@ import {
   type LivelloConnettore,
 } from "@/lib/aiConnector";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { InterruttoreDipendenti } from "./AssistenteAiDipendenti";
 
 function BloccoCopia({ testo, etichetta }: { testo: string; etichetta?: string }) {
   const t = useT();
@@ -171,6 +172,7 @@ export function ConnettoreChatGptPopup({ onClose }: { onClose: () => void }) {
       </p>
 
       <CollegamentiAttivi assistente="chatgpt" />
+      <InterruttoreDipendenti />
 
       <Alert className="border-amber-200 bg-amber-50/60 dark:bg-amber-950/20">
         <Info className="h-4 w-4 text-amber-600" />
@@ -290,6 +292,7 @@ export function ConnettoreClaudePopup({ onClose }: { onClose: () => void }) {
       </p>
 
       <CollegamentiAttivi assistente="claude" />
+      <InterruttoreDipendenti />
 
       {!puoGestire && <SoloAmministratori />}
 

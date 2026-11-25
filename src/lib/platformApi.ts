@@ -53,7 +53,8 @@ export const API_SCOPES: ScopeDef[] = [
   { value: "orders:write", label: "Commesse (scrittura)", description: "crea_commessa (include lettura)" },
   { value: "products:read", label: "Listino (lettura)", description: "lista_listino" },
   { value: "products:write", label: "Listino (scrittura)", description: "carica_voce_listino (include lettura)" },
-  { value: "quotes:read", label: "Preventivi (lettura)", description: "riepiloghi, follow-up, probabilità" },
+  { value: "quotes:read", label: "Preventivi (lettura)", description: "riepiloghi, follow-up, probabilità, PDF" },
+  { value: "quotes:write", label: "Preventivi (scrittura)", description: "proponi voci dal listino, crea preventivo, leggi planimetrie e computi" },
   { value: "warehouse:read", label: "Magazzino (lettura)", description: "scorte, stockout, fornitori" },
   { value: "warehouse:write", label: "Magazzino (scrittura)", description: "proposte d'ordine a fornitore" },
   { value: "hr:read", label: "Personale (lettura)", description: "team, dipendenti di oggi" },
@@ -62,6 +63,8 @@ export const API_SCOPES: ScopeDef[] = [
   { value: "email:read", label: "Posta (lettura)", description: "posta da lavorare" },
   { value: "email:send", label: "Email (invio)", description: "invia_email — invio REALE, usare con criterio" },
   { value: "actions:sensitive", label: "Azioni con invio/costo", description: "invii reali e strumenti a pagamento — spento di serie" },
+  { value: "platform:read", label: "Area superadmin (lettura)", description: "statistiche, MRR, insoluti, aziende, piani, salute, registro — solo chiavi piattaforma" },
+  { value: "platform:write", label: "Area superadmin (azioni)", description: "crea azienda, stato, prova, piano, piano regalato, crediti — con conferma; solo chiavi piattaforma" },
 ];
 
 export const ALL_SCOPES_VALUE = "*";

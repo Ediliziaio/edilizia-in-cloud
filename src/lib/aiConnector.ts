@@ -42,6 +42,7 @@ const SCOPE_LETTURA = [
 ] as const;
 
 const SCOPE_AZIONI = [
+  "quotes:write",
   "contacts:write",
   "opportunities:write",
   "tasks:write",
@@ -85,6 +86,25 @@ export const LIVELLI: { id: LivelloConnettore; titolo: string; descrizione: stri
       "Apri una commessa «Ristrutturazione via Roma 5» da 45.000 €",
       "Aggiungi al listino prodotti «Piastrella gres» a 28 €/mq",
     ],
+  },
+];
+
+/** Ambito di un collegamento OAuth: un'azienda o l'area superadmin. */
+export type AmbitoConnettore = "azienda" | "piattaforma";
+
+/** I livelli spiegati per l'area superadmin (stessi id, poteri diversi). */
+export const LIVELLI_SUPERADMIN: { id: LivelloConnettore; titolo: string; descrizione: string; esempi: string[] }[] = [
+  {
+    id: "consulente",
+    titolo: "Consulente (sola lettura)",
+    descrizione: "Statistiche, MRR, insoluti, aziende, piani, salute della piattaforma, CRM e gestionale delle aziende. Non cambia niente.",
+    esempi: ["Com'è andato l'MRR negli ultimi 6 mesi?", "Quali aziende in prova scadono questa settimana?"],
+  },
+  {
+    id: "operativo",
+    titolo: "Operativo (lettura + azioni)",
+    descrizione: "In più crea aziende, cambia stato, prova e piano, regala piani, aggiunge crediti e lavora nel CRM. Ogni azione chiede conferma.",
+    esempi: ["Crea l'azienda Rossi Serramenti con piano Pro", "Proroga di 14 giorni la prova di Demo Azienda"],
   },
 ];
 

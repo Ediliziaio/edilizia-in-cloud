@@ -159,8 +159,10 @@ describe("fasi commessa di un'azienda nuova", () => {
 });
 
 describe("chi crea un'azienda non ingoia più l'errore sulle fasi", () => {
+  // create-company dal 25/11/2026 sta in _shared/creaAzienda.ts (la usa anche l'assistente AI del superadmin).
+  const FILE: Record<string, string> = { "create-company": "_shared/creaAzienda.ts" };
   const sorgente = (funzione: string) =>
-    readFileSync(join(__dirname, "../../../supabase/functions", funzione, "index.ts"), "utf8");
+    readFileSync(join(__dirname, "../../../supabase/functions", FILE[funzione] ?? `${funzione}/index.ts`), "utf8");
 
   it.each([
     ["create-company", "creaFasiCommessa(supabaseAdmin, companyId, sector)", "supabaseAdmin.auth.admin.createUser("],

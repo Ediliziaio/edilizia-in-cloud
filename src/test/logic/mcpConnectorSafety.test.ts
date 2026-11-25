@@ -7,12 +7,13 @@ import { TextEncoder, TextDecoder } from "node:util";
 import { createRequire } from "node:module";
 import { argumentError, canonicalJson, domainError, validOAuthClaims, validRpcMessage } from "../../../supabase/functions/platform-mcp/protocol";
 import { assistenteDelClient, statoCollegamentoAi } from "@/lib/aiConnector";
+import { REGOLE_STRUMENTI, SOLO_AMMINISTRATORI, motivoNegato } from "../../../supabase/functions/platform-mcp/permessiStrumenti";
 
 const COMPANY = "10000000-0000-4000-8000-000000000001";
 const ACTOR = "20000000-0000-4000-8000-000000000002";
 const ENTITY = "30000000-0000-4000-8000-000000000003";
 const REQUEST = "40000000-0000-4000-8000-000000000004";
-const source = ["protocol.ts", "lib.ts", "silvioTools.ts", "index.ts"].map(file =>
+const source = ["protocol.ts", "permessiStrumenti.ts", "lib.ts", "silvioTools.ts", "aziendaTools.ts", "platformTools.ts", "index.ts"].map(file =>
   readFileSync(resolve("supabase/functions/platform-mcp", file), "utf8")
     .replace(/^import\s[\s\S]*?from\s+["'][^"']+["'];\s*/gm, "")
     .replace(/\bexport\s+/g, "")
@@ -20,21 +21,25 @@ const source = ["protocol.ts", "lib.ts", "silvioTools.ts", "index.ts"].map(file 
 const ts = createRequire(import.meta.url)("typescript");
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
 
-function server(options: { authorized?: boolean; scopes?: string[]; rpcFailure?: boolean; recipient?: string; documentEmail?: string; completeFailure?: boolean; reserveFailure?: boolean } = {}) {
+function server(options: { companyId?: string | null; superAdmin?: boolean; emailAmmessa?: boolean; authorized?: boolean; scopes?: string[]; rpcFailure?: boolean; recipient?: string; documentEmail?: string; completeFailure?: boolean; reserveFailure?: boolean } = {}) {
   const calls: { name: string; args: Record<string, any> }[] = [];
   const queries: { table: string; filters: Record<string, unknown> }[] = [];
   const logs: any[] = [];
   const receipts = new Map<string, any>();
   const rows: Record<string, any[]> = {
-    api_keys: [{ id: ENTITY, company_id: COMPANY, name: "Claude", scopes: options.scopes ?? ["*"],
+    api_keys: [{ id: ENTITY, company_id: options.companyId === undefined ? COMPANY : options.companyId, name: "Claude", scopes: options.scopes ?? ["*"],
       is_active: true, created_by: ACTOR, expires_at: null }],
     companies: [{ id: COMPANY, name: "Demo fittizia" }],
     quotes: [{ id: ENTITY, company_id: COMPANY, ai_close_probability_pct: 60, client_email: options.documentEmail ?? "cliente@example.test", status: "sent" }],
     employees: [], orders: [],
+    user_roles: options.superAdmin ? [{ user_id: ACTOR, role: "super_admin" }] : [],
     silvio_outbound_messages: [{ id: ENTITY, company_id: COMPANY, status: "queued", canale: "email" }],
   };
   const admin = {
-    auth: { getUser: async (): Promise<{ data: { user: { id: string } }; error: null }> => ({ data: { user: { id: ACTOR } }, error: null }) },
+    auth: {
+      getUser: async (): Promise<{ data: { user: { id: string } }; error: null }> => ({ data: { user: { id: ACTOR } }, error: null }),
+      admin: { getUserById: async (): Promise<{ data: { user: { id: string; email: string } }; error: null }> => ({ data: { user: { id: ACTOR, email: "titolare@example.test" } }, error: null }) },
+    },
     from(table: string) {
       const filters: Record<string, unknown> = {};
       queries.push({ table, filters });
@@ -72,6 +77,7 @@ function server(options: { authorized?: boolean; scopes?: string[]; rpcFailure?:
         if (row) row.response = args.p_response;
         return { data: !!row, error: null };
       }
+      if (name === "mcp_superadmin_chiama") return { data: args.p_cosa === "home_aziende" ? [] : { ok: true }, error: null };
       if (name === "silvio_outbound_resolve_recipient") return { data: options.recipient === "missing" ? null : { email: options.recipient ?? "cliente@example.test" }, error: null };
       if (options.rpcFailure) return { data: { ok: false, error: "Errore di dominio simulato" }, error: null };
       return { data: { ok: true, outbound_id: ENTITY, status: "queued" }, error: null };
@@ -82,6 +88,14 @@ function server(options: { authorized?: boolean; scopes?: string[]; rpcFailure?:
     Deno: { env: { get: (key: string) => key === "SUPABASE_URL" ? "https://example.test" : "offline-only" }, serve: (h: typeof handler) => { handler = h; } },
     createClient: () => admin, getCorsHeaders: () => ({}),
     sendEmailUnified: () => { throw new Error("Real sending is forbidden in this test"); },
+    changeCompanyPlan: () => { throw new Error("Plan changes are forbidden in this test"); },
+    creaAzienda: () => { throw new Error("Company creation is forbidden in this test"); },
+    emailSuperAdminConsentita: () => options.emailAmmessa === true,
+    ruoloPrincipaleSilvio: (ruoli: string[]) => ruoli[0] ?? "company_staff",
+    STRUMENTI_SILVIO: {},
+    planimetriaDaSopralluogo: () => { throw new Error("Plan drawing is not exercised here"); },
+    calcolaQuantita: () => ({}),
+    fetch: () => { throw new Error("Network calls are forbidden in this test"); },
     crypto: webcrypto, TextEncoder, TextDecoder, Request, Response, Headers, URL, atob,
     console: { error() {} },
   });
@@ -132,7 +146,7 @@ describe("MCP handler offline integration", () => {
     const s = server();
     expect((await s.post({ jsonrpc: "2.0", id: 1, method: "initialize" }, false)).status).toBe(200);
     const listing = await s.post({ jsonrpc: "2.0", id: 2, method: "tools/list" }, false);
-    expect(listing.body.result.tools).toHaveLength(58); // +3 commesse generali (tappa 7)
+    expect(listing.body.result.tools).toHaveLength(98); // +3 commesse generali (tappa 7), +40 preventivi, fatture, rapportini, fasi, posta, WhatsApp, calendario e file (25/11/2026)
     for (const tool of listing.body.result.tools) expect(tool.securitySchemes).toEqual([{ type: "oauth2", scopes: [] }]);
     const unauth = await s.post({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "kpi_azienda" } }, false);
     expect(unauth.status).toBe(401);
@@ -209,6 +223,103 @@ describe("MCP handler offline integration", () => {
     const absent = server();
     expect((await absent.call("registra_assenza", { dipendente_id: ENTITY, data_inizio: "2026-10-08", data_fine: "2026-10-09", tipo: "ferie", request_id: REQUEST })).body.result.content[0].text).toContain("Dipendente non trovato");
     expect((await server().call("stato_invio", { outbound_id: REQUEST })).body.result.isError).toBe(true);
+  });
+});
+
+describe("MCP area superadmin", () => {
+  const lista = async (s: ReturnType<typeof server>) =>
+    ((await s.post({ jsonrpc: "2.0", id: 9, method: "tools/list" })).body.result.tools as { name: string }[]).map(t => t.name);
+
+  it("a company key, even with every scope, never sees or runs platform tools", async () => {
+    const s = server({ scopes: ["*"], superAdmin: true, emailAmmessa: true });
+    expect(await lista(s)).not.toContain("statistiche_piattaforma");
+    expect((await s.call("statistiche_piattaforma")).body.result.isError).toBe(true);
+    expect(s.calls.some(c => c.name === "mcp_superadmin_chiama")).toBe(false);
+  });
+  it("a platform connection of the allowlisted super admin reads as that user", async () => {
+    const s = server({ companyId: null, scopes: ["*"], superAdmin: true, emailAmmessa: true });
+    expect(await lista(s)).toEqual(expect.arrayContaining(["statistiche_piattaforma", "crea_azienda", "regala_piano"]));
+    const res = await s.call("aziende_piattaforma");
+    expect(res.body.result.isError).toBeUndefined();
+    expect(s.calls.find(c => c.name === "mcp_superadmin_chiama")?.args).toMatchObject({ p_actor: ACTOR, p_cosa: "home_aziende" });
+  });
+  it("refuses platform tools when the e-mail is not allowlisted or the role is gone", async () => {
+    for (const s of [server({ companyId: null, scopes: ["*"], superAdmin: true, emailAmmessa: false }),
+      server({ companyId: null, scopes: ["*"], superAdmin: false, emailAmmessa: true })]) {
+      const res = await s.call("statistiche_piattaforma");
+      expect(res.body.result.isError).toBe(true);
+      expect(s.calls.some(c => c.name === "mcp_superadmin_chiama")).toBe(false);
+    }
+  });
+  it("platform changes require an explicit confirmation and count as sensitive", async () => {
+    const s = server({ companyId: null, scopes: ["*"], superAdmin: true, emailAmmessa: true });
+    const senza = await s.call("proroga_prova", { company: "Demo fittizia", giorni: 7, request_id: REQUEST });
+    expect(senza.body.result.isError).toBe(true);
+    expect(s.calls.some(c => c.name === "mcp_superadmin_chiama")).toBe(false);
+    await s.call("proroga_prova", { company: "Demo fittizia", giorni: 7, request_id: REQUEST, confirmed: true });
+    expect(s.calls.find(c => c.name === "mcp_reserve_tool_call")?.args.p_sensitive).toBe(true);
+  });
+});
+
+describe("MCP permessi dell'utente che collega", () => {
+  const dipendente = (permessi: Record<string, unknown> | null, ruolo = "company_staff") => ({ admin: false, ruolo, permessi });
+
+  it("ogni strumento delle aziende ha la sua regola (niente scoperti)", async () => {
+    const s = server({ scopes: ["*"] });
+    const nomi = ((await s.post({ jsonrpc: "2.0", id: 1, method: "tools/list" })).body.result.tools as { name: string }[]).map(t => t.name);
+    // Quelli riservati agli amministratori sono elencati a parte e per un dipendente restano chiusi.
+    expect(nomi.filter(n => !SOLO_AMMINISTRATORI.includes(n) && !(n in REGOLE_STRUMENTI))).toEqual([]);
+    for (const n of SOLO_AMMINISTRATORI) expect(motivoNegato({ admin: false, ruolo: "company_staff", permessi: { can_view_orders: true } }, n, false)).toMatch(/amministratori/);
+  });
+  it("l'amministratore può tutto, il dipendente senza riga permessi niente", () => {
+    expect(motivoNegato({ admin: true, ruolo: "company_admin", permessi: null }, "cashflow", false)).toBeNull();
+    expect(motivoNegato(dipendente(null), "cerca_commesse", false)).toMatch(/Nessun permesso/);
+    expect(motivoNegato(undefined, "cerca_commesse", false)).not.toBeNull();
+  });
+  it("serve il permesso dell'area; gli importi seguono l'app", () => {
+    expect(motivoNegato(dipendente({ can_view_orders: true }), "cerca_commesse", false)).toBeNull();
+    expect(motivoNegato(dipendente({ can_view_orders: false }), "cerca_commesse", false)).toMatch(/permesso/);
+    expect(motivoNegato(dipendente({ can_view_orders: true }), "pagamenti_in_ritardo", false)).toBeNull();
+    expect(motivoNegato(dipendente({ can_view_orders: true, can_view_order_amounts: false }), "pagamenti_in_ritardo", false)).toMatch(/importi/);
+    expect(motivoNegato(dipendente({ can_edit_settings_pricing: true }), "carica_voce_listino", true)).toMatch(/costi/);
+  });
+  it("operaio, sola lettura e solo assegnati: niente scritture né dati di tutta l'azienda", () => {
+    const operaio = dipendente({ can_view_orders: true, can_edit_orders: true, can_view_calendar: true }, "employee");
+    expect(motivoNegato(operaio, "crea_commessa", true)).toMatch(/sola lettura/);
+    expect(motivoNegato(operaio, "cerca_commesse", false)).toMatch(/assegnato/);
+    expect(motivoNegato(operaio, "commesse_generali", false)).toBeNull(); // filtra già per utente
+    expect(motivoNegato(dipendente({ can_edit_orders: true, sola_lettura: true }), "crea_commessa", true)).toMatch(/sola lettura/);
+    expect(motivoNegato(dipendente({ can_view_orders: true, only_assigned: true }), "cerca_commesse", false)).toMatch(/assegnato/);
+  });
+  it("clienti, worker e strumenti non elencati restano chiusi", () => {
+    expect(motivoNegato(dipendente({ can_view_orders: true }, "customer"), "commesse_generali", false)).toMatch(/ruolo/);
+    expect(motivoNegato(dipendente({ can_view_orders: true }), "strumento_nuovo", false)).toMatch(/amministratori/);
+  });
+});
+
+describe("MCP strumenti col token dell'utente", () => {
+  it("con una chiave API (senza accesso dell'utente) si rifiutano senza toccare niente", async () => {
+    const s = server({ scopes: ["*"] });
+    const res = await s.call("modifica_contatto", { contatto_id: ENTITY, nome: "Mario", request_id: REQUEST });
+    expect(res.body.result.content[0].text).toMatch(/solo collegando l'assistente con l'accesso/);
+  });
+  it("le fatture restano agli amministratori; un'emissione chiede conferma", async () => {
+    expect(motivoNegato({ admin: false, ruolo: "company_staff", permessi: { can_view_billing: true, can_manage_payments: true } }, "crea_bozza_fattura", true)).toMatch(/amministratori/);
+    const s = server({ scopes: ["*"] });
+    const tools = (await s.post({ jsonrpc: "2.0", id: 1, method: "tools/list" })).body.result.tools as { name: string; inputSchema: { required: string[] } }[];
+    expect(tools.find(t => t.name === "emetti_fattura")?.inputSchema.required).toContain("confirmed");
+    expect(tools.find(t => t.name === "invia_whatsapp")?.inputSchema.required).toContain("confirmed");
+  });
+});
+
+describe("MCP file dalla chat", () => {
+  it("ChatGPT riceve il file dichiarato in openai/fileParams; indirizzi non di OpenAI rifiutati", async () => {
+    const s = server({ scopes: ["*"] });
+    const tools = (await s.post({ jsonrpc: "2.0", id: 1, method: "tools/list" })).body.result.tools as { name: string; _meta: Record<string, unknown> }[];
+    expect(tools.find(t => t.name === "carica_file_dalla_chat")?._meta["openai/fileParams"]).toEqual(["file"]);
+    const res = await s.call("carica_file_dalla_chat", { tipo: "planimetria", request_id: REQUEST,
+      file: { download_url: "https://evil.example/pianta.pdf", file_name: "pianta.pdf" } });
+    expect(res.body.result.content[0].text).toMatch(/non ammesso/);
   });
 });
 

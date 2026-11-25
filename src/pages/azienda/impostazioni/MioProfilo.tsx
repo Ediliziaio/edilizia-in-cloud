@@ -33,6 +33,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AssistenteAiPersonale } from "@/components/integrations/AssistenteAiDipendenti";
 import { SceltaLinguaCampo } from "@/components/campo/SceltaLinguaCampo";
 import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { EmailOAuthConnectionsCard } from "@/components/integrations/EmailOAuthConnectionsCard";
@@ -659,6 +660,8 @@ export default function MioProfilo() {
           </Card>
           </div>
           </div>
+          {/* Il proprio Claude/ChatGPT, se l'azienda lo permette (25/11/2026). Solo dipendenti. */}
+          <div className="mt-5"><AssistenteAiPersonale /></div>
         </TabsContent>
 
         {/* ════════════ TAB SICUREZZA ════════════ */}
