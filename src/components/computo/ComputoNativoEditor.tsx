@@ -333,7 +333,7 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
     nascondiCliente: bozza.mostraDatiCliente === false, condizioni: bozza.mostraCondizioni === false ? "" : bozza.condizioni,
     // Fino al 29/10/2026 era sempre «editoriale»: scegliere «Computo dettagliato» dava lo stesso documento del preventivo cliente.
     impaginazione: bozza.formatoPdf === "elenco-prezzi" ? "elenco-prezzi" as const : bozza.formatoPdf === "tecnico" || bozza.formatoPdf === "senza-prezzi" ? "primus" as const : "editoriale" as const,
-    dettaglioMisure: bozza.mostraMisurePdf, dataDocumento: bozza.dataDocumento, revisione: bozza.revisione,
+    dettaglioMisure: bozza.mostraMisurePdf, accorpaPerLavorazione: !!bozza.fontePlanimetria, dataDocumento: bozza.dataDocumento, revisione: bozza.revisione,
     tecnico: bozza.tecnico, riferimentoPrezzi: bozza.riferimentoPrezzi,
     mostraPrezziUnitari: bozza.mostraPrezziUnitariPdf, mostraImporti: bozza.mostraImportiPdf,
     mostraCodici: bozza.mostraCodiciPdf, mostraFonti: bozza.mostraFontiPdf, soloRiepilogo: bozza.formatoPdf === "riepilogo" || bozza.sezioniPdf.lavorazioni === false,
