@@ -1,3 +1,4 @@
+import { BOTTONE_NUOVO, BOTTONE_SECONDARIO, TENDINA_STATO_BARRA } from "@/components/orders/TestataScheda";
 import { SafetyWorkflow } from "@/components/sicurezza/SafetyWorkflow";
 /**
  * L'archivio dei documenti di sicurezza: caricamento di qualunque file (PDF,
@@ -545,77 +546,84 @@ export function DocumentiSicurezza({
     });
   };
 
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        {!workflow && (
-          <div className="relative">
-            <Search
-              className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <Input
-              value={cerca}
-              onChange={(e) => setCerca(e.target.value)}
-              aria-label={tr("Cerca documento")}
-              placeholder={tr("Cerca documento")}
-              className="h-8 w-44 pl-7 text-sm"
-            />
-          </div>
-        )}
-        <Select value={filtroTipo} onValueChange={setFiltroTipo}>
-          <SelectTrigger aria-label={tr("Tipo di documento")} className="h-8 w-52">
+  const controlli = (
+    <>
+      {!workflow && (
+        <div className="relative">
+          <Search
+            className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <Input
+            value={cerca}
+            onChange={(e) => setCerca(e.target.value)}
+            aria-label={tr("Cerca documento")}
+            placeholder={tr("Cerca documento")}
+            className="h-8 w-44 pl-7 text-sm"
+          />
+        </div>
+      )}
+      <Select value={filtroTipo} onValueChange={setFiltroTipo}>
+        <SelectTrigger aria-label={tr("Tipo di documento")} className={TENDINA_STATO_BARRA}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="tutti">{tr("Tutti i tipi")}</SelectItem>
+          {(Object.keys(TIPI_SICUREZZA) as TipoDocumentoSicurezza[]).map(
+            (t) => (
+              <SelectItem key={t} value={t}>
+                {TIPI_SICUREZZA[t].label}
+              </SelectItem>
+            ),
+          )}
+        </SelectContent>
+      </Select>
+      {!workflow && !orderId && (
+        <Select value={filtroCommessa} onValueChange={setFiltroCommessa}>
+          <SelectTrigger aria-label={tr("Commessa dei documenti")} className={TENDINA_STATO_BARRA}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="tutti">{tr("Tutti i tipi")}</SelectItem>
-            {(Object.keys(TIPI_SICUREZZA) as TipoDocumentoSicurezza[]).map(
-              (t) => (
-                <SelectItem key={t} value={t}>
-                  {TIPI_SICUREZZA[t].label}
-                </SelectItem>
-              ),
-            )}
+            <SelectItem value="tutte">{tr("Tutte le commesse")}</SelectItem>
+            <SelectItem value={AZIENDA}>{tr("Tutta l'azienda")}</SelectItem>
+            {commesse.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.order_code ? `${c.order_code} · ` : ""}
+                {c.description ?? ""}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
-        {!workflow && !orderId && (
-          <Select value={filtroCommessa} onValueChange={setFiltroCommessa}>
-            <SelectTrigger aria-label={tr("Commessa dei documenti")} className="h-8 w-52">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="tutte">{tr("Tutte le commesse")}</SelectItem>
-              <SelectItem value={AZIENDA}>{tr("Tutta l'azienda")}</SelectItem>
-              {commesse.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.order_code ? `${c.order_code} · ` : ""}
-                  {c.description ?? ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+      )}
+      <Button
+        variant={soloScadenze ? "default" : "outline"}
+        size="sm"
+        className={BOTTONE_SECONDARIO}
+        aria-pressed={soloScadenze}
+        onClick={() => setSoloScadenze((v) => !v)}
+      >
+        <CalendarClock className="h-3.5 w-3.5" />
+        {tr("Scaduti o in scadenza")}{daGuardare ? ` (${daGuardare})` : ""}
+      </Button>
+      {!sola && (
         <Button
-          variant={soloScadenze ? "default" : "outline"}
           size="sm"
-          className="h-8 gap-1"
-          aria-pressed={soloScadenze}
-          onClick={() => setSoloScadenze((v) => !v)}
+          className={`ml-auto ${BOTTONE_NUOVO}`}
+          onClick={() => setCarica(true)}
         >
-          <CalendarClock className="h-3.5 w-3.5" />
-          {tr("Scaduti o in scadenza")}{daGuardare ? ` (${daGuardare})` : ""}
+          <FileUp />
+          {tr("Carica documenti")}
         </Button>
-        {!sola && (
-          <Button
-            size="sm"
-            className="ml-auto h-8"
-            onClick={() => setCarica(true)}
-          >
-            <FileUp className="mr-1 h-4 w-4" />
-            {tr("Carica documenti")}
-          </Button>
-        )}
-      </div>
+      )}
+    </>
+  );
+
+  return (
+    <div className="space-y-3">
+      {/* Nella scheda di Sicurezza cantiere i filtri stanno nella barra del flusso, su una riga sola. */}
+      {(!workflow || isLoading || isError) && (
+        <div className="flex flex-wrap items-center gap-2">{controlli}</div>
+      )}
 
       {isLoading ? (
         <div className="flex justify-center py-8">
@@ -628,6 +636,7 @@ export function DocumentiSicurezza({
       ) : workflow ? (
         <SafetyWorkflow<DocumentoSicurezza>
           namespace="documenti"
+          toolbarAction={controlli}
           onOpen={apri}
           defaultView="elenco"
           label={tr("Documenti")}
