@@ -68963,5 +68963,8 @@ const dizionario: Dizionario = {
   "Dai clienti devi ancora incassare {importo}: non è cassa finché non arriva.": "Your customers still owe you {importo}: it isn't cash until it lands.",
   "I cantieri aperti hanno pagato {importo} più di quanto hanno incassato: li stai finanziando tu. Quei soldi sono già usciti dal conto, non vanno tolti un’altra volta.": "The open sites have paid out {importo} more than they have taken in: you are funding them. That money has already left the account, it mustn't be deducted a second time.",
   "Vedi quali": "See which",
+  "Lingua dell'app salvata: {lingua}": "App language saved: {lingua}",
+  "Non sono riuscito a salvare la lingua. Solo il titolare può cambiarla.": "Could not save the language. Only the owner can change it.",
+  "La lingua in cui vede l'app degli operai. Può cambiarla anche lui da Impostazioni › Lingua.": "The language they see the workers' app in. They can also change it from Settings › Language.",
 };
 export default dizionario;

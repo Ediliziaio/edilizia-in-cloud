@@ -234,7 +234,7 @@ export function PannelloFiltri({
   const titolo = titoloDato ?? t("Filtri");
   return (
     <Sheet open={aperto} onOpenChange={onAperto}>
-      <SheetContent side="bottom" overlayClassName="bg-slate-950/45" aria-describedby={undefined} className="mx-auto flex max-h-[90dvh] max-w-md flex-col gap-0 overflow-hidden rounded-t-3xl p-0 pt-4 [&>button:last-child]:right-2 [&>button:last-child]:top-1 [&>button:last-child]:grid [&>button:last-child]:size-11 [&>button:last-child]:place-items-center">
+      <SheetContent side="bottom" overlayClassName="bg-slate-950/45" aria-describedby={undefined} className="mx-auto flex max-h-[90dvh] max-w-md flex-col gap-0 overflow-hidden rounded-t-3xl p-0 pt-4 [&>button:last-child]:right-2 [&>button:last-child]:top-[calc(env(safe-area-inset-top)+0.25rem)] [&>button:last-child]:grid [&>button:last-child]:size-11 [&>button:last-child]:place-items-center">
         <SheetHeader className="shrink-0 px-4 pb-2 pr-14 text-left">
           <SheetTitle className="text-base">{titolo}</SheetTitle>
         </SheetHeader>

@@ -69000,5 +69000,8 @@ const dizionario: Dizionario = {
   "È in «{nome}», il contratto aperto adesso: condizioni predefinite, da completare quando vuoi.": "Është në «{nome}», kontrata e hapur tani: kushte të parazgjedhura, për t'u plotësuar kur të duash.",
   "Nessun contratto. È qui che si scrivono le condizioni concordate: giorni di pagamento, ritenuta, maggiorazioni, come si fattura. Il listino puoi caricarlo subito nella sua sezione: l'accordo nasce da solo e lo completi poi.": "Asnjë kontratë. Këtu shkruhen kushtet e rënë dakord: ditët e pagesës, mbajtja, shtesat, si faturohet. Listën e çmimeve mund ta ngarkosh menjëherë në seksionin e vet: marrëveshja krijohet vetë dhe e plotëson më pas.",
   "«{nome}» · nasce al primo salvataggio": "«{nome}» · krijohet me ruajtjen e parë",
+  "Lingua dell'app salvata: {lingua}": "Gjuha e aplikacionit u ruajt: {lingua}",
+  "Non sono riuscito a salvare la lingua. Solo il titolare può cambiarla.": "Nuk arrita ta ruaj gjuhën. Vetëm pronari mund ta ndryshojë.",
+  "La lingua in cui vede l'app degli operai. Può cambiarla anche lui da Impostazioni › Lingua.": "Gjuha në të cilën sheh aplikacionin e punëtorëve. Mund ta ndryshojë edhe vetë nga Cilësimet › Gjuha.",
 };
 export default dizionario;

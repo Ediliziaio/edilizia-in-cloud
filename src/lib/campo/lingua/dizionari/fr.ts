@@ -68963,5 +68963,8 @@ const dizionario: Dizionario = {
   "Dai clienti devi ancora incassare {importo}: non è cassa finché non arriva.": "Tes clients te doivent encore {importo} : ce n’est pas de la trésorerie tant que ça n’arrive pas.",
   "I cantieri aperti hanno pagato {importo} più di quanto hanno incassato: li stai finanziando tu. Quei soldi sono già usciti dal conto, non vanno tolti un’altra volta.": "Les chantiers ouverts ont payé {importo} de plus qu’ils n’ont encaissé : c’est toi qui les finances. Cet argent est déjà sorti du compte, il ne faut pas le retirer une deuxième fois.",
   "Vedi quali": "Voir lesquels",
+  "Lingua dell'app salvata: {lingua}": "Langue de l’app enregistrée : {lingua}",
+  "Non sono riuscito a salvare la lingua. Solo il titolare può cambiarla.": "Impossible d’enregistrer la langue. Seul le titulaire peut la modifier.",
+  "La lingua in cui vede l'app degli operai. Può cambiarla anche lui da Impostazioni › Lingua.": "La langue dans laquelle il voit l’app des ouvriers. Il peut aussi la changer dans Réglages › Langue.",
 };
 export default dizionario;

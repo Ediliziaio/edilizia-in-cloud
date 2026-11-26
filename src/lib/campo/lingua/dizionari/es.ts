@@ -68963,5 +68963,8 @@ const dizionario: Dizionario = {
   "Dai clienti devi ancora incassare {importo}: non è cassa finché non arriva.": "De los clientes te queda por cobrar {importo}: no es caja hasta que llega.",
   "I cantieri aperti hanno pagato {importo} più di quanto hanno incassato: li stai finanziando tu. Quei soldi sono già usciti dal conto, non vanno tolti un’altra volta.": "Las obras abiertas han pagado {importo} más de lo que han cobrado: las estás financiando tú. Ese dinero ya salió de la cuenta, no hay que quitarlo otra vez.",
   "Vedi quali": "Ver cuáles",
+  "Lingua dell'app salvata: {lingua}": "Idioma de la app guardado: {lingua}",
+  "Non sono riuscito a salvare la lingua. Solo il titolare può cambiarla.": "No pude guardar el idioma. Solo el titular puede cambiarlo.",
+  "La lingua in cui vede l'app degli operai. Può cambiarla anche lui da Impostazioni › Lingua.": "El idioma en que ve la app de los operarios. También puede cambiarlo él desde Ajustes › Idioma.",
 };
 export default dizionario;

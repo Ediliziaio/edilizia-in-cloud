@@ -68963,5 +68963,8 @@ const dizionario: Dizionario = {
   "Dai clienti devi ancora incassare {importo}: non è cassa finché non arriva.": "من الكليان مازال خاصك تحصّل {importo}: ماشي كاش حتى يوصل.",
   "I cantieri aperti hanno pagato {importo} più di quanto hanno incassato: li stai finanziando tu. Quei soldi sono già usciti dal conto, non vanno tolti un’altra volta.": "الشانطيات المحلولين خلّصو {importo} كثر من اللي حصّلو: نتا اللي كتمولهم بفلوسك. هاد الفلوس ديجا خرجو من الحساب، ما كيتنقّصوش مرة أخرى.",
   "Vedi quali": "شوف شكون",
+  "Lingua dell'app salvata: {lingua}": "تسجلات اللغة ديال الأپليكاسيون: {lingua}",
+  "Non sono riuscito a salvare la lingua. Solo il titolare può cambiarla.": "ما قدرتش نسجل اللغة. غير مول الشركة اللي يقدر يبدلها.",
+  "La lingua in cui vede l'app degli operai. Può cambiarla anche lui da Impostazioni › Lingua.": "اللغة اللي كيشوف بيها الأپليكاسيون ديال الخدامة. يقدر حتى هو يبدلها من الإعدادات › اللغة.",
 };
 export default dizionario;

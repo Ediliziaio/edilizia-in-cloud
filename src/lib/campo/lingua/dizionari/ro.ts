@@ -69000,5 +69000,8 @@ const dizionario: Dizionario = {
   "È in «{nome}», il contratto aperto adesso: condizioni predefinite, da completare quando vuoi.": "Este în «{nome}», contractul deschis acum: condiții predefinite, de completat când vrei.",
   "Nessun contratto. È qui che si scrivono le condizioni concordate: giorni di pagamento, ritenuta, maggiorazioni, come si fattura. Il listino puoi caricarlo subito nella sua sezione: l'accordo nasce da solo e lo completi poi.": "Niciun contract. Aici se scriu condițiile convenite: zilele de plată, reținerea, majorările, cum se facturează. Lista de prețuri o poți încărca imediat în secțiunea ei: acordul se creează singur și îl completezi după.",
   "«{nome}» · nasce al primo salvataggio": "«{nome}» · se creează la prima salvare",
+  "Lingua dell'app salvata: {lingua}": "Limba aplicației salvată: {lingua}",
+  "Non sono riuscito a salvare la lingua. Solo il titolare può cambiarla.": "Nu am reușit să salvez limba. Doar titularul o poate schimba.",
+  "La lingua in cui vede l'app degli operai. Può cambiarla anche lui da Impostazioni › Lingua.": "Limba în care vede aplicația muncitorilor. O poate schimba și el din Setări › Limbă.",
 };
 export default dizionario;

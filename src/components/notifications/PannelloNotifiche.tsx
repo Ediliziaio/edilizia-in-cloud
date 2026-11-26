@@ -13,7 +13,7 @@ export function PannelloNotifiche({ aperto, onOpenChange, trigger, children }: {
     <SheetTrigger asChild>{trigger}</SheetTrigger>
     <SheetContent side="bottom" aria-describedby={undefined}
       closeButtonClassName="right-2.5 top-3 flex size-11 items-center justify-center"
-      className="flex max-h-[min(40rem,90dvh)] flex-col gap-0 overflow-hidden rounded-t-2xl p-0 pt-3 pb-[env(safe-area-inset-bottom)] motion-reduce:animate-none">
+      className="flex max-h-[min(40rem,90dvh)] flex-col gap-0 overflow-hidden rounded-t-2xl p-0 pt-3 max-sm:pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-[env(safe-area-inset-bottom)] motion-reduce:animate-none">
       <SheetTitle className="sr-only">{t("Notifiche")}</SheetTitle>
       {children}
     </SheetContent>
