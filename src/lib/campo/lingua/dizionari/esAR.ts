@@ -13309,5 +13309,9 @@ const dizionario: Dizionario = {
   "Finché restano così non si possono riconciliare con il movimento della banca. Riaprendole tornano fra quelle da pagare: poi le abbini al pagamento, oppure usi «Segna pagata» dalla fattura, che registra la scrittura.": "Mientras sigan así no se pueden conciliar con el movimiento del banco. Al reabrirlas vuelven entre las que están por pagar: después las vinculás al pago, o usás «Marcar pagada» desde la factura, que registra el asiento.",
   "Riaprire {n} pagamenti?": "¿Reabrir {n} pagos?",
   "Le rate tornano fra quelle da pagare, per {importo} in tutto. Non si cancella niente: le fatture restano dove sono, e chi ha pagato davvero può risegnarle pagate in un clic. Si toccano solo quelle dove il pagamento non risulta registrato.": "Las cuotas vuelven entre las que están por pagar, por {importo} en total. No se borra nada: las facturas se quedan donde están, y quien pagó de verdad puede volver a marcarlas pagadas en un clic. Solo se tocan aquellas en las que el pago no figura registrado.",
+  "Aggiungi una manutenzione": "Agregar un mantenimiento",
+  "Interventi che nessuno paga: ore, trasferte e materiale a nostro carico.": "Intervenciones que nadie paga: horas, traslados y material a nuestro cargo.",
+  "La manutenzione è già stata registrata. Riprova per completare quello che manca senza rifare quello che è già salvato. Chiudendo, lasci il completamento a metà.": "El mantenimiento ya está registrado. Probá de nuevo para completar lo que falta sin repetir lo que ya está guardado. Si cerrás, el mantenimiento se queda a medias.",
+  "Non riesco a leggere la manutenzione. Riprova.": "No puedo leer el mantenimiento. Probá de nuevo.",
 };
 export default dizionario;

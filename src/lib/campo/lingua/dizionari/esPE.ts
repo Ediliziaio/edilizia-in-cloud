@@ -3917,5 +3917,7 @@ const dizionario: Dizionario = {
   "Sul foglio si vedevano {viste} righe di merce, qui ce ne sono {lette}: controlla che non ne manchi una.": "En la hoja se veían {viste} líneas de mercadería, aquí hay {lette}: revisa que no falte ninguna.",
   "Il tuo accesso non permette di cambiare la scheda dell'azienda: chiedi a chi gestisce le impostazioni di aggiungerlo in Impostazioni → Fatturazione.": "Tu acceso no permite cambiar los datos de la empresa: pide a quien gestiona los ajustes que lo agregue en Ajustes → Facturación.",
   "Incassi su più banche? Scrivile una volta sola e poi le scegli da qui.": "¿Cobras en varios bancos? Agrégalos una sola vez y luego los eliges aquí.",
+  "Aggiungi una manutenzione": "Agregar un mantenimiento",
+  "Interventi che nessuno paga: ore, trasferte e materiale a nostro carico.": "Intervenciones que nadie paga: horas, traslados y material a nuestro cargo.",
 };
 export default dizionario;
