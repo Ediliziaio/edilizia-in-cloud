@@ -93,6 +93,10 @@ function FineGiornata({ orderId, companyId, squadra, soloDaControllare, onFiltra
     <Button type="button" className="min-h-11 w-full gap-2" onClick={() => navigate(campoReportUrl(orderId, "daily"))}>
       <FileText className="size-4" aria-hidden="true" /> {t("Apri rapportino della giornata")}
     </Button>
+    {/* Formazione breve del mattino, con la firma di ognuno (piano campo completo 2.5). */}
+    <Button type="button" variant="outline" className="min-h-11 w-full" onClick={() => navigate(`/campo/lavoro/${encodeURIComponent(orderId)}/sicurezza-squadra`)}>
+      {t("5 minuti di sicurezza")}
+    </Button>
     {/* Pioggia, neve: il fermo per la cassa integrazione (piano campo completo 2.6). */}
     <Button type="button" variant="outline" className="min-h-11 w-full" onClick={() => navigate(`/campo/lavoro/${encodeURIComponent(orderId)}/fermo`)}>
       {t("Fermo per maltempo")}
