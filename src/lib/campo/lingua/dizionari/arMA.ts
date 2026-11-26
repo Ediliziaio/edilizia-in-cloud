@@ -69009,5 +69009,16 @@ const dizionario: Dizionario = {
   "{n} richieste di ferie o permesso": "{n} طلبات عطلة ولا رخصة",
   "{n} ritiro dal magazzino": "{n} سحب من المخزن",
   "{n} ritiri dal magazzino": "{n} سحوبات من المخزن",
+  "Contratto e pagamenti": "العقد والخلصات",
+  "Non riesco a leggere i contratti. Riprova tra poco.": "ما قدرتش نقرا العقود. عاود من بعد شوية.",
+  "Non ci sono contratti da mostrare. Per i pagamenti chiedi all'ufficio.": "ما كاين حتى عقد. على الخلصات سول البيرو.",
+  "Importo del contratto": "المبلغ ديال العقد",
+  "Maturato con i SAL": "اللي تجمع بالـSAL",
+  "Ancora da eseguire": "باقي ما تدارش",
+  "Ancora nessun SAL.": "مازال حتى SAL.",
+  "pagato il {data}": "تخلص نهار {data}",
+  "Le ditte subappaltatrici vedono contratto e pagamenti": "الشركات المتعاقدة كيشوفو العقد والخلصات",
+  "Nell'app vedono solo i propri contratti: importo, SAL, pagato e da pagare.": "ف الأپليكاسيون كيشوفو غير العقود ديالهم: المبلغ، SAL، اللي تخلص واللي باقي.",
+  "Avvisi e pagamenti nell’app": "التنبيهات والخلصات ف الأپليكاسيون",
 };
 export default dizionario;

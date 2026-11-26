@@ -69009,5 +69009,16 @@ const dizionario: Dizionario = {
   "{n} richieste di ferie o permesso": "{n} solicitudes de vacaciones o permiso",
   "{n} ritiro dal magazzino": "{n} retiro del almacén",
   "{n} ritiri dal magazzino": "{n} retiros del almacén",
+  "Contratto e pagamenti": "Contrato y pagos",
+  "Non riesco a leggere i contratti. Riprova tra poco.": "No puedo leer los contratos. Inténtalo en un rato.",
+  "Non ci sono contratti da mostrare. Per i pagamenti chiedi all'ufficio.": "No hay contratos que mostrar. Para los pagos pregunta en la oficina.",
+  "Importo del contratto": "Importe del contrato",
+  "Maturato con i SAL": "Acumulado con las certificaciones (SAL)",
+  "Ancora da eseguire": "Aún por ejecutar",
+  "Ancora nessun SAL.": "Aún ninguna certificación (SAL).",
+  "pagato il {data}": "pagado el {data}",
+  "Le ditte subappaltatrici vedono contratto e pagamenti": "Los subcontratistas ven contrato y pagos",
+  "Nell'app vedono solo i propri contratti: importo, SAL, pagato e da pagare.": "En la app solo ven sus propios contratos: importe, SAL, pagado y por pagar.",
+  "Avvisi e pagamenti nell’app": "Avisos y pagos en la app",
 };
 export default dizionario;

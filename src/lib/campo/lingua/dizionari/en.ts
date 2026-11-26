@@ -69009,5 +69009,16 @@ const dizionario: Dizionario = {
   "{n} richieste di ferie o permesso": "{n} leave or permit requests",
   "{n} ritiro dal magazzino": "{n} warehouse pick-up",
   "{n} ritiri dal magazzino": "{n} warehouse pick-ups",
+  "Contratto e pagamenti": "Contract and payments",
+  "Non riesco a leggere i contratti. Riprova tra poco.": "I can't read the contracts. Try again shortly.",
+  "Non ci sono contratti da mostrare. Per i pagamenti chiedi all'ufficio.": "No contracts to show. For payments ask the office.",
+  "Importo del contratto": "Contract amount",
+  "Maturato con i SAL": "Accrued with progress reports (SAL)",
+  "Ancora da eseguire": "Still to be done",
+  "Ancora nessun SAL.": "No progress report (SAL) yet.",
+  "pagato il {data}": "paid on {data}",
+  "Le ditte subappaltatrici vedono contratto e pagamenti": "Subcontractors see contract and payments",
+  "Nell'app vedono solo i propri contratti: importo, SAL, pagato e da pagare.": "In the app they only see their own contracts: amount, SAL, paid and to pay.",
+  "Avvisi e pagamenti nell’app": "Notices and payments in the app",
 };
 export default dizionario;

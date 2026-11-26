@@ -15,7 +15,7 @@ import { useIsCampo } from "@/hooks/useIsCampo";
 import { useMieiMezzi } from "@/hooks/useMezzi";
 import { cn } from "@/lib/utils";
 import { useLinguaCampo } from "@/lib/campo/lingua/LinguaCampo";
-import { Languages, ShieldAlert, UtensilsCrossed } from "lucide-react";
+import { Euro, Languages, ShieldAlert, UtensilsCrossed } from "lucide-react";
 import { useBuoniPastoCampo } from "@/hooks/campo/useBuoniPastoCampo";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useFieldSurveyAccess } from "@/hooks/useFieldSurveys";
@@ -89,6 +89,7 @@ export default function CampoMenu() {
       items: [
         { icon: CheckSquare, label: "Attività", url: "/campo/attivita", color: "text-teal-600 bg-teal-50" },
         { icon: ClipboardCheck, label: "Avanzamento", url: "/campo/avanzamento", color: "text-cyan-600 bg-cyan-50" },
+        { icon: Euro, label: "Contratto e pagamenti", url: "/campo/contratti", color: "text-emerald-700 bg-emerald-50" },
       ],
     },
     {

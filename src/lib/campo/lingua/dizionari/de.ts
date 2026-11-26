@@ -69009,5 +69009,16 @@ const dizionario: Dizionario = {
   "{n} richieste di ferie o permesso": "{n} Urlaubs- oder Freistellungsanträge",
   "{n} ritiro dal magazzino": "{n} Lagerentnahme",
   "{n} ritiri dal magazzino": "{n} Lagerentnahmen",
+  "Contratto e pagamenti": "Vertrag und Zahlungen",
+  "Non riesco a leggere i contratti. Riprova tra poco.": "Ich kann die Verträge nicht lesen. Versuch es gleich nochmal.",
+  "Non ci sono contratti da mostrare. Per i pagamenti chiedi all'ufficio.": "Keine Verträge anzuzeigen. Für Zahlungen frag im Büro.",
+  "Importo del contratto": "Vertragssumme",
+  "Maturato con i SAL": "Mit den Abschlagsrechnungen (SAL) angefallen",
+  "Ancora da eseguire": "Noch auszuführen",
+  "Ancora nessun SAL.": "Noch keine Abschlagsrechnung (SAL).",
+  "pagato il {data}": "bezahlt am {data}",
+  "Le ditte subappaltatrici vedono contratto e pagamenti": "Subunternehmer sehen Vertrag und Zahlungen",
+  "Nell'app vedono solo i propri contratti: importo, SAL, pagato e da pagare.": "In der App sehen sie nur ihre eigenen Verträge: Betrag, SAL, bezahlt und offen.",
+  "Avvisi e pagamenti nell’app": "Hinweise und Zahlungen in der App",
 };
 export default dizionario;

@@ -69046,5 +69046,16 @@ const dizionario: Dizionario = {
   "{n} richieste di ferie o permesso": "{n} kërkesa për pushim ose leje",
   "{n} ritiro dal magazzino": "{n} marrje nga magazina",
   "{n} ritiri dal magazzino": "{n} marrje nga magazina",
+  "Contratto e pagamenti": "Kontrata dhe pagesat",
+  "Non riesco a leggere i contratti. Riprova tra poco.": "Nuk i lexoj dot kontratat. Provo pak më vonë.",
+  "Non ci sono contratti da mostrare. Per i pagamenti chiedi all'ufficio.": "Nuk ka kontrata për të treguar. Për pagesat pyet zyrën.",
+  "Importo del contratto": "Vlera e kontratës",
+  "Maturato con i SAL": "Maturuar me SAL",
+  "Ancora da eseguire": "Ende për t'u bërë",
+  "Ancora nessun SAL.": "Ende asnjë SAL.",
+  "pagato il {data}": "paguar më {data}",
+  "Le ditte subappaltatrici vedono contratto e pagamenti": "Nënkontraktorët shohin kontratën dhe pagesat",
+  "Nell'app vedono solo i propri contratti: importo, SAL, pagato e da pagare.": "Në aplikacion shohin vetëm kontratat e tyre: vlerën, SAL, të paguarat dhe për t'u paguar.",
+  "Avvisi e pagamenti nell’app": "Njoftime dhe pagesa në aplikacion",
 };
 export default dizionario;

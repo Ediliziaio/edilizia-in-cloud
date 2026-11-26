@@ -69046,5 +69046,16 @@ const dizionario: Dizionario = {
   "{n} richieste di ferie o permesso": "{n} cereri de concediu sau permisie",
   "{n} ritiro dal magazzino": "{n} ridicare din depozit",
   "{n} ritiri dal magazzino": "{n} ridicări din depozit",
+  "Contratto e pagamenti": "Contract și plăți",
+  "Non riesco a leggere i contratti. Riprova tra poco.": "Nu pot citi contractele. Reîncearcă puțin mai târziu.",
+  "Non ci sono contratti da mostrare. Per i pagamenti chiedi all'ufficio.": "Nu sunt contracte de arătat. Pentru plăți întreabă la birou.",
+  "Importo del contratto": "Valoarea contractului",
+  "Maturato con i SAL": "Acumulat cu situațiile de lucrări (SAL)",
+  "Ancora da eseguire": "Încă de executat",
+  "Ancora nessun SAL.": "Încă nicio situație de lucrări (SAL).",
+  "pagato il {data}": "plătit pe {data}",
+  "Le ditte subappaltatrici vedono contratto e pagamenti": "Subcontractorii văd contractul și plățile",
+  "Nell'app vedono solo i propri contratti: importo, SAL, pagato e da pagare.": "În aplicație văd doar contractele proprii: valoare, SAL, plătit și de plătit.",
+  "Avvisi e pagamenti nell’app": "Avize și plăți în aplicație",
 };
 export default dizionario;
