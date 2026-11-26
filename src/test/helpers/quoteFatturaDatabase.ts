@@ -22,7 +22,7 @@ export async function quoteDatabase(dataDir?:string){
  create table movimenti_cassa_native(id uuid primary key default gen_random_uuid(),company_id uuid,documento_id uuid,data_movimento date,created_at timestamptz default now(),importo numeric,tipo text,metodo text,note text);
  create table prima_nota_entries(id uuid primary key default gen_random_uuid(),company_id uuid,order_id uuid,installment_id uuid,entry_date date,amount numeric,direction text,reversal_of uuid);
  create table fattura_ordine(company_id uuid,fattura_id uuid,ordine_id uuid,importo_associato numeric);
- create table unita_immobiliari(id uuid,order_id uuid,company_id uuid);create table unita_movimenti(unita_id uuid,tipo text,importo numeric,stornato_at timestamptz);
+ create table unita_immobiliari(id uuid,order_id uuid,company_id uuid,stato_vendita text);create table unita_movimenti(unita_id uuid,tipo text,importo numeric,stornato_at timestamptz);
  create table ordini_variazione(order_id uuid,status text,impatto_economico numeric);
  create function documento_stornato_totale(d uuid) returns numeric language sql set search_path=public as $$select coalesce(credito,0) from documenti_fiscali where id=d$$;
  create function private.office_visible_order(o uuid) returns boolean language sql set search_path=public as $$select public.user_can_access_company(company_id) from orders where id=o$$;

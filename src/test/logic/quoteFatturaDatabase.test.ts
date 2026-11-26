@@ -51,3 +51,18 @@ it('variazione del netto da pagare ricalcola quote e trattenute senza cambiare l
  expect(await quote()).toEqual([[270,0],[360,0],[70,200]]);
  expect(Number((await db.query<{t:string}>('select sum(importo) as t from rate_incassi($1)',[company])).rows[0].t)).toBe(700);
 });
+it("unità ancora in vendita: il listino non è un credito, una rata scritta a mano sì",async()=>{
+ // 26/11/2026 (URBAN VISION): le commesse delle unità nascono col listino come importo e
+ // senza piano — lo «scoperto» di rate_da_incassare le prendeva per crediti da incassare.
+ const unitaOrder='20000000-0000-4000-a000-00000000009a', rata='40000000-0000-4000-a000-00000000009a';
+ await db.query("insert into orders values($1,$2,500,0,null,'standard','a_corpo',null,null,0)",[unitaOrder,company]);
+ await db.query("insert into unita_immobiliari(id,order_id,company_id,stato_vendita) values(gen_random_uuid(),$1,$2,'libera')",[unitaOrder,company]);
+ const residuo=async()=>Number((await db.query<{t:string|null}>('select coalesce(sum(residuo),0) as t from rate_da_incassare($1) where order_id=$2',[company,unitaOrder])).rows[0].t);
+ expect(await residuo()).toBe(0);
+ // Una caparra che qualcuno ha scritto resta un credito atteso.
+ await db.query("insert into order_installments(id,order_id,position,label,type,amount,expected_date) values($1,$2,0,'Caparra','deposit',50,'2027-01-31')",[rata,unitaOrder]);
+ expect(await residuo()).toBe(50);
+ // Venduta: torna a dovere tutto il suo totale.
+ await db.query("update unita_immobiliari set stato_vendita='rogitata' where order_id=$1",[unitaOrder]);
+ expect(await residuo()).toBe(500);
+});

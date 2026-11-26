@@ -45,7 +45,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Card } from "@/components/ui/card";
-import { type OrderWithDetails, type OrderStatus, getPendingPayments, getAmountDue, getAmountCollected, getGrossOrderAmount, contrattoPattuito } from "@/lib/orderUtils";
+import { type OrderWithDetails, type OrderStatus, getPendingPayments, getAmountDue, getAmountCollected, getGrossOrderAmount, contrattoPattuito, listinoNonPianificato } from "@/lib/orderUtils";
 
 export interface OrderCosts {
   variableCosts: number;
@@ -107,11 +107,17 @@ function statoMostrato(o: OrderWithDetails, mappa: MappaGenerali): { name: strin
 }
 /** Il lordo che è un contratto: il listino di un'unità ancora in vendita non lo è. */
 const lordoVenduto = (o: OrderWithDetails, mappa: MappaGenerali) => (inVendita(o, mappa) ? 0 : getGrossOrderAmount(o));
+/**
+ * Il da incassare. Di un'unità ancora in vendita si toglie il listino che
+ * nessuna rata scritta a mano copre — non è un credito — e resta solo ciò che
+ * qualcuno ha pianificato su quell'unità: la stessa cosa che dicono lo
+ * Scadenzario e il previsionale di cassa (`rate_da_incassare`).
+ */
 function daIncassareConUnita(o: OrderWithDetails, mappa: MappaGenerali): number {
-  if (inVendita(o, mappa)) return 0;
+  const listino = inVendita(o, mappa) ? listinoNonPianificato(o) : 0;
   const inPiu = incassatoConUnita(o, mappa) - getAmountCollected(o);
   const permuta = nettoUnitaInLordo(mappa.permuteUnita?.get(o.id) ?? 0, o.vat_rate);
-  return Math.max(0, getAmountDue(o) - Math.max(0, inPiu) - permuta);
+  return Math.max(0, getAmountDue(o) - listino - Math.max(0, inPiu) - permuta);
 }
 
 export const OrdersTable = React.memo(function OrdersTable({
@@ -343,9 +349,9 @@ export const OrdersTable = React.memo(function OrdersTable({
                   <p className="text-sm font-bold leading-tight">{(generale && riga.figlie.length === 0) || (generale && totalIvato === 0 && listinoInVendita > 0) ? "—" : formatCurrency(totalIvato)}</p>
                 )}
                 {generale && listinoInVendita > 0 && <p className="text-[11px] text-muted-foreground">{t("in vendita {importo}", { importo: formatCurrencyCompact(listinoInVendita) })}</p>}
-                {libera ? null : due > 0 ? (
+                {due > 0 ? (
                   <p className="text-[11px] font-medium text-orange-600 dark:text-orange-400">{t("da ricevere {importo}", { importo: formatCurrencyCompact(due) })}</p>
-                ) : collected > 0 ? (
+                ) : libera ? null : collected > 0 ? (
                   <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">✓ {t("Saldato")}</p>
                 ) : null}
               </div>}
@@ -593,7 +599,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                   )}
                   {visibleColumns.has("due") && (
                     <TableCell className="hidden md:table-cell text-right">
-                      {libera || nienteVenduto ? (
+                      {(libera && due <= 0.01) || nienteVenduto ? (
                         <span className="text-muted-foreground">—<span className="block text-xs">{libera ? t("Non venduta") : t("Niente di venduto")}</span></span>
                       ) : (
                       <span className={due > 0 ? "text-orange-600 dark:text-orange-400 font-medium" : "text-emerald-600 dark:text-emerald-400"}>
