@@ -23,7 +23,7 @@ import { calculateInstallmentCollections, type InstallmentLike, type VarianteDat
 import { calculateGrossFromNet } from "@/lib/vatUtils";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { allPaymentRows } from "@/hooks/useSupplierPayments";
-import { cashExposureTimeline, cassaProvvigioni } from "@/lib/orders/cashExposureTimeline";
+import { cashExposureTimeline, cassaProvvigioni, type MovimentoCassa, type VoceCassa } from "@/lib/orders/cashExposureTimeline";
 
 export interface RataEsposizione extends InstallmentLike {
   id?: string | null;
@@ -35,6 +35,8 @@ interface CashEvent {
   date: string; // yyyy-MM-dd
   in: number;
   out: number;
+  /** Che cosa ha mosso i soldi: apre la riga del mese, non cambia nessun totale. */
+  voce?: VoceCassa;
 }
 
 export interface MeseEsposizione {
@@ -43,6 +45,8 @@ export interface MeseEsposizione {
   entrate: number;
   uscite: number;
   saldo: number; // cumulato a fine mese
+  /** I singoli movimenti del mese, in ordine di data. */
+  movimenti: MovimentoCassa[];
 }
 
 export interface EsposizioneCommessa {
@@ -152,14 +156,15 @@ export function useEsposizioneCommessa({
       if (amount <= 0) continue;
       const date = r.paid_date; // An expected deadline is not a date on which money actually arrived.
       if (!date) continue;
-      events.push({ date, in: amount, out: 0 });
+      events.push({ date, in: amount, out: 0, voce: "rata" });
     }
 
     // ── Uscite: costi pagati, alla data in cui sono usciti i soldi ─────────
     for (const entry of costi?.entries ?? []) {
       if (entry.amount <= 0 || !['entrata', 'uscita'].includes(entry.direction)) continue;
       events.push({ date: entry.entry_date, in: entry.direction === 'entrata' ? entry.amount : 0,
-        out: entry.direction === 'uscita' ? entry.amount : 0 });
+        out: entry.direction === 'uscita' ? entry.amount : 0,
+        voce: entry.direction === 'entrata' ? "incasso" : "costo" });
     }
     for (const c of costi?.cc ?? []) {
       const allocations = Array.isArray(c.allocations) ? c.allocations : [];
@@ -181,7 +186,7 @@ export function useEsposizioneCommessa({
       }
       if (recorded) continue;
       const date = c.paid_date;
-      if (date) events.push({ date, in: 0, out: gross });
+      if (date) events.push({ date, in: 0, out: gross, voce: "costo" });
     }
     // Manodopera e provvigioni non passano dalla Prima Nota: contano sempre, alla data di pagamento.
     for (const e of costi?.emp ?? []) {
@@ -192,7 +197,7 @@ export function useEsposizioneCommessa({
         continue;
       }
       const date = e.paid_date;
-      if (date) events.push({ date, in: 0, out: cost });
+      if (date) events.push({ date, in: 0, out: cost, voce: "manodopera" });
     }
     for (const t of costi?.teams ?? []) {
       // Le squadre esterne si pagano con una fattura registrata in Prima Nota: con la Prima Nota valgono le sue voci.
@@ -204,7 +209,7 @@ export function useEsposizioneCommessa({
         continue;
       }
       const date = t.paid_date;
-      if (date) events.push({ date, in: 0, out: cost });
+      if (date) events.push({ date, in: 0, out: cost, voce: "ditta" });
     }
     const provvigioni = cassaProvvigioni(costi?.sales ?? []);
     events.push(...provvigioni.eventi);

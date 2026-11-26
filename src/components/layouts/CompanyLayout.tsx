@@ -1712,7 +1712,15 @@ export function CompanyLayout() {
     <>
     {/* Sui tablet anche in orizzontale il menu si apre sopra il contenuto. */}
     <SidebarProvider pannelloSotto={1280}>
-      <div className={`md:min-h-screen flex w-full ${altezzaBloccata ? "md:h-dvh" : "md:h-auto"} h-[calc(100dvh-env(safe-area-inset-top))] overflow-hidden`}>
+      {/* Da tablet in su la pagina scorre con la finestra, non dentro <main>: con
+          `overflow: hidden/auto` qui e su <main> il browser prendeva loro come
+          riferimento per gli elementi «sticky», e quelli non si incollavano mai
+          (le schede della commessa sparivano scorrendo). `overflow-x: clip`
+          continua a tagliare di lato senza creare un contenitore di scorrimento;
+          `hidden` creerebbe di nuovo il problema, e `visible` su un asse solo
+          diventa `auto` da specifica. Su telefono resta tutto com'era: lì <main>
+          scorre davvero, e lo sticky funzionava già. */}
+      <div className={`md:min-h-screen flex w-full ${altezzaBloccata ? "md:h-dvh" : "md:h-auto"} h-[calc(100dvh-env(safe-area-inset-top))] overflow-hidden ${altezzaBloccata ? "" : "md:overflow-x-clip md:overflow-y-visible"}`}>
         <CompanySidebar badgePronti={deferredRealtimeReady} />
         {/* NIENTE pt-safe qui: il top safe-area è già riservato UNA volta dal
             padding-top del body (html.capacitor body). Aggiungerlo qui lo
@@ -1721,7 +1729,9 @@ export function CompanyLayout() {
             (la bottom-nav resta visibile sopra l'home indicator). */}
         {/* relative: ancora la bottom-nav pillola (absolute) al fondo del
             container — overlay sul contenuto, niente fascia di layout. */}
-        <div className="relative flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Stessa ragione del contenitore sopra: `overflow-hidden` qui faceva da
+            contenitore di scorrimento e rompeva gli «sticky» dentro la pagina. */}
+        <div className={`relative flex-1 flex flex-col min-w-0 overflow-hidden ${altezzaBloccata ? "" : "md:overflow-x-clip md:overflow-y-visible"}`}>
           {/* Skip to main content — keyboard / screen-reader accessibility */}
           <a
             href="#main-content"
@@ -1846,7 +1856,7 @@ export function CompanyLayout() {
               "spazi vuoti ai lati quando scrollo") — le tabelle scrollano nei loro wrapper */}
           {/* pb mobile ≈ altezza pillola flottante + safe-area: l'ultimo
               elemento resta raggiungibile sopra il vetro della bottom-nav. */}
-          <main className={`flex-1 ${altezzaBloccata ? "min-h-0" : ""} overflow-y-auto overflow-x-hidden ${paddingMain} bg-muted/30`} id="main-content" aria-label={t("Contenuto principale")}>
+          <main className={`flex-1 ${altezzaBloccata ? "min-h-0" : ""} overflow-y-auto overflow-x-hidden ${altezzaBloccata ? "" : "md:overflow-x-clip md:overflow-y-visible"} ${paddingMain} bg-muted/30`} id="main-content" aria-label={t("Contenuto principale")}>
             <ErrorBoundary title={t("Errore nel caricamento della pagina")} resetKey={location.pathname}>
               {/* Skeleton (non spinner) al cambio pagina: percezione di velocità sul primo paint mobile */}
               <Suspense fallback={

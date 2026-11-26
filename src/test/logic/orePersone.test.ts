@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { daGuardare, giorniTra, oreTimbratePerGiorno, periodoCommessa, righePerPersona } from "@/lib/orders/orePersone";
+import { daGuardare, finestreAnnuali, giorniTra, oreTimbratePerGiorno, periodoCommessa, righePerPersona } from "@/lib/orders/orePersone";
 import type { DailyHoursLine } from "@/lib/orders/dailyHours";
 
 const riga = (over: Partial<DailyHoursLine>): DailyHoursLine => ({
@@ -36,10 +36,22 @@ describe("Ore e persone", () => {
     ], "o1", new Date("2026-10-18T10:00:00Z"));
     expect(perGiorno.get("2026-10-15")).toBe(4);
   });
-  it("tutta la commessa: dall'inizio lavori a oggi, massimo un anno", () => {
-    expect(periodoCommessa("2026-09-01", "2026-10-18")).toEqual({ da: "2026-09-01", a: "2026-10-18", tagliato: false });
-    expect(periodoCommessa("2024-01-01", "2026-10-18").tagliato).toBe(true);
+  it("tutta la commessa: dall'inizio lavori a oggi, per intero", () => {
+    expect(periodoCommessa("2026-09-01", "2026-10-18")).toEqual({ da: "2026-09-01", a: "2026-10-18", finestre: 1 });
     expect(periodoCommessa(null, "2026-10-18").da).toBe("2025-10-17");
+  });
+  it("una commessa aperta da più di un anno non viene più tagliata: l'inizio resta l'inizio", () => {
+    // Il caso visto in demo: lavori dal 20/10/2025, oggi 25/11/2026. Prima partiva dal 24/11/2025
+    // e i primi 25 rapportini su 40 sparivano dal riepilogo.
+    expect(periodoCommessa("2025-10-20", "2026-11-25")).toEqual({ da: "2025-10-20", a: "2026-11-25", finestre: 2 });
+    expect(periodoCommessa("2024-01-01", "2026-10-18").da).toBe("2024-01-01");
+  });
+  it("il periodo lungo si legge a finestre di un anno, senza buchi né sovrapposizioni", () => {
+    expect(finestreAnnuali("2026-09-01", "2026-10-18")).toEqual([{ da: "2026-09-01", a: "2026-10-18" }]);
+    const finestre = finestreAnnuali("2025-10-20", "2026-11-25");
+    expect(finestre).toEqual([{ da: "2025-10-20", a: "2026-10-20" }, { da: "2026-10-21", a: "2026-11-25" }]);
+    for (const f of finestre) expect((Date.parse(`${f.a}T12:00:00Z`) - Date.parse(`${f.da}T12:00:00Z`)) / 86_400_000).toBeLessThanOrEqual(366);
+    expect(finestreAnnuali("2026-10-18", "2026-09-01")).toEqual([]);
   });
   it("giorni tra due date, senza sabato e domenica", () => {
     expect(giorniTra("2026-10-16", "2026-10-19", true)).toEqual(["2026-10-16", "2026-10-19"]);

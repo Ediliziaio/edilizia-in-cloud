@@ -85,12 +85,36 @@ export function daGuardare(r: RigaPersona): boolean {
   return r.oreTimbrate != null && Math.abs(r.ore - r.oreTimbrate) > SCARTO_DA_GUARDARE;
 }
 
-/** Il periodo «tutta la commessa»: dall'inizio lavori (o dalla creazione) a oggi, al massimo un anno. */
-export function periodoCommessa(inizio: string | null | undefined, oggi = campoWorkDay()): { da: string; a: string; tagliato: boolean } {
-  const unAnnoFa = shiftWorkDay(oggi, -366);
-  const partenza = inizio && /^\d{4}-\d{2}-\d{2}/.test(inizio) ? inizio.slice(0, 10) : unAnnoFa;
-  const da = partenza > oggi ? oggi : partenza < unAnnoFa ? unAnnoFa : partenza;
-  return { da, a: oggi, tagliato: partenza < unAnnoFa };
+/**
+ * Il periodo «tutta la commessa»: dall'inizio lavori (o dalla creazione) a oggi,
+ * per intero. Prima si fermava a 366 giorni indietro e una commessa aperta da più
+ * di un anno mostrava solo l'ultimo tratto: ore e persone sparivano dal riepilogo
+ * senza dirlo. La lettura lunga si spezza in finestre di un anno (`finestreAnnuali`),
+ * perché `ufficio_leggi_ore` non accetta un intervallo più lungo.
+ */
+export function periodoCommessa(inizio: string | null | undefined, oggi = campoWorkDay()): { da: string; a: string; finestre: number } {
+  const partenza = inizio && /^\d{4}-\d{2}-\d{2}/.test(inizio) ? inizio.slice(0, 10) : shiftWorkDay(oggi, -366);
+  const da = partenza > oggi ? oggi : partenza;
+  return { da, a: oggi, finestre: finestreAnnuali(da, oggi).length };
+}
+
+/** Il massimo che `ufficio_leggi_ore` legge in una volta. */
+export const GIORNI_PER_FINESTRA = 365;
+/** Oltre vent'anni di commessa non si legge: è un dato sbagliato, non una commessa. */
+const FINESTRE_MAX = 20;
+
+/** Lo stesso periodo in finestre di al massimo un anno, in ordine di tempo. */
+export function finestreAnnuali(da: string, a: string): Array<{ da: string; a: string }> {
+  if (!da || !a || a < da) return [];
+  const finestre: Array<{ da: string; a: string }> = [];
+  let inizio = da;
+  while (inizio <= a && finestre.length < FINESTRE_MAX) {
+    const fine = shiftWorkDay(inizio, GIORNI_PER_FINESTRA);
+    const chiusura = fine > a ? a : fine;
+    finestre.push({ da: inizio, a: chiusura });
+    inizio = shiftWorkDay(chiusura, 1);
+  }
+  return finestre;
 }
 
 /** I giorni tra due date (comprese), opzionalmente senza sabato e domenica. */

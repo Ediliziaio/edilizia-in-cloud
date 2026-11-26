@@ -8,6 +8,40 @@ export interface StructureFixedCost {
   allocations?: unknown;
   /** Parte rimasta in magazzino: non è spesa generale, diventa costo all'uscita della merce. */
   quota_magazzino?: number | string | null;
+  /** Categoria scritta nella pagina Costi: decide il secchio (`destinazioneCosto`). */
+  category?: string | null;
+  cost_type?: string | null;
+  /** Costo nato da un ordine d'acquisto: è già nel costo acquisti della commessa. */
+  purchase_order_id?: string | null;
+}
+
+/** I tre secchi in cui può finire un costo d'azienda. */
+export type DestinazioneCosto = "cantiere" | "gia_contato" | "struttura";
+
+const radice = (valore: string | null | undefined) =>
+  (valore ?? "").toLocaleLowerCase("it-IT").normalize("NFD").replace(/[^a-z]/g, "");
+
+/** Categorie che appartengono sempre a un cantiere: senza commessa sono da attribuire, mai spese generali. */
+const RADICI_CANTIERE = ["subappalt", "merc", "ditt"];
+/** Categorie già dentro il costo del personale (lordo × aliquote) o nel costo acquisti. */
+const RADICI_GIA_CONTATE = ["stipend", "salari", "inps", "inail", "tfr", "contribut", "cedolin", "irpef"];
+/** «F24» perde le cifre nella radice e resta "f": confronto esatto, o prenderebbe «ferramenta». */
+const RADICE_F24 = "f";
+
+/**
+ * Dove va un costo che non ha una commessa. Mandarli tutti in struttura è
+ * sbagliato in due modi opposti: un subappalto senza commessa non è una spesa
+ * generale (va attribuito, o inquina il margine di tutti gli altri cantieri),
+ * e i contributi sono già dentro il costo del personale calcolato da lordo e
+ * aliquote — contarli di nuovo vuol dire pagare l'INPS due volte.
+ */
+export function destinazioneCosto(costo: Pick<StructureFixedCost, "category" | "purchase_order_id">): DestinazioneCosto {
+  if (costo.purchase_order_id) return "gia_contato";
+  const categoria = radice(costo.category);
+  if (!categoria) return "struttura";
+  if (RADICI_CANTIERE.some((r) => categoria.startsWith(r))) return "cantiere";
+  if (categoria === RADICE_F24 || RADICI_GIA_CONTATE.some((r) => categoria.startsWith(r))) return "gia_contato";
+  return "struttura";
 }
 
 /**
@@ -52,6 +86,34 @@ export interface StructureOrder {
   percentuale_avanzamento?: number | null;
   work_start_date?: string | null;
   work_end_date?: string | null;
+  /** Stato di evasione della commessa: «completed» è una chiusura dichiarata. */
+  fulfillment_status?: string | null;
+  /** Fase della commessa (order_statuses): l'ultima operativa e quelle di supporto chiudono il cantiere. */
+  current_status_id?: string | null;
+}
+
+/** Una fase del flusso dell'azienda, come la configura in Impostazioni. */
+export interface StatoCommessa {
+  id: string;
+  position?: number | null;
+  is_support_phase?: boolean | null;
+}
+
+/**
+ * Le fasi che dicono «il cantiere non c'è più»: l'ultima fase operativa
+ * («Lavori completati») e tutte quelle di supporto («Assistenza»), dove i
+ * lavori sono finiti e resta il dopo-vendita. È la fonte più affidabile che
+ * l'azienda abbia, perché la fase la sposta una persona.
+ */
+export function statiCheChiudono(stati: readonly StatoCommessa[]): Set<string> {
+  const chiusi = new Set<string>();
+  let ultima: StatoCommessa | null = null;
+  for (const stato of stati) {
+    if (stato.is_support_phase === true) { chiusi.add(stato.id); continue; }
+    if (!ultima || finite(stato.position) > finite(ultima.position)) ultima = stato;
+  }
+  if (ultima) chiusi.add(ultima.id);
+  return chiusi;
 }
 
 export interface CompanyStructureSnapshot {
@@ -61,6 +123,10 @@ export interface CompanyStructureSnapshot {
   monthlyStructure: number;
   activeOrders: number;
   monthlyPerActiveOrder: number | null;
+  /** Costi che appartengono a un cantiere e non ce l'hanno: da attribuire, fuori dalla struttura. */
+  daAttribuire: { righe: number; totale: number };
+  /** Costi lasciati fuori perché già contati altrove (contributi, stipendi, ordini d'acquisto). */
+  giaContati: { righe: number; totale: number };
 }
 
 export interface OrderStructureImpact {
@@ -93,16 +159,48 @@ export function isOperationalEmployee(employee: StructureEmployee, assignedToOrd
 }
 
 /**
- * Un cantiere assorbe struttura quando risulta avviato ma non concluso.
- * L'avanzamento è la fonte principale; stato e date coprono i cantieri avviati
- * che non hanno ancora ricevuto il primo aggiornamento percentuale.
+ * Oltre questi giorni dalla fine lavori il cantiere è chiuso comunque: un
+ * avanzamento fermo a metà da mesi vuol dire che nessuno lo aggiorna più, non
+ * che il cantiere è ancora aperto. Sotto questa soglia resta aperto, perché un
+ * ritardo vero deve continuare a consumare struttura: è il costo del ritardo.
  */
-export function isOrderActiveForStructure(order: StructureOrder, today: string): boolean {
+export const GIORNI_OLTRE_FINE = 90;
+
+const giorniTra = (da: string, a: string): number | null => {
+  const x = Date.parse(da), y = Date.parse(a);
+  return Number.isFinite(x) && Number.isFinite(y) ? (y - x) / 86_400_000 : null;
+};
+
+/**
+ * Un cantiere è chiuso — e smette di consumare struttura — quando lo dice uno
+ * qualunque di questi segnali. Prima contava solo l'avanzamento: una commessa
+ * ferma all'86% con i lavori finiti da un anno risultava aperta per sempre,
+ * assorbiva mesi di struttura che non le spettavano e gonfiava il numero dei
+ * cantieri attivi, diluendo la quota di tutti gli altri.
+ */
+export function cantiereChiuso(order: StructureOrder, today: string, statiChiusi?: ReadonlySet<string>): boolean {
+  if (order.current_status_id && statiChiusi?.has(order.current_status_id)) return true;
   const progress = Math.min(100, Math.max(0, finite(order.percentuale_avanzamento)));
-  if (progress >= 100) return false;
+  if (progress >= 100) return true;
+  if (normalized(order.fulfillment_status) === "completed") return true;
+  if (order.work_end_date) {
+    if (progress <= 0 && order.work_end_date <= today) return true;
+    const giorni = giorniTra(order.work_end_date, today);
+    if (giorni != null && giorni > GIORNI_OLTRE_FINE) return true;
+  }
+  return false;
+}
+
+/**
+ * Un cantiere assorbe struttura quando risulta avviato e non ancora concluso.
+ * La chiusura la decide `cantiereChiuso`; qui resta solo l'avvio.
+ */
+export function isOrderActiveForStructure(order: StructureOrder, today: string, statiChiusi?: ReadonlySet<string>): boolean {
+  if (cantiereChiuso(order, today, statiChiusi)) return false;
+  const progress = Math.min(100, Math.max(0, finite(order.percentuale_avanzamento)));
   if (progress > 0) return true;
 
-  const status = (order.status ?? "").trim().toLocaleLowerCase("it-IT").replaceAll("-", "_").replaceAll(" ", "_");
+  const status = normalized(order.status);
   if (["in_corso", "in_lavorazione", "avviato", "attivo"].includes(status)) return true;
 
   if (!order.work_start_date || order.work_start_date > today) return false;
@@ -115,18 +213,34 @@ export function calculateCompanyStructureSnapshot(input: {
   employees: StructureEmployee[];
   operationalEmployeeIds: Iterable<string>;
   orders: StructureOrder[];
+  /** Le fasi che chiudono il cantiere (`statiCheChiudono`); senza, decidono avanzamento e date. */
+  statiChiusi?: ReadonlySet<string>;
   today: string;
   /** Costo del personale per tipo di dipendente (vuoto = valori edili). */
   parametri?: ParametriCostoAzienda | null;
 }): CompanyStructureSnapshot {
   const operationalIds = new Set(input.operationalEmployeeIds);
-  const fixedCostsMonthly = input.fixedCosts.reduce(
-    (sum, cost) =>
-      sum
-      + quotaNonRipartita(finite(cost.amount), cost.allocations, cost.quota_magazzino)
-        * recurrenceMultiplier(cost.recurrence ?? "monthly"),
-    0,
-  );
+  const daAttribuire = { righe: 0, totale: 0 };
+  const giaContati = { righe: 0, totale: 0 };
+  let fixedCostsMonthly = 0;
+  for (const cost of input.fixedCosts) {
+    const destinazione = destinazioneCosto(cost);
+    if (destinazione === "cantiere") {
+      daAttribuire.righe += 1;
+      daAttribuire.totale += finite(cost.amount);
+      continue;
+    }
+    if (destinazione === "gia_contato") {
+      giaContati.righe += 1;
+      giaContati.totale += finite(cost.amount);
+      continue;
+    }
+    // Solo i costi fissi entrano nella quota mensile: un costo variabile una tantum
+    // non è una spesa ricorrente di struttura.
+    if (cost.cost_type != null && cost.cost_type !== "fixed") continue;
+    fixedCostsMonthly += quotaNonRipartita(finite(cost.amount), cost.allocations, cost.quota_magazzino)
+      * recurrenceMultiplier(cost.recurrence ?? "monthly");
+  }
 
   let officeSalariesMonthly = 0;
   let directLaborSalariesMonthly = 0;
@@ -137,7 +251,7 @@ export function calculateCompanyStructureSnapshot(input: {
   }
 
   const monthlyStructure = fixedCostsMonthly + officeSalariesMonthly;
-  const activeOrders = input.orders.filter((order) => isOrderActiveForStructure(order, input.today)).length;
+  const activeOrders = input.orders.filter((order) => isOrderActiveForStructure(order, input.today, input.statiChiusi)).length;
 
   return {
     fixedCostsMonthly,
@@ -148,6 +262,8 @@ export function calculateCompanyStructureSnapshot(input: {
     monthlyPerActiveOrder: monthlyStructure > 0 && activeOrders > 0
       ? monthlyStructure / activeOrders
       : null,
+    daAttribuire,
+    giaContati,
   };
 }
 
@@ -162,17 +278,23 @@ export function calculateOrderStructureImpact(input: {
   workStartDate: string | null;
   workEndDate: string | null;
   progressPercent: number | null;
+  fulfillmentStatus?: string | null;
+  currentStatusId?: string | null;
+  statiChiusi?: ReadonlySet<string>;
   today: string;
 }): OrderStructureImpact {
   if (!input.monthlyPerActiveOrder || input.monthlyPerActiveOrder <= 0) {
     return { months: null, allocatedStructure: null, marginAfterStructure: null, marginAfterStructurePct: null };
   }
 
-  const progress = finite(input.progressPercent);
-  const endedByDateWithoutProgress = progress <= 0
-    && !!input.workEndDate
-    && input.workEndDate <= input.today;
-  const completed = progress >= 100 || endedByDateWithoutProgress;
+  // Stessa regola del conteggio dei cantieri attivi: i mesi di un cantiere chiuso
+  // si fermano alla fine lavori, non corrono fino a oggi.
+  const completed = cantiereChiuso({
+    percentuale_avanzamento: input.progressPercent,
+    work_end_date: input.workEndDate,
+    fulfillment_status: input.fulfillmentStatus,
+    current_status_id: input.currentStatusId,
+  }, input.today, input.statiChiusi);
   const months = mesiApertura(
     input.workStartDate,
     completed ? input.workEndDate : null,

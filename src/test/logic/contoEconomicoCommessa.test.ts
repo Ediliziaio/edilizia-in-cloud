@@ -21,6 +21,34 @@ describe("conto economico della commessa per macro-voci", () => {
     });
   });
 
+  it("la scala dei margini: contribuzione, commessa, netto, e i tre si incastrano", () => {
+    const k = consuntivo();
+    const conto = contoEconomicoCommessa({
+      ricavi: 100000, avanzamentoPct: 50, consuntivo: k,
+      previsto: { materiali: 40000, manodopera: 20000, ditte: 10000 },
+      struttura: { mensile: 1000, mesiPrevisti: 6, mesiMaturati: 3 },
+    });
+    // La squadra è la manodopera interna (persone), non le ditte.
+    expect(conto.risorseDedicate.consuntivo).toBe(9000);
+    expect(conto.risorseDedicate.preventivo).toBe(20000);
+    // Contribuzione = ricavo maturato meno tutti i costi tranne la squadra.
+    expect(conto.margineContribuzione.maturato).toBe(50000 - (somma(k) - 9000));
+    // I gradini si incastrano: contribuzione − squadra = margine di commessa,
+    // e meno la struttura = margine netto. Nessun numero nuovo.
+    expect(conto.margineContribuzione.maturato - conto.risorseDedicate.consuntivo).toBe(conto.margineMaturato);
+    expect(conto.margineMaturato - (conto.struttura.consuntivo ?? 0)).toBe(conto.margineNettoMaturato);
+    expect(conto.margineContribuzione.preventivo! - conto.risorseDedicate.preventivo!).toBe(conto.marginePreventivo);
+  });
+
+  it("senza preventivo la contribuzione prevista non si inventa", () => {
+    const conto = contoEconomicoCommessa({
+      ricavi: 100000, avanzamentoPct: null, consuntivo: consuntivo(), previsto: null,
+      struttura: { mensile: null, mesiPrevisti: null, mesiMaturati: null },
+    });
+    expect(conto.margineContribuzione.preventivo).toBeNull();
+    expect(conto.risorseDedicate.preventivo).toBeNull();
+  });
+
   it("confronta col previsto a questo punto dei lavori e misura le incidenze", () => {
     const conto = contoEconomicoCommessa({
       ricavi: 100000, avanzamentoPct: 50,

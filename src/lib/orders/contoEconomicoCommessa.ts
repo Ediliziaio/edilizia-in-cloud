@@ -75,6 +75,14 @@ export interface ContoEconomico {
   righe: RigaConto[];
   costiPreventivo: number;
   costiConsuntivo: number;
+  /**
+   * Risorse dedicate dell'azienda consumate da questa commessa: oggi la
+   * manodopera interna (le ditte sono un costo variabile, non una risorsa
+   * nostra). I mezzi entreranno qui quando avranno una tariffa a consumo.
+   */
+  risorseDedicate: { preventivo: number | null; consuntivo: number };
+  /** Primo gradino: ricavi meno i costi variabili, prima della propria squadra. */
+  margineContribuzione: { preventivo: number | null; maturato: number };
   marginePreventivo: number;
   margineConsuntivo: number;
   /** Sul ricavo maturato: margine di quello che è stato fatto. */
@@ -180,6 +188,11 @@ export function contoEconomicoCommessa(input: {
   const strutturaCons = s.mensile != null && s.mesiMaturati != null ? c(s.mensile * Math.max(0, s.mesiMaturati)) : null;
   const marginePreventivo = c(ricavi - costiPreventivo);
   const margineMaturato = c(ricavoMaturato - costiConsuntivo);
+  // La scala dei margini: ricavi − variabili = contribuzione; − la propria
+  // squadra = margine di commessa; − struttura = margine netto. Nessun numero
+  // nuovo: la squadra è la voce «manodopera», già dentro il totale dei costi.
+  const squadraCons = c(consuntivo.manodopera);
+  const squadraPrev = haPreventivo && preventivo.manodopera != null ? c(preventivo.manodopera) : null;
 
   return {
     ricavi: c(ricavi),
@@ -188,6 +201,11 @@ export function contoEconomicoCommessa(input: {
     righe,
     costiPreventivo,
     costiConsuntivo,
+    risorseDedicate: { preventivo: squadraPrev, consuntivo: squadraCons },
+    margineContribuzione: {
+      preventivo: haPreventivo ? c(ricavi - (costiPreventivo - (squadraPrev ?? 0))) : null,
+      maturato: c(ricavoMaturato - (costiConsuntivo - squadraCons)),
+    },
     marginePreventivo,
     margineConsuntivo: c(ricavi - costiConsuntivo),
     margineMaturato,
