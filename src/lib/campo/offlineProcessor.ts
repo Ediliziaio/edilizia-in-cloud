@@ -4,6 +4,7 @@ import { salvaChecklistSicurezza, type ChecklistDaSalvare } from "./salvaCheckli
 import { inviaPrelievoInCoda, type PrelievoInCoda } from "./prelievoInCoda";
 import { inviaRapportoInCoda, type RapportoInCoda } from "./rapportoInCoda";
 import { inviaTecnicaInCoda } from "./tecnicaInCoda";
+import type { SpesaInCoda } from "./spese";
 import type { DatiBozzaTecnica } from "./bozzaTecnica";
 import {
   SyncDeferredError,
@@ -103,6 +104,25 @@ export async function processCampoOffline(item: SyncItem) {
     throw new SyncPermanentError(
       "Operazione non supportata: contatta l’assistenza. I dati locali sono conservati.",
     );
+  if (item.type === "spesa") {
+    // Spesa fatta senza rete (26/11/2026, piano campo completo 1.7): prima la foto dello scontrino, poi la riga,
+    // con l'id nato sul telefono. Se la risposta si era persa, la riga c'è già: va bene così.
+    const spesa = payload as unknown as SpesaInCoda;
+    if (spesa.foto) {
+      const { error } = await supabase.storage.from("campo-spese").upload(spesa.foto.path, spesa.foto.blob, {
+        contentType: spesa.foto.contentType, upsert: false,
+      });
+      const esiste = error && ((error as { statusCode?: string }).statusCode === "409" || error.message.toLowerCase().includes("already exists"));
+      if (error && !esiste) throw new Error(error.message);
+    }
+    const { error } = await supabase.from("campo_spese").insert({ ...spesa.riga, foto_path: spesa.foto?.path ?? null } as never);
+    if (!error) return;
+    if (error.code === "23505") {
+      const { data: giaInviata } = await supabase.from("campo_spese").select("id").eq("id", spesa.riga.id).maybeSingle();
+      if (giaInviata) return;
+    }
+    throw databaseError(error);
+  }
   if (item.type === "checklist") {
     const idChecklist = typeof payload.id === "string" ? payload.id : await syncOperationId(item);
     const error = await salvaChecklistSicurezza(payload as ChecklistDaSalvare, idChecklist);

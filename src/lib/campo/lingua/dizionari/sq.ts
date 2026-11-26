@@ -69031,5 +69031,10 @@ const dizionario: Dizionario = {
   "Nessuna ora registrata in questo mese.": "Asnjë orë e regjistruar këtë muaj.",
   "approvate": "të miratuara",
   "respinte": "të refuzuara",
+  "Scegli la tua lingua": "Zgjidh gjuhën tënde",
+  "Un tocco quando arrivi e quando vai via.": "Një prekje kur vjen dhe kur ikën.",
+  "Cosa hai fatto, le ore, una foto. Anche a voce.": "Çfarë bëre, orët, një foto. Edhe me zë.",
+  "Un problema, un infortunio, il materiale che manca.": "Një problem, një aksident, materiali që mungon.",
+  "Sei senza rete: la spesa parte da sola appena torna il segnale.": "Je pa rrjet: shpenzimi niset vetë sapo kthehet sinjali.",
 };
 export default dizionario;

@@ -68994,5 +68994,10 @@ const dizionario: Dizionario = {
   "Nessuna ora registrata in questo mese.": "مفيش ساعات متسجلة الشهر ده.",
   "approvate": "معتمدة",
   "respinte": "مرفوضة",
+  "Scegli la tua lingua": "اختار لغتك",
+  "Un tocco quando arrivi e quando vai via.": "لمسة واحدة لما توصل ولما تمشي.",
+  "Cosa hai fatto, le ore, una foto. Anche a voce.": "عملت إيه، الساعات، صورة. وكمان بالصوت.",
+  "Un problema, un infortunio, il materiale che manca.": "مشكلة، إصابة، الخامات الناقصة.",
+  "Sei senza rete: la spesa parte da sola appena torna il segnale.": "مفيش شبكة: المصروف هيتبعت لوحده أول ما الشبكة ترجع.",
 };
 export default dizionario;

@@ -86,3 +86,15 @@ export function totaliSpese(spese: Pick<Spesa, "stato" | "importo" | "pagata_con
     daRimborsare: somma(s => s.stato === "approvata" && s.pagata_con === "soldi_miei"),
   };
 }
+
+/** Una spesa fatta senza rete, in coda sul telefono (piano campo completo 1.7). `user_id` e `company_id` in cima:
+ * la coda li usa per sapere di chi è e di quale azienda (syncItemScope). */
+export interface SpesaInCoda {
+  company_id: string;
+  user_id: string;
+  riga: {
+    id: string; company_id: string; user_id: string; order_id: string | null; tipo: string; importo: number;
+    descrizione: string | null; pagata_con: string; giorno: string;
+  };
+  foto?: { path: string; blob: Blob; contentType: string };
+}

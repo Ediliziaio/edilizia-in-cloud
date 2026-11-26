@@ -69031,5 +69031,10 @@ const dizionario: Dizionario = {
   "Nessuna ora registrata in questo mese.": "Nicio oră înregistrată în luna aceasta.",
   "approvate": "aprobate",
   "respinte": "respinse",
+  "Scegli la tua lingua": "Alege limba ta",
+  "Un tocco quando arrivi e quando vai via.": "O atingere când ajungi și când pleci.",
+  "Cosa hai fatto, le ore, una foto. Anche a voce.": "Ce ai făcut, orele, o poză. Poți și să vorbești.",
+  "Un problema, un infortunio, il materiale che manca.": "O problemă, un accident, materialul care lipsește.",
+  "Sei senza rete: la spesa parte da sola appena torna il segnale.": "Nu ai semnal: cheltuiala pleacă singură când revine semnalul.",
 };
 export default dizionario;

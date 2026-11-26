@@ -21,6 +21,7 @@ export type SyncItemType =
   | "rilievo"
   | "timbratura"
   | "foto"
+  | "spesa"
   | "generic";
 
 export type SyncStatus = "pending" | "syncing" | "failed" | "done";

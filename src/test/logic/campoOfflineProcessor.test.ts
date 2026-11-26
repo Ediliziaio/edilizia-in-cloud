@@ -14,6 +14,20 @@ const id = "11111111-1111-4111-a111-111111111111";
 const item = (patch: Partial<SyncItem> = {}): SyncItem => ({ id, operationId: id, type: "timbratura", payload: { user_id: "u", company_id: "c", order_id: "o", tipo: "entrata" }, createdAt: 0, updatedAt: 0, retryCount: 0, status: "pending", ...patch });
 beforeEach(() => { vi.clearAllMocks(); state.owner = "u"; state.error = null; state.existing = null; state.upload.mockResolvedValue({ error: null }); state.download.mockResolvedValue({ data: new BlobNode(["foto"]), error: null }); });
 describe("Sincronizzazione con API simulate", () => {
+  // Piano campo completo 1.7 (26/11/2026): la spesa fatta senza rete.
+  const spesa = { company_id: "c", user_id: "u", riga: { id, company_id: "c", user_id: "u", order_id: null, tipo: "carburante", importo: 55.5, descrizione: null, pagata_con: "soldi_miei", giorno: "2026-11-26" },
+    foto: { path: `c/u/${id}-s.jpg`, blob: new BlobNode(["s"]) as unknown as Blob, contentType: "image/jpeg" } };
+  it("spesa in coda: prima la foto, poi la riga con l'id del telefono", async () => {
+    await expect(processCampoOffline(item({ type: "spesa", payload: spesa }))).resolves.toBeUndefined();
+    expect(state.upload).toHaveBeenCalledWith(spesa.foto.path, spesa.foto.blob, expect.objectContaining({ upsert: false }));
+    expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ id, importo: 55.5, foto_path: spesa.foto.path }));
+  });
+  it("spesa in coda: risposta persa, la riga c'è già e non si raddoppia", async () => {
+    state.upload.mockResolvedValue({ error: { statusCode: "409", message: "already exists" } });
+    state.error = { code: "23505", message: "duplicato" }; state.existing = { id };
+    await expect(processCampoOffline(item({ type: "spesa", payload: spesa }))).resolves.toBeUndefined();
+    expect(state.insert).toHaveBeenCalledTimes(1);
+  });
   const checklist = { company_id: "c", operaio_id: "u", data: "2026-11-20", turno: "mattina", note: "Copia offline", risposte: [{ itemId: "dpi", checked: true }] };
 
   it("mantiene in coda la checklist con revisione superata, senza sovrascrivere quella remota", async () => {

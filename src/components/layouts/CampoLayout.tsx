@@ -41,6 +41,7 @@ import { PreviewSessionContext } from "@/contexts/PreviewSessionContext";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import OfflineBanner from "@/components/campo/OfflineBanner";
 import BannerVersioneVecchia from "@/components/campo/BannerVersioneVecchia";
+import { PrimaAperturaCampo } from "@/components/campo/PrimaAperturaCampo";
 import { NavLink } from "@/components/NavLink";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -279,6 +280,7 @@ export default function CampoLayout() {
           <QuickLoginReturnBanner />
           {/* Prima di tutto: se l'app è vecchia, quello che segue può essere sbagliato. */}
           <BannerVersioneVecchia />
+          <PrimaAperturaCampo />
           <OfflineBanner />
 
           {/* Preview banners */}

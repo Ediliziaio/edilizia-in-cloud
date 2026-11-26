@@ -68994,5 +68994,10 @@ const dizionario: Dizionario = {
   "Nessuna ora registrata in questo mese.": "حتى ساعة ما تسجلات هاد الشهر.",
   "approvate": "مقبولين",
   "respinte": "مرفوضين",
+  "Scegli la tua lingua": "ختار اللغة ديالك",
+  "Un tocco quando arrivi e quando vai via.": "ضغطة وحدة ملي توصل وملي تمشي.",
+  "Cosa hai fatto, le ore, una foto. Anche a voce.": "شنو درتي، السوايع، تصويرة. حتى بالصوت.",
+  "Un problema, un infortunio, il materiale che manca.": "مشكل، حادثة، السلعة اللي ناقصة.",
+  "Sei senza rete: la spesa parte da sola appena torna il segnale.": "ما كاينش الريزو: المصروف غادي يمشي بوحدو ملي يرجع الريزو.",
 };
 export default dizionario;

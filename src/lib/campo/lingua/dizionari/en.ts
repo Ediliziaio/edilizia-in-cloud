@@ -68994,5 +68994,10 @@ const dizionario: Dizionario = {
   "Nessuna ora registrata in questo mese.": "No hours recorded this month.",
   "approvate": "approved",
   "respinte": "rejected",
+  "Scegli la tua lingua": "Choose your language",
+  "Un tocco quando arrivi e quando vai via.": "One tap when you arrive and when you leave.",
+  "Cosa hai fatto, le ore, una foto. Anche a voce.": "What you did, the hours, a photo. You can also speak.",
+  "Un problema, un infortunio, il materiale che manca.": "A problem, an injury, missing material.",
+  "Sei senza rete: la spesa parte da sola appena torna il segnale.": "No network: the expense will go out by itself as soon as the signal is back.",
 };
 export default dizionario;

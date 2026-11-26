@@ -68994,5 +68994,10 @@ const dizionario: Dizionario = {
   "Nessuna ora registrata in questo mese.": "Keine Stunden in diesem Monat erfasst.",
   "approvate": "genehmigt",
   "respinte": "abgelehnt",
+  "Scegli la tua lingua": "Wähle deine Sprache",
+  "Un tocco quando arrivi e quando vai via.": "Ein Tippen, wenn du kommst und wenn du gehst.",
+  "Cosa hai fatto, le ore, una foto. Anche a voce.": "Was du gemacht hast, die Stunden, ein Foto. Auch per Sprache.",
+  "Un problema, un infortunio, il materiale che manca.": "Ein Problem, ein Unfall, fehlendes Material.",
+  "Sei senza rete: la spesa parte da sola appena torna il segnale.": "Kein Netz: die Ausgabe geht von selbst raus, sobald das Signal zurück ist.",
 };
 export default dizionario;

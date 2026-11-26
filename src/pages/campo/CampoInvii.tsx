@@ -33,7 +33,7 @@ type Riga = {
 
 const NOME: Record<Riga["tipo"], string> = { documento_ddt: "Bolla", prelievo: "Prelievo", rapportino: "Rapportino",
   timbratura: "Timbratura", checklist: "Controllo sicurezza", foto: "Foto di cantiere", rapportino_vocale: "Nota vocale",
-  generic: "Operazione da verificare", merce: "Ritiro merce", avanzamento: "Avanzamento", rilievo: "Rilievo" };
+  generic: "Operazione da verificare", merce: "Ritiro merce", avanzamento: "Avanzamento", rilievo: "Rilievo", spesa: "Spesa" };
 const GRUPPI = [
   ["daCorreggere", "Da controllare"], ["inCoda", "In coda"],
   ["bozza", "Bozze"], ["inviato", "Inviati da questo telefono"],
@@ -77,6 +77,7 @@ function righeLocali(coda: SyncItem[], ricevute: RicevutaCampo[], bozze: BozzaTe
     else if (voce.type === "documento_ddt") href = `/campo/ddt?${query.toString()}`;
     else if (voce.type === "timbratura") href = "/campo/timbratura";
     else if (voce.type === "checklist") href = "/campo/sicurezza";
+    else if (voce.type === "spesa") href = "/campo/spese";
     else if (voce.type === "foto" && orderId) href = `/campo/lavoro/${encodeURIComponent(orderId)}/foto`;
     else if (voce.type === "rapportino_vocale" || scope.legacyAudio) href = "/campo/rapportino-vocale";
     righe.push({ id: voce.id, tipo: voce.type, stato: voce.status === "failed" ? "daCorreggere" : "inCoda",

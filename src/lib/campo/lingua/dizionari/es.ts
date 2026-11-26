@@ -68994,5 +68994,10 @@ const dizionario: Dizionario = {
   "Nessuna ora registrata in questo mese.": "Ninguna hora registrada este mes.",
   "approvate": "aprobadas",
   "respinte": "rechazadas",
+  "Scegli la tua lingua": "Elige tu idioma",
+  "Un tocco quando arrivi e quando vai via.": "Un toque cuando llegas y cuando te vas.",
+  "Cosa hai fatto, le ore, una foto. Anche a voce.": "Lo que hiciste, las horas, una foto. También por voz.",
+  "Un problema, un infortunio, il materiale che manca.": "Un problema, un accidente, el material que falta.",
+  "Sei senza rete: la spesa parte da sola appena torna il segnale.": "Sin cobertura: el gasto sale solo en cuanto vuelva la señal.",
 };
 export default dizionario;
