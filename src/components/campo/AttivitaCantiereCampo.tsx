@@ -52,12 +52,23 @@ export function AttivitaCantiereCampo({ orderId, oggi }: { orderId: string; oggi
       const { error } = await supabase.from("tasks").update({ status: "completata", completed_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
+    // La riga sparisce subito al tocco (sul cantiere la rete è lenta); se il salvataggio fallisce torna.
+    onMutate: async (id: string) => {
+      const chiave = ["campo-attivita-cantiere", orderId, user?.id];
+      await qc.cancelQueries({ queryKey: chiave });
+      const prima = qc.getQueryData<Attivita[]>(chiave);
+      qc.setQueryData<Attivita[]>(chiave, (vecchie) => (vecchie ?? []).filter((a) => a.id !== id));
+      return { chiave, prima };
+    },
     onSuccess: () => {
       toast.success(t("Fatto"));
-      void qc.invalidateQueries({ queryKey: ["campo-attivita-cantiere", orderId] });
       void qc.invalidateQueries({ queryKey: ["campo-attivita"] });
     },
-    onError: () => toast.error(t("Non sono riuscito a salvare: riprova.")),
+    onError: (_e, _id, ctx) => {
+      if (ctx) qc.setQueryData(ctx.chiave, ctx.prima);
+      toast.error(t("Non sono riuscito a salvare: riprova."));
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["campo-attivita-cantiere", orderId] }),
   });
 
   const lista = attivita.data ?? [];
@@ -76,7 +87,7 @@ export function AttivitaCantiereCampo({ orderId, oggi }: { orderId: string; oggi
             const scaduta = !!a.due_date && a.due_date < oggi;
             return (
               <li key={a.id} className="flex items-center gap-2 py-1.5">
-                <button type="button" disabled={fatta.isPending} onClick={() => fatta.mutate(a.id)} aria-label={t("Segna fatta: {titolo}", { titolo: a.title })}
+                <button type="button" onClick={() => fatta.mutate(a.id)} aria-label={t("Segna fatta: {titolo}", { titolo: a.title })}
                   className="flex size-11 shrink-0 items-center justify-center rounded-full active:bg-muted">
                   <Circle className="size-5 text-muted-foreground" aria-hidden="true" />
                 </button>
