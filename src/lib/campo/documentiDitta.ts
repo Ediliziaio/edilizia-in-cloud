@@ -22,7 +22,7 @@ export function statoDocumentiDitta(
   const limite = tra30.toISOString().slice(0, 10);
   return DOCUMENTI_OBBLIGATORI.map(({ tipo, label }) => {
     const dello = documenti.filter(d => d.tipo === tipo);
-    if (!dello.length) return { tipo, label, stato: "manca" as const, scadenza: null };
+    if (!dello.length) return { tipo, label, stato: "manca" as const, scadenza: null as string | null };
     // Il più lungo: senza scadenza vale come valido.
     const senza = dello.some(d => !d.data_scadenza);
     const scadenza = senza ? null : dello.map(d => d.data_scadenza!).sort().at(-1)!;
