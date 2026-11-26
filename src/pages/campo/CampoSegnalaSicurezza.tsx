@@ -21,6 +21,8 @@ import { UniformSelect } from "@/components/ui/uniform-select";
 import { useUnaVolta } from "@/hooks/campo/useUnaVolta";
 import { preparaFoto, avvisiPreparazione } from "@/lib/campo/preparaFoto";
 import { senzaRete } from "@/lib/campo/timbra";
+import { syncQueue } from "@/lib/campo/sync-queue";
+import type { RigaConFotoInCoda } from "@/lib/campo/spese";
 import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { cn } from "@/lib/utils";
 
@@ -159,7 +161,24 @@ export default function CampoSegnalaSicurezza() {
       if (!companyId || !user?.id) throw new Error(t("Azienda non disponibile, riprova tra un istante"));
       if (!tipo) throw new Error(t("Scegli cosa è successo"));
       if (descrizione.trim().length < 3) throw new Error(t("Scrivi in due parole cosa è successo"));
-      if (senzaRete()) throw new Error(t("Sei senza rete: la segnalazione resta qui. Se è grave chiama subito il capocantiere."));
+      // Senza rete va in coda con le foto e parte da sola (piano campo completo 1.7). Se è grave: 112 e capocantiere.
+      if (senzaRete()) {
+        const esito = foto.length ? await preparaFoto(foto, { massimo: MASSIMO_FOTO_SICUREZZA }) : null;
+        const payload: RigaConFotoInCoda = {
+          company_id: companyId, user_id: user.id, bucket: "sicurezza-eventi",
+          foto: (esito?.pronte ?? []).map(p => ({ path: `${companyId}/${id}/${p.nomeFile}`, blob: p.blob, contentType: p.contentType })),
+          riga: {
+            id, company_id: companyId, order_id: cantiereScelto || null, tipo, accaduto_il: new Date(quando).toISOString(),
+            luogo: luogo.trim() || null, descrizione: descrizione.trim(), ferito,
+            persona_coinvolta: ferito ? (proprioIo ? null : persona.trim() || null) : null,
+            parte_corpo: ferito ? parteCorpo.trim() || null : null, soccorso: ferito ? soccorso : "nessuno",
+            testimoni: testimoni.trim() || null,
+          },
+        };
+        await syncQueue.enqueue<RigaConFotoInCoda>({ type: "sicurezza", dedupKey: id, operationId: id, payload });
+        toast.warning(t("Sei senza rete: la segnalazione parte da sola appena torna il segnale. Se è grave chiama subito il capocantiere."));
+        return;
+      }
 
       const percorsi: string[] = [];
       if (foto.length) {

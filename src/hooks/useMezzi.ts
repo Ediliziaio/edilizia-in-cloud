@@ -14,6 +14,8 @@ import type {
 } from "@/types/mezzi";
 import type { MontaggioInCorso } from "@/lib/mezzi/gruppiMezzi";
 import { toast } from "sonner";
+import { syncQueue } from "@/lib/campo/sync-queue";
+import type { RigaConFotoInCoda } from "@/lib/campo/spese";
 
 const BUCKET = "mezzi-documenti";
 
@@ -919,6 +921,24 @@ export function useInviaSegnalazione(mezzoId: string, aziendaDelMezzo?: string) 
   return useMutation({
     mutationFn: async ({ tipo, descrizione, contatore, files }: { tipo: SegnalazioneTipo; descrizione?: string; contatore?: number | null; files?: File[] }) => {
       if (!companyId) throw new Error("Azienda non trovata");
+      // Senza rete (piano campo completo 1.7): la segnalazione con le foto va in coda e parte da sola.
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        const { data: sessione } = await supabase.auth.getSession();
+        const uid = sessione.session?.user.id;
+        if (!uid) throw new Error("Accedi di nuovo per inviare la segnalazione");
+        const id = crypto.randomUUID();
+        const foto = await Promise.all((files ?? []).map(async (f) => {
+          let blob: Blob = f; let nome = f.name;
+          try { blob = (await compressImage(f)).blob; nome = nome.replace(/\.[^.]+$/, "") + ".jpg"; } catch { /* il file com'è */ }
+          const sicuro = nome.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-60);
+          return { path: `${companyId}/${mezzoId}/foto-${crypto.randomUUID()}-${sicuro}`, blob, contentType: blob.type || "image/jpeg" };
+        }));
+        await syncQueue.enqueue<RigaConFotoInCoda>({ type: "segnalazione_mezzo", dedupKey: id, operationId: id, payload: {
+          company_id: companyId, user_id: uid, bucket: BUCKET, foto,
+          riga: { id, mezzo_id: mezzoId, tipo, descrizione: descrizione?.trim() || null, contatore: contatore ?? null },
+        } });
+        return { inCoda: true };
+      }
       const { data, error } = await supabase
         .from("mezzi_segnalazioni")
         .insert({ mezzo_id: mezzoId, tipo, descrizione: descrizione?.trim() || null, contatore: contatore ?? null })
@@ -939,10 +959,12 @@ export function useInviaSegnalazione(mezzoId: string, aziendaDelMezzo?: string) 
         // La segnalazione è partita: le foto no. Lo si dice, senza perdere il testo già mandato.
         throw new Error(`La segnalazione è arrivata, le foto no: ${e instanceof Error ? e.message : "errore"}`, { cause: e });
       }
+      return { inCoda: false };
     },
-    onSuccess: (_d, v) => {
+    onSuccess: (esito, v) => {
       qc.invalidateQueries({ queryKey: ["mezzi"] });
       void invalidaFontiSicurezzaMezzi(qc, companyId);
+      if (esito?.inCoda) { toast.success("Sei senza rete: la segnalazione parte da sola appena torna il segnale"); return; }
       toast.success(v.tipo === "km" ? "Lettura del contatore registrata" : "Segnalazione inviata all'ufficio");
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Non ho inviato la segnalazione"),

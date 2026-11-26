@@ -1,4 +1,5 @@
 import {PulsanteProfiliRequisiti} from "@/components/sicurezza/ProfiliRequisitiDialog";
+import { BriefingSicurezzaUfficio } from "@/components/sicurezza/BriefingSicurezzaUfficio";
 import { readAllPages } from "@/lib/personale/readAllPages";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
@@ -1584,6 +1585,8 @@ export default function SicurezzaCantiere() {
 
         <TabsContent value="eventi" className="mt-3">
           {companyId && <RegistroEventiSicurezza companyId={companyId} puoScrivere={canWrite} />}
+          {/* Formazione breve del mattino e ingressi controllati dall'app (piano campo completo 2.4 e 2.5). */}
+          {companyId && <BriefingSicurezzaUfficio companyId={companyId} />}
         </TabsContent>
       </Tabs>
 

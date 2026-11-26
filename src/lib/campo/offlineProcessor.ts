@@ -4,7 +4,7 @@ import { salvaChecklistSicurezza, type ChecklistDaSalvare } from "./salvaCheckli
 import { inviaPrelievoInCoda, type PrelievoInCoda } from "./prelievoInCoda";
 import { inviaRapportoInCoda, type RapportoInCoda } from "./rapportoInCoda";
 import { inviaTecnicaInCoda } from "./tecnicaInCoda";
-import type { SegnalazioneInCoda, SpesaInCoda } from "./spese";
+import type { RigaConFotoInCoda, SegnalazioneInCoda, SpesaInCoda } from "./spese";
 import type { DatiBozzaTecnica } from "./bozzaTecnica";
 import {
   SyncDeferredError,
@@ -104,6 +104,33 @@ export async function processCampoOffline(item: SyncItem) {
     throw new SyncPermanentError(
       "Operazione non supportata: contatta l’assistenza. I dati locali sono conservati.",
     );
+  if (item.type === "sicurezza" || item.type === "segnalazione_mezzo") {
+    // Infortunio o segnalazione del mezzo fatti senza rete (piano campo completo 1.7): prima le foto, poi la riga
+    // con l'id nato sul telefono. Ripetere non raddoppia: foto già caricate e riga già scritta vanno bene.
+    const r = payload as unknown as RigaConFotoInCoda;
+    for (const f of r.foto) {
+      const { error: up } = await supabase.storage.from(r.bucket).upload(f.path, f.blob, { contentType: f.contentType, upsert: false });
+      const esiste = up && ((up as { statusCode?: string }).statusCode === "409" || /exists|duplicate/i.test(up.message));
+      if (up && !esiste) throw new Error(up.message);
+    }
+    if (item.type === "sicurezza") {
+      const { error } = await supabase.from("sicurezza_eventi").insert({ ...r.riga, foto: r.foto.map(f => f.path) } as never);
+      if (error && error.code !== "23505") throw databaseError(error);
+      return;
+    }
+    const { error } = await supabase.from("mezzi_segnalazioni").insert(r.riga as never);
+    if (error && error.code !== "23505") throw databaseError(error);
+    if (r.foto.length) {
+      const { data: gia } = await supabase.from("mezzi_foto").select("file_path").eq("segnalazione_id", r.riga.id);
+      const presenti = new Set((gia ?? []).map(g => g.file_path as string));
+      const nuove = r.foto.filter(f => !presenti.has(f.path));
+      if (nuove.length) {
+        const { error: e2 } = await supabase.from("mezzi_foto").insert(nuove.map(f => ({ file_path: f.path, mezzo_id: r.riga.mezzo_id, company_id: r.company_id, segnalazione_id: r.riga.id })) as never);
+        if (e2) throw databaseError(e2);
+      }
+    }
+    return;
+  }
   if (item.type === "segnalazione") {
     // Segnalazione fatta senza rete (piano campo completo 1.7): prima il ticket con l'id nato sul telefono,
     // poi le foto. Ogni passo si può ripetere: ticket già c'è, foto già caricata, messaggio già scritto.

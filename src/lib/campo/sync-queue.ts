@@ -23,6 +23,8 @@ export type SyncItemType =
   | "foto"
   | "spesa"
   | "segnalazione"
+  | "sicurezza"
+  | "segnalazione_mezzo"
   | "generic";
 
 export type SyncStatus = "pending" | "syncing" | "failed" | "done";

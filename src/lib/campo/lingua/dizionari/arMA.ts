@@ -69121,5 +69121,13 @@ const dizionario: Dizionario = {
   "Prima della prima timbratura l'app mostra come si usa la posizione e la prende solo dopo «Ho letto».": "قبل أول تبوانطي الأپليكاسيون كتشرح كيفاش كتستعمل البلاصة وما كتاخدهاش حتى من بعد «قريت».",
   "Per usare la posizione serve anche l'accordo sindacale o l'autorizzazione dell'Ispettorato del lavoro (art. 4 dello Statuto dei lavoratori): caricalo nei documenti dell'azienda.": "باش تستعمل البلاصة خاص حتى الاتفاق النقابي ولا الترخيص ديال مفتشية الشغل (الفصل 4 من قانون العمال): طلعو ف الوثائق ديال الشركة.",
   "Apri i documenti dell'azienda": "حل الوثائق ديال الشركة",
+  "5 minuti di sicurezza (ultimi 60 giorni)": "5 دقايق ديال السلامة (آخر 60 يوم)",
+  "Non riesco a leggere i dati. Riprova tra poco.": "ما قدرتش نقرا المعطيات. عاود من بعد شوية.",
+  "{n} presenti": "{n} حاضرين",
+  "Firma di {nome}": "التوقيع ديال {nome}",
+  "senza firma": "بلا توقيع",
+  "Ingressi controllati (ultimi 7 giorni)": "الدخول اللي تراقب (آخر 7 أيام)",
+  "Sei senza rete: la segnalazione parte da sola appena torna il segnale. Se è grave chiama subito il capocantiere.": "ما كاينش الريزو: التبليغ غادي يمشي بوحدو ملي يرجع الريزو. إلا كان خطير، عيط دابا للشاف ديال الشانطي.",
+  "Segnalazione del mezzo": "تبليغ على الماكينة",
 };
 export default dizionario;

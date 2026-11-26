@@ -69158,5 +69158,13 @@ const dizionario: Dizionario = {
   "Prima della prima timbratura l'app mostra come si usa la posizione e la prende solo dopo «Ho letto».": "Înainte de primul pontaj aplicația arată cum se folosește poziția și o ia doar după «Am citit».",
   "Per usare la posizione serve anche l'accordo sindacale o l'autorizzazione dell'Ispettorato del lavoro (art. 4 dello Statuto dei lavoratori): caricalo nei documenti dell'azienda.": "Pentru a folosi poziția e nevoie și de acordul sindical sau de autorizația Inspectoratului Muncii (art. 4 din Statutul lucrătorilor): încarcă-l în documentele firmei.",
   "Apri i documenti dell'azienda": "Deschide documentele firmei",
+  "5 minuti di sicurezza (ultimi 60 giorni)": "5 minute de siguranță (ultimele 60 de zile)",
+  "Non riesco a leggere i dati. Riprova tra poco.": "Nu pot citi datele. Reîncearcă puțin mai târziu.",
+  "{n} presenti": "{n} prezenți",
+  "Firma di {nome}": "Semnătura lui {nome}",
+  "senza firma": "fără semnătură",
+  "Ingressi controllati (ultimi 7 giorni)": "Intrări verificate (ultimele 7 zile)",
+  "Sei senza rete: la segnalazione parte da sola appena torna il segnale. Se è grave chiama subito il capocantiere.": "Nu ai semnal: semnalarea pleacă singură când revine semnalul. Dacă e grav, sună imediat șeful de șantier.",
+  "Segnalazione del mezzo": "Semnalare utilaj",
 };
 export default dizionario;

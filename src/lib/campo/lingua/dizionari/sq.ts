@@ -69158,5 +69158,13 @@ const dizionario: Dizionario = {
   "Prima della prima timbratura l'app mostra come si usa la posizione e la prende solo dopo «Ho letto».": "Para shënimit të parë aplikacioni tregon si përdoret pozicioni dhe e merr vetëm pas «E lexova».",
   "Per usare la posizione serve anche l'accordo sindacale o l'autorizzazione dell'Ispettorato del lavoro (art. 4 dello Statuto dei lavoratori): caricalo nei documenti dell'azienda.": "Për të përdorur pozicionin duhet edhe marrëveshja sindikale ose autorizimi i Inspektoratit të Punës (neni 4 i Statutit të punëtorëve): ngarkoje te dokumentet e firmës.",
   "Apri i documenti dell'azienda": "Hap dokumentet e firmës",
+  "5 minuti di sicurezza (ultimi 60 giorni)": "5 minuta siguri (60 ditët e fundit)",
+  "Non riesco a leggere i dati. Riprova tra poco.": "Nuk i lexoj dot të dhënat. Provo pak më vonë.",
+  "{n} presenti": "{n} të pranishëm",
+  "Firma di {nome}": "Firma e {nome}",
+  "senza firma": "pa firmë",
+  "Ingressi controllati (ultimi 7 giorni)": "Hyrje të kontrolluara (7 ditët e fundit)",
+  "Sei senza rete: la segnalazione parte da sola appena torna il segnale. Se è grave chiama subito il capocantiere.": "Je pa rrjet: sinjalizimi niset vetë kur kthehet sinjali. Nëse është e rëndë, telefono menjëherë përgjegjësin e kantierit.",
+  "Segnalazione del mezzo": "Sinjalizim i mjetit",
 };
 export default dizionario;

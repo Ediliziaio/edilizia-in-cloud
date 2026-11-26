@@ -69121,5 +69121,13 @@ const dizionario: Dizionario = {
   "Prima della prima timbratura l'app mostra come si usa la posizione e la prende solo dopo «Ho letto».": "Antes del primer fichaje la app explica cómo se usa la ubicación y solo la toma después de «Lo he leído».",
   "Per usare la posizione serve anche l'accordo sindacale o l'autorizzazione dell'Ispettorato del lavoro (art. 4 dello Statuto dei lavoratori): caricalo nei documenti dell'azienda.": "Para usar la ubicación hace falta también el acuerdo sindical o la autorización de la Inspección de Trabajo (art. 4 del Estatuto de los trabajadores): súbelo en los documentos de la empresa.",
   "Apri i documenti dell'azienda": "Abrir los documentos de la empresa",
+  "5 minuti di sicurezza (ultimi 60 giorni)": "5 minutos de seguridad (últimos 60 días)",
+  "Non riesco a leggere i dati. Riprova tra poco.": "No puedo leer los datos. Inténtalo en un rato.",
+  "{n} presenti": "{n} presentes",
+  "Firma di {nome}": "Firma de {nome}",
+  "senza firma": "sin firma",
+  "Ingressi controllati (ultimi 7 giorni)": "Entradas controladas (últimos 7 días)",
+  "Sei senza rete: la segnalazione parte da sola appena torna il segnale. Se è grave chiama subito il capocantiere.": "Sin cobertura: el aviso sale solo cuando vuelva la señal. Si es grave, llama ya al jefe de obra.",
+  "Segnalazione del mezzo": "Aviso de la máquina",
 };
 export default dizionario;

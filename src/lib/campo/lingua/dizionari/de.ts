@@ -69121,5 +69121,13 @@ const dizionario: Dizionario = {
   "Prima della prima timbratura l'app mostra come si usa la posizione e la prende solo dopo «Ho letto».": "Vor dem ersten Stempeln erklärt die App, wie der Standort genutzt wird, und erfasst ihn erst nach «Gelesen».",
   "Per usare la posizione serve anche l'accordo sindacale o l'autorizzazione dell'Ispettorato del lavoro (art. 4 dello Statuto dei lavoratori): caricalo nei documenti dell'azienda.": "Für den Standort braucht es außerdem die Betriebsvereinbarung oder die Genehmigung der Arbeitsaufsicht (Art. 4 Arbeiterstatut): lade sie bei den Firmendokumenten hoch.",
   "Apri i documenti dell'azienda": "Firmendokumente öffnen",
+  "5 minuti di sicurezza (ultimi 60 giorni)": "5 Minuten Sicherheit (letzte 60 Tage)",
+  "Non riesco a leggere i dati. Riprova tra poco.": "Ich kann die Daten nicht lesen. Versuch es gleich nochmal.",
+  "{n} presenti": "{n} anwesend",
+  "Firma di {nome}": "Unterschrift von {nome}",
+  "senza firma": "ohne Unterschrift",
+  "Ingressi controllati (ultimi 7 giorni)": "Kontrollierte Zutritte (letzte 7 Tage)",
+  "Sei senza rete: la segnalazione parte da sola appena torna il segnale. Se è grave chiama subito il capocantiere.": "Kein Netz: die Meldung geht von selbst raus, wenn das Signal zurück ist. Wenn es ernst ist, ruf sofort den Bauleiter an.",
+  "Segnalazione del mezzo": "Fahrzeugmeldung",
 };
 export default dizionario;
