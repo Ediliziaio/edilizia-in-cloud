@@ -64,7 +64,31 @@ const CATEGORY_LABELS: Record<string, string> = {
   finanziamento: "Finanziamento",
   giroconto: "Giroconto",
   altro: "Altro",
+  // 25/11/2026: categorie che arrivano dai costi, dagli storni e dalle importazioni. Prima si vedeva la
+  // chiave del database («storno_incasso», «pagamento_fornitore»).
+  pagamento_fornitore: "Pagamento fornitore",
+  subappalti: "Subappalti",
+  subappalto: "Subappalto",
+  storno: "Storno",
+  materiali: "Materiali",
+  manutenzione: "Manutenzione",
+  clienti: "Clienti",
+  carburante: "Carburante",
+  trasferte: "Trasferte",
+  software: "Software",
+  pubblicita: "Pubblicità",
+  affitti: "Affitti",
+  commercialista: "Commercialista",
 };
+
+/** Il nome della categoria: tradotto se conosciuto, altrimenti la chiave resa leggibile
+ *  («storno_incasso» → «Storno incasso»), mai la chiave nuda. */
+function nomeCategoria(categoria: string, t: (s: string) => string) {
+  const nota = CATEGORY_LABELS[categoria];
+  if (nota) return t(nota);
+  const leggibile = categoria.replaceAll("_", " ").trim();
+  return leggibile.charAt(0).toUpperCase() + leggibile.slice(1);
+}
 
 function origineMovimento(e: PrimaNotaEntry) {
   if (!e.is_auto) return "Manuale";
@@ -613,7 +637,7 @@ function PrimaNotaInner() {
                 <span className="min-w-0 flex-1">
                   <span className="block break-words text-sm font-semibold leading-tight max-sm:truncate">{e.description}</span>
                   <span className="mt-1 block truncate text-xs text-muted-foreground">
-                    {format(new Date(e.entry_date), "dd/MM/yyyy")} · {e.account_label || (CATEGORY_LABELS[e.category] ? t(CATEGORY_LABELS[e.category]) : e.category)}
+                    {format(new Date(e.entry_date), "dd/MM/yyyy")} · {e.account_label || nomeCategoria(e.category, t)}
                   </span>
                   {e.prima_nota_gruppi && <span className="mt-0.5 block truncate text-xs text-primary">{etichettaQuota(e.prima_nota_gruppi)}</span>}
                 </span>
@@ -677,7 +701,7 @@ function PrimaNotaInner() {
                   </td>
                   <td className="p-3">
                     <Badge variant="outline" className="text-xs">
-                      {CATEGORY_LABELS[e.category] ? t(CATEGORY_LABELS[e.category]) : e.category}
+                      {nomeCategoria(e.category, t)}
                     </Badge>
                   </td>
                   <td className="p-3">
@@ -850,7 +874,7 @@ function PrimaNotaInner() {
           </div>
           <dl className="grid grid-cols-2 gap-3 text-sm">
             {[
-              ["Categoria", CATEGORY_LABELS[dettaglio.category] ? t(CATEGORY_LABELS[dettaglio.category]) : dettaglio.category],
+              ["Categoria", nomeCategoria(dettaglio.category, t)],
               ["Origine", t(origineMovimento(dettaglio))], ["Metodo", etichettaMetodo(dettaglio.payment_method)],
               ["Conto", dettaglio.account_label], ["Fornitore", dettaglio.suppliers?.name],
               ["Riferimento", dettaglio.reference_number], ["Progressivo pagina", formatCurrency(dettaglio.runningBalance)],

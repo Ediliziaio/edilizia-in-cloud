@@ -39,8 +39,8 @@ export function DashboardQuickActions({ fullLabels = false }: { fullLabels?: boo
         {QUICK_ACTIONS.map((a) => (
           <Button key={a.href} variant="outline" size="sm" className="h-8 text-xs" asChild>
             <Link to={a.href} aria-label={t(a.label)}>
-              <Plus className="h-4 w-4 mr-1" />
-              <span>{fullLabels ? a.label : a.label.replace("Nuovo ", "")}</span>
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              <span>{fullLabels ? t(a.label) : a.label.replace("Nuovo ", "")}</span>
             </Link>
           </Button>
         ))}
