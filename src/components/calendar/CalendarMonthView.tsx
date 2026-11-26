@@ -1,3 +1,4 @@
+import { SegnoProgrammato } from "@/components/programmazione/ProgrammazioneNelCalendario";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -523,6 +524,7 @@ export function CalendarMonthView({
                         {weatherCodeToEmoji(weatherForecast.get(date)!.code)}
                       </span>
                     )}
+                    {!isMobile && <SegnoProgrammato giorno={day} />}
                   </div>
                   {isMobile ? (
                     <div className="flex items-center justify-center gap-0.5">

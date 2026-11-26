@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Coordinate } from "../../../../shared/mappa-operativa/calcoli";
@@ -7,7 +8,9 @@ import { caricaSfondoVettoriale, preparaSfondoMappa } from "./caricaSfondo";
 import { fonteCartografica, stileMappa, tilesMappa } from "./servizio";
 import type { LineaPercorso } from "./tratte";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
-export type Pin = { id: string; titolo: string; punto: Coordinate; numero?: number; tipo?: "base" | "gps" | "mezzo" | "destinazione_mezzo" | "attrezzatura"; etichetta?: string; avviso?: boolean };
+export type Pin = { id: string; titolo: string; punto: Coordinate; numero?: number; tipo?: "base" | "gps" | "mezzo" | "destinazione_mezzo" | "attrezzatura"; etichetta?: string; avviso?: boolean;
+  /** Mai raggruppato con gli altri, sopra a tutti, col suo colore (es. dove si trova un giro a un'ora). */
+  sciolto?: boolean; colore?: string };
 
 export type InquadraturaMappa = Coordinate & { zoom: number; firma: string };
 
@@ -25,6 +28,12 @@ interface Props {
   onInquadratura?: (v: InquadraturaMappa) => void;
   onSeleziona: (id: string) => void;
   onPunto?: (punto: Coordinate) => void;
+  /** Se c'è, la mappa inquadra questi punti invece di tutti i pin e le linee. */
+  fuoco?: Coordinate[] | null;
+  /** La rotellina zooma dopo un clic sulla mappa (e smette quando il mouse esce). */
+  rotellinaAlClic?: boolean;
+  /** Classi dell'altezza della mappa, al posto di quelle normali. */
+  classeAltezza?: string;
 }
 
 function frecciaDirezione(istanza: L.Map, linea: LineaPercorso, opacita: number) {
@@ -98,7 +107,7 @@ function evidenziaPin(livello: LivelloPin | undefined, id: string | null) {
 
 export default function CartografiaOperativa({
   pin, selezionato, percorso = nessunPercorso, trattaSelezionata, onTratta, nomiPin, bozza, tileConsentito, erroreTiles,
-  attesaPunti, contesto = "", inquadratura, onInquadratura, onSeleziona, onPunto,
+  attesaPunti, contesto = "", inquadratura, onInquadratura, onSeleziona, onPunto, fuoco, rotellinaAlClic, classeAltezza,
 }: Props) {
   const t = useT();
   const contenitore = useRef<HTMLDivElement>(null);
@@ -108,6 +117,9 @@ export default function CartografiaOperativa({
   const markerPerId = useRef(new Map<string, LivelloPin>());
   const ultimoInquadramento = useRef<string | null>(null);
   const cameraAutomatica = useRef(false);
+  // L'ultima inquadratura automatica: se la mappa cambia misura (schermo intero) e
+  // nessuno l'ha spostata a mano, la si rifà sulla nuova misura.
+  const limiteAutomatico = useRef<L.LatLngBounds | null>(null);
   const evidenziato = useRef<string | null>(null);
   const popupTratte = useRef<L.Popup | null>(null);
   const avvio = useRef(inquadratura);
@@ -120,19 +132,25 @@ export default function CartografiaOperativa({
   useLayoutEffect(() => {
     if (!contenitore.current) return;
     const precedente = avvio.current;
-    const istanza = L.map(contenitore.current, { scrollWheelZoom: false, minZoom: 3, maxZoom: 19 })
+    const istanza = L.map(contenitore.current, { scrollWheelZoom: false, minZoom: 3, maxZoom: 19, zoomSnap: 0.5 })
       .setView(precedente ? [precedente.lat, precedente.lng] : [42.4, 12.6], precedente?.zoom ?? 6);
     istanza.on("zoomend", () => setZoom(istanza.getZoom()));
     istanza.on("moveend", () => {
       const firma = ultimoInquadramento.current;
       if (firma == null || cameraAutomatica.current) return;
+      limiteAutomatico.current = null;
       const { lat, lng } = istanza.getCenter();
       azioni.current.onInquadratura?.({ lat, lng, zoom: istanza.getZoom(), firma });
     });
     elementi.current = L.layerGroup().addTo(istanza);
     geometrie.current = L.layerGroup().addTo(istanza);
     mappa.current = istanza;
-    const osservatore = new ResizeObserver(() => istanza.invalidateSize());
+    const osservatore = new ResizeObserver(() => {
+      cameraAutomatica.current = true;
+      istanza.invalidateSize({ animate: false });
+      if (limiteAutomatico.current) istanza.fitBounds(limiteAutomatico.current, { padding: [38, 38], maxZoom: 15, animate: false });
+      cameraAutomatica.current = false;
+    });
     osservatore.observe(contenitore.current);
     return () => {
       osservatore.disconnect();
@@ -145,15 +163,22 @@ export default function CartografiaOperativa({
   const inquadra = useMemo(() => {
     const tratto = percorso.find(linea => trattaSelezionata != null && linea.indice === trattaSelezionata);
     const limite = new L.LatLngBounds([]);
-    for (const p of pin) if (!tratto && (!percorso.length || !p.avviso)) limite.extend([p.punto.lat, p.punto.lng]);
-    for (const linea of tratto ? [tratto] : percorso) {
-      for (const p of linea.punti) limite.extend([p.lat, p.lng]);
+    if (fuoco?.length && !tratto) {
+      for (const p of fuoco) limite.extend([p.lat, p.lng]);
+    } else {
+      for (const p of pin) if (!tratto && (!percorso.length || !p.avviso)) limite.extend([p.punto.lat, p.punto.lng]);
+      for (const linea of tratto ? [tratto] : percorso) {
+        for (const p of linea.punti) limite.extend([p.lat, p.lng]);
+      }
     }
+    // Con un fuoco scelto conta solo quello: spilli che si muovono (il cursore
+    // dell'ora) non devono ri-inquadrare la mappa a ogni passo.
     const chiave = tratto ? [trattaSelezionata, limite.isValid() ? limite.toBBoxString() : ""] :
-      pin.map(p => [p.id, p.punto.lat, p.punto.lng, Boolean(p.avviso)]);
+      fuoco?.length ? ["fuoco", limite.isValid() ? limite.toBBoxString() : ""] :
+        pin.map(p => [p.id, p.punto.lat, p.punto.lng, Boolean(p.avviso)]);
     const firma = JSON.stringify([contesto, chiave, percorso.length > 0, limite.isValid() ? limite.toBBoxString() : ""]);
     return { limite, firma };
-  }, [contesto, pin, percorso, trattaSelezionata]);
+  }, [contesto, pin, percorso, trattaSelezionata, fuoco]);
 
   useLayoutEffect(() => {
     const istanza = mappa.current;
@@ -162,12 +187,25 @@ export default function CartografiaOperativa({
     cameraAutomatica.current = true;
     if (inquadratura?.firma === inquadra.firma) {
       istanza.setView([inquadratura.lat, inquadratura.lng], inquadratura.zoom, { animate: false });
+      limiteAutomatico.current = null;
     } else if (inquadra.limite.isValid()) {
       istanza.fitBounds(inquadra.limite, { padding: [38, 38], maxZoom: 15, animate: false });
+      limiteAutomatico.current = inquadra.limite;
     }
     cameraAutomatica.current = false;
     istanza.fire("operativa:inquadrata");
   }, [attesaPunti, inquadra, inquadratura]);
+
+  // Rotellina solo dopo un clic: scorrendo la pagina la mappa non ruba lo zoom.
+  useEffect(() => {
+    const istanza = mappa.current;
+    if (!istanza || !rotellinaAlClic) return;
+    const accendi = () => istanza.scrollWheelZoom.enable();
+    const spegni = () => istanza.scrollWheelZoom.disable();
+    istanza.on("click", accendi);
+    istanza.on("mouseout", spegni);
+    return () => { istanza.off("click", accendi); istanza.off("mouseout", spegni); spegni(); };
+  }, [rotellinaAlClic]);
 
   useEffect(() => { preparaSfondoMappa(); }, []);
   useEffect(() => {
@@ -221,11 +259,23 @@ export default function CartografiaOperativa({
     if (!istanza || !elementi.current) return;
     elementi.current.clearLayers();
     markerPerId.current.clear();
-    const gruppi = raggruppaPin(istanza, pin, zoom);
+    // I pin «sciolti» (posizioni a un'ora) restano sempre da soli: raggruppati con i
+    // cantieri davano etichette come «G+1+4».
+    const gruppi = [
+      ...raggruppaPin(istanza, pin.filter(p => !p.sciolto), zoom),
+      ...pin.filter(p => p.sciolto).map((p, k) => ({ x: 0, y: 0, indice: 10_000 + k, pin: [p] })),
+    ];
     gruppi.forEach(g => {
       const primo = g.pin[0];
       const numeri = g.pin.length > 1 && g.pin.every(p => p.numero != null && !p.tipo) ? g.pin.map(p => p.numero) : [];
-      const sequenza = numeri.length === 2 ? numeri.join(" / ") : "";
+      // Un gruppo dice chi c'è dentro, mai il solo conteggio (sembrava il numero
+      // di una tappa, 26/11/2026): due tappe «2 / 13», tre o più «1+3» (la prima e
+      // quante altre); con la sede o un punto con etichetta «S+1».
+      const numerati = g.pin.map(p => p.numero).filter((n): n is number => n != null);
+      const etichettato = g.pin.find(p => p.etichetta);
+      const sequenza = numeri.length === 2 ? numeri.join(" / ")
+        : g.pin.length > 1 && etichettato && !g.pin.every(p => p.tipo === "base") ? `${etichettato.etichetta}+${g.pin.length - 1}`
+          : g.pin.length > 1 && numerati.length === g.pin.length ? `${Math.min(...numerati)}+${g.pin.length - 1}` : "";
       const mostraSequenza = sequenza.length > 0 && sequenza.length <= 6;
       const nodo = document.createElement("span");
       const daVerificare = g.pin.some(p => p.avviso);
@@ -238,29 +288,39 @@ export default function CartografiaOperativa({
       nodo.textContent = daVerificare ? "!" : ciclo ? "P/R" : mostraSequenza ? sequenza : String(g.pin.length > 1 ? g.pin.length : primo.etichetta ?? primo.numero ?? "●");
       const forma = (gps || flotta) && g.pin.length === 1 ? "rounded-lg" : "rounded-full";
       const colore = daVerificare ? "bg-amber-800" : gps ? "bg-violet-700" : destinazione ? "bg-amber-700" : attrezzo ? "bg-teal-700" : flotta ? "bg-sky-800" : base ? (primo.etichetta === "R" ? "bg-pink-700" : "bg-teal-700") : "bg-slate-900";
-      nodo.className = `grid size-9 place-items-center ${forma} border-2 border-white font-bold text-white shadow-md ${mostraSequenza ? "text-[10px]" : "text-xs"} ${colore}`;
+      nodo.className = `grid size-9 place-items-center ${forma} border-2 border-white font-bold text-white shadow-md ${mostraSequenza ? "text-[10px]" : "text-xs"} ${primo.colore ? "" : colore}`;
+      if (primo.sciolto && primo.colore) {
+        nodo.style.backgroundColor = primo.colore;
+        nodo.className = nodo.className.replace("size-9", "size-8").replace("rounded-lg", "rounded-full") + " ring-2 ring-slate-900/20";
+      }
       const testo = daVerificare ? t("Pin fuori copertura · {nomi}", { nomi: g.pin.filter(p => p.avviso).map(p => p.titolo).join(", ") }) :
         numeri.length === 2 ? t("Tappe {a} e {b}", { a: String(numeri[0]), b: String(numeri[1]) }) :
         g.pin.length > 1 ? (gps ? t("{n} timbrature vicine", { n: g.pin.length }) : flotta ? t("{n} risorse vicine", { n: g.pin.length }) : nomiPin ? t("{n} cantieri vicini", { n: g.pin.length }) : t("{n} tappe vicine", { n: g.pin.length })) : primo.titolo;
       const punto = primo.punto;
       const marker = L.marker([punto.lat, punto.lng], {
         icon: L.divIcon({ html: nodo, className: "", iconSize: [36, 36], iconAnchor: [18, 18] }),
-        title: testo, alt: testo, keyboard: true, bubblingMouseEvents: false,
-        zIndexOffset: 0,
+        // Il title del browser solo dove non c'è già il riquadro coi nomi: due
+        // etichette una sull'altra si coprivano.
+        title: g.pin.length === 1 || nomiPin || flotta ? "" : testo, alt: testo, keyboard: true, bubblingMouseEvents: false,
+        zIndexOffset: primo.sciolto ? 800 : 0,
       }).addTo(elementi.current!);
       marker.getElement()?.setAttribute("aria-label", testo);
       const livello = { marker, nodo, colore, avviso: daVerificare, pin: g.pin };
       for (const p of g.pin) markerPerId.current.set(p.id, livello);
       if (g.pin.length === 1 || nomiPin || flotta) {
         const nomi = document.createElement("div");
-        nomi.className = "w-max max-w-52 whitespace-normal break-words";
+        // Compatto (26/11/2026): una riga per tappa, testo piccolo; prima il
+        // riquadro copriva mezza mappa.
+        nomi.className = "grid w-max max-w-64 gap-0.5 text-[11px] leading-4";
         for (const p of g.pin.slice(0, 4)) {
           const nome = document.createElement("div");
+          nome.className = "truncate";
           nome.textContent = p.titolo;
           nomi.append(nome);
         }
         if (g.pin.length > 4) {
           const altri = document.createElement("div");
+          altri.className = "text-slate-500";
           altri.textContent = flotta ? t("Altri {n} punti", { n: g.pin.length - 4 }) : t("Altri {n} cantieri", { n: g.pin.length - 4 });
           nomi.append(altri);
         }
@@ -269,11 +329,11 @@ export default function CartografiaOperativa({
       if (g.pin.length === 1) marker.on("click", () => azioni.current.onSeleziona(primo.id));
       else marker.bindPopup(() => {
         const elenco = document.createElement("div");
-        elenco.className = "grid max-h-48 gap-1 overflow-auto";
+        elenco.className = "grid max-h-48 max-w-64 gap-0.5 overflow-auto text-[11px] leading-4";
         g.pin.forEach(p => {
           const b = document.createElement("button");
           b.type = "button";
-          b.className = "rounded px-2 py-1 text-left hover:bg-slate-100";
+          b.className = "min-h-0 truncate rounded px-1.5 py-1 text-left hover:bg-slate-100";
           b.textContent = `${p.numero != null ? `${p.numero}. ` : ""}${p.titolo}${p.avviso ? ` · ${t("fuori copertura")}` : ""}`;
           b.onclick = () => { marker.closePopup(); azioni.current.onSeleziona(p.id); };
           elenco.append(b);
@@ -319,8 +379,10 @@ export default function CartografiaOperativa({
     const selezionabili: { indice: number; linea: L.Polyline; titolo: string }[] = [];
     const scegliTratta = (indice: number, evento: L.LeafletMouseEvent) => {
       const punto = evento.layerPoint;
+      // Una voce per indice: un giro fatto di più tratti compariva più volte.
       const vicine = selezionabili.filter(t => t.indice === indice ||
-        (punto && (t.linea.closestLayerPoint(punto)?.distanceTo(punto) ?? Infinity) <= 9));
+        (punto && (t.linea.closestLayerPoint(punto)?.distanceTo(punto) ?? Infinity) <= 9))
+        .filter((t, k, tutte) => tutte.findIndex(x => x.indice === t.indice) === k);
       if (vicine.length <= 1) { azioni.current.onTratta?.(indice); return; }
       const elenco = document.createElement("div");
       elenco.className = "grid max-h-56 gap-1 overflow-auto";
@@ -367,7 +429,12 @@ export default function CartografiaOperativa({
   }, [percorso, trattaSelezionata, modificaPin, t]);
 
   return <div className="min-w-0 space-y-2">
-    <div ref={contenitore} role="region" aria-label={t("Mappa operativa")} data-livello-zoom={zoom} data-cartografia={mappaPronta ? "pronta" : "in-attesa"} className="relative isolate h-[40dvh] min-h-64 overflow-hidden rounded-lg border bg-slate-100 lg:h-[34rem]" />
+    {/* L'altezza sta sul contenitore esterno: il className del div della mappa non
+        deve mai cambiare, perché React lo riscrive e cancella le classi che Leaflet
+        ci aggiunge (leaflet-container…): senza, le linee finivano larghe zero. */}
+    <div className={cn("relative", classeAltezza ?? "h-[40dvh] min-h-64 lg:h-[34rem]")}>
+      <div ref={contenitore} role="region" aria-label={t("Mappa operativa")} data-livello-zoom={zoom} data-cartografia={mappaPronta ? "pronta" : "in-attesa"} className="absolute inset-0 isolate overflow-hidden rounded-lg border bg-slate-100" />
+    </div>
     {stileMappa && tileConsentito && !mappaPronta && !errore && <p role="status" className="px-1 text-xs text-muted-foreground">{t("Caricamento mappa stradale…")}</p>}
     {(errore || erroreTiles || (!tilesMappa && !stileMappa)) && <p role="status" className="px-1 text-xs text-muted-foreground">
       {erroreTiles ? `${erroreTiles} ${t("I punti restano consultabili.")}` : errore ? t("Cartografia temporaneamente non disponibile. I punti restano consultabili.") : t("Sfondo cartografico da configurare. I punti restano consultabili.")}

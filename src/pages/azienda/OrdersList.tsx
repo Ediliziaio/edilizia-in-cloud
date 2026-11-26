@@ -31,7 +31,7 @@ import { useRiepilogoCommesse } from "@/hooks/useRiepilogoCommesse";
 import { RiepilogoCommesseScelta } from "@/components/orders/RiepilogoCommesseScelta";
 import { CATALOGO_RIQUADRI, commesseInRitardo, margineDelPeriodo, riquadriVisibili, serieVisibili, usaGenerali, type RiquadroRiepilogo } from "@/lib/orders/riepilogoCommesse";
 import { useCruscottoGenerali } from "@/hooks/useCruscottoGenerali";
-import { Plus, Package, LayoutList, Columns3, Upload, MoreHorizontal, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, ArrowUpDown, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Settings2, Clock, Wrench, CheckCircle2, FolderOpen, Coins, Percent, Wallet, History, Receipt, Landmark, Hammer, Building2, Map as MapIcon, FileQuestion, NotebookPen } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Upload, MoreHorizontal, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, ArrowUpDown, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Settings2, Clock, Wrench, CheckCircle2, FolderOpen, Coins, Percent, Wallet, History, Receipt, Landmark, Hammer, Building2, Map as MapIcon, FileQuestion, NotebookPen, CalendarRange } from "lucide-react";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
@@ -39,6 +39,7 @@ import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 const SopralluoghiList = lazy(() => import("@/pages/azienda/sopralluoghi/SopralluoghiList"));
 const RapportiniCommesse = lazy(() => import("@/pages/azienda/RapportiniCommesse"));
 // Chi va dove domani: persone, squadre e mezzi trascinati sugli interventi (26/11/2026).
+const ProgrammazioneGiornata = lazy(() => import("@/components/programmazione/ProgrammazioneGiornata"));
 const OrderCommissionsOverview = lazy(() =>
   import("@/components/orders/OrderCommissionsOverview").then((module) => ({
     default: module.OrderCommissionsOverview,
@@ -2146,6 +2147,7 @@ export default function OrdersList() {
 
   const tabs = [
     { id: "ordini", label: tr("Commesse"), icon: ClipboardList, show: !soloAcquisti },
+    { id: "programmazione", label: tr("Programmazione"), icon: CalendarRange, show: permissions.canViewOrders },
     // Giorno per giorno cosa si è lavorato: l'elenco di tutti i cantieri, con le statistiche del mese.
     { id: "rapportini", label: tr("Rapportini"), icon: NotebookPen, show: permissions.canViewOrders },
     { id: "sopralluoghi", label: tr("Sopralluoghi"), icon: MapIcon, show: surveysEnabled },
@@ -2231,6 +2233,14 @@ export default function OrdersList() {
       {activeTab === "ordini" && (
         <ErrorBoundary title={tr("Errore nella lista commesse")}>
           <OrdersListInner navigazioneCompatta={navigazioneCompatta} />
+        </ErrorBoundary>
+      )}
+
+      {activeTab === "programmazione" && (
+        <ErrorBoundary title={tr("Errore in Programmazione")}>
+          <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">{tr("Caricamento programmazione…")}</div>}>
+            <ProgrammazioneGiornata />
+          </Suspense>
         </ErrorBoundary>
       )}
 

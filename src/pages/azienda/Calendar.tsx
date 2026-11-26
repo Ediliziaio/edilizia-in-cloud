@@ -41,6 +41,8 @@ import { CalendarMonthView } from "@/components/calendar/CalendarMonthView";
 import { CalendarWeekView } from "@/components/calendar/CalendarWeekView";
 import { campoDayWindow } from "@/lib/campo/timeSummary";
 import { CalendarDayView } from "@/components/calendar/CalendarDayView";
+import { ProgrammazioneCalendarioContext, useRiepilogoProgrammazione } from "@/hooks/useProgrammazioneCalendario";
+import { StrisciaProgrammazione } from "@/components/programmazione/ProgrammazioneNelCalendario";
 import { CalendarGanttView } from "@/components/calendar/CalendarGanttView";
 
 import { CalendarHeatmapView } from "@/components/calendar/CalendarHeatmapView";
@@ -463,6 +465,8 @@ function CalendarInner() {
     !storicoMappa,
   );
   const { data: ordersRaw = [], isLoading, isError } = calendarData.orders;
+  // La Programmazione dei giorni in vista (26/11/2026): segno nel mese, dettaglio del giorno, riga in alto.
+  const programmazione = useRiepilogoProgrammazione(companyId, calendarRangeStart, calendarRangeEnd, permissions.canViewOrders);
   const { data: appointments = [], isLoading: isAppointmentsLoading } =
     calendarData.appointments;
   const { data: unplannedData = [] } = calendarData.unplanned;
@@ -1718,6 +1722,7 @@ function CalendarInner() {
   };
 
   return (
+    <ProgrammazioneCalendarioContext.Provider value={programmazione.data ?? null}>
     <div className="space-y-3">
       <header className="flex items-center justify-between gap-3">
         <div className="min-w-0">
@@ -1977,6 +1982,10 @@ function CalendarInner() {
             {tr("Resetta tutti")}
           </button>
         </div>
+      )}
+
+      {permissions.canViewOrders && !mostraMappa && (view === "day" || view === "week" || view === "teams") && (
+        <StrisciaProgrammazione giorno={currentDate} />
       )}
 
       {/* «Il mio calendario / Pianificazione team» e «Calendario / Mappa» sulla stessa riga da computer:
@@ -2996,6 +3005,7 @@ function CalendarInner() {
         }}
       />
     </div>
+    </ProgrammazioneCalendarioContext.Provider>
   );
 }
 
