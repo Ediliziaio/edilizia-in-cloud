@@ -29958,6 +29958,7 @@ const dizionario: Dizionario = {
   "Impossibile verificare i lotti.": "No se pudieron comprobar los lotes.",
   "Riprova lotti": "Reintentar lotes",
   "Lotti": "Lotes",
+  "Attività · {name}": "Tareas · {name}",
   "Ritiri dal cantiere": "Retiradas de obra",
   "Registri l'uscita e la giacenza scende subito. Subito dopo ti proponiamo il DDT; se non serve ora, lo crei più tardi da Arrivi e uscite → Uscite.": "Registras la salida y el stock baja de inmediato. Justo después te proponemos el albarán; si ahora no hace falta, lo creas más tarde en Entradas y salidas → Salidas.",
   "Più tardi: Magazzino → Arrivi e uscite → Uscite, filtro «Senza DDT».": "Más tarde: Almacén → Entradas y salidas → Salidas, filtro «Sin albarán».",

@@ -1,3 +1,5 @@
+import { BOTTONE_NUOVO } from "@/components/orders/TestataScheda";
+import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowLeft, Loader2, PackageCheck } from "lucide-react";
@@ -65,7 +67,7 @@ export function MovementReviewDialog({ open, operation, warehouse, counterpart, 
       <p className="text-xs text-muted-foreground">{incoming ? t("La conferma aumenta la giacenza. Le foto vengono inviate separatamente; il file DDT viene archiviato solo nelle commesse collegate. Non viene creato un altro ordine fornitore.") : t("La conferma scarica la merce. Il DDT rimane un passaggio separato, proposto dopo la registrazione.")}</p>
       {ambiguous && <label className="flex items-center gap-2 rounded-lg border border-amber-200 p-3 text-sm"><Checkbox checked={verified} onCheckedChange={(value) => setVerified(value === true)} />{t("Ho verificato le associazioni segnalate")}</label>}
       {(blocked || error) && <Alert variant="destructive"><AlertDescription>{blocked || error}</AlertDescription></Alert>}
-      <DialogFooter><Button variant="outline" onClick={onBack} disabled={pending || !!onRecover}><ArrowLeft className="mr-2 h-4 w-4" />{t("Modifica dati")}</Button>{onRecover && <Button variant="outline" onClick={onRecover} disabled={pending}>{t("Verifica esito della richiesta")}</Button>}<Button onClick={onConfirm} disabled={pending || !!blocked || entries.length === 0 || (ambiguous && !verified)}>{pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackageCheck className="mr-2 h-4 w-4" />}{incoming ? t("Conferma carico") : t("Conferma prelievo")}</Button></DialogFooter>
+      <DialogFooter><Button variant="outline" className="h-9" onClick={onBack} disabled={pending || !!onRecover}><ArrowLeft className="mr-2 h-4 w-4" />{t("Modifica dati")}</Button>{onRecover && <Button variant="outline" onClick={onRecover} disabled={pending}>{t("Verifica esito della richiesta")}</Button>}<Button className={cn(BOTTONE_NUOVO, "h-9 text-sm")} onClick={onConfirm} disabled={pending || !!blocked || entries.length === 0 || (ambiguous && !verified)}>{pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackageCheck className="mr-2 h-4 w-4" />}{incoming ? t("Conferma carico") : t("Conferma prelievo")}</Button></DialogFooter>
     </DialogContent>
   </Dialog>;
 }

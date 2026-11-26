@@ -1205,7 +1205,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
         <Dialog open={!!taskItem} onOpenChange={(v) => { if (!v) setTaskItem(null); }}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>{t("Task - {name}", { name: String(taskItem?.name ?? "") })}</DialogTitle>
+              <DialogTitle>{t("Attività · {name}", { name: String(taskItem?.name ?? "") })}</DialogTitle>
               <DialogDescription>{t("Attività collegate a questo articolo")}</DialogDescription>
             </DialogHeader>
             {taskItem && <LinkedTasks stockItemId={taskItem.id} category="magazzino" />}

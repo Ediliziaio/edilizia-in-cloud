@@ -29958,6 +29958,7 @@ const dizionario: Dizionario = {
   "Impossibile verificare i lotti.": "مش ممكن نتأكد من اللوطات.",
   "Riprova lotti": "حاول تاني في اللوطات",
   "Lotti": "اللوطات",
+  "Attività · {name}": "المهام · {name}",
   "Ritiri dal cantiere": "السحب من الموقع",
   "Registri l'uscita e la giacenza scende subito. Subito dopo ti proponiamo il DDT; se non serve ora, lo crei più tardi da Arrivi e uscite → Uscite.": "بتسجّل الخروج والمخزون بينزل على طول. بعدها على طول بنقترح عليك إذن التسليم؛ لو مش محتاجه دلوقتي، اعمله بعدين من الوارد والصادر ← الصادر.",
   "Più tardi: Magazzino → Arrivi e uscite → Uscite, filtro «Senza DDT».": "بعدين: المخزن ← الوارد والصادر ← الصادر، فلتر «من غير إذن تسليم».",

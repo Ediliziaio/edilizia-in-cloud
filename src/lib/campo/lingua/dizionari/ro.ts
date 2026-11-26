@@ -30044,6 +30044,7 @@ const dizionario: Dizionario = {
   "Impossibile verificare i lotti.": "Loturile nu pot fi verificate.",
   "Riprova lotti": "Reîncarcă loturile",
   "Lotti": "Loturi",
+  "Attività · {name}": "Sarcini · {name}",
   "Ritiri dal cantiere": "Ridicări de pe șantier",
   "Registri l'uscita e la giacenza scende subito. Subito dopo ti proponiamo il DDT; se non serve ora, lo crei più tardi da Arrivi e uscite → Uscite.": "Înregistrezi ieșirea și stocul scade imediat. Imediat după îți propunem avizul; dacă nu e nevoie acum, îl creezi mai târziu din Intrări și ieșiri → Ieșiri.",
   "Più tardi: Magazzino → Arrivi e uscite → Uscite, filtro «Senza DDT».": "Mai târziu: Depozit → Intrări și ieșiri → Ieșiri, filtrul «Fără aviz».",
