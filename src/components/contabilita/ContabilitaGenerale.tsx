@@ -1,6 +1,9 @@
 import { RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { cn } from "@/lib/utils";
 import { TabellaContabile } from "./TabellaContabile";
+import { SceltaColonne } from "@/components/tabelle/SceltaColonne";
+import { useColonneTabella } from "@/hooks/useColonneTabella";
+import { DEF_SCRITTURE, SCRITTURE_A_DESTRA, SCRITTURE_TITOLI } from "@/lib/contabilita/colonneScritture";
 /**
  * Contabilità generale in partita doppia (10/11/2026), sezione dell'area fiscale.
  *
@@ -452,6 +455,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
   const [erroriStorni, setErroriStorni] = useState<Array<{ nome: string; motivo: string }>>([]);
   // Un esercizio vero ha migliaia di scritture: a video le prime, la stampa le ha tutte.
   const [mostra, setMostra] = useState(300);
+  const colonneScritture = useColonneTabella("contabilita-scritture", DEF_SCRITTURE);
   const [definitiva, setDefinitiva] = useState(false);
   const [filtro, setFiltro] = useState<GruppoOrigine>("tutte");
   const [mostraStorico, setMostraStorico] = useState(false);
@@ -691,6 +695,9 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
                   {tTesto(l)} <span className="tabular-nums">{quante(k)}</span>
                 </button>
               ))}
+              {/* Quali colonne vede questa azienda nell'elenco, e in che ordine (26/11/2026).
+                  Solo qui: le altre tabelle di questa pagina sono prospetti, non elenchi. */}
+              <span className="ml-auto"><SceltaColonne colonne={colonneScritture} compatto /></span>
             </div>
           ) : null}
           {elenco.length === 0 ? (
@@ -706,12 +713,11 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
               <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
                 <tr>
                   <th className="relative w-10 p-2"><span className="sr-only">{tTesto("Selezione")}</span></th>
-                  <th className="p-2" title={tTesto("Numero nel libro giornale, in ordine di data: non il numero della fattura")}>{tTesto("N. scrittura")}</th>
-                  <th className="p-2">{tTesto("Data")}</th>
-                  <th className="p-2">{tTesto("Causale")}</th>
-                  <th className="p-2" title={tTesto("Numero e data della fattura o del documento da cui viene la scrittura")}>{tTesto("Documento")}</th>
-                  <th className="p-2">{tTesto("Descrizione")}</th>
-                  <th className="p-2 text-right">{tTesto("Importo")}</th>
+                  {colonneScritture.colonne.map(c => <th key={c.chiave}
+                    className={`p-2 ${SCRITTURE_A_DESTRA.has(c.chiave) ? "text-right" : ""}`}
+                    title={SCRITTURE_TITOLI[c.chiave] ? tTesto(SCRITTURE_TITOLI[c.chiave]) : undefined}>
+                    {tTesto(c.etichetta)}
+                  </th>)}
                 </tr>
               </thead>
               <tbody>{visibili.slice(0, mostra).map(s => (
@@ -720,12 +726,21 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
                   setDettaglioId(s.id);
                 }}>
                   <td className="px-2" onClick={e => e.stopPropagation()}><Checkbox aria-label={tTesto("Seleziona scrittura {numero}/{esercizio}", { numero: String(s.numero ?? ""), esercizio: String(s.esercizio ?? "") })} checked={selezione.ids.has(s.id)} disabled={stornaSelezionate.isPending} onCheckedChange={() => selezione.alterna(s.id)} /></td>
-                  <td className="px-2"><button type="button" aria-haspopup="dialog" aria-label={tTesto("Apri scrittura {numero}/{esercizio}", { numero: String(s.numero ?? ""), esercizio: String(s.esercizio ?? "") })} className="py-2 font-mono text-xs text-primary hover:underline">{nGiornale.get(s.id) ?? s.numero}/{s.esercizio}</button>{(nGiornale.get(s.id) ?? s.numero) !== s.numero ? <span className="block text-[10px] text-muted-foreground" title={tTesto("Numero d'inserimento: l'ordine in cui è stata registrata")}>{tTesto("ins. n. {numero}", { numero: String(s.numero) })}</span> : null}</td>
-                  <td className="px-2">{dataIt(s.data_registrazione)}</td>
-                  <td className="px-2">{s.causale}{s.storno_di || stornate.has(s.id) ? <span className="ml-2 text-xs text-muted-foreground">{s.storno_di ? tTesto("storno") : tTesto("stornata")}</span> : null}</td>
-                  <td className="px-2 font-medium">{riferimentoDocumento(s) || <span className="font-normal text-muted-foreground">—</span>}</td>
-                  <td className="max-w-xs truncate px-2 text-muted-foreground" title={s.descrizione || undefined}>{s.descrizione || "—"}</td>
-                  <td className="px-2 text-right tabular-nums">{euro(s.contabilita_righe.reduce((t, r) => t + Number(r.dare || 0), 0))}</td>
+                  {(() => {
+                    const celle: Record<string, { nodo: React.ReactNode; classe?: string }> = {
+                      numero: { nodo: <><button type="button" aria-haspopup="dialog" aria-label={tTesto("Apri scrittura {numero}/{esercizio}", { numero: String(s.numero ?? ""), esercizio: String(s.esercizio ?? "") })} className="py-2 font-mono text-xs text-primary hover:underline">{nGiornale.get(s.id) ?? s.numero}/{s.esercizio}</button>{(nGiornale.get(s.id) ?? s.numero) !== s.numero ? <span className="block text-[10px] text-muted-foreground" title={tTesto("Numero d'inserimento: l'ordine in cui è stata registrata")}>{tTesto("ins. n. {numero}", { numero: String(s.numero) })}</span> : null}</> },
+                      data: { nodo: dataIt(s.data_registrazione) },
+                      causale: { nodo: <>{s.causale}{s.storno_di || stornate.has(s.id) ? <span className="ml-2 text-xs text-muted-foreground">{s.storno_di ? tTesto("storno") : tTesto("stornata")}</span> : null}</> },
+                      documento: { nodo: riferimentoDocumento(s) || <span className="font-normal text-muted-foreground">—</span>, classe: "font-medium" },
+                      descrizione: { nodo: s.descrizione || "—", classe: "max-w-xs truncate text-muted-foreground" },
+                      importo: { nodo: euro(s.contabilita_righe.reduce((t, r) => t + Number(r.dare || 0), 0)), classe: "text-right tabular-nums" },
+                    };
+                    return colonneScritture.colonne.map(c => <td key={c.chiave}
+                      className={`px-2 ${celle[c.chiave]?.classe ?? ""}`}
+                      title={c.chiave === "descrizione" ? (s.descrizione || undefined) : undefined}>
+                      {celle[c.chiave]?.nodo ?? null}
+                    </td>);
+                  })()}
                 </tr>
               ))}</tbody>
             </table>
