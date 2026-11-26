@@ -69246,5 +69246,7 @@ const dizionario: Dizionario = {
   "Cambia azienda o area": "Ndrysho firmën ose zonën",
   "Le tue aziende": "Firmat e tua",
   "Vai alla Home": "Shko te faqja kryesore",
+  "Aggiungi foto a {fase}": "Shto foto te {fase}",
+  "Finita il {data}": "Mbaroi më {data}",
 };
 export default dizionario;

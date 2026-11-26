@@ -69246,5 +69246,7 @@ const dizionario: Dizionario = {
   "Cambia azienda o area": "Schimbă firma sau zona",
   "Le tue aziende": "Firmele tale",
   "Vai alla Home": "Mergi la pagina principală",
+  "Aggiungi foto a {fase}": "Adaugă poze la {fase}",
+  "Finita il {data}": "Terminată pe {data}",
 };
 export default dizionario;

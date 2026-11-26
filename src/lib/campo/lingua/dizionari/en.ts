@@ -69203,5 +69203,7 @@ const dizionario: Dizionario = {
   "Cambia azienda o area": "Change company or area",
   "Le tue aziende": "Your companies",
   "Vai alla Home": "Go to Home",
+  "Aggiungi foto a {fase}": "Add photos to {fase}",
+  "Finita il {data}": "Finished on {data}",
 };
 export default dizionario;

@@ -69203,5 +69203,7 @@ const dizionario: Dizionario = {
   "Cambia azienda o area": "بدل الشركة ولا البلاصة",
   "Le tue aziende": "الشركات ديالك",
   "Vai alla Home": "سير للصفحة الرئيسية",
+  "Aggiungi foto a {fase}": "زيد تصاور ل {fase}",
+  "Finita il {data}": "سالات ف {data}",
 };
 export default dizionario;

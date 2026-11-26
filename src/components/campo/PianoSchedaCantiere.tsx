@@ -20,7 +20,10 @@ type T = ReturnType<typeof useT>;
 
 const statoFase = { da_iniziare: "Da iniziare", in_corso: "In corso", completata: "Completata" };
 // La lingua dell'operaio: si legge a ogni uso, non una volta sola all'avvio.
-const dataBreve = { format: (d: Date | number) => new Intl.DateTimeFormat(intlCampo(), { day: "numeric", month: "short", year: "numeric" }).format(d) };
+// L'anno solo se non è quello in corso (26/11/2026): «6 lug – 14 lug» si legge meglio di «6 lug 2026 – 14 lug 2026».
+const dataBreve = { format: (d: Date | number) => new Intl.DateTimeFormat(intlCampo(), {
+  day: "numeric", month: "short", ...(new Date(d).getFullYear() !== new Date().getFullYear() ? { year: "numeric" as const } : {}),
+}).format(d) };
 const data = (giorno: string) => dataBreve.format(new Date(`${giorno}T12:00:00`));
 
 /** «l’8 giu», «l’11 giu», «il 9 giu»: davanti a 8 e 11 l'articolo si apostrofa. */
@@ -30,6 +33,9 @@ export const conArticolo = (giorno: string) => (/^(8|11)\b/.test(giorno) ? `l’
 export const testoRitardo = (fine: string, t: T = sostituisci) =>
   // L'articolo («il», «l’») solo in italiano: nelle altre lingue la data va da sola dentro la frase tradotta.
   t("In ritardo · doveva finire {quando}", { quando: intlCampo().startsWith("it") ? conArticolo(data(fine)) : data(fine) });
+
+/** Il periodo previsto di una fase o sottofase («13 gen 2026 – 13 feb 2026»): esportato per l'avanzamento lavori. */
+export function periodoFase(t: T, inizio?: string | null, fine?: string | null) { return periodo(t, inizio, fine); }
 
 function periodo(t: T, inizio?: string | null, fine?: string | null) {
   const da = planningDay(inizio);

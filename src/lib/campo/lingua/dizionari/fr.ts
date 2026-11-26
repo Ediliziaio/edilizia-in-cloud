@@ -69203,5 +69203,7 @@ const dizionario: Dizionario = {
   "Cambia azienda o area": "Changer d’entreprise ou d’espace",
   "Le tue aziende": "Tes entreprises",
   "Vai alla Home": "Aller à l’accueil",
+  "Aggiungi foto a {fase}": "Ajouter des photos à {fase}",
+  "Finita il {data}": "Terminée le {data}",
 };
 export default dizionario;

@@ -29,8 +29,8 @@ import { linkFileRiservato } from "@/lib/storage/fileRiservati";
 import { apriDocumentoDopoAttesa } from "@/lib/campo/apriDocumento";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  CheckCircle2, Circle, Camera, Loader2, RefreshCcw, MapPin,
-  ImageIcon, X, Clock, ChevronDown, ChevronUp,
+  CheckCircle2, Camera, Loader2, RefreshCcw, MapPin,
+  ImageIcon, X, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -38,7 +38,7 @@ import { useCantieriTecnici } from "@/hooks/campo/useSchedaCantiere";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { faseInRitardo, testoRitardo } from "@/components/campo/PianoSchedaCantiere";
+import { faseInRitardo, periodoFase, testoRitardo } from "@/components/campo/PianoSchedaCantiere";
 import { useCampoWorkDay } from "@/hooks/campo/useCampoWorkDay";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -67,6 +67,7 @@ interface Fase {
   notes: string | null;
   foto_urls: unknown;
   completata_il: string | null;
+  start_date: string | null;
   end_date: string | null;
 }
 
@@ -126,7 +127,7 @@ export default function CampoAvanzamento() {
     queryKey: ["campo-avanzamento-fasi", companyId, user?.id, orderFilter],
     queryFn: async (): Promise<Fase[]> => {
       // La chiave della query aveva già l'azienda, la query no.
-      let query = supabase.from("order_work_phases").select("id, order_id, name, position, status, percentuale, notes, foto_urls, completata_il, end_date").eq("company_id", companyId!);
+      let query = supabase.from("order_work_phases").select("id, order_id, name, position, status, percentuale, notes, foto_urls, completata_il, start_date, end_date").eq("company_id", companyId!);
       if (orderFilter) query = query.eq("order_id", orderFilter);
       const { data, error } = await query
         // Stesso ordine completo della lettura delle sottofasi: oltre il
@@ -412,6 +413,9 @@ export default function CampoAvanzamento() {
               )}
             </div>
 
+            {/* Tre colonne uguali per ogni fase (26/11/2026, founder: «allineare le cose al meglio»): a sinistra lo
+                stato (stessa misura per tutte), al centro nome, date previste, avanzamento e sottofasi, a destra un
+                solo pulsante (foto, o la freccia per le fasi finite). Prima ogni tipo di riga aveva la sua forma. */}
             <ul className="divide-y divide-border">
               {g.fasi.map((fase) => {
                 const done = fase.status === "completata";
@@ -420,206 +424,137 @@ export default function CampoAvanzamento() {
                 const sotto = sottofasiDi.get(fase.id) ?? [];
                 const derivata = faseHaSottofasi(sotto);
                 const spunta = !sottofasiQuery.isError && !sottofasiQuery.isLoading && puoSpuntare(fase);
-                return (
-                  done && !finiteAperte.has(fase.id) ? (
+                const ritardo = faseInRitardo(fase, oggi);
+                const pct = done ? 100 : Math.min(100, Math.max(0, Math.round(fase.percentuale || 0)));
+                const chiusa = done && !finiteAperte.has(fase.id);
+                const fineIl = fase.completata_il ? new Date(fase.completata_il).toLocaleDateString(intlCampo(), { day: "numeric", month: "short" }) : null;
+                const pulsanteFoto = (
+                  <label className={cn("relative flex size-11 cursor-pointer items-center justify-center rounded-full border bg-background text-primary active:bg-muted", busy && "pointer-events-none opacity-60")}
+                    aria-label={t("Aggiungi foto a {fase}", { fase: fase.name })}>
+                    {busy ? <Loader2 className="size-[18px] animate-spin" aria-hidden="true" /> : <Camera className="size-[18px]" aria-hidden="true" />}
+                    {foto.length > 0 && <span className="absolute -right-1 -top-1 flex min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-[18px] text-primary-foreground tabular-nums">{foto.length}</span>}
+                    <input type="file" accept="image/*" multiple className="hidden" disabled={busy}
+                      onChange={(e) => { void handlePhoto(fase, e.target.files); e.target.value = ""; }} />
+                  </label>
+                );
+
+                if (chiusa) return (
                   <li key={fase.id} className="bg-muted/20">
                     <button type="button" onClick={() => alternaFinita(fase.id)} aria-expanded={false}
                       aria-label={t("{fase}: completata, mostra i dettagli", { fase: fase.name })}
-                      className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-left active:bg-muted">
-                      <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" aria-hidden="true" />
-                      <span dir="auto" className="min-w-0 flex-1 truncate text-sm font-medium text-muted-foreground">{fase.name}</span>
-                      {fase.completata_il && (
-                        <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
-                          {new Date(fase.completata_il).toLocaleDateString(intlCampo(), { day: "2-digit", month: "2-digit" })}
-                        </span>
-                      )}
-                      {foto.length > 0 && (
-                        <span className="flex shrink-0 items-center gap-0.5 text-[11px] text-muted-foreground">
-                          <ImageIcon className="h-3 w-3" aria-hidden="true" />{foto.length}
-                        </span>
-                      )}
-                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                      className="grid min-h-12 w-full grid-cols-[28px_minmax(0,1fr)_44px] items-center gap-x-2.5 px-3 py-1.5 text-left active:bg-muted">
+                      <StatoFase done ritardo={false} pct={100} />
+                      <span className="min-w-0">
+                        <span dir="auto" className="block truncate text-sm font-medium text-muted-foreground">{fase.name}</span>
+                        {(fineIl || foto.length > 0) && <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                          {fineIl && <span>{t("Finita il {data}", { data: fineIl })}</span>}
+                          {foto.length > 0 && <span className="inline-flex items-center gap-0.5"><ImageIcon className="size-3" aria-hidden="true" />{foto.length}</span>}
+                        </span>}
+                      </span>
+                      <span className="flex justify-center"><ChevronDown className="size-4 text-muted-foreground" aria-hidden="true" /></span>
                     </button>
                   </li>
-                  ) : (
-                  <li key={fase.id} className={cn("px-3 py-2.5", done && "bg-muted/20")}>
-                    {done && (
-                      <button type="button" onClick={() => alternaFinita(fase.id)} aria-expanded={true}
-                        className="-mt-1 mb-1 flex min-h-9 w-full items-center justify-end gap-1 text-[12px] font-semibold text-muted-foreground">
-                        {t("Chiudi")}<ChevronUp className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                    )}
-                    <div className="flex items-start gap-2.5">
-                      <button
-                        type="button"
-                        onClick={() => toggleFase.mutate(fase)}
-                        disabled={toggleFase.isPending || derivata || !spunta}
-                        aria-label={
-                          derivata
-                            ? t("{fase}: si completa spuntando le sottofasi", { fase: fase.name })
-                            : !spunta ? t("{fase}: la segna il capocantiere", { fase: fase.name })
-                            : done ? t("Riapri la fase {fase}", { fase: fase.name }) : t("Segna {fase} come completata", { fase: fase.name })
-                        }
-                        className={cn("mt-0.5 shrink-0", !spunta && "opacity-50")}
-                      >
-                        {done ? (
-                          <CheckCircle2 className="h-6 w-6 text-emerald-600" />
-                        ) : (
-                          <Circle className="h-6 w-6 text-muted-foreground" />
-                        )}
-                      </button>
+                );
 
-                      <div className="min-w-0 flex-1">
-                        <p dir="auto" className={cn("break-words text-sm font-semibold leading-snug", done && "font-medium text-muted-foreground")}>
-                          {fase.name}
-                        </p>
-                        {fase.notes && (
-                          <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{fase.notes}</p>
-                        )}
-                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <span
-                            className={cn(
-                              "rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                              done
-                                ? "bg-emerald-100 text-emerald-700"
-                                : fase.status === "in_corso"
-                                  ? "bg-blue-100 text-blue-700"
-                                  : "bg-muted text-muted-foreground",
-                            )}
-                          >
-                            {done ? t("Completata") : fase.status === "in_corso" ? t("In corso") : t("Da iniziare")}
-                          </span>
-                          {!done && fase.percentuale > 0 && (
-                            <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">
-                              {fase.percentuale}%
-                            </span>
-                          )}
-                          {/* Ritardi sempre visibili (collaudo 23/11): qui il capo spunta le fasi, e la scadenza non c'era. */}
-                          {!done && faseInRitardo(fase, oggi) && (
-                            <span className="text-[11px] font-semibold text-red-700 dark:text-red-400">
-                              {testoRitardo(faseInRitardo(fase, oggi)!)}
-                            </span>
-                          )}
-                          {done && fase.completata_il && (
-                            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                              <Clock className="h-3 w-3" aria-hidden="true" />
-                              {new Date(fase.completata_il).toLocaleDateString(intlCampo())}
-                            </span>
-                          )}
-                          <label className="ms-auto inline-flex min-h-9 cursor-pointer items-center gap-1 rounded-full border bg-background px-3 text-[12px] font-semibold text-primary active:bg-muted">
-                            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
-                            {busy ? t("Carico…") : t("Aggiungi foto")}
-                            <input
-                              type="file"
-                              accept="image/*"
-                              multiple
-                              className="hidden"
-                              disabled={busy}
-                              onChange={(e) => {
-                                void handlePhoto(fase, e.target.files);
-                                e.target.value = "";
-                              }}
-                            />
-                          </label>
+                return (
+                  <li key={fase.id} className={cn("grid grid-cols-[28px_minmax(0,1fr)_44px] gap-x-2.5 px-3 py-3", done && "bg-muted/20")}>
+                    <button type="button" onClick={() => toggleFase.mutate(fase)}
+                      disabled={toggleFase.isPending || derivata || !spunta}
+                      aria-label={derivata
+                        ? t("{fase}: si completa spuntando le sottofasi", { fase: fase.name })
+                        : !spunta ? t("{fase}: la segna il capocantiere", { fase: fase.name })
+                        : done ? t("Riapri la fase {fase}", { fase: fase.name }) : t("Segna {fase} come completata", { fase: fase.name })}
+                      className={cn("flex size-7 items-center justify-center self-start", !spunta && "opacity-60")}>
+                      <StatoFase done={done} ritardo={!!ritardo} pct={pct} />
+                    </button>
+
+                    <div className="min-w-0">
+                      {done ? (
+                        <button type="button" onClick={() => alternaFinita(fase.id)} aria-expanded={true}
+                          className="flex min-h-7 w-full items-center gap-1 text-left">
+                          <span dir="auto" className="min-w-0 flex-1 break-words text-sm font-medium leading-snug text-muted-foreground">{fase.name}</span>
+                          <ChevronUp className="size-4 shrink-0 text-muted-foreground" aria-label={t("Chiudi")} />
+                        </button>
+                      ) : (
+                        <p dir="auto" className="flex min-h-7 items-center break-words text-sm font-semibold leading-snug">{fase.name}</p>
+                      )}
+                      <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+                        <span className={cn("font-semibold", done ? "text-emerald-700" : ritardo ? "text-red-700" : fase.status === "in_corso" ? "text-blue-700" : "")}>
+                          {done ? t("Completata") : fase.status === "in_corso" ? t("In corso") : t("Da iniziare")}
+                        </span>
+                        {!done && pct > 0 && <span className="tabular-nums">· {pct}%</span>}
+                        <span aria-hidden="true">·</span>
+                        <span>{done && fineIl ? t("Finita il {data}", { data: fineIl }) : periodoFase(t, fase.start_date, fase.end_date)}</span>
+                      </p>
+                      {!done && fase.status === "in_corso" && (
+                        <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                          <div className={cn("h-full rounded-full", ritardo ? "bg-red-500" : "bg-blue-500")} style={{ width: `${pct}%` }} />
                         </div>
+                      )}
+                      {/* Ritardi sempre visibili (collaudo 23/11): qui il capo spunta le fasi, e la scadenza non c'era. */}
+                      {ritardo && <p className="mt-1 text-xs font-semibold text-red-700 dark:text-red-400">{testoRitardo(ritardo, t)}</p>}
+                      {fase.notes && <p dir="auto" className="mt-1 line-clamp-2 text-xs text-muted-foreground">{fase.notes}</p>}
+                      {!spunta && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {permessiQuery.isError || permessiQuery.isLoading || sottofasiQuery.isError ? t("Operazioni da verificare: rileggi permessi e sottofasi.") : permessiQuery.data?.regola === "chi_la_fa"
+                            ? t("La segna chi fa questa fase, o il capocantiere.")
+                            : t("La segna il capocantiere.")}
+                        </p>
+                      )}
 
-                        {!spunta && (
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {permessiQuery.isError || permessiQuery.isLoading || sottofasiQuery.isError ? t("Operazioni da verificare: rileggi permessi e sottofasi.") : permessiQuery.data?.regola === "chi_la_fa"
-                              ? t("La segna chi fa questa fase, o il capocantiere.")
-                              : t("La segna il capocantiere.")}
-                          </p>
-                        )}
-                        {derivata && done && (
-                          // Fase finita: le sottofasi (tutte fatte) si chiudono in una riga; si riaprono per correggere.
-                          <details className="mt-1 text-[13px]">
-                            <summary className="flex min-h-9 cursor-pointer list-none items-center text-muted-foreground [&::-webkit-details-marker]:hidden">
-                              {t("{n} sottofasi fatte · mostra", { n: sotto.length })}
-                            </summary>
-                            <ul className="space-y-0" aria-label={t("Sottofasi di {fase}", { fase: fase.name })}>
-                              {sotto.map((s) => (
-                                <li key={s.id}>
-                                  <label className="flex min-h-10 items-center gap-2.5 text-sm">
-                                    <Checkbox
-                                      checked={s.fatta}
-                                      disabled={segnaSottofase.isPending || !spunta}
-                                      onCheckedChange={(v) => segnaSottofase.mutate({ id: s.id, fatta: v === true })}
-                                      aria-label={s.fatta ? t("{nome}: fatta", { nome: s.name }) : t("{nome}: da fare", { nome: s.name })}
-                                    />
-                                    <span dir="auto" className={cn("min-w-0 break-words", s.fatta && "text-muted-foreground line-through")}>{s.name}</span>
-                                  </label>
-                                </li>
-                              ))}
-                            </ul>
-                          </details>
-                        )}
-                        {derivata && !done && (
-                          <ul className="mt-1 space-y-0" aria-label={t("Sottofasi di {fase}", { fase: fase.name })}>
+                      {derivata && (() => {
+                        const elenco = (
+                          <ul className="mt-1" aria-label={t("Sottofasi di {fase}", { fase: fase.name })}>
                             {sotto.map((s) => (
                               <li key={s.id}>
                                 <label className="flex min-h-10 items-center gap-2.5 text-sm">
-                                  <Checkbox
-                                    checked={s.fatta}
-                                    disabled={segnaSottofase.isPending || !spunta}
+                                  <Checkbox checked={s.fatta} disabled={segnaSottofase.isPending || !spunta}
                                     onCheckedChange={(v) => segnaSottofase.mutate({ id: s.id, fatta: v === true })}
-                                    aria-label={s.fatta ? t("{nome}: fatta", { nome: s.name }) : t("{nome}: da fare", { nome: s.name })}
-                                  />
+                                    aria-label={s.fatta ? t("{nome}: fatta", { nome: s.name }) : t("{nome}: da fare", { nome: s.name })} />
                                   <span dir="auto" className={cn("min-w-0 break-words", s.fatta && "text-muted-foreground line-through")}>{s.name}</span>
                                 </label>
                               </li>
                             ))}
                           </ul>
-                        )}
-
-                        {foto.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            {foto.map((url) => (
-                              <div key={url} className="relative">
-                                <a
-                                  href={url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  onClick={(e) => {
-                                    // Il link a scadenza si chiede al momento del clic; la scheda si apre PRIMA (dopo l'attesa il telefono la blocca).
-                                    e.preventDefault();
-                                    void apriDocumentoDopoAttesa(async () => (await linkFileRiservato(url)) ?? url);
-                                  }}
-                                >
-                                  <ImgRiservata
-                                    src={url}
-                                    alt={t("Foto avanzamento fase")}
-                                    loading="lazy"
-                                    className="h-14 w-14 rounded-md border border-border object-cover"
-                                  />
-                                </a>
-                                {/* tap-compact: senza, sotto i 768 px il bottone diventa 44x44 e copre quasi tutta la miniatura */}
-                                <button
-                                  type="button"
-                                  onClick={() => removePhoto(fase, url)}
-                                  aria-label={t("Rimuovi foto")}
-                                  className="tap-compact absolute -right-2.5 -top-2.5 flex h-8 w-8 items-center justify-center"
-                                >
-                                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-background shadow ring-1 ring-border">
-                                    <X className="h-3.5 w-3.5" aria-hidden="true" />
-                                  </span>
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-
-                      </div>
+                        );
+                        // Fase finita: le sottofasi (tutte fatte) si chiudono in una riga; si riaprono per correggere.
+                        return done ? (
+                          <details className="mt-1 text-[13px]">
+                            <summary className="flex min-h-9 cursor-pointer list-none items-center text-muted-foreground [&::-webkit-details-marker]:hidden">
+                              {t("{n} sottofasi fatte · mostra", { n: sotto.length })}
+                            </summary>
+                            {elenco}
+                          </details>
+                        ) : elenco;
+                      })()}
 
                       {foto.length > 0 && (
-                        <span className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground">
-                          <ImageIcon className="h-3 w-3" />
-                          {foto.length}
-                        </span>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {foto.map((url) => (
+                            <div key={url} className="relative">
+                              <a href={url} target="_blank" rel="noreferrer"
+                                onClick={(e) => {
+                                  // Il link a scadenza si chiede al momento del clic; la scheda si apre PRIMA (dopo l'attesa il telefono la blocca).
+                                  e.preventDefault();
+                                  void apriDocumentoDopoAttesa(async () => (await linkFileRiservato(url)) ?? url);
+                                }}>
+                                <ImgRiservata src={url} alt={t("Foto avanzamento fase")} loading="lazy" className="h-14 w-14 rounded-md border border-border object-cover" />
+                              </a>
+                              {/* tap-compact: senza, sotto i 768 px il bottone diventa 44x44 e copre quasi tutta la miniatura */}
+                              <button type="button" onClick={() => removePhoto(fase, url)} aria-label={t("Rimuovi foto")}
+                                className="tap-compact absolute -right-2.5 -top-2.5 flex h-8 w-8 items-center justify-center">
+                                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-background shadow ring-1 ring-border">
+                                  <X className="h-3.5 w-3.5" aria-hidden="true" />
+                                </span>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
+
+                    <div className="flex justify-center self-start">{pulsanteFoto}</div>
                   </li>
-                  )
                 );
               })}
             </ul>
@@ -627,5 +562,20 @@ export default function CampoAvanzamento() {
         ))
       )}
     </div>
+  );
+}
+
+/** Lo stato della fase, sempre della stessa misura: spunta verde (finita), anello che si riempie (in corso; rosso se in
+ * ritardo), cerchio vuoto (da iniziare). */
+function StatoFase({ done, ritardo, pct }: { done: boolean; ritardo: boolean; pct: number }) {
+  if (done) return <CheckCircle2 className="size-6 text-emerald-600" aria-hidden="true" />;
+  const r = 10, c = 2 * Math.PI * r;
+  return (
+    <svg viewBox="0 0 24 24" className="size-6" aria-hidden="true">
+      <circle cx="12" cy="12" r={r} fill="none" strokeWidth="2.5" className={ritardo ? "stroke-red-200" : "stroke-muted-foreground/35"} />
+      {pct > 0 && <circle cx="12" cy="12" r={r} fill="none" strokeWidth="2.5" strokeLinecap="round"
+        strokeDasharray={`${(pct / 100) * c} ${c}`} transform="rotate(-90 12 12)"
+        className={ritardo ? "stroke-red-600" : "stroke-blue-600"} />}
+    </svg>
   );
 }
