@@ -276,7 +276,11 @@ function DocumentiFiscaliListInner({ sezioni }: { sezioni?: React.ReactNode } = 
   const filtriUrl = useFiltriUrl("emesse", {
     sdi: "all", incasso: "all", cliente: "", commessa: "", dal: "", al: "",
     note: "0", allegati: "0", mese: "", ordina: "progressivo",
-  }, ["cerca", "stato", "pagina", "tab", "tipo"]);
+  // Il cestino si ricorda ma non si ripristina (26/11/2026): chi apre i documenti eliminati ci
+  // resta dentro, e da lì in poi l'elenco si riapriva sempre sul Cestino — anche dopo essere
+  // usciti e rientrati, perché la memoria è della scheda del browser. Impresa Vulcano ha
+  // segnalato «le fatture non ancora inviate a SDI non ci sono più»: erano tutte al loro posto.
+  }, ["cerca", "stato", "pagina", "tab", "tipo"], { tipo: ["annullate"] });
   const filtriEmesse: FiltriEmesse = useMemo(() => ({
     sdi: filtriUrl.valori.sdi, incasso: filtriUrl.valori.incasso,
     cliente: filtriUrl.valori.cliente, commessa: filtriUrl.valori.commessa,

@@ -52,11 +52,14 @@ export interface FiltriUrl<T extends Record<string, string>> {
  *   ricreato a ogni disegno: si guardano le chiavi e i valori, non l'identità.
  * @param ricordaAnche altri parametri che la pagina gestisce per conto suo (la ricerca con
  *   la sua attesa, la pagina, la linguetta) ma che vanno ricordati insieme agli altri.
+ * @param nonRipristinare valori che si ricordano ma non si rimettono tornando all'elenco: il
+ *   cestino, per esempio. Chi ci entra ci resta, e l'elenco si riaprirebbe sempre lì.
  */
 export function useFiltriUrl<T extends Record<string, string>>(
   ambito: string,
   predefiniti: T,
   ricordaAnche: readonly string[] = [],
+  nonRipristinare?: Record<string, readonly string[]>,
 ): FiltriUrl<T> {
   const [params] = useSearchParams();
   // Conta cosa contengono, non l'identità degli oggetti che la pagina ricrea a ogni giro.
@@ -88,7 +91,8 @@ export function useFiltriUrl<T extends Record<string, string>>(
     const extra = nomiRicordati ? nomiRicordati.split("|") : [];
     return [...chiavi, ...extra.filter((n) => !chiavi.includes(n as keyof T & string))];
   }, [chiavi, nomiRicordati]);
-  useOperationalViewMemory(ambito, daRicordare);
+  // L'oggetto può essere ricreato a ogni disegno: il hook guarda il contenuto.
+  useOperationalViewMemory(ambito, daRicordare, { nonRipristinare });
 
   const imposta = useCallback(
     (chiave: keyof T & string, valore: string) => setParams({ [chiave]: valore, pagina: "" }),
