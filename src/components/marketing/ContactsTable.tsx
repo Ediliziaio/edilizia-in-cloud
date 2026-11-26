@@ -177,7 +177,8 @@ function renderStaticCell(col: { key: string; label: string }, c: MarketingConta
             </div>
             <Link
               to={`${routePrefix}/contatti/${c.id}`}
-              className="font-medium text-sm text-primary hover:underline cursor-pointer"
+              className="block max-w-[160px] truncate font-medium text-sm text-primary 2xl:max-w-[240px] hover:underline cursor-pointer"
+              title={fullName}
               onClick={(event) => {
                 event.stopPropagation();
               }}
@@ -190,9 +191,9 @@ function renderStaticCell(col: { key: string; label: string }, c: MarketingConta
     case "phone":
       return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.phone || "—"}</TableCell>;
     case "email":
-      return <TableCell key={col.key} className={`max-w-[200px] truncate text-muted-foreground text-sm xl:max-w-none ${cls}`} title={c.email || undefined}>{c.email || "—"}</TableCell>;
+      return <TableCell key={col.key} className={`max-w-[180px] truncate text-muted-foreground text-sm 2xl:max-w-[280px] ${cls}`} title={c.email || undefined}>{c.email || "—"}</TableCell>;
     case "company_name":
-      return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.company_name || "—"}</TableCell>;
+      return <TableCell key={col.key} className={`max-w-[170px] truncate text-muted-foreground text-sm 2xl:max-w-[240px] ${cls}`} title={c.company_name || undefined}>{c.company_name || "—"}</TableCell>;
     case "created_at":
       return <TableCell key={col.key} className={`text-muted-foreground text-xs ${cls}`}>{formatContactDate(c.created_at)}</TableCell>;
     case "last_activity_at":
@@ -200,10 +201,12 @@ function renderStaticCell(col: { key: string; label: string }, c: MarketingConta
     case "tags":
       return (
         <TableCell key={col.key} className={cls}>
-          <div className="flex flex-wrap gap-1">
-            {c.tags.map((tag) => (
-              <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0">{tag}</Badge>
+          {/* Una etichetta in vista, le altre col numero (tutte nel tooltip): riga sempre alta uguale. */}
+          <div className="flex gap-1" title={c.tags.join(", ")}>
+            {c.tags.slice(0, 1).map((tag) => (
+              <Badge key={tag} variant="secondary" className="max-w-[110px] truncate text-[10px] px-1.5 py-0">{tag}</Badge>
             ))}
+            {c.tags.length > 1 && <Badge variant="outline" className="text-[10px] px-1.5 py-0">+{c.tags.length - 1}</Badge>}
           </div>
         </TableCell>
       );
@@ -348,7 +351,8 @@ export const ContactsTable = memo(function ContactsTable({
       )}
 
       <div className="rounded-md border">
-        <Table className="[&_td]:px-3 [&_th]:px-3 2xl:[&_td]:px-4 2xl:[&_th]:px-4">
+        {/* 26/11/2026: ogni contatto su una riga (nomi, aziende e titoli andavano a capo). */}
+        <Table className="[&_td]:whitespace-nowrap [&_th]:whitespace-nowrap [&_td]:px-2 [&_th]:px-2 2xl:[&_td]:px-4 2xl:[&_th]:px-4">
           <TableHeader>
             <TableRow>
               <TableHead className={`w-[40px] ${borderClass}`}>

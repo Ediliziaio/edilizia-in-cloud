@@ -945,7 +945,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
               { key: "completate", label: "Completate", count: stats.completed },
             ] as const).map(f => (
               <button key={f.key} aria-pressed={!calendarDate && filter === f.key} onClick={() => { onCalendarDateClear?.(); setFilter(f.key); setSelectedIds(new Set()); }}
-                className={`tap-compact inline-flex shrink-0 items-center gap-1 h-8 md:h-7 px-3 sm:px-2.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors active:scale-95 ${!calendarDate && filter === f.key ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
+                className={`tap-compact inline-flex shrink-0 items-center gap-1 h-8 md:h-7 px-3 sm:px-2.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors active:scale-95 ${!calendarDate && filter === f.key ? "border border-orange-200 bg-orange-50 text-orange-700" : "border border-transparent bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
                 {tr(f.label)}
                 {/* Il totale da tablet è già accanto al titolo: su «Tutte» era un doppione. */}
                 {f.count != null && f.count > 0 && <span className={`text-[10px] ${filter === f.key ? "opacity-80" : ""} ${f.key === "tutte" ? "sm:hidden" : ""}`}>({f.count})</span>}
