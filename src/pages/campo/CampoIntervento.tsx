@@ -114,6 +114,8 @@ function Dettaglio({ intervento: i, tutti, userId, aggiorna }: { intervento: Int
         p_ticket: i.id, p_note: note, p_ore: Number.isFinite(oreNum) ? oreNum : null, p_materiali: materiali,
         p_foto: foto.map(f => f.path), p_firma_path: firmaPath, p_firma_nome: firma ? nomeFirma : null,
         p_senza_firma_motivo: null,
+        // La firma va anche nel rapportino d'intervento, come quella dell'area tecnico (immagine piccola).
+        p_firma_png: firma ?? null,
       });
       if (error) throw new Error(error.message);
     },
@@ -276,28 +278,26 @@ function Dettaglio({ intervento: i, tutti, userId, aggiorna }: { intervento: Int
   );
 }
 
-/** I rapporti dell'intervento (26/11/2026): ogni visita, mia o dei colleghi, e quelli scritti dall'ufficio. */
+/** I rapportini dell'intervento (26/11/2026): gli stessi che vede l'ufficio, di tutti i tecnici e dell'ufficio. */
 function RapportiIntervento({ ticketId }: { ticketId: string }) {
   const t = useT();
   const { data = [] } = useRapportiIntervento(ticketId);
-  const finiti = data.filter(r => r.finito_at);
-  if (!finiti.length) return null;
+  if (!data.length) return null;
   const quando = (iso: string) => new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
   return (
     <section aria-labelledby="rapporti-intervento" className="space-y-2 rounded-2xl border bg-background p-3">
-      <h2 id="rapporti-intervento" className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{t("Rapporti dell'intervento")}</h2>
+      <h2 id="rapporti-intervento" className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{t("Rapportini dell'intervento")}</h2>
       <ul className="divide-y">
-        {finiti.map(r => (
+        {data.map(r => (
           <li key={r.id} className="space-y-0.5 py-2 text-sm">
             <p className="text-xs text-muted-foreground">
-              {[quando(r.finito_at!), r.mio ? t("tu") : r.chi, r.dall_ufficio ? t("scritto dall'ufficio") : null,
+              {[`#${r.numero}`, r.quando ? quando(r.quando) : null, r.mio ? t("tu") : r.chi,
                 r.ore != null ? t("{n} ore", { n: String(r.ore).replace(".", ",") }) : null].filter(Boolean).join(" · ")}
             </p>
-            {r.note && <p dir="auto" className="whitespace-pre-line">{r.note}</p>}
-            {r.materiali && <p className="text-xs"><span className="font-semibold">{t("Materiale usato")}:</span> {r.materiali}</p>}
-            {(r.foto > 0 || r.firmato_da != null) && (
+            {r.descrizione && <p dir="auto" className="whitespace-pre-line">{r.descrizione}</p>}
+            {(r.foto > 0 || r.firmato) && (
               <p className="text-xs text-muted-foreground">
-                {[r.foto > 0 ? t("{n} foto", { n: r.foto }) : null, r.firmato_da != null ? (r.firmato_da ? t("firmato da {nome}", { nome: r.firmato_da }) : t("firmato dal cliente")) : null].filter(Boolean).join(" · ")}
+                {[r.foto > 0 ? t("{n} foto", { n: r.foto }) : null, r.firmato ? (r.firmato_da ? t("firmato da {nome}", { nome: r.firmato_da }) : t("firmato dal cliente")) : null].filter(Boolean).join(" · ")}
               </p>
             )}
           </li>

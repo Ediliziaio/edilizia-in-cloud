@@ -76,10 +76,10 @@ export function prossimoIntervento(lista: InterventoCampo[], dopoId: string): In
 
 export const linkMappa = (indirizzo: string) => `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(indirizzo)}`;
 
-/** Un rapporto dell'intervento: una visita di un tecnico, o il rapporto scritto dall'ufficio. */
+/** Un rapportino d'intervento (rapportini_intervento): del tecnico dal telefono, dell'area tecnico o dell'ufficio. */
 export interface RapportoIntervento {
-  id: string; chi: string | null; mio: boolean; dall_ufficio: boolean; iniziato_at: string | null; finito_at: string | null;
-  note: string | null; ore: number | null; materiali: string | null; foto: number; firmato_da: string | null;
+  id: string; numero: number; chi: string | null; mio: boolean; quando: string | null; descrizione: string | null;
+  ore: number | null; foto: number; firmato: boolean; firmato_da: string | null;
 }
 
 export function useRapportiIntervento(ticketId: string | undefined) {
