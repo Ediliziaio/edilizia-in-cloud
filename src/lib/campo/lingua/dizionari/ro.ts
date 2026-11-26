@@ -69310,5 +69310,15 @@ const dizionario: Dizionario = {
   "Il pagamento del {data} non risulterà più versato: la fattura torna da pagare per quella quota, e tornano indietro anche le rate e le scadenze che si erano chiuse. Resta nello storico della contabilità.": "Plata din {data} nu va mai figura ca efectuată: factura revine la neplătită pentru acea parte, iar ratele și scadențele închise se redeschid. Rămâne în istoricul contabilității.",
   "Lo toglio…": "O elimin…",
   "Togli il pagamento": "Elimină plata",
+  "Il conto non è stato salvato": "Contul nu a fost salvat",
+  "Il tuo accesso non permette di cambiare la scheda dell'azienda: chiedi a chi gestisce le impostazioni di aggiungerlo in Impostazioni → Fatturazione.": "Accesul tău nu permite modificarea fișei firmei: cere-i celui care se ocupă de setări să îl adauge în Setări → Facturare.",
+  "Conto salvato fra quelli dell'azienda": "Cont salvat printre cele ale firmei",
+  "Dalla prossima fattura lo scegli dalla tendina, senza riscriverlo.": "De la următoarea factură îl alegi din listă, fără să îl rescrii.",
+  "Altro IBAN, lo scrivo io": "Alt IBAN, îl scriu eu",
+  "IBAN non valido: IT, 2 cifre, 1 lettera e 22 fra cifre e lettere. Così com'è, lo SdI lo rifiuta.": "IBAN nevalid: IT, 2 cifre, o literă și 22 de cifre și litere. Așa cum este, SdI îl respinge.",
+  "Lo salvo…": "Îl salvez…",
+  "Salva fra i conti dell'azienda": "Salvează printre conturile firmei",
+  "Incassi su più banche? Scrivile una volta sola e poi le scegli da qui.": "Încasezi la mai multe bănci? Scrie-le o singură dată și apoi le alegi de aici.",
+  "Impostazioni → Fatturazione": "Setări → Facturare",
 };
 export default dizionario;

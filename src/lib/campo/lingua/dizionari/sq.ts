@@ -69310,5 +69310,15 @@ const dizionario: Dizionario = {
   "Il pagamento del {data} non risulterà più versato: la fattura torna da pagare per quella quota, e tornano indietro anche le rate e le scadenze che si erano chiuse. Resta nello storico della contabilità.": "Pagesa e {data} nuk do të figurojë më si e kryer: fatura kthehet për pagesë për atë pjesë, dhe rikthehen edhe ratet e afatet që ishin mbyllur. Mbetet në historikun e kontabilitetit.",
   "Lo toglio…": "Po e heq…",
   "Togli il pagamento": "Hiq pagesën",
+  "Il conto non è stato salvato": "Llogaria nuk u ruajt",
+  "Il tuo accesso non permette di cambiare la scheda dell'azienda: chiedi a chi gestisce le impostazioni di aggiungerlo in Impostazioni → Fatturazione.": "Qasja jote nuk lejon ndryshimin e skedës së kompanisë: kërko nga ai që menaxhon cilësimet ta shtojë te Cilësimet → Faturimi.",
+  "Conto salvato fra quelli dell'azienda": "Llogaria u ruajt mes atyre të kompanisë",
+  "Dalla prossima fattura lo scegli dalla tendina, senza riscriverlo.": "Nga fatura tjetër e zgjedh nga lista, pa e rishkruar.",
+  "Altro IBAN, lo scrivo io": "IBAN tjetër, e shkruaj vetë",
+  "IBAN non valido: IT, 2 cifre, 1 lettera e 22 fra cifre e lettere. Così com'è, lo SdI lo rifiuta.": "IBAN i pavlefshëm: IT, 2 shifra, një shkronjë dhe 22 mes shifrash e shkronjash. Kështu siç është, SdI e refuzon.",
+  "Lo salvo…": "Po e ruaj…",
+  "Salva fra i conti dell'azienda": "Ruaje mes llogarive të kompanisë",
+  "Incassi su più banche? Scrivile una volta sola e poi le scegli da qui.": "Arkëton në disa banka? Shkruaji një herë të vetme dhe pastaj i zgjedh nga këtu.",
+  "Impostazioni → Fatturazione": "Cilësimet → Faturimi",
 };
 export default dizionario;

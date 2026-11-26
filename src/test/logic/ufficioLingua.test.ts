@@ -1828,6 +1828,7 @@ export const BLOCCHI_UFFICIO: Record<string, string[]> = {
     "src/components/fatturazione/RiportaDaIncassare.tsx",
     "src/components/fatturazione/RitenuteBonificiPanel.tsx",
     "src/components/fatturazione/RitenuteSubiteFatture.tsx",
+    "src/components/fatturazione/SceltaContoIncasso.tsx",
     "src/components/fatturazione/ScegliMezzoFattura.tsx",
     "src/components/fatturazione/SdiStatoBanner.tsx",
     "src/components/fatturazione/SegnaPagataDialog.tsx",
