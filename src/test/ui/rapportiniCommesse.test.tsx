@@ -98,7 +98,7 @@ describe("Commesse → Rapportini", () => {
     apri();
     expect(stato.chiamate[0]).toEqual(["c1", "2026-09", true]);
     expect(screen.getByText("Settembre 2026")).toBeInTheDocument();
-    const numero = (nome: string) => screen.getByText(nome, { selector: "span.uppercase" }).parentElement!;
+    const numero = (nome: string) => (within(screen.getByRole("region", { name: "Riepilogo rapportini" })).queryByText(nome, { selector: "span" }) ?? screen.getByText(nome, { selector: "span" })).parentElement!;
     expect(numero("Rapportini")).toHaveTextContent("2");
     expect(within(numero("Ore lavorate")).getByText("14 h")).toBeInTheDocument();
     expect(within(numero("Cantieri")).getByText("2")).toBeInTheDocument();
@@ -170,7 +170,7 @@ describe("Commesse → Rapportini", () => {
 
   it("«Da approvare» filtra quelli da approvare, e si toglie", () => {
     apri();
-    fireEvent.click(screen.getByText("Da approvare", { selector: "span.uppercase" }).closest("button")!);
+    fireEvent.click(within(screen.getByRole("region", { name: "Riepilogo rapportini" })).getByRole("button", { name: /^Da approvare / }));
     expect(indirizzo()).toContain("rap_stato=inviato");
     expect(screen.getByText("Getto soletta")).toBeInTheDocument();
     expect(screen.queryByText("Posa guaina")).not.toBeInTheDocument();
@@ -340,9 +340,9 @@ describe("giornali e rapportini nell'elenco comune", () => {
     expect(within(tabella).getAllByRole("row")[1]).toHaveTextContent("Diario sopralluogo tetto");
     expect(screen.getByText("Firmata")).toBeInTheDocument();
     expect(stato.chiamateGiornali[0]).toEqual(["c1", {}, true]);
-    const card = screen.getByText("Ore lavorate", { selector: "span.uppercase" }).parentElement!;
+    const card = within(screen.getByRole("region", { name: "Riepilogo rapportini" })).getByText("Ore lavorate", { selector: "span" }).parentElement!;
     expect(within(card).getByText("14 h")).toBeInTheDocument();
-    expect(screen.getByText("Documenti", { selector: "span.uppercase" }).parentElement).toHaveTextContent("5");
+    expect(within(screen.getByRole("region", { name: "Riepilogo rapportini" })).getByText("Documenti", { selector: "span" }).parentElement).toHaveTextContent("5");
   });
   it("i collegamenti portano alla pagina esatta del giornale", () => {
     apri("?tab=rapportini", false);
@@ -357,7 +357,7 @@ describe("giornali e rapportini nell'elenco comune", () => {
     expect(screen.queryByText("Ore lavorate")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Crea documento PDF" })).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "Persona" })).not.toBeInTheDocument();
-    expect(screen.getByText("Da firmare", { selector: "span.uppercase" }).parentElement).toHaveTextContent("1");
+    expect(within(screen.getByRole("region", { name: "Riepilogo rapportini" })).getByText("Da firmare", { selector: "span" }).parentElement).toHaveTextContent("1");
   });
   it("cambiare tipo azzera solo i filtri incompatibili e mantiene date e cantiere", () => {
     apri("?tab=rapportini&rap_tipo=rapportino&rap_vista=persone&rap_persona=e:a&rap_stato=approvato&rap_cantiere=o1&rap_periodo=mese&rap_mese=2026-09", false);
