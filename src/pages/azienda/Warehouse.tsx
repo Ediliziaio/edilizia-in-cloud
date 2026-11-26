@@ -731,14 +731,15 @@ function WarehousePage() {
       {isReadOnly ? <Badge variant="outline" className="h-10 px-3">{t("Sola lettura")}</Badge> : <>
         <Button className="h-8 max-sm:h-11 gap-1.5 px-3 text-xs bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-500 [&_svg]:h-3.5 [&_svg]:w-3.5" onClick={() => apriArrivoMerce()} aria-label={t("Carica merce")}><ArrowDownToLine className="h-4 w-4" aria-hidden="true" />{t("Carica")}</Button>
         <Button className="h-8 max-sm:h-11 gap-1.5 px-2.5 text-xs [&_svg]:h-3.5 [&_svg]:w-3.5" variant="outline" onClick={() => openStockAction("ship")} aria-label={t("Preleva merce")}><ArrowUpFromLine className="h-4 w-4" aria-hidden="true" />{t("Preleva")}</Button>
-        {/* Telefono: «Reso» sta in «Altro» (Carica, Preleva, Altro su una riga — collaudo 23/11/2026). */}
-        {permissions.canEditOrders && <Button className="h-8 max-sm:hidden gap-1.5 px-2.5 text-xs [&_svg]:h-3.5 [&_svg]:w-3.5" variant="outline" onClick={() => setReturnOpen(true)} aria-label={t("Reso da cantiere")}><Undo2 className="h-4 w-4" aria-hidden="true" />{t("Reso")}</Button>}
+        {/* «Reso» sta in «Altro» sotto i 1536px (26/11/2026: prima solo da telefono): così ricerca, filtri
+            e comandi stanno su una riga anche a 1280. */}
+        {permissions.canEditOrders && <Button className="h-8 max-2xl:hidden gap-1.5 px-2.5 text-xs [&_svg]:h-3.5 [&_svg]:w-3.5" variant="outline" onClick={() => setReturnOpen(true)} aria-label={t("Reso da cantiere")}><Undo2 className="h-4 w-4" aria-hidden="true" />{t("Reso")}</Button>}
       </>}
     </>
   );
   const warehouseMenuItems = <>
                   {!isReadOnly && permissions.canEditOrders && (
-                    <DropdownMenuItem className="sm:hidden" onClick={() => setReturnOpen(true)}>
+                    <DropdownMenuItem className="2xl:hidden" onClick={() => setReturnOpen(true)}>
                       <Undo2 className="h-4 w-4 mr-2" />
                       {t("Reso da cantiere")}
                     </DropdownMenuItem>
