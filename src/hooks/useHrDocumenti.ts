@@ -5,6 +5,7 @@ import type { HrDocumento } from "@/types/hrDocumenti";
 import { calcStato } from "@/types/hrDocumenti";
 import { toast } from "sonner";
 import { readAllPages } from "@/lib/personale/readAllPages";
+import { preparaFilePersonale } from "@/lib/documenti/filePersonale";
 
 const BUCKET = "hr-documenti";
 
@@ -105,7 +106,8 @@ export function useHrScadenzeAzienda() {
 }
 
 /** Upload file nel bucket privato hr-documenti → ritorna { path, name }. */
-export async function uploadHrFile(companyId: string, profiloId: string, file: File): Promise<{ path: string; name: string }> {
+export async function uploadHrFile(companyId: string, profiloId: string, file: File, consentiOffice = false): Promise<{ path: string; name: string }> {
+  file = preparaFilePersonale(file, consentiOffice);
   const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-80);
   const path = `${companyId}/${profiloId}/${crypto.randomUUID()}-${safe}`;
   const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: false });
@@ -124,6 +126,7 @@ export function useUpsertHrDocumento(profiloId: string) {
   const qc = useQueryClient();
   const companyId = useEffectiveCompanyId();
   return useMutation({
+    networkMode: "always",
     mutationFn: async (doc: Partial<HrDocumento> & { id?: string }) => {
       if (!companyId || !profiloId) throw new Error("Azienda o persona non disponibile");
       const { id, created_at, updated_at, ...rest } = doc as any;

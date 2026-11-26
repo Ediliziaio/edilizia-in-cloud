@@ -22,6 +22,8 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { usePermissions } from "@/hooks/usePermissions";
 import { HrQueryError } from "@/components/hr/HrQueryError";
 import { uploadHrFile, getHrFileUrl } from "@/hooks/useHrDocumenti";
+import { apriDocumentoDopoAttesa } from "@/lib/campo/apriDocumento";
+import { DocumentFileLink } from "@/components/shared/DocumentFileLink";
 import {
   useHrCandidati, useUpsertCandidato, useDeleteCandidato,
   useColloquiCandidato, useAddColloquio, useDeleteColloquio,
@@ -598,7 +600,7 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest, vaiOrganigramma 
     if (!companyId) return;
     setCaricandoCv(true);
     try {
-      const { path, name } = await uploadHrFile(companyId, `candidato-${candidato.id}`, file);
+      const { path, name } = await uploadHrFile(companyId, `candidato-${candidato.id}`, file, true);
       await upsert.mutateAsync({ id: candidato.id, nome: candidato.nome, cv_path: path, cv_nome: name });
       toast.success(t("CV caricato"));
     } catch (e) {
@@ -610,14 +612,15 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest, vaiOrganigramma 
 
   const scaricaCv = async () => {
     if (!candidato.cv_path) return;
+    if (/\.(docx?|xlsx?)$/i.test(candidato.cv_nome ?? candidato.cv_path)) {
+      const aperto = await apriDocumentoDopoAttesa(() => getHrFileUrl(candidato.cv_path!), candidato.cv_nome ?? undefined);
+      if (!aperto) toast.error(t("Non riesco ad aprire il CV"));
+      return;
+    }
     const url = await getHrFileUrl(candidato.cv_path);
     if (!url) { toast.error(t("Non riesco ad aprire il CV")); return; }
     // PDF e immagini si vedono in anteprima qui dentro; i .doc il browser
     // non li rende, quindi si scaricano e basta.
-    if (/\.(docx?|xlsx?)$/i.test(candidato.cv_nome ?? candidato.cv_path)) {
-      window.open(url, "_blank");
-      return;
-    }
     setAnteprimaCv(url);
   };
 
@@ -822,7 +825,7 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest, vaiOrganigramma 
               <DialogHeader className="flex-row items-center justify-between space-y-0 pr-8">
                 <DialogTitle className="text-sm truncate">{candidato.cv_nome ?? t("Curriculum")}</DialogTitle>
                 <Button asChild size="sm" variant="outline" className="h-7 gap-1 text-xs">
-                  <a href={anteprimaCv} target="_blank" rel="noopener noreferrer"><Download className="h-3.5 w-3.5" /> {t("Apri in un'altra scheda")}</a>
+                  <DocumentFileLink href={anteprimaCv} target="_blank" rel="noopener noreferrer"><Download className="h-3.5 w-3.5" /> {t("Apri in un'altra scheda")}</DocumentFileLink>
                 </Button>
               </DialogHeader>
               <p className="text-xs text-muted-foreground">{t("Se il browser blocca l’anteprima o il riquadro resta vuoto, usa «Apri in un’altra scheda» per leggere il documento.")}</p>

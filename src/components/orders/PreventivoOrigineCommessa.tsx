@@ -40,7 +40,7 @@ export function PreventivoOrigineCommessa({ quoteId, quoteNumber, companyId }: {
     try {
       const aggiornato = await q.refetch();
       if (aggiornato.error || !aggiornato.data) throw new Error(t("Non è stato possibile verificare il documento aggiornato. Riprova."));
-      scaricaCopiaPdf(await documentoPreventivoOrigine(aggiornato.data));
+      await scaricaCopiaPdf(await documentoPreventivoOrigine(aggiornato.data));
     }
     catch (e) { toast.error(t("Documento non scaricato"), { description: e instanceof Error ? e.message : t("Riprova.") }); }
     finally { setScaricando(false); }

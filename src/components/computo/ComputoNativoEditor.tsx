@@ -974,7 +974,7 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
         }) : undefined}
         onScaricaCliente={async () => {
           if (bloccaDocumento) throw new Error("Completa lavorazioni, IVA e sconti prima di scaricare l’offerta.");
-          downloadQuotePdf(await generaPdfDefinitivo(), "offerta-" + (bozza.numero || "bozza").replace(/[^a-zA-Z0-9-]/g, "-") + ".pdf");
+          await downloadQuotePdf(await generaPdfDefinitivo(), "offerta-" + (bozza.numero || "bozza").replace(/[^a-zA-Z0-9-]/g, "-") + ".pdf");
         }} />
     </Suspense>}
     {revisioniAperte && <ComputoRevisioni bozza={bozza} open onOpenChange={setRevisioniAperte} onChange={cambiaParte} />}

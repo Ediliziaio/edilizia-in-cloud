@@ -103,7 +103,7 @@ export function SurveyPdfTools({
     try {
       const blob = await getBlob();
       if (!alive.current) return;
-      downloadQuotePdf(blob, surveyPdfName(detail.survey.code));
+      if (await downloadQuotePdf(blob, surveyPdfName(detail.survey.code)) === false) return;
       toast.success(t("PDF scaricato"), {
         description: t("Report dei dati salvati; nessun invio al cliente."),
       });

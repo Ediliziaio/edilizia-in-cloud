@@ -4204,7 +4204,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
               <AnteprimaPdfVero genera={async () => anteprimaPdf.blob} chiave="preventivo-salvato" attivo
                 className="h-auto min-h-0 flex-1 xl:h-auto xl:min-h-0" />
               <DialogFooter className="shrink-0">
-                <Button type="button" variant="outline" className="min-h-11" onClick={() => downloadQuotePdf(anteprimaPdf.blob, anteprimaPdf.path)}>
+                <Button type="button" variant="outline" className="min-h-11" onClick={() => void downloadQuotePdf(anteprimaPdf.blob, anteprimaPdf.path).catch(() => toast.error(tr("Impossibile salvare il PDF. Riprova.")))}>
                   {tr("Scarica PDF")}
                 </Button>
                 {canEditPreventivi && (!existingQuote || ["bozza", "inviata"].includes(existingQuote.status)) && (

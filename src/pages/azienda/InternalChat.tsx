@@ -42,6 +42,7 @@ import { toast } from "sonner";
 import { format, isToday, isYesterday, isSameDay } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DocumentFileLink } from "@/components/shared/DocumentFileLink";
 // Badge import rimosso (v8.6.75 Round 9 / LUCIA-FULL-REMOVAL) — era usato
 // solo per il badge "AI" violet su header canale Lucia, ora eliminato.
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -935,21 +936,21 @@ function AttachmentPreview({ msg, isMe }: { msg: Message; isMe: boolean }) {
   if (isImage && href) {
     return (
       <div className="mb-1.5">
-        <a href={href} target="_blank" rel="noopener noreferrer" className="block" aria-label={t("Apri allegato {nome}", { nome: attachmentName })}>
+        <DocumentFileLink href={href} target="_blank" rel="noopener noreferrer" className="block" aria-label={t("Apri allegato {nome}", { nome: attachmentName })}>
           <img loading="lazy"
             src={href}
             alt={attachmentName}
             className="rounded-lg max-w-full max-h-60 object-cover cursor-pointer hover:opacity-90 transition-opacity"
             onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
           />
-        </a>
+        </DocumentFileLink>
       </div>
     );
   }
 
   return (
     <div className="mb-1.5">
-      <a
+      <DocumentFileLink
         href={href ?? "#"}
         target={href ? "_blank" : undefined}
         rel="noopener noreferrer"
@@ -969,7 +970,7 @@ function AttachmentPreview({ msg, isMe }: { msg: Message; isMe: boolean }) {
           <Paperclip className="h-4 w-4 shrink-0 text-[#54656f]" />
         )}
         <span className="truncate font-medium">{attachmentName}</span>
-      </a>
+      </DocumentFileLink>
     </div>
   );
 }

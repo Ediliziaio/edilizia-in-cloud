@@ -183,13 +183,9 @@ function CampoDocumentiDipendente() {
   };
 
   const openDocumento = async (url: string) => {
-    if (/^https?:\/\//i.test(url)) {
-      window.open(url, "_blank", "noopener,noreferrer");
-      return;
-    }
-
     // Il link a scadenza arriva dopo un'attesa: la scheda va aperta prima (sul telefono, dopo l'attesa, la blocca).
     const aperto = await apriDocumentoDopoAttesa(async () => {
+      if (/^https?:\/\//i.test(url)) return url;
       const { data, error } = await supabase.storage.from(PRIVATE_DOC_BUCKET).createSignedUrl(url, 60 * 5);
       return error ? null : data?.signedUrl;
     });

@@ -23,6 +23,7 @@ import type {
 } from "@/types/quoteTemplate";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { downloadQuotePdf } from "@/lib/preventivi/quotePdfDownload";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2297,12 +2298,7 @@ export function QuoteTemplatesLegacy({ unificato = false }: { unificato?: boolea
                         const bytes = new Uint8Array(binary.length);
                         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
                         const blob = new Blob([bytes], { type: "application/pdf" });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = `anteprima-${(form.name || "modello").replace(/\s+/g, "-").toLowerCase()}.pdf`;
-                        a.click();
-                        URL.revokeObjectURL(url);
+                        await downloadQuotePdf(blob, `anteprima-${(form.name || "modello").replace(/\s+/g, "-").toLowerCase()}.pdf`);
                         toast.success(tr("PDF scaricato"));
                       } catch (err: unknown) {
                         toast.error(tr("Anteprima PDF non riuscita"), { description: erroreInItaliano(err, tr("Non sono riuscito a preparare il PDF. Riprova tra poco.")) });

@@ -9,21 +9,16 @@ import { TIPI_DPI } from "@/lib/sicurezza/dpiCommessa";
 import { dataRiscontriDpiPos, dpiPrevistiPos, riscontriDpiDisponibili, stessoRiscontroDpi, suggerisciRiscontriDpiPos, type FonteRumorePos, type RiscontroDpiPos } from "../../../../supabase/functions/_shared/posEvidenzeOperative";
 import type { AllegatoPos, Lavorazione } from "../../../../supabase/functions/_shared/posModello";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { apriDocumentoDaRichiesta } from "@/lib/campo/apriDocumento";
 
 const stileSelect = "block w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm";
 
 export async function apriRapportoRumorePos(companyId: string, posId: string, fonte: FonteRumorePos, pagina?: number) {
-  const finestra = window.open("about:blank", "_blank");
-  if (!finestra) throw new Error("Consenti l’apertura della scheda per consultare il rapporto");
-  finestra.opener = null;
-  try {
+  await apriDocumentoDaRichiesta(async () => {
     const { url } = await chiamaServerPos<{ url: string }>({ azione: "fonte_rapporto_rumore", company_id: companyId,
       pos_id: posId, origine: fonte.origine, documento_id: fonte.id, sha256: fonte.sha256, apri: true });
-    finestra.location.href = pagina && Number.isSafeInteger(pagina) && pagina > 0 ? `${url}#page=${pagina}` : url;
-  } catch (e) {
-    finestra.close();
-    throw e;
-  }
+    return pagina && Number.isSafeInteger(pagina) && pagina > 0 ? `${url}#page=${pagina}` : url;
+  }, "Rapporto-rumore.pdf", { richiediScheda: true });
 }
 
 export function ScegliRapportoRumorePos({ companyId, orderId, posId, allegati, collega }: {

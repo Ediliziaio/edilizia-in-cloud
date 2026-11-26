@@ -35,6 +35,8 @@ export function FreePhotoUpload({
   label,
 }: FreePhotoUploadProps) {
   const [uploading, setUploading] = useState(false);
+  const [daRiprovare, setDaRiprovare] = useState<File[]>([]);
+  const inCorso = useRef(false);
   const cameraRef = useRef<HTMLInputElement | null>(null);
   const galleryRef = useRef<HTMLInputElement | null>(null);
   const confirm = useConfirm();
@@ -43,13 +45,17 @@ export function FreePhotoUpload({
 
   const photos = media.filter((m) => m.type === "photo" && !m.checklist_key);
 
-  const handleFiles = async (files: FileList | null) => {
+  const handleFiles = async (files: FileList | File[] | null) => {
     // Snapshot immediato: la FileList è "live" e viene azzerata da value="".
     const list = Array.from(files ?? []);
-    if (list.length === 0) return;
+    if (list.length === 0 || inCorso.current) return;
+    inCorso.current = true;
+    let indice = 0;
     setUploading(true);
+    setDaRiprovare([]);
     try {
-      for (const file of list) {
+      for (; indice < list.length; indice++) {
+        const file = list[indice];
         const invalid = validateSurveyPhoto(file);
         if (invalid) { toast.error(t("File non valido"), { description: invalid }); continue; }
         const m = await uploadMedia(surveyId, file, {
@@ -62,10 +68,12 @@ export function FreePhotoUpload({
         onMediaAdded?.(m);
       }
     } catch (e) {
+      setDaRiprovare(list.slice(indice));
       toast.error(t("Upload foto fallito"), {
         description: e instanceof Error ? e.message : String(e),
       });
     } finally {
+      inCorso.current = false;
       setUploading(false);
     }
   };
@@ -124,7 +132,7 @@ export function FreePhotoUpload({
           type="button"
           variant="outline"
           onClick={() => cameraRef.current?.click()}
-          disabled={uploading}
+          disabled={uploading || daRiprovare.length > 0}
           className="h-11 gap-2 border-dashed"
         >
           {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
@@ -134,7 +142,7 @@ export function FreePhotoUpload({
           type="button"
           variant="outline"
           onClick={() => galleryRef.current?.click()}
-          disabled={uploading}
+          disabled={uploading || daRiprovare.length > 0}
           className="h-11 gap-2 border-dashed"
         >
           <Images className="h-4 w-4" />
@@ -142,12 +150,23 @@ export function FreePhotoUpload({
         </Button>
       </div>
 
+      {daRiprovare.length > 0 && <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3">
+        <p role="alert" className="text-xs text-amber-900">{t("Le foto rimaste sono ancora da inviare; puoi riprovare.")}</p>
+        <p className="break-words text-xs">{daRiprovare.map(f => f.name).join(", ")}</p>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" className="min-h-11" disabled={uploading} onClick={() => void handleFiles(daRiprovare)}>{t("Riprova caricamento foto")}</Button>
+          <Button type="button" variant="ghost" className="min-h-11" disabled={uploading} onClick={() => setDaRiprovare([])}>{t("Rimuovi foto in attesa")}</Button>
+        </div>
+      </div>}
+
       {/* Fotocamera diretta (mobile) — un singolo scatto */}
       <input
         ref={cameraRef}
         type="file"
         accept="image/*"
         capture="environment"
+        aria-label={t("Scatta foto del sopralluogo")}
+        disabled={uploading || daRiprovare.length > 0}
         className="hidden"
         onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }}
       />
@@ -157,6 +176,8 @@ export function FreePhotoUpload({
         type="file"
         accept="image/*"
         multiple
+        aria-label={t("Scegli foto del sopralluogo")}
+        disabled={uploading || daRiprovare.length > 0}
         className="hidden"
         onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }}
       />

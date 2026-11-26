@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { PILLOLA, RIQUADRO } from "@/lib/campo/stileCampo";
 import { senzaRete } from "@/lib/campo/timbra";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { ACCEPT_DOCUMENTO_PERSONALE, preparaFilePersonale } from "@/lib/documenti/filePersonale";
 
 const TIPI = [
   { value: "corso_sicurezza", label: "Corso sicurezza" },
@@ -37,10 +38,12 @@ export function CaricaAttestato({ carica: caricaFile }: { carica: (a: AttestatoD
   const [file, setFile] = useState<File | null>(null);
 
   const carica = useMutation({
+    // Esegue il controllo senza rete anche quando React Query è offline: nessun invio accodato in silenzio.
+    networkMode: "always",
     mutationFn: async () => {
       if (senzaRete()) throw new Error(t("Sei senza rete: riprova appena torna il campo."));
       if (!file) throw new Error(t("Scatta la foto o scegli il file"));
-      await caricaFile({ file, categoria: tipo, titolo: titolo.trim() || t(TIPI.find(x => x.value === tipo)!.label), scadenza: scadenza || null });
+      await caricaFile({ file: preparaFilePersonale(file), categoria: tipo, titolo: titolo.trim() || t(TIPI.find(x => x.value === tipo)!.label), scadenza: scadenza || null });
     },
     onSuccess: () => {
       toast.success(t("Caricato: l'ufficio lo controlla"));
@@ -79,11 +82,12 @@ export function CaricaAttestato({ carica: caricaFile }: { carica: (a: AttestatoD
           <Camera className="size-4" aria-hidden="true" />{t("Foto")}
         </label>
         <label className={cn(PILLOLA, "relative cursor-pointer")}>
-          <input type="file" accept="image/*,application/pdf" aria-label={t("Scegli il file")} className="sr-only"
+          <input type="file" accept={ACCEPT_DOCUMENTO_PERSONALE} aria-label={t("Scegli il file")} className="sr-only"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) setFile(f); e.target.value = ""; }} />
           <FileUp className="size-4" aria-hidden="true" />{t("File o PDF")}
         </label>
       </div>
+      <p className="text-xs text-muted-foreground">{t("PDF o foto, massimo 15 MB.")}</p>
       {file && <p className="truncate text-xs text-muted-foreground">{file.name}</p>}
       <input value={titolo} onChange={(e) => setTitolo(e.target.value.slice(0, 120))} aria-label={t("Nome (facoltativo)")}
         placeholder={t("Nome (facoltativo), es. Corso lavori in quota")} className="min-h-11 w-full rounded-xl border bg-background px-3 text-sm" />

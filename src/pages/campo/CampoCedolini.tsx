@@ -14,6 +14,7 @@ import { apriDocumentoPaghe } from "@/lib/paghe/apriDocumentoPaghe";
 import { useMieiDocumentiPaghe } from "@/hooks/useMyCedolini";
 import { euroCampo, oreBrevi } from "@/lib/campo/numeriItaliani";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { DocumentFileLink } from "@/components/shared/DocumentFileLink";
 
 const MESI = [
   "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
@@ -174,19 +175,20 @@ export default function CampoCedolini() {
                         type="button"
                         aria-label={t("Apri la busta paga")}
                         onClick={() => apriDocumentoPaghe(c.documento_id).catch(() => toast.error(t("Non riesco ad aprire la busta paga. Riprova tra poco.")))}
-                        className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 hover:bg-primary/20 transition-colors"
+                        className="w-11 h-11 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 hover:bg-primary/20 transition-colors"
                       >
                         <Download className="w-4 h-4 text-primary" />
                       </button>
                     ) : c.pdf_url && (
-                      <a
+                      <DocumentFileLink
                         href={c.pdf_url}
+                        aria-label={t("Apri la busta paga")}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 hover:bg-primary/20 transition-colors"
+                        className="w-11 h-11 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 hover:bg-primary/20 transition-colors"
                       >
                         <Download className="w-4 h-4 text-primary" />
-                      </a>
+                      </DocumentFileLink>
                     )}
                   </div>
                 );

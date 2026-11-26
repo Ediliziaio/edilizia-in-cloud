@@ -17,6 +17,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import type { DDTAttachmentKind } from "@/hooks/useDDTRicezione";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { DocumentFileLink } from "@/components/shared/DocumentFileLink";
 
 const KIND_LABELS: Record<DDTAttachmentKind, string> = {
   ddt: "DDT",
@@ -75,7 +76,7 @@ function Lightbox({ open, onClose, url, name, mime }: LightboxProps) {
               <span className="truncate text-sm font-medium">{name}</span>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <a
+              <DocumentFileLink
                 href={url}
                 target="_blank"
                 rel="noreferrer"
@@ -83,15 +84,15 @@ function Lightbox({ open, onClose, url, name, mime }: LightboxProps) {
                 title={t("Apri in nuova tab")}
               >
                 <ExternalLink className="h-4 w-4" />
-              </a>
-              <a
+              </DocumentFileLink>
+              <DocumentFileLink
                 href={url}
                 download={name}
                 className="text-white/80 hover:text-white p-1.5 rounded-md hover:bg-white/10 transition"
                 title={t("Scarica")}
               >
                 <Download className="h-4 w-4" />
-              </a>
+              </DocumentFileLink>
               <button
                 onClick={onClose}
                 className="text-white/80 hover:text-white p-1.5 rounded-md hover:bg-white/10 transition"
@@ -119,27 +120,27 @@ function Lightbox({ open, onClose, url, name, mime }: LightboxProps) {
                 <div className="text-white text-center space-y-3 p-6">
                   <FileText className="h-12 w-12 mx-auto opacity-60" />
                   <p className="text-sm">{t("Anteprima PDF non disponibile.")}</p>
-                  <a
+                  <DocumentFileLink
                     href={url}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-2 px-4 py-2 bg-white text-black rounded-md hover:bg-white/90"
                   >
                     <ExternalLink className="h-4 w-4" /> {t("Apri PDF")}
-                  </a>
+                  </DocumentFileLink>
                 </div>
               </object>
             ) : (
               <div className="text-white text-center space-y-3">
                 <FileIcon className="h-12 w-12 mx-auto opacity-60" />
                 <p className="text-sm">{t("Anteprima non disponibile per questo tipo di file.")}</p>
-                <a
+                <DocumentFileLink
                   href={url}
                   download={name}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-white text-black rounded-md"
                 >
                   <Download className="h-4 w-4" /> {t("Scarica")} {name}
-                </a>
+                </DocumentFileLink>
               </div>
             )}
           </div>
@@ -270,7 +271,7 @@ export function DDTFilePreview({
                     <Eye className="h-3 w-3" />
                   </button>
                 )}
-                <a
+                <DocumentFileLink
                   href={url}
                   target="_blank"
                   rel="noreferrer"
@@ -279,8 +280,8 @@ export function DDTFilePreview({
                   onClick={(e) => e.stopPropagation()}
                 >
                   <ExternalLink className="h-3 w-3" />
-                </a>
-                <a
+                </DocumentFileLink>
+                <DocumentFileLink
                   href={url}
                   download={name}
                   className="text-muted-foreground hover:text-foreground p-0.5"
@@ -288,7 +289,7 @@ export function DDTFilePreview({
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Download className="h-3 w-3" />
-                </a>
+                </DocumentFileLink>
               </div>
             </div>
             {uploadedAt && (
@@ -387,10 +388,10 @@ export function DDTMainFilePreview({
                 asChild
                 className="h-7 text-xs"
               >
-                <a href={url} target="_blank" rel="noreferrer">
+                <DocumentFileLink href={url} target="_blank" rel="noreferrer">
                   <ExternalLink className="h-3 w-3 mr-1" />
                   {t("Apri")}
-                </a>
+                </DocumentFileLink>
               </Button>
               <Button
                 type="button"
@@ -399,10 +400,10 @@ export function DDTMainFilePreview({
                 asChild
                 className="h-7 text-xs"
               >
-                <a href={url} download={name}>
+                <DocumentFileLink href={url} download={name}>
                   <Download className="h-3 w-3 mr-1" />
                   {t("Scarica")}
-                </a>
+                </DocumentFileLink>
               </Button>
               {onReplace && (
                 <Button
@@ -518,12 +519,12 @@ export function DDTFileRiga({
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           <Button type="button" variant="ghost" size="sm" asChild className="h-7 px-2 text-xs">
-            <a href={url} target="_blank" rel="noreferrer">
+            <DocumentFileLink href={url} target="_blank" rel="noreferrer">
               <ExternalLink className="h-3.5 w-3.5 sm:mr-1" />
               <span className="hidden sm:inline">{t("Apri")}</span>
-            </a>
+            </DocumentFileLink>
           </Button>
-          <a
+          <DocumentFileLink
             href={url}
             download={name}
             title={t("Scarica")}
@@ -531,7 +532,7 @@ export function DDTFileRiga({
             className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <Download className="h-3.5 w-3.5" />
-          </a>
+          </DocumentFileLink>
           {onReplace && (
             <Button type="button" variant="ghost" size="sm" onClick={onReplace} className="h-7 px-2 text-xs" aria-label={t("Sostituisci {name}", { name: String(name ?? "") })}>
               <RefreshCw className="h-3.5 w-3.5 sm:mr-1" />

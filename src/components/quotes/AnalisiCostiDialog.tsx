@@ -214,7 +214,7 @@ function ContenutoAnalisi(props: Props & { versioneSelezionata: string; onRevisi
   }
   async function scaricaAnalisi() {
     const { pdfAnalisiCosti } = await import("@/lib/preventivi/pdfAnalisiCosti");
-    downloadQuotePdf(pdfAnalisiCosti({ titolo: props.title, numero: props.numero, revisione: props.revisione, azienda: props.azienda }, calcolo, analisi.tempistiche),
+    await downloadQuotePdf(pdfAnalisiCosti({ titolo: props.title, numero: props.numero, revisione: props.revisione, azienda: props.azienda }, calcolo, analisi.tempistiche),
       "analisi-costi-" + (props.numero || "bozza").replace(/[^a-zA-Z0-9-]/g, "-") + ".pdf");
   }
   async function salva() {

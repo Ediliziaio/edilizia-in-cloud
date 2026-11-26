@@ -92,7 +92,7 @@ export default function QuoteDetail() {
       });
       if (error) throw error;
       const blob = await fetchQuotePdf(data?.signed_url);
-      downloadQuotePdf(blob, data?.pdf_path);
+      if (!await downloadQuotePdf(blob, data?.pdf_path)) return;
       // Preventivo già firmato: l'edge restituisce il PDF firmato senza rigenerarlo.
       toast.success(data?.gia_firmato ? t("PDF firmato scaricato (non rigenerato: è il documento firmato dal cliente)") : t("PDF scaricato nei Download"));
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(id) });

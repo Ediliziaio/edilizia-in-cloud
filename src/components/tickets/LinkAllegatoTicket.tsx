@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { allegatoTicket, TICKET_ATTACHMENTS_BUCKET } from "@/lib/tickets/allegato";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { salvaDocumento } from "@/lib/mobile/salvaDocumento";
 
 export function LinkAllegatoTicket({ ticketId, riferimento, inChat, className }: {
   ticketId: string;
@@ -34,12 +35,7 @@ export function LinkAllegatoTicket({ ticketId, riferimento, inChat, className }:
       if (!path) throw new Error(t("Percorso dell’allegato non disponibile."));
       const { data, error } = await supabase.storage.from(TICKET_ATTACHMENTS_BUCKET).download(path);
       if (error) throw error;
-      const url = URL.createObjectURL(data);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = nome;
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      await salvaDocumento(data, nome);
     },
     onError: () => toast({
       title: t("Allegato non disponibile"),

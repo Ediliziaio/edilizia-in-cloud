@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
+import { salvaDocumento } from "@/lib/mobile/salvaDocumento";
 
 interface Preventivo { companyId: string; progettoId: string; tipo: "fv" | "sr" }
 interface FirmaConservata { id: string; signed_pdf_path: string | null; signed_pdf_hash: string | null; codice_verifica: string | null }
@@ -55,10 +56,6 @@ export async function pdfFirmatoPreventivo(input: Preventivo): Promise<{ blob: B
   return { blob, nomeFile: result.data.nome_file || "preventivo-firmato.pdf" };
 }
 
-export function scaricaCopiaPdf(file: { blob: Blob; nomeFile: string }): void {
-  const url = URL.createObjectURL(file.blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = file.nomeFile;
-  document.body.appendChild(a); a.click(); a.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+export async function scaricaCopiaPdf(file: { blob: Blob; nomeFile: string }): Promise<boolean> {
+  return salvaDocumento(file.blob, file.nomeFile);
 }

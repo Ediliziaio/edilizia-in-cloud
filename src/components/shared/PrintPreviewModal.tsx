@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Printer, Download } from "lucide-react";
 import { toast } from "sonner";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { salvaDocumento } from "@/lib/mobile/salvaDocumento";
 
 interface Props {
   /** HTML completo della pagina da stampare (incluso <html>, <head> e <body>). */
@@ -108,24 +109,15 @@ export function PrintPreviewModal({
     if (onDownloadPdf) {
       try {
         const pdf = await onDownloadPdf();
-        const url = URL.createObjectURL(pdf);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${fileName}.pdf`.replace(/[\\/:*?"<>|]/g, "-");
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 10_000);
+        await salvaDocumento(pdf, `${fileName}.pdf`.replace(/[\\/:*?"<>|]/g, "-"));
       } catch (e) {
         toast.error(t("PDF non generato: {motivo}", { motivo: e instanceof Error ? e.message : t("errore") }));
       }
       return;
     }
     const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${fileName}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try { await salvaDocumento(blob, `${fileName}.html`); }
+    catch { toast.error(t("Impossibile salvare il documento. Riprova.")); }
   };
 
   return (

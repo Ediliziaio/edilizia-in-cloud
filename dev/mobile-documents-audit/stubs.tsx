@@ -1,0 +1,11 @@
+const traduci = (text: string, vars?: Record<string, unknown>) => text.replace(/\{([^}]+)\}/g, (_, k: string) => String(vars?.[k] ?? k));
+export const useT = () => traduci;
+export const intlCampo = () => "it-IT";
+export const usePermissions = () => ({ isLoading: false, isAdmin: false, canViewPersone: true, solaLettura: true });
+export const QualificheAddetto = () => null;
+export const senzaRete = () => !navigator.onLine;
+export const useHrDocumenti = () => ({ data: [{ id: "qa-documento", categoria: "corso_sicurezza", titolo: "Attestato di prova", data_scadenza: null, file_path: "qa/persona/attestato.pdf", file_name: "attestato.pdf" }], isLoading: false, isError: false });
+export const useUpsertHrDocumento = () => ({ mutateAsync: async () => {}, isPending: false });
+export const useDeleteHrDocumento = () => ({ mutate: () => {} });
+export const uploadHrFile = async () => ({ path: "qa/persona/prova.pdf", name: "prova.pdf" });
+export const getHrFileUrl = async () => { await new Promise(resolve => setTimeout(resolve, 150)); return `${location.origin}/documento.pdf`; };

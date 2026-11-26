@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 
 import { usePermissions } from '@/hooks/usePermissions';
+import { apriDocumentoDopoAttesa } from '@/lib/campo/apriDocumento';
 import { useEffectiveCompanyId } from '@/hooks/useEffectiveCompanyId';
 import { useSediList } from '@/hooks/useSediAnalytics';
 import { useCompanyStaffUsers } from '@/hooks/useCompanyStaffUsers';
@@ -179,16 +180,8 @@ function scadenzaDaRinnovo(dataDocumento: string, mesi: number | null): string {
  */
 async function apriFile(path: string | null, t: (testo: string) => string = (testo) => testo) {
   if (!path) return;
-  const scheda = window.open('', '_blank');
-  if (scheda) scheda.opener = null;
-  const url = await linkFileDocumento(path);
-  if (!url) {
-    scheda?.close();
-    toast.error(t("Non è riuscito ad aprire il file"));
-    return;
-  }
-  if (scheda && !scheda.closed) scheda.location.href = url;
-  else window.open(url, '_blank', 'noopener,noreferrer');
+  const aperto = await apriDocumentoDopoAttesa(() => linkFileDocumento(path), path.split('/').pop());
+  if (!aperto) toast.error(t("Non è riuscito ad aprire il file"));
 }
 
 // ── Pagina ───────────────────────────────────────────────────────────────────

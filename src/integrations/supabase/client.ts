@@ -27,12 +27,12 @@ if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-function getRequestTimeout(input: RequestInfo | URL): number {
-  return supabaseRequestTimeout(input);
+function getRequestTimeout(input: RequestInfo | URL, method?: string): number {
+  return supabaseRequestTimeout(input, method);
 }
 
 function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
-  const timeoutMs = getRequestTimeout(input);
+  const timeoutMs = getRequestTimeout(input, init?.method);
   const controller = new AbortController();
   const upstreamSignal = init?.signal;
   let removeUpstreamAbortListener: (() => void) | null = null;

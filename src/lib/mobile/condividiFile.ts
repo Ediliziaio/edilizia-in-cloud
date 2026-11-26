@@ -1,6 +1,6 @@
 import { Share } from "@capacitor/share";
-import { Directory, Filesystem } from "@capacitor/filesystem";
 import { isNative } from "./platform";
+import { fileInCache } from "./fileCache";
 
 /**
  * - `serve-un-tocco`: il browser ha rifiutato perché il PDF ha impiegato troppo
@@ -9,15 +9,6 @@ import { isNative } from "./platform";
  */
 export type EsitoCondivisione = "condiviso" | "annullato" | "serve-un-tocco" | "non-supportato";
 
-function inBase64(blob: Blob): Promise<string> {
-  return new Promise((risolvi, rifiuta) => {
-    const lettore = new FileReader();
-    lettore.onload = () => risolvi(String(lettore.result).split(",")[1] ?? "");
-    lettore.onerror = () => rifiuta(lettore.error);
-    lettore.readAsDataURL(blob);
-  });
-}
-
 /**
  * Manda un file (il PDF del preventivo) col foglio di condivisione del
  * telefono: WhatsApp, Mail, AirDrop… Nell'app passa da Filesystem + Share,
@@ -25,12 +16,13 @@ function inBase64(blob: Blob): Promise<string> {
  */
 export async function condividiFile(blob: Blob, nome: string, titolo: string): Promise<EsitoCondivisione> {
   if (isNative) {
-    const { uri } = await Filesystem.writeFile({ path: nome, data: await inBase64(blob), directory: Directory.Cache });
+    const uri = await fileInCache(blob, nome);
     try {
       await Share.share({ title: titolo, files: [uri], dialogTitle: titolo });
       return "condiviso";
-    } catch {
-      return "annullato";
+    } catch (errore) {
+      if (errore instanceof Error && (errore.message === "Share canceled" || errore.name === "AbortError")) return "annullato";
+      throw errore;
     }
   }
   const file = new File([blob], nome, { type: blob.type || "application/pdf" });

@@ -18,6 +18,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { apriDocumentoDopoAttesa } from "@/lib/campo/apriDocumento";
+import { ACCEPT_DOCUMENTO_PERSONALE, preparaFilePersonale } from "@/lib/documenti/filePersonale";
+import { senzaRete } from "@/lib/campo/timbra";
 import { toast } from "sonner";
 import { PosDellaDitta } from "./PosDellaDitta";
 import { statoDocumentiDitta } from "@/lib/campo/documentiDitta";
@@ -46,15 +48,7 @@ function nomeDaPercorso(percorso: string | null): string {
   const ultimo = (percorso ?? "").split("/").pop() ?? "";
   return ultimo.replace(/^\d+-/, "") || ultimo;
 }
-const MAX_FILE_SIZE = 15 * 1024 * 1024;
 const SUB_DOCUMENTI_TIMEOUT_MS = 8000;
-const ALLOWED_MIME_TYPES = new Set([
-  "application/pdf",
-  "image/jpeg",
-  "image/png",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-]);
 
 function isStoragePath(value: string | null | undefined) {
   return !!value && !/^https?:\/\//i.test(value);
@@ -138,24 +132,23 @@ export default function SubDocumenti() {
   };
 
   const uploadMutation = useMutation({
+    networkMode: "always",
     mutationFn: async () => {
+      if (senzaRete()) throw new Error(tr("Sei senza rete: riprova appena torna il campo."));
       if (!companyId) throw new Error(tr("Azienda non disponibile, ricarica la pagina"));
       if (!dittaId) throw new Error(tr("La tua ditta non è ancora collegata: chiedi all'ufficio."));
       if (!selectedFile) throw new Error(tr("Seleziona un file"));
-      if (selectedFile.size > MAX_FILE_SIZE) throw new Error(tr("File troppo grande: massimo 15 MB"));
-      if (selectedFile.type && !ALLOWED_MIME_TYPES.has(selectedFile.type)) {
-        throw new Error(tr("Formato non consentito. Usa PDF, JPG, PNG, DOC o DOCX"));
-      }
+      const file = preparaFilePersonale(selectedFile, true);
 
       setUploading(true);
       const nome = (nomeFile.trim() || selectedFile.name).replace(/[^\w.-]+/g, "_").slice(0, 120);
-      const ext = selectedFile.name.split(".").pop() ?? "pdf";
+      const ext = file.name.split(".").pop() ?? "pdf";
       const conEstensione = nome.toLowerCase().endsWith(`.${ext.toLowerCase()}`) ? nome : `${nome}.${ext}`;
       const path = `${companyId}/${dittaId}/${Date.now()}-${conEstensione}`;
 
       const { error: uploadErr } = await supabase.storage
         .from(PRIVATE_DOC_BUCKET)
-        .upload(path, selectedFile, { contentType: selectedFile.type });
+        .upload(path, file, { contentType: file.type });
       if (uploadErr) throw uploadErr;
 
       const { error: dbErr } = await supabase.from("subappaltatori_documenti").insert({
@@ -207,13 +200,9 @@ export default function SubDocumenti() {
   const inScadenzaCount = documenti.filter((d: any) => getScadenzaStatus(d.data_scadenza) === "in_scadenza").length;
 
   const openDocumento = async (url: string) => {
-    if (!isStoragePath(url)) {
-      window.open(url, "_blank", "noopener,noreferrer");
-      return;
-    }
-
     // Il link a scadenza arriva dopo un'attesa: la scheda va aperta prima (sul telefono, dopo l'attesa, la blocca).
     const aperto = await apriDocumentoDopoAttesa(async () => {
+      if (!isStoragePath(url)) return url;
       const { data, error } = await supabase.storage.from(PRIVATE_DOC_BUCKET).createSignedUrl(url, 60 * 5);
       return error ? null : data?.signedUrl;
     });
@@ -448,7 +437,7 @@ export default function SubDocumenti() {
               <input
                 ref={fileRef}
                 type="file"
-                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                accept={`${ACCEPT_DOCUMENTO_PERSONALE},.doc,.docx`}
                 className="hidden"
                 onChange={e => {
                   const f = e.target.files?.[0];
@@ -474,13 +463,13 @@ export default function SubDocumenti() {
                 >
                   <Upload className="w-5 h-5 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">{tr("Tocca per selezionare file")}</p>
-                  <p className="text-xs text-muted-foreground">PDF, JPG, PNG, DOC</p>
+                  <p className="text-xs text-muted-foreground">{tr("PDF, foto, DOC o DOCX · massimo 15 MB")}</p>
                 </button>
               )}
 
               <button
                 onClick={() => uploadMutation.mutate()}
-                disabled={!selectedFile || uploading}
+                disabled={!selectedFile || uploading || uploadMutation.isPending}
                 className="w-full bg-primary text-primary-foreground font-bold py-3.5 rounded-xl disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 {uploading && <Loader2 className="w-4 h-4 animate-spin" />}

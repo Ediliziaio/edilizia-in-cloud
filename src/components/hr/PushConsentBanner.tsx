@@ -13,14 +13,15 @@ interface PushConsentBannerProps {
 
 export function PushConsentBanner({ onDismiss }: PushConsentBannerProps) {
   const t = useT();
-  const { permission, isSubscribed, isLoading, subscribe, unsubscribe } = usePushNotifications();
+  const { permission, isSubscribed, isLoading, subscribe, nativa, servizioNativo, errore } = usePushNotifications();
 
   // Non mostrare se non supportato o già deciso
   if (permission === "unsupported" || permission === "denied") return null;
+  if (nativa && servizioNativo !== true) return null;
   if (isSubscribed) return null;
 
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4">
+    <div className="mb-3 flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4">
       <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100">
         <Bell className="h-4 w-4 text-blue-600" />
       </div>
@@ -31,6 +32,7 @@ export function PushConsentBanner({ onDismiss }: PushConsentBannerProps) {
         <p className="text-xs text-blue-700 mt-0.5">
           {t("Gli avvisi arrivano sul telefono anche ad app chiusa.")}
         </p>
+        {errore && <p role="alert" className="mt-1 text-xs text-destructive">{errore}</p>}
         <div className="flex items-center gap-2 mt-3">
           <Button
             size="sm"

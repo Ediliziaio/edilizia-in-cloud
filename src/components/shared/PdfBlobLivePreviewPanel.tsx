@@ -20,7 +20,11 @@ import { ComandiDocumento } from "./ConfrontoDocumentiLayout";
 import { ZoomDocumento } from "./ZoomDocumento";
 import { scalaDocumento, type AdattamentoDocumento } from "./zoomDocumentoLayout";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { readPdfPreview, revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
+import { readPdfPreview, readPdfPreviewBlob, revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
+import { Capacitor } from "@capacitor/core";
+import { condividiFile } from "@/lib/mobile/condividiFile";
+import { apriDocumentoDopoAttesa } from "@/lib/campo/apriDocumento";
+import { toast } from "sonner";
 import { edileEditorDestinations, resolveEdileSectionPage, type SectionDestinationDocument } from "@/components/preventivi/pdf/sectionDestinations";
 import { resolvePdfDestination } from "@/lib/pdfDestination";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
@@ -391,8 +395,17 @@ export function PdfBlobLivePreviewPanel({
   const previewReady = aggiornato && paintedUrl === url && !error && !pdfError;
   const previewFailed = !!error || !!pdfError;
   const canDownload = !!url && aggiornato && (!requireRenderedDownload || previewReady);
-  const handleDownload = () => {
+  const [fileActionBusy, setFileActionBusy] = useState(false);
+  const handleDownload = async () => {
     if (!url || !canDownload) return;
+    if (fileActionBusy) return;
+    if (Capacitor.isNativePlatform()) {
+      setFileActionBusy(true);
+      try { await condividiFile(await readPdfPreviewBlob(url), downloadFileName, downloadFileName); }
+      catch { toast.error(t("Impossibile scaricare il PDF. Riprova.")); }
+      finally { setFileActionBusy(false); }
+      return;
+    }
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = downloadFileName;
@@ -441,13 +454,16 @@ export function PdfBlobLivePreviewPanel({
           <Button size="icon" variant="ghost" onClick={forceRegen} disabled={loading || !enabled} title={t("Aggiorna ora")} className="h-7 w-7">
             <RefreshCw className={"h-3.5 w-3.5 " + (loading ? "animate-spin" : "")} />
           </Button>
-          {allowOpenInNewTab && <Button size="icon" variant="ghost" onClick={() => aggiornato && url && window.open(url, "_blank")} disabled={!url || !aggiornato} title={t("Apri in nuova scheda")} className="h-7 w-7">
+          {allowOpenInNewTab && <Button size="icon" variant="ghost" onClick={() => {
+            if (aggiornato && url) void apriDocumentoDopoAttesa(async () => url, downloadFileName)
+              .then(aperto => { if (!aperto) toast.error(t("Impossibile aprire il PDF. Riprova.")); });
+          }} disabled={!url || !aggiornato || fileActionBusy} title={t("Apri documento")} className="h-7 w-7 max-sm:h-11 max-sm:w-11">
             <ExternalLink className="h-3.5 w-3.5" />
           </Button>}
           {(!isMobile || showDownloadOnMobile) && (
             <Button size={downloadButtonLabel ? "sm" : "icon"} variant={downloadButtonLabel ? "outline" : "ghost"}
-              onClick={handleDownload} disabled={!canDownload} title={downloadButtonLabel ?? t("Scarica PDF")}
-              className={downloadButtonLabel ? "h-7 gap-1.5 px-2 text-xs" : "h-7 w-7"}>
+              onClick={() => void handleDownload()} disabled={!canDownload || fileActionBusy} title={downloadButtonLabel ?? t("Scarica PDF")}
+              className={downloadButtonLabel ? "h-7 gap-1.5 px-2 text-xs max-sm:h-11" : "h-7 w-7 max-sm:h-11 max-sm:w-11"}>
               <Download className="h-3.5 w-3.5" aria-hidden="true" />{downloadButtonLabel}
             </Button>
           )}
