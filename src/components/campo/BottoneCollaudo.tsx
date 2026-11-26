@@ -43,8 +43,8 @@ export function BottoneCollaudo({ orderId }: { orderId: string }) {
   return (
     <button type="button" onClick={() => navigate(`/campo/lavoro/${orderId}/verbale`)}
       className={AZIONE_CANTIERE}>
-      <span className={AZIONE_ICONA}><ClipboardCheck className="size-5" aria-hidden="true" /></span>
-      <span className="line-clamp-2 [overflow-wrap:anywhere]">{t("Collaudo")}</span>
+      <span className={AZIONE_ICONA}><ClipboardCheck className="size-[18px]" aria-hidden="true" /></span>
+      <span className="whitespace-nowrap">{t("Collaudo")}</span>
     </button>
   );
 }

@@ -930,9 +930,9 @@ export default function CampoLavoroDetail() {
           <span className="shrink-0 text-xs font-semibold text-muted-foreground">{t("avanzamento")}</span>
         </div>
 
-        {/* Fino a 4 azioni in una riga; da 5 in su tre per riga (3+2, 3+3), centrate (26/11/2026): in una
-            riga sola sei-sette azioni diventavano minuscole e le parole lunghe andavano a capo male. */}
-        <div className="flex flex-wrap justify-center gap-2 [&>*]:w-[calc(25%-6px)] [&:has(>:nth-child(5))>*]:w-[calc(33.333%-5.34px)]">
+        {/* Una riga sola e compatta (26/11/2026, founder: «non deve essere invasivo»); va a capo solo se le
+            azioni non ci stanno (telefoni piccoli con 6-7 azioni). */}
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(52px,1fr))] gap-x-0.5 gap-y-1">
           {/* Le foto hanno casa loro: si scattano durante il lavoro, non la sera dentro al rapportino. */}
           <QuickAction icon={Camera} label={t("Foto")} onClick={() => navigate(`/campo/lavoro/${orderId}/foto`)} />
           {/* La bolla del cantiere si fa nella sua scheda, non nella pagina generale (24/11/2026). */}
@@ -946,7 +946,7 @@ export default function CampoLavoroDetail() {
           )}
           {orderId && <BottoneCollaudo orderId={orderId} />}
           {/* «Piano e documenti» stava accanto al titolo e lo tagliava: ora è un'azione come le altre. */}
-          {vedeSchedaTecnica && <QuickAction icon={BookOpenCheck} label={t("Piano e documenti")} onClick={() => navigate(percorsoCantiereTecnico(orderId))} />}
+          {vedeSchedaTecnica && <QuickAction icon={BookOpenCheck} label={t("Documenti")} onClick={() => navigate(percorsoCantiereTecnico(orderId))} />}
         </div>
         </>}
       </div>
@@ -1689,8 +1689,8 @@ function QuickAction({
       disabled={disabled}
       className={AZIONE_CANTIERE}
     >
-      <span className={AZIONE_ICONA}><Icon className="size-5" aria-hidden="true" /></span>
-      <span className="line-clamp-2 [overflow-wrap:anywhere]">{label}</span>
+      <span className={AZIONE_ICONA}><Icon className="size-[18px]" aria-hidden="true" /></span>
+      <span className="whitespace-nowrap">{label}</span>
     </button>
   );
 }
