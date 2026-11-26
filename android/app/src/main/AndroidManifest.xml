@@ -39,6 +39,9 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Lo scanner ML Kit apre una schermata verticale, ma il gestionale funziona
+         anche su schermi solo orizzontali: non escluderli dal Play Store. -->
+    <uses-feature android:name="android.hardware.screen.portrait" android:required="false" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
