@@ -1,4 +1,5 @@
 /** Il collaudo nella scheda del cantiere: c'è solo se il capocantiere ha un modello da usare. */
+import { AZIONE_CANTIERE, AZIONE_ICONA } from "@/components/campo/stileAzioneCantiere";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ClipboardCheck } from "lucide-react";
@@ -41,8 +42,8 @@ export function BottoneCollaudo({ orderId }: { orderId: string }) {
   if (modelli.length === 0 && !haVerbali) return null;
   return (
     <button type="button" onClick={() => navigate(`/campo/lavoro/${orderId}/verbale`)}
-      className="flex min-h-[68px] min-w-0 flex-col items-center justify-start gap-1.5 rounded-2xl px-1 pt-1 text-center text-[12px] font-semibold leading-tight text-foreground active:bg-muted">
-      <span className="flex size-12 items-center justify-center rounded-full border bg-background shadow-sm"><ClipboardCheck className="size-5 text-primary" aria-hidden="true" /></span>
+      className={AZIONE_CANTIERE}>
+      <span className={AZIONE_ICONA}><ClipboardCheck className="size-5" aria-hidden="true" /></span>
       <span className="line-clamp-2 [overflow-wrap:anywhere]">{t("Collaudo")}</span>
     </button>
   );

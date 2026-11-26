@@ -1,4 +1,5 @@
 import { COLONNE_RAPPORTINO, COLONNE_RAPPORTINO_CON_AUTORE } from "@/lib/campo/colonneRapportino";
+import { AZIONE_CANTIERE, AZIONE_ICONA } from "@/components/campo/stileAzioneCantiere";
 import { AttivitaCantiereCampo } from "@/components/campo/AttivitaCantiereCampo";
 import { OggiQuiCampo } from "@/components/campo/OggiQuiCampo";
 import { useTimbraDallApp } from "@/hooks/campo/useTimbraDallApp";
@@ -931,7 +932,7 @@ export default function CampoLavoroDetail() {
 
         {/* Fino a 4 azioni in una riga; da 5 in su tre per riga (3+2, 3+3), centrate (26/11/2026): in una
             riga sola sei-sette azioni diventavano minuscole e le parole lunghe andavano a capo male. */}
-        <div className="flex flex-wrap justify-center gap-y-2 [&>*]:w-1/4 [&:has(>:nth-child(5))>*]:w-1/3">
+        <div className="flex flex-wrap justify-center gap-2 [&>*]:w-[calc(25%-6px)] [&:has(>:nth-child(5))>*]:w-[calc(33.333%-5.34px)]">
           {/* Le foto hanno casa loro: si scattano durante il lavoro, non la sera dentro al rapportino. */}
           <QuickAction icon={Camera} label={t("Foto")} onClick={() => navigate(`/campo/lavoro/${orderId}/foto`)} />
           {/* La bolla del cantiere si fa nella sua scheda, non nella pagina generale (24/11/2026). */}
@@ -954,7 +955,7 @@ export default function CampoLavoroDetail() {
       <div className="sticky -top-3 z-10 -mx-3 border-b bg-background/95 px-3 py-2 backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:px-0">
         {/* Una barra unica a tutta larghezza (26/11/2026): le schede si dividono lo spazio; solo se le
             parole non ci stanno (telefono stretto, lingue lunghe) la barra scorre, e porta in vista quella scelta. */}
-        <div className="flex gap-0.5 overflow-x-auto rounded-full bg-muted p-1 scrollbar-hide">
+        <div className="flex gap-0.5 overflow-x-auto rounded-2xl bg-muted p-1 scrollbar-hide">
           {tabs.map(({ key, label }) => (
             <button
               key={key}
@@ -962,7 +963,7 @@ export default function CampoLavoroDetail() {
               aria-pressed={activeTab === key}
               onClick={(e) => { setActiveTab(key); e.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" }); }}
               className={cn(
-                "min-h-10 flex-auto shrink-0 whitespace-nowrap rounded-full px-2 text-[12px] font-semibold transition-colors min-[380px]:px-3 min-[380px]:text-[13px]",
+                "min-h-10 flex-auto shrink-0 whitespace-nowrap rounded-xl px-2 text-[12px] font-semibold transition-colors min-[380px]:px-3 min-[380px]:text-[13px]",
                 activeTab === key
                   ? "bg-background text-primary shadow-sm"
                   : "text-muted-foreground active:bg-background/60"
@@ -1686,9 +1687,9 @@ function QuickAction({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="flex min-h-[68px] min-w-0 flex-col items-center justify-start gap-1.5 rounded-2xl px-1 pt-1 text-center text-[12px] font-semibold leading-tight text-foreground active:bg-muted disabled:opacity-50"
+      className={AZIONE_CANTIERE}
     >
-      <span className="flex size-12 items-center justify-center rounded-full border bg-background shadow-sm"><Icon className="size-5 text-primary" aria-hidden="true" /></span>
+      <span className={AZIONE_ICONA}><Icon className="size-5" aria-hidden="true" /></span>
       <span className="line-clamp-2 [overflow-wrap:anywhere]">{label}</span>
     </button>
   );
