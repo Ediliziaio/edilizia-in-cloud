@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { Link, useSearchParams } from "react-router-dom";
 import { useFiltriUrl } from "@/hooks/useFiltriUrl";
+import { PagamentiSegnatiDaSistemare } from "@/components/fatturazione/PagamentiSegnatiDaSistemare";
 import { useDebounce } from "@/hooks/useDebounce";
 import { idAttivitaValido } from "../../../../shared/aiAttivita";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -1154,6 +1155,9 @@ export default function FattureRicevutePage() {
 
   return (
     <div className="space-y-3">
+      {/* Fatture che risultano pagate mentre i soldi non risultano usciti (26/11/2026):
+          finché restano così il pagamento vero non si può riconciliare. */}
+      <PagamentiSegnatiDaSistemare companyId={companyId ?? undefined} />
       {/* Testata come le altre pagine di Finanza (25/11/2026): titolo a 20px; in vista solo la
           classificazione AI (quando serve), l'importazione e il «Nuovo»; tipi dei fornitori ed
           esportazioni nel «⋯». Prima erano cinque bottoni da 40px. Mobile: solo il titolo e il «Nuovo». */}
