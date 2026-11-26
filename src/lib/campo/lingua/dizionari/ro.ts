@@ -69331,5 +69331,15 @@ const dizionario: Dizionario = {
   "Finché restano così non si possono riconciliare con il movimento della banca. Riaprendole tornano fra quelle da pagare: poi le abbini al pagamento, oppure usi «Segna pagata» dalla fattura, che registra la scrittura.": "Cât timp rămân așa nu pot fi reconciliate cu mișcarea din bancă. Redeschizându-le revin printre cele de plătit: apoi le asociezi plății, sau folosești «Marchează plătită» din factură, care înregistrează operațiunea.",
   "Riaprire {n} pagamenti?": "Redeschizi {n} plăți?",
   "Le rate tornano fra quelle da pagare, per {importo} in tutto. Non si cancella niente: le fatture restano dove sono, e chi ha pagato davvero può risegnarle pagate in un clic. Si toccano solo quelle dove il pagamento non risulta registrato.": "Ratele revin printre cele de plătit, pentru {importo} în total. Nu se șterge nimic: facturile rămân unde sunt, iar cine a plătit cu adevărat le poate marca din nou plătite dintr-un clic. Se ating doar cele la care plata nu figurează înregistrată.",
+  "{falliti} non spostate: {motivo}": "{falliti} nemutate: {motivo}",
+  "verifica permessi o riprova.": "verifică permisiunile sau încearcă din nou.",
+  "Fatture, DDT, costi, acquisti e movimenti non vengono eliminati: perdono solo il collegamento a queste commesse e restano nei loro elenchi, dove potrai assegnarli a un’altra commessa. Quello che è parte della commessa — rate, articoli, SAL, rapportini, ore e provvigioni — la segue nel cestino e torna solo ripristinandola. Lo scollegamento invece non si annulla.": "Facturile, DDT-urile, costurile, achizițiile și mișcările nu se șterg: pierd doar legătura cu aceste lucrări și rămân în listele lor, de unde le poți atribui altei lucrări. Ce face parte din lucrare — rate, articole, SAL, rapoarte zilnice, ore și comisioane — o urmează în coș și revine doar dacă o restaurezi. Dezlegarea, în schimb, nu se mai anulează.",
+  "Lasciale così": "Lasă-le așa",
+  "Scollega e sposta nel cestino": "Dezleagă și mută în coș",
+  "Spostarla comunque nel cestino, scollegando i documenti?": "O muți totuși în coș, dezlegând documentele?",
+  "I documenti non vengono eliminati: perdono solo il collegamento a questa commessa e restano nei loro elenchi, dove potrai assegnarli a un’altra commessa. Quello che è parte della commessa — rate, articoli, SAL, rapportini, ore e provvigioni — la segue nel cestino e torna solo ripristinandola. Lo scollegamento invece non si annulla.": "Documentele nu se șterg: pierd doar legătura cu această lucrare și rămân în listele lor, de unde le poți atribui altei lucrări. Ce face parte din lucrare — rate, articole, SAL, rapoarte zilnice, ore și comisioane — o urmează în coș și revine doar dacă o restaurezi. Dezlegarea, în schimb, nu se mai anulează.",
+  "Si scollegano": "Se dezleagă",
+  "Sul foglio si vedevano {viste} righe di merce, qui ce ne sono {lette}: controlla che non ne manchi una.": "Pe foaie se vedeau {viste} rânduri de marfă, aici sunt {lette}: verifică să nu lipsească vreunul.",
+  "Sul foglio si vedevano anche queste righe": "Pe foaie se vedeau și aceste rânduri",
 };
 export default dizionario;
