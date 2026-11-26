@@ -68999,5 +68999,15 @@ const dizionario: Dizionario = {
   "Cosa hai fatto, le ore, una foto. Anche a voce.": "Lo que hiciste, las horas, una foto. También por voz.",
   "Un problema, un infortunio, il materiale che manca.": "Un problema, un accidente, el material que falta.",
   "Sei senza rete: la spesa parte da sola appena torna il segnale.": "Sin cobertura: el gasto sale solo en cuanto vuelva la señal.",
+  "Il materiale che hai chiesto è stato ordinato": "El material que pediste ha sido pedido",
+  "È arrivata una parte del materiale che hai chiesto": "Ha llegado parte del material que pediste",
+  "Il materiale che hai chiesto è arrivato": "Ha llegado el material que pediste",
+  "No, tutto a posto": "No, todo en orden",
+  "{n} spesa dal cantiere": "{n} gasto de la obra",
+  "{n} spese dal cantiere": "{n} gastos de la obra",
+  "{n} richiesta di ferie o permesso": "{n} solicitud de vacaciones o permiso",
+  "{n} richieste di ferie o permesso": "{n} solicitudes de vacaciones o permiso",
+  "{n} ritiro dal magazzino": "{n} retiro del almacén",
+  "{n} ritiri dal magazzino": "{n} retiros del almacén",
 };
 export default dizionario;

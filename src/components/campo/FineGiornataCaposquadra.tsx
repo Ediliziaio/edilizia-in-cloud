@@ -3,6 +3,7 @@
  * squadra per ogni cantiere di oggi (dentro ci sono anche ore, mezzi e km), il materiale per domani, l'uscita.
  * Ogni passo si spunta da solo quando è fatto. Se tutto è fatto, la card lo dice e basta.
  */
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, ChevronRight, Circle, MoonStar } from "lucide-react";
@@ -26,6 +27,9 @@ export function FineGiornataCaposquadra({ timbra }: { timbra: boolean }) {
     order_id: c.order_id, codice: c.codice, capo: !!c.squadra?.sono_caposquadra || c.sono_capocantiere,
   }));
   const ids = cantieri.filter(c => c.capo).map(c => c.order_id);
+  // «No, tutto a posto» al materiale: vale per oggi, su questo telefono (piano campo completo 2.8).
+  const chiaveMateriale = `fine-giornata-materiale:${user?.id ?? ""}:${giorno}`;
+  const [materialeOk, setMaterialeOk] = useState(() => { try { return localStorage.getItem(chiaveMateriale) === "1"; } catch { return false; } });
   const inviati = useQuery({
     queryKey: ["campo-fine-giornata-rapportini", giorno, ids.join(",")],
     enabled: ids.length > 0,
@@ -40,9 +44,13 @@ export function FineGiornataCaposquadra({ timbra }: { timbra: boolean }) {
   if (giornata.isLoading || ids.length === 0) return null;
   const passi = passiFineGiornata({
     giorno, cantieri, rapportiniInviati: inviati.data ?? new Set(), timbra,
-    dentro: dayTime.summary.state !== "out", haTimbratoOggi: dayTime.todayPunches.length > 0,
+    dentro: dayTime.summary.state !== "out", haTimbratoOggi: dayTime.todayPunches.length > 0, materialeOk,
   });
   const daFare = passi.filter(p => !p.fatto && p.chiave !== "materiale").length;
+  const segnaMaterialeOk = () => {
+    try { localStorage.setItem(chiaveMateriale, "1"); } catch { /* resta per questa sessione */ }
+    setMaterialeOk(true);
+  };
 
   return (
     <section className={RIQUADRO} aria-label={t("Fine giornata")}>
@@ -52,8 +60,8 @@ export function FineGiornataCaposquadra({ timbra }: { timbra: boolean }) {
       </h2>
       <ol className="mt-1 divide-y">
         {passi.map(p => (
-          <li key={p.chiave}>
-            <Link to={p.link} className="flex min-h-12 items-center gap-3 py-1.5">
+          <li key={p.chiave} className="flex items-center gap-2">
+            <Link to={p.link} className="flex min-h-12 min-w-0 flex-1 items-center gap-3 py-1.5">
               {p.fatto
                 ? <CheckCircle2 className="size-5 shrink-0 text-emerald-600" aria-label={t("Fatto")} />
                 : <Circle className="size-5 shrink-0 text-muted-foreground/60" aria-hidden="true" />}
@@ -63,6 +71,11 @@ export function FineGiornataCaposquadra({ timbra }: { timbra: boolean }) {
               </span>
               {!p.fatto && <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
             </Link>
+            {p.chiave === "materiale" && !p.fatto && (
+              <button type="button" onClick={segnaMaterialeOk} className="min-h-11 shrink-0 rounded-full border px-3 text-xs font-semibold">
+                {t("No, tutto a posto")}
+              </button>
+            )}
           </li>
         ))}
       </ol>

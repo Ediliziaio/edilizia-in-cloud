@@ -68999,5 +68999,15 @@ const dizionario: Dizionario = {
   "Cosa hai fatto, le ore, una foto. Anche a voce.": "شنو درتي، السوايع، تصويرة. حتى بالصوت.",
   "Un problema, un infortunio, il materiale che manca.": "مشكل، حادثة، السلعة اللي ناقصة.",
   "Sei senza rete: la spesa parte da sola appena torna il segnale.": "ما كاينش الريزو: المصروف غادي يمشي بوحدو ملي يرجع الريزو.",
+  "Il materiale che hai chiesto è stato ordinato": "السلعة اللي طلبتي تكوماندات",
+  "È arrivata una parte del materiale che hai chiesto": "وصل جزء من السلعة اللي طلبتي",
+  "Il materiale che hai chiesto è arrivato": "السلعة اللي طلبتي وصلات",
+  "No, tutto a posto": "لا، كلشي مزيان",
+  "{n} spesa dal cantiere": "{n} مصروف من الشانطي",
+  "{n} spese dal cantiere": "{n} مصاريف من الشانطي",
+  "{n} richiesta di ferie o permesso": "{n} طلب عطلة ولا رخصة",
+  "{n} richieste di ferie o permesso": "{n} طلبات عطلة ولا رخصة",
+  "{n} ritiro dal magazzino": "{n} سحب من المخزن",
+  "{n} ritiri dal magazzino": "{n} سحوبات من المخزن",
 };
 export default dizionario;

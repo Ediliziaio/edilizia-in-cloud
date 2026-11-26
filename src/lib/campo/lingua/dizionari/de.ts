@@ -68999,5 +68999,15 @@ const dizionario: Dizionario = {
   "Cosa hai fatto, le ore, una foto. Anche a voce.": "Was du gemacht hast, die Stunden, ein Foto. Auch per Sprache.",
   "Un problema, un infortunio, il materiale che manca.": "Ein Problem, ein Unfall, fehlendes Material.",
   "Sei senza rete: la spesa parte da sola appena torna il segnale.": "Kein Netz: die Ausgabe geht von selbst raus, sobald das Signal zurück ist.",
+  "Il materiale che hai chiesto è stato ordinato": "Das Material, das du angefragt hast, ist bestellt",
+  "È arrivata una parte del materiale che hai chiesto": "Ein Teil des angefragten Materials ist da",
+  "Il materiale che hai chiesto è arrivato": "Das Material, das du angefragt hast, ist da",
+  "No, tutto a posto": "Nein, alles in Ordnung",
+  "{n} spesa dal cantiere": "{n} Ausgabe von der Baustelle",
+  "{n} spese dal cantiere": "{n} Ausgaben von der Baustelle",
+  "{n} richiesta di ferie o permesso": "{n} Urlaubs- oder Freistellungsantrag",
+  "{n} richieste di ferie o permesso": "{n} Urlaubs- oder Freistellungsanträge",
+  "{n} ritiro dal magazzino": "{n} Lagerentnahme",
+  "{n} ritiri dal magazzino": "{n} Lagerentnahmen",
 };
 export default dizionario;

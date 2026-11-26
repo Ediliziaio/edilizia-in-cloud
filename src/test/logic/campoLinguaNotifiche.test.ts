@@ -24,6 +24,7 @@ const ESEMPI = [
   "Manca il rapportino di oggi",
   "Domani sei a ORD-2026-001 · Ristrutturazione bagno e cucina +1",
   "Documento in scadenza: Visita medica",
+  "Il materiale che hai chiesto è arrivato",
   "Scade il 12/12/2026. Rinnovalo e caricalo dall'app.",
   "Due minuti: cosa hai fatto, quante ore, una foto. Anche a voce.",
   "Non hai timbrato l'uscita",

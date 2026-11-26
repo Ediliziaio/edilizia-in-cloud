@@ -69036,5 +69036,15 @@ const dizionario: Dizionario = {
   "Cosa hai fatto, le ore, una foto. Anche a voce.": "Ce ai făcut, orele, o poză. Poți și să vorbești.",
   "Un problema, un infortunio, il materiale che manca.": "O problemă, un accident, materialul care lipsește.",
   "Sei senza rete: la spesa parte da sola appena torna il segnale.": "Nu ai semnal: cheltuiala pleacă singură când revine semnalul.",
+  "Il materiale che hai chiesto è stato ordinato": "Materialul pe care l-ai cerut a fost comandat",
+  "È arrivata una parte del materiale che hai chiesto": "A sosit o parte din materialul cerut",
+  "Il materiale che hai chiesto è arrivato": "Materialul pe care l-ai cerut a sosit",
+  "No, tutto a posto": "Nu, totul e în regulă",
+  "{n} spesa dal cantiere": "{n} cheltuială de pe șantier",
+  "{n} spese dal cantiere": "{n} cheltuieli de pe șantier",
+  "{n} richiesta di ferie o permesso": "{n} cerere de concediu sau permisie",
+  "{n} richieste di ferie o permesso": "{n} cereri de concediu sau permisie",
+  "{n} ritiro dal magazzino": "{n} ridicare din depozit",
+  "{n} ritiri dal magazzino": "{n} ridicări din depozit",
 };
 export default dizionario;

@@ -68999,5 +68999,15 @@ const dizionario: Dizionario = {
   "Cosa hai fatto, le ore, una foto. Anche a voce.": "What you did, the hours, a photo. You can also speak.",
   "Un problema, un infortunio, il materiale che manca.": "A problem, an injury, missing material.",
   "Sei senza rete: la spesa parte da sola appena torna il segnale.": "No network: the expense will go out by itself as soon as the signal is back.",
+  "Il materiale che hai chiesto è stato ordinato": "The material you asked for has been ordered",
+  "È arrivata una parte del materiale che hai chiesto": "Part of the material you asked for has arrived",
+  "Il materiale che hai chiesto è arrivato": "The material you asked for has arrived",
+  "No, tutto a posto": "No, all good",
+  "{n} spesa dal cantiere": "{n} expense from site",
+  "{n} spese dal cantiere": "{n} expenses from site",
+  "{n} richiesta di ferie o permesso": "{n} leave or permit request",
+  "{n} richieste di ferie o permesso": "{n} leave or permit requests",
+  "{n} ritiro dal magazzino": "{n} warehouse pick-up",
+  "{n} ritiri dal magazzino": "{n} warehouse pick-ups",
 };
 export default dizionario;

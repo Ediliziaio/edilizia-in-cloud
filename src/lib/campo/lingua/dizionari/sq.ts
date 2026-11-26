@@ -69036,5 +69036,15 @@ const dizionario: Dizionario = {
   "Cosa hai fatto, le ore, una foto. Anche a voce.": "Çfarë bëre, orët, një foto. Edhe me zë.",
   "Un problema, un infortunio, il materiale che manca.": "Një problem, një aksident, materiali që mungon.",
   "Sei senza rete: la spesa parte da sola appena torna il segnale.": "Je pa rrjet: shpenzimi niset vetë sapo kthehet sinjali.",
+  "Il materiale che hai chiesto è stato ordinato": "Materiali që kërkove u porosit",
+  "È arrivata una parte del materiale che hai chiesto": "Arriti një pjesë e materialit që kërkove",
+  "Il materiale che hai chiesto è arrivato": "Materiali që kërkove arriti",
+  "No, tutto a posto": "Jo, gjithçka në rregull",
+  "{n} spesa dal cantiere": "{n} shpenzim nga kantieri",
+  "{n} spese dal cantiere": "{n} shpenzime nga kantieri",
+  "{n} richiesta di ferie o permesso": "{n} kërkesë për pushim ose leje",
+  "{n} richieste di ferie o permesso": "{n} kërkesa për pushim ose leje",
+  "{n} ritiro dal magazzino": "{n} marrje nga magazina",
+  "{n} ritiri dal magazzino": "{n} marrje nga magazina",
 };
 export default dizionario;
