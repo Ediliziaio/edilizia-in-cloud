@@ -322,7 +322,9 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
       </ol>;
 
   const anteprima = pdf && (
-    <div ref={pdfRef} className={inline ? "h-[clamp(290px,41dvh,410px)]" : "h-[58dvh] min-h-[340px]"}>
+    // 26/11/2026: nel popup l'anteprima prende tutta l'altezza che resta, invece di un
+    // riquadro al 58% dentro una finestra che scorreva: di un A4 se ne vedeva un terzo.
+    <div ref={pdfRef} className={inline ? "h-[clamp(290px,41dvh,410px)]" : "min-h-[340px] flex-1"}>
       <PdfBlobLivePreviewPanel key={pdf.key} renderBlobUrl={render} depsKey={pdf.key} debounceMs={0}
         downloadFileName={pdf.name} downloadButtonLabel={inline ? tr("Scarica PDF") : undefined}
         requireRenderedDownload={inline} fitWholePage={inline} showDownloadOnMobile allowOpenInNewTab={!inline}
@@ -331,25 +333,31 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
   );
 
   const corpo = (
-    <div className="min-h-0 overflow-y-auto p-4 space-y-4">
+    <div className={cn("min-h-0 p-4", passo === "rivedi" && !inline
+      ? "flex flex-col gap-3 overflow-hidden"
+      : "space-y-4 overflow-y-auto")}>
       {error && <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error} {existing && !receipt && <Button variant="outline" size="sm" onClick={() => void run("Riprovo…", async () => absorb(await workflow.request(id,"load")))}>{tr("Riprova")}</Button>}</div>}
 
       {passo === "cosa" && <>
         {editable && <VariationTemplatePicker companyId={company} draft={form} context={variationDocumentContext(form,context)} disabled={busy} onApply={draft => {setForm(draft);setPdf(null);}} />}
         {phases.isError && <p role="alert" className="text-sm text-destructive">{tr("Lavorazioni non disponibili.")} <Button variant="outline" size="sm" onClick={() => void phases.refetch()}>{tr("Riprova")}</Button></p>}
-        <VariationEditor draft={form} setDraft={draft => {setForm(draft);setPdf(null);}} phases={phases.data ?? []} chiPuo={chiPuo.data} context={variationDocumentContext(form,context)} busy={busy || !editable} review={false} onBack={()=>setPasso("cosa")} persistentDraft showPdfPreview={false} error="" />
+        <VariationEditor orderId={order} draft={form} setDraft={draft => {setForm(draft);setPdf(null);}} phases={phases.data ?? []} chiPuo={chiPuo.data} context={variationDocumentContext(form,context)} busy={busy || !editable} review={false} onBack={()=>setPasso("cosa")} persistentDraft showPdfPreview={false} error="" />
       </>}
 
       {passo === "rivedi" && <>
-        {impatto && <div className="grid gap-2 rounded-lg border bg-muted/30 p-3 sm:grid-cols-3" aria-label={tr("Quanto cambia")}>
-          <div><p className="text-[11px] text-muted-foreground">{tr("Questo lavoro extra")}</p><p className="text-base font-semibold tabular-nums">{formatCurrency(impatto.delta)}</p><p className="text-[11px] text-muted-foreground">{tr("IVA esclusa")}</p></div>
-          {impatto.vat !== null && <div><p className="text-[11px] text-muted-foreground">{tr("Con IVA {aliquota}%", { aliquota: impatto.rate })}</p><p className="text-base font-semibold tabular-nums">{formatCurrency(impatto.grossDelta)}</p></div>}
-          {impatto.revisedNet !== null && <div><p className="text-[11px] text-muted-foreground">{tr("Contratto se accetta")}</p><p className="text-base font-semibold tabular-nums">{formatCurrency(impatto.revisedNet)}</p></div>}
+        {/* Una riga sola: i numeri servono a controllare, la pagina a leggere. */}
+        {impatto && <div className="flex shrink-0 flex-wrap items-baseline gap-x-5 gap-y-1 rounded-lg border bg-muted/30 px-3 py-2 text-sm" aria-label={tr("Quanto cambia")}>
+          <span className="text-muted-foreground">{tr("Questo lavoro extra")} <strong className="text-base font-semibold tabular-nums text-foreground">{formatCurrency(impatto.delta)}</strong> <span className="text-[11px]">{tr("IVA esclusa")}</span></span>
+          {impatto.vat !== null && <span className="text-muted-foreground">{tr("Con IVA {aliquota}%", { aliquota: impatto.rate })} <strong className="font-semibold tabular-nums text-foreground">{formatCurrency(impatto.grossDelta)}</strong></span>}
+          {impatto.revisedNet !== null && <span className="text-muted-foreground">{tr("Contratto se accetta")} <strong className="font-semibold tabular-nums text-foreground">{formatCurrency(impatto.revisedNet)}</strong></span>}
         </div>}
         {anteprima ?? <p role="status" className="rounded-lg border p-6 text-center text-sm text-muted-foreground">{busy ? tr("Preparo il PDF…") : tr("Il PDF si prepara quando arrivi qui.")}</p>}
-        {!inline && pdf && <a href={pdf.downloadUrl} download={pdf.name} target="_blank" rel="noopener" className="inline-flex min-h-10 items-center rounded-md border px-4 text-sm font-medium">{tr("Scarica il PDF")}</a>}
-        {receipt?.document?.attachments.map(file => <div key={file.id} className="flex items-center justify-between gap-2 rounded-md border p-3"><span className="text-sm break-all">{file.name}</span><Button variant="outline" size="sm" disabled={busy} onClick={() => void run("Apro…", () => showDocument(file.id))}>{tr("Apri")}</Button></div>)}
-        <p className="text-xs text-muted-foreground">{tr("Se cambi qualcosa, il PDF si rifà: quelli vecchi restano nei Documenti della commessa.")}</p>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {!inline && pdf && <a href={pdf.downloadUrl} download={pdf.name} target="_blank" rel="noopener" className="inline-flex h-8 items-center rounded-md border px-3 text-xs font-medium">{tr("Scarica il PDF")}</a>}
+          {!inline && pdf && <a href={pdf.downloadUrl} target="_blank" rel="noopener" className="inline-flex h-8 items-center rounded-md border px-3 text-xs font-medium">{tr("Apri a tutta pagina")}</a>}
+          {receipt?.document?.attachments.map(file => <Button key={file.id} variant="outline" size="sm" className="h-8 text-xs" disabled={busy} onClick={() => void run("Apro…", () => showDocument(file.id))}>{tr("Allegato: {nome}", { nome: file.name })}</Button>)}
+          <span className="text-[11px] text-muted-foreground">{tr("Se cambi qualcosa, il PDF si rifà: quelli vecchi restano nei Documenti della commessa.")}</span>
+        </div>
       </>}
 
       {passo === "manda" && <>
@@ -451,7 +459,7 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
   );
 
   return <Dialog open onOpenChange={open => { if(!open) close(); }}>
-    <DialogContent className="flex max-h-[94dvh] flex-col overflow-hidden p-0 sm:max-w-3xl">
+    <DialogContent className={cn("flex max-h-[94dvh] flex-col overflow-hidden p-0", passo === "rivedi" ? "sm:max-w-5xl" : "sm:max-w-3xl")}>
       <DialogHeader className="shrink-0 border-b p-4 pr-10">
         <DialogTitle>{titolo}</DialogTitle>
         <DialogDescription>{sottotitolo}</DialogDescription>

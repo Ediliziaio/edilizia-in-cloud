@@ -1,5 +1,7 @@
 export type VariationKind = "aggiunta" | "modifica" | "riduzione";
-export interface VariationLine { id: string; description: string; quantity: string; price: string; unit?: string }
+/** `cost`: costo unitario preso dal listino (26/11/2026). Serve solo a noi — il margine del
+ *  lavoro extra — e non compare da nessuna parte nel PDF che vede il cliente. */
+export interface VariationLine { id: string; description: string; quantity: string; price: string; unit?: string; cost?: string }
 export interface VariationDraft {
   kind: VariationKind; title: string; description: string; phase: string;
   phaseId?: string;

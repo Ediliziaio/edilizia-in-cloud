@@ -1099,6 +1099,12 @@ export function FinancialSummaryReadOnly({
       parziale: { punto: "bg-sky-500", pill: "bg-sky-50 text-sky-800 ring-sky-200", testo: t("Incassata in parte") },
       scaduta: { punto: "bg-red-500", pill: "bg-red-50 text-red-800 ring-red-200", testo: t("Scaduta") },
     }[stato];
+    // 26/11/2026: da computer, se c'è il selettore «Da incassare / Incassata», la pastiglia
+    // accanto al nome dice la stessa cosa una seconda volta (la terza è il pallino colorato).
+    // Sparisce solo per questi due stati: «Scaduta» e «Incassata in parte» il selettore non
+    // li sa dire, quindi lì resta. Sul telefono il selettore non c'è e la pastiglia è l'unico stato.
+    const statoNelSelettore = (stato === "incassata" || stato === "da_incassare")
+      && amount > 0 && !!onInstallmentPaidToggle && !quotaRipartita;
     // La data si legge nel selettore accanto quando c'è: qui non si ripete. Resta per le scadute (con i giorni).
     const quando = inst.is_paid
       ? (inst.paid_date && (!canEditDate || incassoRegistrato) ? t("il {data}", { data: formatPaymentDate(inst.paid_date) ?? "" }) : null)
@@ -1132,7 +1138,7 @@ export function FinancialSummaryReadOnly({
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-x-2">
               <span className="min-w-0 truncate font-medium">{inst.label}</span>
-              <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset", STILE.pill)}>{STILE.testo}</span>
+              <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset", STILE.pill, statoNelSelettore && "sm:hidden")}>{STILE.testo}</span>
               {!dettaglioDocumento && <span className={cn("ml-auto shrink-0 font-semibold tabular-nums sm:hidden", stato === "incassata" ? "text-emerald-700" : "text-foreground")}>{formatCurrency(amount)}</span>}
             </p>
             {/* Seconda riga: quando (al telefono anche la data, che al computer sta nel selettore) e fattura. */}

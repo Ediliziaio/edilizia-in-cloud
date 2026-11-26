@@ -2,22 +2,27 @@
 .commessa-income-workspace > div:first-child > .grid { gap: 10px; }
 .commessa-income-workspace > div:first-child > .grid > div { border-radius: 10px; }
 .income-documents-card { box-shadow: none; overflow: hidden; }
-.income-documents-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 16px; }
+.income-documents-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 12px; padding: 10px 16px; }
 .income-document-actions { margin-left: auto; }
-.income-document-actions button { min-height: 34px; }
+.income-document-actions button { min-height: 32px; }
 .income-documents-totals { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); margin: 0 16px; border: 1px solid hsl(var(--border)); border-radius: 8px; background: hsl(var(--muted)/.15); }
-.income-documents-totals > div { padding: 12px; }
+/* 26/11/2026: etichetta e importo sulla stessa riga (86 → 44px la fascia).
+   La nota va a capo solo quando è scritta davvero: con `sr-only` non occupa nulla. */
+.income-documents-totals > div { padding: 8px 12px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.income-documents-totals small { flex-basis: 100%; }
 .income-documents-totals > div + div { border-left: 1px solid hsl(var(--border)); }
 .income-documents-totals dt, .income-documents-totals small { font-size: 12px; color: hsl(var(--muted-foreground)); }
-.income-documents-totals dd { margin: 3px 0; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* 26/11/2026: stessa scala di «commessa-card-numeri» (Varianti, Costi): etichetta 12px,
+   importo 16px, cella 10px/12px. Prima questa scheda era l’unica fuori misura. */
+.income-documents-totals dd { margin: 0; margin-left: auto; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .income-documents-card [data-due="true"] { color: #b45309; }
-.income-documents-filters { display: grid; gap: 10px; padding: 14px 16px; }
+.income-documents-filters { display: grid; gap: 8px; padding: 10px 16px; }
 .income-document-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
-.income-document-tabs button { display: inline-flex; align-items: center; gap: 8px; border-radius: 6px; padding: 7px 10px; font-size: 12px; color: hsl(var(--muted-foreground)); }
+.income-document-tabs button { display: inline-flex; align-items: center; gap: 6px; border-radius: 6px; padding: 5px 9px; font-size: 11.5px; color: hsl(var(--muted-foreground)); }
 .income-document-tabs button:hover { background: hsl(var(--muted)); }
 .income-document-tabs button[aria-pressed="true"] { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
 .income-document-tabs button span { font-size: 11px; opacity: .8; font-variant-numeric: tabular-nums; }
-.income-documents-filters .income-document-kind { width: 220px; border-radius: 6px; height: 40px; box-shadow: none; }
+.income-documents-filters .income-document-kind { width: 200px; border-radius: 6px; height: 32px; font-size: 12px; box-shadow: none; }
 .income-documents-table-wrap { overflow-x: auto; margin: 0 16px; border: 1px solid hsl(var(--border)); border-radius: 8px; }
 .income-documents-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .income-documents-table th { background: hsl(var(--muted)/.4); color: hsl(var(--muted-foreground)); font-size: 12px; font-weight: 500; white-space: nowrap; }
@@ -50,6 +55,12 @@
 .commessa-income-workspace .income-bank-movements table :is(td,th) { padding-top: 9px; padding-bottom: 9px; }
 .commessa-income-workspace .income-bank-movements summary { min-height: 40px; }
 .income-unified-totals { grid-template-columns: repeat(4,minmax(0,1fr)); }
+/* 26/11/2026: sotto i 1100px quattro colonne non tengono etichetta e importo sulla
+   stessa riga («Fatturato emesso» andava a capo da solo, e solo lui). Lì l'importo va
+   sotto l'etichetta in tutte e quattro: due righe pari, non una cella più alta. */
+@media (min-width:640px) and (max-width:1100px) {
+  .income-documents-totals dd { margin-left: 0; flex-basis: 100%; }
+}
 .income-unified-list { margin: 0 16px; border: 1px solid hsl(var(--border)); border-radius: 8px; overflow: hidden; }
 .income-unified-list > li + li { border-top: 1px solid hsl(var(--border)); }
 .income-unlinked-row { padding: 12px; }
@@ -76,7 +87,9 @@
 @media (max-width: 639px) {
   .income-documents-totals small { display: none; }
   .income-documents-totals > div { padding: 8px 10px; }
-  .income-documents-totals dd { font-size: 15px; }
+  /* Sul telefono l'importo va a capo sotto l'etichetta: incolonnarlo a destra
+     lo staccherebbe dal nome a cui appartiene. */
+  .income-documents-totals dd { font-size: 15px; margin-left: 0; }
   .income-document-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .income-document-tabs button { flex-shrink: 0; white-space: nowrap; }
 }

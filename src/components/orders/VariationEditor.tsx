@@ -10,13 +10,16 @@ import { CONDIZIONI_STANDARD_VARIANTE, prepareVariation, variationDocumentParts,
 import type {VariationContext} from "@/lib/orders/variationDocumentContext";
 import { OfficeSelect } from "./OfficeSelect";
 import { opzioniUnita, unitaNormalizzata } from "@/lib/orders/rigaAcquisto";
+import { CercaNelListino } from "./CercaNelListino";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export type {VariationContext} from "@/lib/orders/variationDocumentContext";
-export function VariationEditor({ draft, setDraft, phases, chiPuo, context, busy, review, onBack, error,showPdfPreview=true,persistentDraft=false }: {
+export function VariationEditor({ draft, setDraft, phases, chiPuo, context, busy, review, onBack, error,showPdfPreview=true,persistentDraft=false,orderId }: {
   draft: VariationDraft; setDraft: (draft: VariationDraft) => void; phases: {id: string; name: string; end_date?: string | null}[];
   /** Persone e ditte/squadre per «chi lo farà»; senza, il riquadro non chiede chi. */
   chiPuo?: { persone: { id: string; nome: string }[]; ditte: { id: string; nome: string; squadra?: boolean }[] };
   context: VariationContext; busy: boolean; review: boolean; onBack: () => void; error?: string;showPdfPreview?:boolean;persistentDraft?:boolean;
+  /** La commessa, per cercare nel listino col prezzo giusto (cantiere → committente → generale). */
+  orderId?: string;
 }) {
   const t = useT();
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -31,6 +34,25 @@ export function VariationEditor({ draft, setDraft, phases, chiPuo, context, busy
     const q = variationDecimal(l.quantity), p = variationDecimal(l.price);
     return q !== null && p !== null ? s + Math.round(q * p * 100) / 100 : s;
   }, 0);
+  // Costo delle voci che vengono dal listino (26/11/2026): il listino sa quanto costa una
+  // lavorazione, non solo quanto si vende. Le voci scritte a mano non hanno costo e restano
+  // fuori dal conto; se nessuna ce l'ha, la riga del margine non compare.
+  const costoVoci = costoDelleVoci(draft.lines);
+  // 26/11/2026: il contratto che cambia si vede mentre si scrive, non solo al passo «Rivedi».
+  // `prepared` è nullo finché titolo e descrizione non ci sono: qui basta il numero.
+  const segnoVariazione = draft.kind === "riduzione" ? -1 : 1;
+  const deltaScritto = draft.pricing === "voci"
+    ? (draft.lines.length ? segnoVariazione * totaleVoci : null)
+    : (variationDecimal(draft.amount) === null ? null : segnoVariazione * (variationDecimal(draft.amount) as number));
+  const contrattoDopo = deltaScritto !== null && deltaScritto !== 0
+    && context.currentNet !== undefined && Number.isFinite(context.currentNet)
+    ? (context.currentNet as number) + deltaScritto : null;
+  const rigaContratto = contrattoDopo === null ? null : (
+    <p className="text-xs text-muted-foreground" aria-label={t("Il contratto se il cliente accetta")}>
+      {t("Contratto: {prima} → {dopo}", { prima: formatCurrency(context.currentNet as number), dopo: formatCurrency(contrattoDopo) })}
+      <span className="ml-1">{t("IVA esclusa, se il cliente accetta")}</span>
+    </p>
+  );
   const cost = draft.estimatedCost?.trim() ? variationDecimal(draft.estimatedCost) : null;
   const phaseEnd = (draft.phaseId ? phases.find(p => p.id === draft.phaseId) : phases.filter(p => p.name === draft.phase).length === 1 ? phases.find(p => p.name === draft.phase) : undefined)?.end_date;
   const projectedEnd = variationDatePreview(phaseEnd,draft.days,draft.dayUnit);
@@ -70,15 +92,55 @@ export function VariationEditor({ draft, setDraft, phases, chiPuo, context, busy
       <div className="space-y-1.5"><Label htmlFor="variation-title">{t("Titolo *")}</Label><Input id="variation-title" value={draft.title} onChange={input("title")} placeholder={t("Es. Sostituzione pavimento cucina")} /></div>
       </div>
       <div className="space-y-1.5"><Label htmlFor="variation-description">{t("Descrizione dei lavori *")}</Label><Textarea id="variation-description" rows={3} value={draft.description} onChange={input("description")} placeholder={t("Cosa viene aggiunto, sostituito o eliminato?")} /></div>
-      <div className="space-y-1.5"><Label htmlFor="variation-pricing">{t("Come definisci il prezzo")}</Label>
-        <OfficeSelect id="variation-pricing" label={t("Come definisci il prezzo")} value={draft.pricing} onValueChange={v => set("pricing", v as "corpo" | "voci")}
-          options={[{ value: "corpo", label: t("Prezzo a corpo") }, { value: "voci", label: t("Dettaglio delle voci") }]} />
+      {/* 26/11/2026: due scelte in vista, non una tendina. Il modo «a voci» — quello che fa
+          la variante come un piccolo computo, con quantità e prezzi — restava nascosto dentro
+          il menu e quasi nessuno lo apriva. Scegliendolo nasce già la prima riga. */}
+      <div className="space-y-1.5">
+        <span className="block text-sm font-medium">{t("Come definisci il prezzo")}</span>
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={t("Come definisci il prezzo")}>
+          <Button type="button" size="sm" variant={draft.pricing === "corpo" ? "default" : "outline"} role="radio" aria-checked={draft.pricing === "corpo"}
+            onClick={() => set("pricing", "corpo")}>{t("Un prezzo a corpo")}</Button>
+          <Button type="button" size="sm" variant={draft.pricing === "voci" ? "default" : "outline"} role="radio" aria-checked={draft.pricing === "voci"}
+            onClick={() => setDraft({ ...draft, pricing: "voci", lines: draft.lines.length ? draft.lines : [{ id: crypto.randomUUID(), description: "", quantity: "1", price: "" }] })}>{t("Voce per voce, come un computo")}</Button>
+        </div>
+        <p className="text-xs text-muted-foreground">{draft.pricing === "voci"
+          ? t("Quantità, unità e prezzo riga per riga, IVA esclusa: la tabella finisce nel PDF e ogni voce diventa una sottofase.")
+          : t("Un importo unico per tutto il lavoro extra.")}</p>
       </div>
       {draft.pricing === "corpo" ? <div className="space-y-1.5"><Label htmlFor="variation-amount">{draft.kind === "riduzione" ? t("Importo da sottrarre, IVA esclusa (€) *") : t("Variazione del prezzo, IVA esclusa (€) *")}</Label>
         <Input id="variation-amount" inputMode="decimal" value={draft.amount} onChange={input("amount")} placeholder={t("Es. 1250,00")} />
         <p className="text-xs text-muted-foreground">{draft.kind === "riduzione" ? t("Scrivi un valore positivo: sarà sottratto dal contratto.") : draft.kind === "modifica" ? t("Indica solo la differenza rispetto al contratto. Il segno meno riduce il prezzo.") : t("Si aggiunge al contratto solo dopo l'approvazione.")}</p>
+        {rigaContratto}
       </div> : <div className="space-y-2">
-        <p className="text-xs text-muted-foreground">{t("Le voci diventano la tabella del PDF. Prezzi IVA esclusa.")}</p>
+        {/* 26/11/2026: le voci si possono prendere dal listino invece di scriverle, come nei
+            rapportini. Il prezzo è quello che vale per questa commessa (eccezione di cantiere →
+            listino del committente → listino generale); quantità e unità restano modificabili. */}
+        {orderId && <CercaNelListino dove={{ orderId, data: null }}
+          segnaposto={t("Prendi dal listino: lavorazione, materiale, manodopera…")}
+          onScegli={(m) => {
+            const voce = { id: crypto.randomUUID(), description: m.descrizione, quantity: "1",
+              unit: unitaNormalizzata(m.unita) || m.unita || "cad",
+              price: m.prezzo == null ? "" : String(m.prezzo).replace(".", ","),
+              // Il costo arriva solo a chi ha il permesso di vedere i costi: lo decide la funzione
+              // del listino, non il browser. Senza, la voce resta senza costo e il margine non si dà.
+              ...(m.costo_unitario == null ? {} : { cost: String(m.costo_unitario).replace(".", ",") }) };
+            // La riga vuota appena nata viene riempita, non lasciata lì sopra.
+            const vuota = (l: { description: string; price: string }) => !l.description.trim() && !l.price.trim();
+            const righe = draft.lines.length === 1 && vuota(draft.lines[0]) ? [voce] : [...draft.lines, voce];
+            // Il costo previsto della variante si compila da sé finché nessuno l'ha scritto a mano:
+            // se il campo è vuoto o è ancora il totale calcolato prima, lo aggiorniamo.
+            const primaCosto = costoDelleVoci(draft.lines), dopoCosto = costoDelleVoci(righe);
+            const scrittoAMano = !!draft.estimatedCost?.trim()
+              && (primaCosto === null || draft.estimatedCost.trim() !== numeroItaliano(primaCosto));
+            setDraft({ ...draft, lines: righe,
+              ...(scrittoAMano || dopoCosto === null ? {} : { estimatedCost: numeroItaliano(dopoCosto) }) });
+            // La quantità è la prima cosa da cambiare su una voce a mq o a ml: il cursore va lì.
+            const posizione = righe.length - 1;
+            requestAnimationFrame(() => {
+              const campo = document.getElementById(`variation-quantity-${posizione}`);
+              if (campo instanceof HTMLInputElement) { campo.focus(); campo.select(); }
+            });
+          }} />}
         {/* Le intestazioni stanno in cima una volta sola: ripetute su ogni riga
             mandavano «Prezzo unitario €» a capo e allungavano il popup. */}
         {draft.lines.length > 0 && <div className="hidden gap-2 px-2.5 text-xs text-muted-foreground sm:grid sm:grid-cols-[minmax(0,1fr)_4.5rem_6rem_7.5rem_6.5rem_2.25rem]" aria-hidden="true">
@@ -110,6 +172,12 @@ export function VariationEditor({ draft, setDraft, phases, chiPuo, context, busy
           <Button size="sm" variant="outline" onClick={() => set("lines",[...draft.lines,{id:crypto.randomUUID(),description:"",quantity:"1",price:""}])}>{t("Aggiungi voce")}</Button>
           {draft.lines.length > 0 && <p className="text-sm tabular-nums" aria-label={t("Totale delle voci")}>{t("Totale voci:")} <strong>{formatCurrency(totaleVoci)}</strong></p>}
         </div>
+        {rigaContratto}
+        {costoVoci !== null && totaleVoci > 0 && <p className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-3 py-2 text-xs text-emerald-900" aria-label={t("Margine del lavoro extra")}>
+          {t("Vendi {vendita} · ti costa {costo} · margine {margine}", { vendita: formatCurrency(totaleVoci), costo: formatCurrency(costoVoci), margine: formatCurrency(totaleVoci - costoVoci) })}
+          {totaleVoci > 0 ? ` · ${Math.round((1 - costoVoci / totaleVoci) * 100)}%` : ""}
+          {draft.lines.some(l => !l.cost) ? ` · ${t("le voci scritte a mano non hanno un costo")}` : ""}
+        </p>}
       </div>}
       {draft.kind !== "riduzione" && <fieldset className="space-y-2 rounded-lg border border-orange-200 bg-orange-50/40 p-3" aria-label={t("Nelle Lavorazioni")}>
         <legend className="px-1 text-sm font-medium">{t("Nelle Lavorazioni, quando il cliente accetta")}</legend>
@@ -187,4 +255,22 @@ export function VariationEditor({ draft, setDraft, phases, chiPuo, context, busy
     {impact && cost !== null && <p className="rounded-lg border p-3 text-sm">{t("Solo per l'impresa · variazione margine prevista:")} <strong>{formatCurrency(impact.delta-cost)}</strong>. {persistentDraft ? t("Conservata nella bozza; esclusa dal PDF per il cliente.") : t("Non salvata e non inclusa nel PDF per il cliente.")}</p>}
     {projectedEnd && Number(draft.days)>0 && <p className="rounded-lg border p-3 text-xs text-muted-foreground">{t("Ipotesi fine della fase: {da} → {a}.", { da: phaseEnd?.split("-").reverse().join("/") ?? "", a: projectedEnd.split("-").reverse().join("/") })} {draft.dayUnit === "lavorativi" ? `${t("Esclusi sabato e domenica; festività e chiusure aziendali non considerate.")} ` : ""}{t("Nessuna data viene modificata; dopo l'approvazione aggiorna il cronoprogramma.")}</p>}
   </div>;
+}
+
+/** Somma dei costi unitari presi dal listino. `null` se nessuna voce ne ha uno. */
+function costoDelleVoci(lines: VariationDraft["lines"]): number | null {
+  let trovato = false, totale = 0;
+  for (const l of lines) {
+    if (!l.cost) continue;
+    const q = variationDecimal(l.quantity), c = variationDecimal(l.cost);
+    if (q === null || c === null) continue;
+    trovato = true;
+    totale += Math.round(q * c * 100) / 100;
+  }
+  return trovato ? Math.round(totale * 100) / 100 : null;
+}
+
+/** 1400 → «1400», 1400.5 → «1400,5»: la stessa forma che accetta `variationDecimal`. */
+function numeroItaliano(n: number): string {
+  return String(Math.round(n * 100) / 100).replace(".", ",");
 }
