@@ -115,6 +115,8 @@ Due cose rendono questo giro meno rischioso di quanto sembri:
 - se nascono file nuovi con testi dentro, vanno aggiunti all'elenco del controllo, altrimenti restano scoperti senza che nessuno se ne accorga;
 - cercare le frasi con `/\bimpiant/i`, perché il filtro `/impianto/` si perde il plurale «impianti»; per l'albanese non si può usare `\b` dopo «ë».
 
+**Il controllo adesso è severo davvero** (26/11, sera): la sessione della lingua ha esteso la prova a tutte e otto le lingue. Prima guardava solo rumeno e albanese, e così erano già finite online due volte delle frasi tradotte a metà — 124 la prima volta, 55 la seconda — senza che nessuno se ne accorgesse: chi lavorava in tedesco o in arabo leggeva italiano. Da ora non si può più pubblicare metà lavoro: se cambio una frase e non la traduco in tutte e otto, il controllo si ferma e la pubblicazione non parte. Nella stima della fase 1 le 290 righe sono quindi obbligatorie, non opzionali.
+
 **La parola si decide una volta sola.** Ogni ripensamento dopo il giro delle lingue costa un secondo giro intero. Per questo il glossario qui sopra è la cosa che il founder approva per prima.
 
 **Chi fa il giro delle lingue:** la sessione della lingua si è offerta e ha già gli strumenti rodati. Proposta: io cambio le 36 frasi italiane nel codice e passo l'elenco esatto a quella sessione, che fa le otto lingue. Da concordare con il founder se preferisce che faccia tutto una sessione sola.
