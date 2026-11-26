@@ -96,8 +96,12 @@ describe("la migrazione", () => {
     expect(sql).toMatch(/revoke all on function public\.documento_elimina_bozza\(uuid\) from public, anon;/);
   });
 
-  it("si rifiuta di correre se guardiano o eliminazione sono cambiati da sotto", () => {
-    expect(sql).toContain("md5(v_trig) <> '14f44d5a858a2cc872b496522d43c6f2'");
-    expect(sql).toContain("md5(v_eli) <> '2995cc9268616d6eefcc559c32a0ee70'");
+  it("si rifiuta di correre se guardiano o eliminazione sono stati ristrutturati", () => {
+    // Per forma, non per byte: ricostruendo il database dai soli file le due funzioni
+    // arrivano in una forma diversa da quella di produzione, e un md5 fallirebbe sempre.
+    expect(sql).not.toContain("md5(v_trig)");
+    expect(sql).toContain("position('v_mai_uscita' in v_trig) = 0");
+    expect(sql).toContain("position('ultimo_numero_fattura' in v_eli) = 0");
+    expect(sql).toContain("non e'' piu'' quella che questa migrazione riscrive");
   });
 });

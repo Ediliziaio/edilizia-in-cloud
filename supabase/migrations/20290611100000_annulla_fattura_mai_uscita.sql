@@ -40,11 +40,21 @@ begin
     raise notice 'annulla_fattura_mai_uscita: gia'' applicata, le funzioni vengono riscritte identiche';
     return;
   end if;
-  if md5(v_trig) <> '14f44d5a858a2cc872b496522d43c6f2' then
-    raise exception 'documenti_fiscali_proteggi_emessi e'' cambiata dopo il 26/11/2026: rivedere questa migrazione';
+  -- Non si confronta il testo esatto delle due funzioni. Ricostruendo il database dai soli
+  -- file (il controllo «Complete offline database reconstruction») arrivano qui in una forma
+  -- diversa da quella di produzione, dove un centinaio di migrazioni applicate non ha un file
+  -- nel repository: un confronto per byte fallirebbe sempre, e non direbbe niente di utile.
+  -- Si controlla invece che ci sia ancora cio' su cui questa migrazione si appoggia: se
+  -- qualcuno le ha ristrutturate, qui si ferma invece di cancellargli il lavoro.
+  if position('v_mai_uscita' in v_trig) = 0
+     or position('documento_fiscale_campi_modificabili' in v_trig) = 0
+     or position('v_fissi_scartata' in v_trig) = 0 then
+    raise exception 'documenti_fiscali_proteggi_emessi non e'' piu'' quella che questa migrazione riscrive: rivedere 20290611100000';
   end if;
-  if md5(v_eli) <> '2995cc9268616d6eefcc559c32a0ee70' then
-    raise exception 'documento_elimina_bozza e'' cambiata dopo il 26/11/2026: rivedere questa migrazione';
+  if position('ultimo_numero_fattura' in v_eli) = 0
+     or position('Bozza ' in v_eli) = 0
+     or position('puo_gestire_documento_fiscale' in v_eli) = 0 then
+    raise exception 'documento_elimina_bozza non e'' piu'' quella che questa migrazione riscrive: rivedere 20290611100000';
   end if;
 end
 $guardia$;

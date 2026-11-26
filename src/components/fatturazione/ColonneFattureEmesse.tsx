@@ -1,10 +1,12 @@
-import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpDown, Columns3, MessageSquare, Paperclip } from "lucide-react";
+import { MessageSquare, Paperclip } from "lucide-react";
+import { UniformSelect } from "@/components/ui/uniform-select";
+import { SceltaColonne } from "@/components/tabelle/SceltaColonne";
+import { useColonneTabella } from "@/hooks/useColonneTabella";
+import type { ColonnaTabella } from "@/lib/tabelle/colonneTabella";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TableCell, TableHead } from "@/components/ui/table";
-import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { FaseSdiBadge } from "./FaseSdiBadge";
 import { AllegatiFattura } from "./AllegatiFattura";
@@ -42,54 +44,71 @@ export const COLONNE_EMESSE = [
   { id: "origine", label: "Origine", opzionale: true },
 ] as const;
 export type ColonnaEmesse = typeof COLONNE_EMESSE[number]["id"];
-const predefinite = () => COLONNE_EMESSE.filter(c => !("opzionale" in c)).map(c => c.id);
 
-/** Preferenza distinta dalle ricevute, per persona e azienda, tollerante a storage bloccato. */
-export function useColonneEmesse(companyId?: string, userId?: string) {
-  const oldKey = `fatture-emesse-colonne-v1:${userId ?? "sessione"}:${companyId ?? "nessuna"}`;
-  const key=oldKey.replace("-v1:","-v2:");
-  const iniziali = useMemo(() => {
-    try {
-      let saved=localStorage.getItem(key);
-      if(saved===null){const old=JSON.parse(localStorage.getItem(oldKey)??"null");if(Array.isArray(old)){saved=JSON.stringify([...old,"note_interne"]);localStorage.setItem(key,saved);}}
-      const v: unknown = JSON.parse(saved ?? "null");
-      if (Array.isArray(v)) return COLONNE_EMESSE.filter(c => ("fissa" in c) || v.includes(c.id)).map(c => c.id);
-    } catch { /* preferenze facoltative */ }
-    return predefinite();
-  }, [key]);
-  const [scelta, setScelta] = useState<{ key: string; colonne: ColonnaEmesse[] } | null>(null);
-  const colonne = scelta?.key === key ? scelta.colonne : iniziali;
-  const cambia = (id: ColonnaEmesse) => {
-    const nuove = colonne.includes(id) ? colonne.filter(c => c !== id) : [...colonne, id];
-    setScelta({ key, colonne: nuove });
-    try { localStorage.setItem(key, JSON.stringify(nuove)); } catch { /* resta valida nella sessione */ }
+/**
+ * Le stesse colonne nella forma che capisce l'impianto condiviso
+ * (`src/lib/tabelle/colonneTabella.ts`): da qui arrivano anche l'ordine e il pannellino,
+ * uguali a quelli delle altre pagine. `numero` e `cliente` sono ferme a sinistra, quindi
+ * oltre che fisse sono ancorate in testa: spostarle romperebbe le classi `sticky`.
+ */
+export const DEF_EMESSE: ColonnaTabella[] = COLONNE_EMESSE.map((c) => ({
+  chiave: c.id,
+  etichetta: c.label,
+  fissa: "fissa" in c || undefined,
+  ancorata: "fissa" in c ? ("inizio" as const) : undefined,
+  spentaDiSerie: "opzionale" in c || undefined,
+}));
+
+/** La scelta vecchia era un elenco di id senza ordine: quelle che c'erano restano accese
+ *  nell'ordine di serie, le altre spente. Fuori dal componente, così è stabile. */
+const traduciScelta = (letta: unknown) => {
+  if (!Array.isArray(letta)) return null;
+  const viste = new Set(letta.filter((k): k is string => typeof k === "string"));
+  const centrali = DEF_EMESSE.filter((c) => !c.ancorata);
+  return {
+    ordine: centrali.filter((c) => viste.has(c.chiave)).map((c) => c.chiave),
+    nascoste: centrali.filter((c) => !viste.has(c.chiave)).map((c) => c.chiave),
   };
-  return { colonne, cambia };
+};
+
+/**
+ * Preferenza distinta dalle ricevute, per persona e azienda, tollerante a storage bloccato.
+ *
+ * Dal 26/11/2026 ricorda anche l'ORDINE, e lo fa con l'impianto condiviso. La scelta
+ * salvata dalla versione precedente (`-v2:`, un elenco di id senza ordine) viene letta una
+ * volta e tradotta: quelle che c'erano restano accese nell'ordine di serie, le altre
+ * spente. Nessuno si ritrova la tabella rimescolata al primo accesso.
+ */
+export function useColonneEmesse(companyId?: string, userId?: string) {
+  const vecchiaChiave = `fatture-emesse-colonne-v2:${userId ?? "sessione"}:${companyId ?? "nessuna"}`;
+  const tabella = useColonneTabella("fatture-emesse", DEF_EMESSE, vecchiaChiave, traduciScelta);
+  return {
+    ...tabella,
+    /** Le colonne visibili, nell'ordine scelto: è quello che disegnano testata e righe. */
+    colonne: tabella.colonne.map((c) => c.chiave as ColonnaEmesse),
+    cambia: (id: ColonnaEmesse) => tabella.accendi(id, !tabella.visibili.has(id)),
+  };
 }
 
 /** Colonne visibili e, se passato, l'ordinamento: stanno in un solo menu così la barra dei filtri
  *  resta su una riga anche a 1280px (25/11/2026, come in Commesse). */
-export function SceltaColonneEmesse({ colonne, cambia, ordinamento }: ReturnType<typeof useColonneEmesse> & {
+/** Colonne visibili, il loro ordine e, se passato, l'ordinamento delle righe: stanno in un
+ *  solo pannellino così la barra dei filtri resta su una riga anche a 1280px (25/11/2026,
+ *  come in Commesse). Il trascinamento vuole un popover, non un menu: un DropdownMenu di
+ *  Radix si prende i movimenti del puntatore e la riga non si lascia prendere. */
+export function SceltaColonneEmesse({ ordinamento, ...colonne }: ReturnType<typeof useColonneEmesse> & {
   ordinamento?: { valore: string; cambia: (v: string) => void; voci: { value: string; label: string }[] };
 }) {
   const t = useT();
-  return <DropdownMenu>
-    <DropdownMenuTrigger asChild><Button size="sm" variant="outline" className="h-8 gap-1.5 px-2.5 text-xs" title={ordinamento ? `${t("Ordina per")} · ${t("Colonne visibili")}` : undefined}>
-      {ordinamento && <ArrowUpDown className="h-3.5 w-3.5" />}<Columns3 className="h-3.5 w-3.5" /><span className={ordinamento ? "max-2xl:sr-only" : undefined}>{t("Colonne")}</span>
-    </Button></DropdownMenuTrigger>
-    <DropdownMenuContent align="end" className="max-h-[70vh] overflow-y-auto">
-      {ordinamento && <>
-        <DropdownMenuLabel>{t("Ordina per")}</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={ordinamento.valore} onValueChange={ordinamento.cambia}>
-          {ordinamento.voci.map(v => <DropdownMenuRadioItem key={v.value} value={v.value}>{t(v.label)}</DropdownMenuRadioItem>)}
-        </DropdownMenuRadioGroup>
-        <DropdownMenuSeparator />
-      </>}
-      <DropdownMenuLabel>{t("Colonne visibili")}</DropdownMenuLabel>
-      {COLONNE_EMESSE.map(c => <DropdownMenuCheckboxItem key={c.id} checked={colonne.includes(c.id)} disabled={"fissa" in c}
-        onSelect={e => e.preventDefault()} onCheckedChange={() => cambia(c.id)}>{t(c.label)}</DropdownMenuCheckboxItem>)}
-    </DropdownMenuContent>
-  </DropdownMenu>;
+  return <SceltaColonne colonne={colonne} extra={ordinamento ? (
+    <div className="mb-2 border-b pb-2">
+      <p className="mb-1 px-1.5 text-xs font-medium text-muted-foreground">{t("Ordina per")}</p>
+      <UniformSelect value={ordinamento.valore} onChange={e => ordinamento.cambia(e.target.value)}
+        aria-label={t("Ordina per")} className="h-8 w-full text-xs">
+        {ordinamento.voci.map(v => <option key={v.value} value={v.value}>{t(v.label)}</option>)}
+      </UniformSelect>
+    </div>
+  ) : undefined} />;
 }
 
 /** La casella di selezione è larga 2.5rem e ferma a sinistra: la colonna della fattura le sta accanto. */
@@ -98,10 +117,13 @@ const STICKY_NUMERO = "sticky left-10 w-[150px] min-w-[150px] max-w-[150px]";
 /** Il cliente sta subito dopo il numero (2.5rem della casella + 150px del numero). */
 const STICKY_CLIENTE = "sticky left-[calc(2.5rem+150px)] min-w-[200px] max-w-[280px] shadow-[1px_0_0_hsl(var(--border))]";
 const FISSA: Partial<Record<ColonnaEmesse, string>> = { numero: STICKY_NUMERO, cliente: STICKY_CLIENTE };
+/** id → com'è fatta quella colonna: testata e celle la cercano per chiave, nell'ordine scelto. */
+const DEFINIZIONE = Object.fromEntries(COLONNE_EMESSE.map(c => [c.id, c])) as Record<ColonnaEmesse, typeof COLONNE_EMESSE[number]>;
 
 export function IntestazioniEmesse({ colonne }: { colonne: ColonnaEmesse[] }) {
   const t = useT();
-  return <>{COLONNE_EMESSE.filter(c => colonne.includes(c.id)).map(c => <TableHead key={c.id}
+  // Nell'ordine scelto dall'azienda, non in quello in cui le abbiamo dichiarate.
+  return <>{colonne.map(id => DEFINIZIONE[id]).filter(Boolean).map(c => <TableHead key={c.id}
     className={`whitespace-nowrap ${"cifra" in c ? "text-right" : ""} ${FISSA[c.id] ? `${FISSA[c.id]} z-20 bg-card` : ""}`}>{t(c.label)}</TableHead>)}</>;
 }
 
@@ -180,6 +202,6 @@ export function CelleEmesse({ doc, colonne, apri, incassa, collega }: { doc: Doc
     allegati: <AllegatiEmessa doc={doc} apri={apri} />,
     origine: doc.origine === "importata" ? (doc.external_provider || t("Importata")) : "Edilizia in Cloud",
   };
-  return <>{COLONNE_EMESSE.filter(c => colonne.includes(c.id)).map(c => <TableCell key={c.id}
+  return <>{colonne.map(id => DEFINIZIONE[id]).filter(Boolean).map(c => <TableCell key={c.id}
     className={`whitespace-nowrap py-2 ${"cifra" in c ? "text-right tabular-nums" : ""} ${FISSA[c.id] ? `${FISSA[c.id]} z-[1] bg-card group-hover:bg-[color-mix(in_srgb,hsl(var(--muted))_50%,hsl(var(--card)))]` : ""}`}>{valori[c.id]}</TableCell>)}</>;
 }
