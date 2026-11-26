@@ -52,6 +52,7 @@ const SubOrdiniServizio   = lazy(() => import("@/pages/campo/subappaltatore/SubO
 const CampoLavoroExtra    = lazy(() => import("@/pages/campo/CampoLavoroExtra"));
 const CampoFermo          = lazy(() => import("@/pages/campo/CampoFermo"));
 const CampoBriefingSicurezza = lazy(() => import("@/pages/campo/CampoBriefingSicurezza"));
+const CampoIngressi       = lazy(() => import("@/pages/campo/CampoIngressi"));
 const CampoMenu           = lazy(() => import("@/pages/campo/CampoMenu"));
 const CampoAttivita       = lazy(() => import("@/pages/campo/CampoAttivita"));
 const CampoSopralluoghi = lazy(() => import("@/pages/campo/CampoSopralluoghi"));
@@ -96,6 +97,7 @@ export default function CampoRoutesContainer() {
             <Route path="extra" element={<CampoLavoroExtra />} />
             <Route path="fermo" element={<CampoFermo />} />
             <Route path="sicurezza-squadra" element={<CampoBriefingSicurezza />} />
+            <Route path="ingressi" element={<CampoIngressi />} />
             <Route path="foto" element={<CampoFotoCantiere />} />
             {/* La route "rapportino/:rapportinoId" NON è una modifica: il
                 componente ignorava l'id e CREAVA un secondo rapportino. Redirect
