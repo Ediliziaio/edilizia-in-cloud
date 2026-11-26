@@ -69116,5 +69116,10 @@ const dizionario: Dizionario = {
   "Domani serve un mezzo: ": "Demain il faut un engin : ",
   "Domani serve un mezzo": "Demain il faut un engin",
   "Sei senza rete: la segnalazione parte da sola appena torna il segnale.": "Pas de réseau : le signalement partira tout seul dès que le signal revient.",
+  "Posizione nelle timbrature": "Position dans les pointages",
+  "Hanno letto l'informativa: {n} persone": "Ont lu l’avis : {n} personnes",
+  "Prima della prima timbratura l'app mostra come si usa la posizione e la prende solo dopo «Ho letto».": "Avant le premier pointage l’app explique comment la position est utilisée et ne la prend qu’après «J’ai lu».",
+  "Per usare la posizione serve anche l'accordo sindacale o l'autorizzazione dell'Ispettorato del lavoro (art. 4 dello Statuto dei lavoratori): caricalo nei documenti dell'azienda.": "Pour utiliser la position il faut aussi l’accord syndical ou l’autorisation de l’Inspection du travail (art. 4 du Statut des travailleurs) : charge-le dans les documents de l’entreprise.",
+  "Apri i documenti dell'azienda": "Ouvrir les documents de l’entreprise",
 };
 export default dizionario;

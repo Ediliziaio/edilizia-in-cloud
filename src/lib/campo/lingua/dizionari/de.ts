@@ -69116,5 +69116,10 @@ const dizionario: Dizionario = {
   "Domani serve un mezzo: ": "Morgen brauchen wir ein Fahrzeug: ",
   "Domani serve un mezzo": "Morgen brauchen wir ein Fahrzeug",
   "Sei senza rete: la segnalazione parte da sola appena torna il segnale.": "Kein Netz: die Meldung geht von selbst raus, sobald das Signal zurück ist.",
+  "Posizione nelle timbrature": "Standort bei der Zeiterfassung",
+  "Hanno letto l'informativa: {n} persone": "Hinweis gelesen: {n} Personen",
+  "Prima della prima timbratura l'app mostra come si usa la posizione e la prende solo dopo «Ho letto».": "Vor dem ersten Stempeln erklärt die App, wie der Standort genutzt wird, und erfasst ihn erst nach «Gelesen».",
+  "Per usare la posizione serve anche l'accordo sindacale o l'autorizzazione dell'Ispettorato del lavoro (art. 4 dello Statuto dei lavoratori): caricalo nei documenti dell'azienda.": "Für den Standort braucht es außerdem die Betriebsvereinbarung oder die Genehmigung der Arbeitsaufsicht (Art. 4 Arbeiterstatut): lade sie bei den Firmendokumenten hoch.",
+  "Apri i documenti dell'azienda": "Firmendokumente öffnen",
 };
 export default dizionario;

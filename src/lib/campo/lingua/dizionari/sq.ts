@@ -69153,5 +69153,10 @@ const dizionario: Dizionario = {
   "Domani serve un mezzo: ": "Nesër duhet një mjet: ",
   "Domani serve un mezzo": "Nesër duhet një mjet",
   "Sei senza rete: la segnalazione parte da sola appena torna il segnale.": "Je pa rrjet: sinjalizimi niset vetë sapo kthehet sinjali.",
+  "Posizione nelle timbrature": "Pozicioni në shënimin e orarit",
+  "Hanno letto l'informativa: {n} persone": "E kanë lexuar njoftimin: {n} persona",
+  "Prima della prima timbratura l'app mostra come si usa la posizione e la prende solo dopo «Ho letto».": "Para shënimit të parë aplikacioni tregon si përdoret pozicioni dhe e merr vetëm pas «E lexova».",
+  "Per usare la posizione serve anche l'accordo sindacale o l'autorizzazione dell'Ispettorato del lavoro (art. 4 dello Statuto dei lavoratori): caricalo nei documenti dell'azienda.": "Për të përdorur pozicionin duhet edhe marrëveshja sindikale ose autorizimi i Inspektoratit të Punës (neni 4 i Statutit të punëtorëve): ngarkoje te dokumentet e firmës.",
+  "Apri i documenti dell'azienda": "Hap dokumentet e firmës",
 };
 export default dizionario;

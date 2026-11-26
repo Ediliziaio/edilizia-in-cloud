@@ -69116,5 +69116,10 @@ const dizionario: Dizionario = {
   "Domani serve un mezzo: ": "Tomorrow we need a vehicle: ",
   "Domani serve un mezzo": "Tomorrow we need a vehicle",
   "Sei senza rete: la segnalazione parte da sola appena torna il segnale.": "No network: the report will go out by itself as soon as the signal is back.",
+  "Posizione nelle timbrature": "Location in clock-ins",
+  "Hanno letto l'informativa: {n} persone": "Read the notice: {n} people",
+  "Prima della prima timbratura l'app mostra come si usa la posizione e la prende solo dopo «Ho letto».": "Before the first clock-in the app explains how the location is used and takes it only after «I've read it».",
+  "Per usare la posizione serve anche l'accordo sindacale o l'autorizzazione dell'Ispettorato del lavoro (art. 4 dello Statuto dei lavoratori): caricalo nei documenti dell'azienda.": "To use the location you also need the union agreement or the Labour Inspectorate authorisation (art. 4 of the Workers' Statute): upload it in the company documents.",
+  "Apri i documenti dell'azienda": "Open the company documents",
 };
 export default dizionario;

@@ -69116,5 +69116,10 @@ const dizionario: Dizionario = {
   "Domani serve un mezzo: ": "بكرة محتاجين معدة: ",
   "Domani serve un mezzo": "بكرة محتاجين معدة",
   "Sei senza rete: la segnalazione parte da sola appena torna il segnale.": "مفيش شبكة: البلاغ هيتبعت لوحده أول ما الشبكة ترجع.",
+  "Posizione nelle timbrature": "المكان في البصمة",
+  "Hanno letto l'informativa: {n} persone": "قروا الإشعار: {n} أشخاص",
+  "Prima della prima timbratura l'app mostra come si usa la posizione e la prende solo dopo «Ho letto».": "قبل أول بصمة الأبلكيشن بيشرح إزاي بيستخدم المكان ومش بياخده غير بعد «قريت».",
+  "Per usare la posizione serve anche l'accordo sindacale o l'autorizzazione dell'Ispettorato del lavoro (art. 4 dello Statuto dei lavoratori): caricalo nei documenti dell'azienda.": "عشان تستخدم المكان لازم كمان الاتفاق النقابي أو تصريح مفتشية العمل (المادة 4 من قانون العمال): ارفعه في مستندات الشركة.",
+  "Apri i documenti dell'azienda": "افتح مستندات الشركة",
 };
 export default dizionario;

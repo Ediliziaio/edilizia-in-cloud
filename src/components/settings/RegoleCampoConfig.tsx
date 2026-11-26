@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useRegoleAzienda, useSalvaRegoleAzienda } from "@/hooks/useRegoleCampo";
 import { AvvisoDomaniConfig } from "@/components/settings/AvvisoDomaniConfig";
+import { PosizioneTimbratureConfig } from "@/components/settings/PosizioneTimbratureConfig";
 import { useVaiASezione } from "@/hooks/useVaiASezione";
 import { RegoleCampoAnteprima } from "@/components/settings/RegoleCampoAnteprima";
 import { ChiFaCosaRiquadro } from "@/components/settings/ChiFaCosaRiquadro";
@@ -413,6 +414,7 @@ export default function RegoleCampoConfig() {
         <div className={pannello("giornale")}>
           <BozzaGiornaleSerale companyId={companyId} canEdit={isAdmin || permissions.canEditSettingsProfile} evidenziata={evidenziata === "bozza-giornale"} />
           <AvvisoDomaniConfig companyId={companyId} canEdit={puoModificare} evidenziata={evidenziata === "avviso-domani"} />
+          {isAdmin && <PosizioneTimbratureConfig companyId={companyId} />}
         </div>
 
         <details className={scheda === "compila" ? "group" : "hidden"} aria-label={t("Collegamenti")}>
