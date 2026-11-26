@@ -831,7 +831,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
                   [t("Valorizzazione"), extract.dati_appalto.valorizzazione === "a_corpo" ? t("A corpo") : extract.dati_appalto.valorizzazione === "a_misura" ? t("A misura") : t("Da confermare")],
                   [t("Base soggetta a ribasso"), extract.dati_appalto.importo_base_eur == null ? t("Da confermare") : formatCurrency(extract.dati_appalto.importo_base_eur)],
                   [t("Stima"), extract.dati_appalto.stima_eur == null ? t("Non dichiarata") : formatCurrency(extract.dati_appalto.stima_eur)],
-                  [t("Tetto"), extract.dati_appalto.tetto_eur == null ? t("Non dichiarato") : formatCurrency(extract.dati_appalto.tetto_eur)],
+                  [t("Tetto di spesa"), extract.dati_appalto.tetto_eur == null ? t("Non dichiarato") : formatCurrency(extract.dati_appalto.tetto_eur)],
                   [t("Ribasso"), extract.dati_appalto.ribasso_pct == null ? t("Da confermare") : `${extract.dati_appalto.ribasso_pct}%`],
                   [t("Sicurezza"), extract.dati_appalto.oneri_sicurezza_eur == null ? t("Da confermare") : formatCurrency(extract.dati_appalto.oneri_sicurezza_eur)],
                   [t("Anticipazione"), extract.dati_appalto.anticipazione_pct == null ? t("Da confermare") : `${extract.dati_appalto.anticipazione_pct}%`],

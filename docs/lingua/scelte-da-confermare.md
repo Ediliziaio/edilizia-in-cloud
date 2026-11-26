@@ -156,3 +156,33 @@ Restano in italiano di proposito, perché finiscono al server, nei file o all'AI
   dhënave»; settimana del Gantt «J{n}» (java); «{n} ditë më parë» è più lungo dell'originale e va controllato negli
   spazi stretti.
 - In entrambe le lingue: «Smart working» → lavoro da casa; «Ambra» (colore) → «Chihlimbar» / «Qelibar».
+
+## Termini uniformati il 26/11/2026
+
+Tre parole erano tradotte in due modi diversi nella stessa app. Scelte fatte, da confermare con i madrelingua.
+
+### «Tetto»: due chiavi, non una
+La stessa frase italiana serviva a due cose diverse: il **tetto di spesa** di un contratto in appalto
+(`dati_appalto.tetto_eur`) e il nome del **modulo copertura** (Render tetto). Tutte le lingue l'avevano tradotta come
+massimale, e nella galleria dei render si leggeva «Plafon» / «Obergrenze» / «Cap» al posto di «tetto».
+Il motore non ha contesti — la chiave è la frase italiana — quindi la frase italiana del contratto è diventata
+**«Tetto di spesa»** (anche più chiara per chi legge in italiano) e «Tetto» è tornata a essere la copertura:
+`Acoperiș` (ro), `Çati` (sq), `السقف` (arMA/arEG), `Dach` (de), `Toiture` (fr), `Roof` (en), `Tejado` (es),
+`Techo` (esAR/esPE).
+
+### sq: «Tavola» è un foglio di disegno, non una tabella
+50 voci rendevano «tavola» con `tabelë` (= tabella): «Carica una tavola» diventava «carica una tabella».
+Uniformate su **`fletë` / `fleta e vizatimit`**, che erano già la forma usata nelle altre 123 voci.
+
+### sq: «computo» → `preventiv metrik`
+Convivevano `llogaritje e sasive` (calcolo delle quantità, una descrizione) e `preventiv metrik` (il termine dei
+cantieri albanesi e kosovari). Scelto **`preventiv metrik`**, che sta accanto a `preventiv` per «preventivo» come in
+italiano. Il verbo `llogarit` / `rillogarit` (calcolare, ricalcolare) resta dov'era.
+
+### de: «computo» → `Mengenermittlung`, `Aufmaß` resta al rilievo
+`Aufmaß` traduceva sia «computo» (371 voci) sia «rilievo» (119 voci): due cose diverse con la stessa parola.
+«Computo» è ora **`Mengenermittlung`** (femminile: cambiano articoli e declinazioni), `Aufmaß` resta il rilievo.
+
+### Da decidere ancora
+- **fr: «Commessa» = `Dossier` come «fascicolo».** «Fascicolo della commessa» diventa «dossier» due volte.
+  Serve un termine distinto per la commessa — `affaire` o `chantier` — ma tocca migliaia di voci: intervento a parte.

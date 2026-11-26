@@ -3884,5 +3884,6 @@ const dizionario: Dizionario = {
   "La colonna Scaduti dipende dalla data registrata. Apri l’attività per controllare scadenza e dettagli, senza inventare un ritardo o un rinnovo.": "La columna Vencidos depende de la fecha registrada. Abre la tarea para comprobar el vencimiento y los detalles, sin inventar un retraso o una renovación.",
   "Confermi che il documento sia già stato firmato? Questo passaggio registra lo stato, senza apporre una firma al documento.": "¿Confirmas que el documento ya se ha firmado? Este paso registra el estado, sin agregar una firma al documento.",
   "DURC scaduti": "DURC vencidos",
+  "Tetto": "Techo",
 };
 export default dizionario;

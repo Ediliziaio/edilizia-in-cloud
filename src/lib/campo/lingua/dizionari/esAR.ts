@@ -13219,5 +13219,6 @@ const dizionario: Dizionario = {
   "Il documento tornerà in bozza; controlla che i dati e la versione da usare siano corretti.": "El documento volverá a borrador; comprobá que los datos y la versión que hay que usar son correctos.",
   "Documenti, verifiche e scadenze collegati alle commesse.": "Documentos, verificaciones y vencimientos vinculados a los proyectos.",
   "DURC scaduti": "DURC vencidos",
+  "Tetto": "Techo",
 };
 export default dizionario;
