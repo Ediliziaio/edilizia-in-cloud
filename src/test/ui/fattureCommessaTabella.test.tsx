@@ -168,6 +168,29 @@ describe("Fatture della commessa in tabella", () => {
     expect(screen.queryByText(/N\. A/)).toBeNull();
     expect(screen.getByText(/N\. B/)).toBeInTheDocument();
   });
+
+  /**
+   * 26/11/2026. Per aprire la fattura bisognava centrare il numero scritto piccolo nella
+   * prima colonna, mentre ovunque nel gestionale la riga si apre cliccandola.
+   */
+  it("il clic sulla riga apre la fattura", async () => {
+    stato.fatture = [{ ...base, id: "f1", company_cost_id: "c1", stato: "contabilizzata" }];
+    stato.costi = [{ id: "c1", is_paid: false, paid_date: null }];
+    stato.dettagli = { c1: { pagato: 0, residuo: 100 } };
+    mostra();
+    fireEvent.click(await riga(/N\. F1/));
+    expect(screen.getByText("riepilogo di f1")).toBeInTheDocument();
+  });
+
+  it("ma un comando dentro la riga fa il suo mestiere, non apre la fattura", async () => {
+    stato.fatture = [{ ...base, id: "f1", company_cost_id: "c1", stato: "contabilizzata" }];
+    stato.costi = [{ id: "c1", is_paid: false, paid_date: null }];
+    stato.dettagli = { c1: { pagato: 0, residuo: 100 } };
+    mostra();
+    const r = within(await riga(/N\. F1/));
+    fireEvent.click(r.getByRole("button", { name: /Pagamento della fattura/ }));
+    expect(screen.queryByText("riepilogo di f1")).toBeNull();
+  });
 });
 
 describe("il costo sulla commessa torna con le bolle?", () => {

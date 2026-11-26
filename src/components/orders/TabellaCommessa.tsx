@@ -22,8 +22,18 @@ export interface ColonnaTabella<T> {
   senzaEtichetta?: boolean;
 }
 
-export function TabellaCommessa<T>({ etichetta, colonne, righe, chiave }: {
+export function TabellaCommessa<T>({ etichetta, colonne, righe, chiave, onRiga }: {
   etichetta: string; colonne: ColonnaTabella<T>[]; righe: T[]; chiave: (riga: T) => string;
+  /**
+   * Clic sulla riga: apre quello che la riga rappresenta (26/11/2026). Prima bisognava
+   * centrare il numero scritto piccolo nella prima colonna, e ovunque nel gestionale la
+   * riga si apre cliccandola — qui no.
+   *
+   * Il clic sui comandi dentro la riga non conta: pulsanti, link, caselle e i
+   * «Divisa su N commesse» che si aprono da soli. Chi usa la tastiera arriva lo stesso,
+   * dal comando che la riga ha già in testa.
+   */
+  onRiga?: (riga: T) => void;
 }) {
   const aspetto = useAspettoOperativo();
   return (
@@ -38,7 +48,15 @@ export function TabellaCommessa<T>({ etichetta, colonne, righe, chiave }: {
         </thead>
         <tbody className="divide-y max-sm:block">
           {righe.map(r => (
-            <tr key={chiave(r)} className="hover:bg-muted/40 max-sm:block max-sm:py-2">
+            <tr key={chiave(r)}
+              className={cn("hover:bg-muted/40 max-sm:block max-sm:py-2", onRiga && "cursor-pointer")}
+              onClick={onRiga ? (e) => {
+                const bersaglio = e.target;
+                if (bersaglio instanceof Element
+                  && e.currentTarget.contains(bersaglio)
+                  && bersaglio.closest("button, a, input, select, textarea, label, summary, [role='button'], [role='combobox']")) return;
+                onRiga(r);
+              } : undefined}>
               {colonne.map(c => (
                 <td key={c.titolo} data-etichetta={c.titolo}
                   className={cn("px-2 py-2.5 align-top sm:first:pl-2",

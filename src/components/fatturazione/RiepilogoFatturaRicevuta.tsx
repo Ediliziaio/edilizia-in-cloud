@@ -603,18 +603,36 @@ function ContenutoRiepilogo({
                         onCambiato={aggiorna}
                       />) : <span>{d.costo?.category || String(f.categoria_ai || t("Non indicato"))}</span>}</dd>
                 </>}
-                <dt className="text-muted-foreground">{t("Commessa")}</dt>
+                <dt className="text-muted-foreground">{riparto.length > 1 ? t("Dove va") : t("Commessa")}</dt>
                 <dd className="min-w-0 space-y-1">
+                  {/* 26/11/2026: la ripartizione era una tabellina nuda in mezzo alle altre
+                      righe e non si capiva che fosse la risposta a «dove è finita questa
+                      fattura». Ora è un riquadro suo, con l'intestazione delle colonne e,
+                      quando è divisa, quante destinazioni sono. */}
                   {permessi.canViewCosts && riparto.length > 0 ? (
-                    <table aria-label={t("Quote per destinazione")} className="ricevuta-quote text-sm">
-                      <tbody>{riparto.map(r => <tr key={r.id ?? r.nome}>
-                        <td className="pr-3">{r.id ? <Link title={r.nome} className="text-primary hover:underline" to={`/azienda/ordini/${r.id}`}>
+                    <div className="overflow-hidden rounded-lg border bg-muted/20">
+                      <p className="border-b bg-background/70 px-2 py-1 text-[11px] font-medium text-muted-foreground">
+                        {riparto.length === 1
+                          ? t("Tutta la fattura su una destinazione")
+                          : t("Divisa su {n} destinazioni", { n: riparto.length })}
+                      </p>
+                      <table aria-label={t("Quote per destinazione")} className="ricevuta-quote w-full text-sm">
+                        <thead>
+                          <tr className="text-[11px] text-muted-foreground">
+                            <th scope="col" className="px-2 py-1 text-left font-normal">{t("Destinazione")}</th>
+                            <th scope="col" className="px-2 py-1 text-right font-normal">{t("Quota")}</th>
+                            <th scope="col" className="px-2 py-1 text-right font-normal">{t("Imponibile")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>{riparto.map(r => <tr key={r.id ?? r.nome}>
+                        <td className="px-2 py-1">{r.id ? <Link title={r.nome} className="text-primary hover:underline" to={`/azienda/ordini/${r.id}`}>
                           {r.nome.split(" · ")[0]} · <span>{r.codice}</span>
                         </Link> : r.nome}</td>
-                        <td className="pr-3 text-right whitespace-nowrap tabular-nums text-muted-foreground">{r.percentuale == null ? "—" : r.percentuale.toLocaleString(intlCampo(), { maximumFractionDigits: 2 }) + "%"}</td>
-                        <td className="text-right whitespace-nowrap tabular-nums">{formatCurrency(r.centesimi / 100)}</td>
+                        <td className="px-2 py-1 text-right whitespace-nowrap tabular-nums text-muted-foreground">{r.percentuale == null ? "—" : r.percentuale.toLocaleString(intlCampo(), { maximumFractionDigits: 2 }) + "%"}</td>
+                        <td className="px-2 py-1 text-right whitespace-nowrap tabular-nums">{formatCurrency(r.centesimi / 100)}</td>
                       </tr>)}</tbody>
-                    </table>
+                      </table>
+                    </div>
                   ) : <span>{[...new Set([d.costo?.commessa?.order_code, ...d.ordini.map(o => o.commessa?.order_code)].filter(Boolean))].join(", ") || t("Nessuna")}</span>}
                   {permessi.canViewCosts && !permessi.solaLettura && !nota && f.stato !== "rifiutata" && !d.ordini.length && <>
                     <Button variant="link" size="sm" className="ml-1 h-auto min-h-0 p-0 text-xs" onClick={() => setModificaQuote(true)}>

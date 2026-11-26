@@ -864,7 +864,8 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
           )}
           {data.length === 0
             ? <p className="commessa-empty text-sm text-muted-foreground">{t("Nessuna fattura collegata. Con «Collega fattura» la scegli fra le fatture ricevute, o carichi il file se non c’è.")}</p>
-            : <TabellaCommessa etichetta={t("Fatture dei fornitori")} colonne={colonne} righe={visibili} chiave={(f) => f.id} />}
+            : <TabellaCommessa etichetta={t("Fatture dei fornitori")} colonne={colonne} righe={visibili} chiave={(f) => f.id}
+                onRiga={puoAprireFatture ? (f) => setRiepilogoId(f.id) : undefined} />}
           {suggerite.length > 0 && <p className="text-xs text-muted-foreground">{t("Le fatture «Da collegare» le ha riconosciute l’AI: finché non le colleghi non entrano nei costi.")}</p>}
           {puoAprireFatture && <Link to="/azienda/documenti/fatture-ricevute" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline underline-offset-4">
             <FileText className="h-4 w-4" aria-hidden="true" />{t("Apri le fatture ricevute")}

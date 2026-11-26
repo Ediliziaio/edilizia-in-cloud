@@ -94,6 +94,18 @@ describe("Incassi e pagamenti della commessa", () => {
     expect(onApriSubappalti).toHaveBeenCalledOnce();
   });
 
+  /**
+   * 26/11/2026: il clic sulla riga apre quello che apre il pulsante in fondo. Chi guarda
+   * l'elenco vuole vedere il costo o l'ordine, e doveva arrivare fino in fondo alla riga.
+   */
+  it("il clic sulla riga apre lo stesso registro del pulsante", async () => {
+    mostraUscite({ onApriSubappalti: vi.fn() });
+    const elenco = await screen.findByRole("table", { name: "Pagamenti della commessa" });
+    const riga = within(elenco).getAllByRole("button", { name: "Registra pagamento" })[0].closest("tr")!;
+    fireEvent.click(riga);
+    expect(screen.getByText("dialogo costo t")).toBeInTheDocument();
+  });
+
   it("Economia non ripete l'elenco delle uscite: porta a Fatture e costi", async () => {
     const onApriUscite = vi.fn();
     mostra({ onApriUscite });
