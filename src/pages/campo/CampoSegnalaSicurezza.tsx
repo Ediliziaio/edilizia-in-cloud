@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Camera, CheckCircle, HeartPulse, Loader2, Phone, ShieldAlert, X } from "lucide-react";
+import { AlertTriangle, Camera, CheckCircle, HeartPulse, Loader2, MapPin, Phone, ShieldAlert, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { SicurezzaEvento } from "@/integrations/supabase/appDatabase";
@@ -52,6 +52,45 @@ function oraLocale(data = new Date()): string {
   return d.toISOString().slice(0, 16);
 }
 
+/**
+ * Cosa dire al 112: l'indirizzo del cantiere scelto, grande, e — a richiesta — la posizione del telefono.
+ * La posizione si chiede solo al tocco: niente richiesta di permesso aprendo la pagina.
+ */
+function DoveSiamo({ indirizzo }: { indirizzo: string | null }) {
+  const t = useT();
+  const [posizione, setPosizione] = useState<{ lat: number; lon: number; precisione: number } | null>(null);
+  const [stato, setStato] = useState<"fermo" | "cerco" | "errore">("fermo");
+  const cerca = () => {
+    if (!("geolocation" in navigator)) { setStato("errore"); return; }
+    setStato("cerco");
+    navigator.geolocation.getCurrentPosition(
+      p => { setPosizione({ lat: p.coords.latitude, lon: p.coords.longitude, precisione: Math.round(p.coords.accuracy) }); setStato("fermo"); },
+      () => setStato("errore"),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
+    );
+  };
+  return (
+    <section aria-label={t("Dove siamo")} className="space-y-2 rounded-2xl border border-red-200 bg-red-50/60 p-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-red-900">{t("Da dire ai soccorsi")}</p>
+      {indirizzo
+        ? <p dir="auto" className="text-lg font-bold leading-snug text-foreground">{indirizzo}</p>
+        : <p className="text-sm text-muted-foreground">{t("Scegli il cantiere qui sotto per vedere l'indirizzo.")}</p>}
+      {posizione ? (
+        <p className="text-sm tabular-nums" dir="ltr">
+          {t("Posizione del telefono")}: <span className="font-semibold">{posizione.lat.toFixed(5)}, {posizione.lon.toFixed(5)}</span>
+          <span className="text-muted-foreground"> (±{posizione.precisione} m)</span>
+        </p>
+      ) : (
+        <button type="button" onClick={cerca} disabled={stato === "cerco"}
+          className="flex min-h-11 items-center gap-2 rounded-xl border bg-background px-3 text-sm font-semibold">
+          {stato === "cerco" ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <MapPin className="size-4 text-red-700" aria-hidden="true" />}
+          {stato === "errore" ? t("Posizione non disponibile: riprova") : t("Mostra la mia posizione")}
+        </button>
+      )}
+    </section>
+  );
+}
+
 export default function CampoSegnalaSicurezza() {
   const t = useT();
   const navigate = useNavigate();
@@ -82,12 +121,13 @@ export default function CampoSegnalaSicurezza() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_campo_assignments")
-        .select("order_id, order:orders(id, order_code, description)")
+        .select("order_id, order:orders(id, order_code, description, indirizzo_lavori)")
         .eq("user_id", user!.id);
       if (error) throw error;
-      const visti = new Map<string, { id: string; order_code: string | null; description: string | null }>();
+      type Cantiere = { id: string; order_code: string | null; description: string | null; indirizzo_lavori: string | null };
+      const visti = new Map<string, Cantiere>();
       for (const riga of data ?? []) {
-        const o = riga.order as unknown as { id: string; order_code: string | null; description: string | null } | null;
+        const o = riga.order as unknown as Cantiere | null;
         if (o) visti.set(o.id, o);
       }
       return [...visti.values()];
@@ -185,6 +225,9 @@ export default function CampoSegnalaSicurezza() {
           <span className="block text-xs text-white/90">{t("Prima i soccorsi, poi la segnalazione.")}</span>
         </span>
       </a>
+      {/* Cosa dire al 112 (piano campo completo 1.5, 26/11/2026): l'indirizzo del cantiere scritto grande e la
+          posizione del telefono, da leggere all'operatore. */}
+      <DoveSiamo indirizzo={cantieri.find(c => c.id === cantiereScelto)?.indirizzo_lavori ?? null} />
 
       {inviata ? (
         <div role="status" className="space-y-3 rounded-2xl border border-emerald-300 bg-emerald-50 p-4 text-emerald-950">

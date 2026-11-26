@@ -208,6 +208,7 @@ export function CampoOggi({ memoria, puoPrelevare = false }: { memoria?: string;
   const giorni = data?.giorni ?? [];
   const oggi = giorni[0];
   const prossimo = giorni.slice(1).find((g) => g.cantieri.length > 0);
+  const contattiDiOggi = new Set((oggi?.cantieri ?? []).flatMap(c => [c.squadra?.caposquadra?.nome, c.capocantiere?.nome]).filter((n): n is string => !!n));
   const daFare = useDaFareOggi([...(oggi?.cantieri ?? []), ...(prossimo?.cantieri ?? [])].map(c => c.order_id));
 
   if (isLoading) return <Skeleton className="h-40 w-full rounded-2xl" />;
@@ -245,14 +246,42 @@ export function CampoOggi({ memoria, puoPrelevare = false }: { memoria?: string;
             ? <p className="py-1 text-sm">{prossimo.cantieri.length === 1 ? t("Stesso cantiere di oggi") : t("Stessi cantieri di oggi")}</p>
             : prossimo.cantieri.map((c) => {
             const fasi = c.fasi.length > 0 ? c.fasi : daFare.get(c.order_id)?.fasi ?? [];
+            // Domani in un posto nuovo: dove, con chi, chi chiamare (piano campo completo, 1.2 — 26/11/2026).
+            const mappa = linkMappa(c.indirizzo);
             return (
-              <Link key={c.order_id} to={`/campo/lavoro/${c.order_id}`} className="-mx-1 mt-0.5 flex min-h-11 items-center gap-2 rounded-xl px-1 active:bg-muted">
-                <span className="min-w-0 flex-1">
-                  <span dir="auto" className="block truncate text-sm font-semibold">{[c.codice, c.titolo].filter(Boolean).join(" · ") || t("Cantiere")}</span>
-                  {fasi.length > 0 && <span dir="auto" className="block truncate text-xs text-muted-foreground">{fasi.join(", ")}</span>}
-                </span>
-                <ChevronRight className="size-4 shrink-0 text-muted-foreground rtl:rotate-180" aria-hidden="true" />
-              </Link>
+              <div key={c.order_id} className="space-y-1.5 pb-1">
+                <Link to={`/campo/lavoro/${c.order_id}`} className="-mx-1 mt-0.5 flex min-h-11 items-center gap-2 rounded-xl px-1 active:bg-muted">
+                  <span className="min-w-0 flex-1">
+                    <span dir="auto" className="block truncate text-sm font-semibold">{[c.codice, c.titolo].filter(Boolean).join(" · ") || t("Cantiere")}</span>
+                    {fasi.length > 0 && <span dir="auto" className="block truncate text-xs text-muted-foreground">{fasi.join(", ")}</span>}
+                  </span>
+                  <ChevronRight className="size-4 shrink-0 text-muted-foreground rtl:rotate-180" aria-hidden="true" />
+                </Link>
+                {c.indirizzo && (
+                  <div className="flex items-center justify-between gap-2">
+                    <p dir="auto" className="flex min-w-0 items-center gap-1.5 text-sm">
+                      <MapPin className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                      <span className="truncate">{c.indirizzo}</span>
+                    </p>
+                    {mappa && (
+                      <a href={mappa} target="_blank" rel="noopener noreferrer" className={cn(PILLOLA_PICCOLA, "shrink-0")}>
+                        <Navigation className="h-3.5 w-3.5" aria-hidden="true" />{t("Mappa")}
+                      </a>
+                    )}
+                  </div>
+                )}
+                {c.squadra && (
+                  <p dir="auto" className="flex items-center gap-1.5 text-sm">
+                    <Users className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    <span className="text-muted-foreground">{t("Squadra")}:</span> <span className="font-semibold">{c.squadra.nome}</span>
+                  </p>
+                )}
+                {/* Chi chiamare, solo se non è già nella scheda di oggi qui sopra. */}
+                {c.squadra?.caposquadra && !c.squadra.sono_caposquadra && !contattiDiOggi.has(c.squadra.caposquadra.nome)
+                  && <Chiama ruolo="Caposquadra" contatto={c.squadra.caposquadra} />}
+                {!c.sono_capocantiere && c.capocantiere && !contattiDiOggi.has(c.capocantiere.nome)
+                  && <Chiama ruolo="Capocantiere" contatto={c.capocantiere} />}
+              </div>
             );
           })}
         </div>

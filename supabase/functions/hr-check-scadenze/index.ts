@@ -84,13 +84,13 @@ async function controllaPersonale(admin: SupabaseClient, provider: Provider): Pr
   const today = new Date().toISOString().slice(0, 10);
   const { data: docsRaw } = await admin
     .from("hr_documenti")
-    .select("id, company_id, hr_profilo_id, categoria, titolo, data_scadenza, alert_giorni_prima, hr_profili!inner(nome, cognome)")
+    .select("id, company_id, hr_profilo_id, categoria, titolo, data_scadenza, alert_giorni_prima, hr_profili!inner(nome, cognome, user_id)")
     .not("data_scadenza", "is", null);
 
   type Doc = {
     id: string; company_id: string; hr_profilo_id: string; categoria: string;
     titolo: string | null; data_scadenza: string; alert_giorni_prima: number;
-    hr_profili: { nome: string; cognome: string } | { nome: string; cognome: string }[];
+    hr_profili: { nome: string; cognome: string; user_id: string | null } | { nome: string; cognome: string; user_id: string | null }[];
   };
   const todayMs = new Date(today + "T00:00:00Z").getTime();
   // Tieni solo quelli realmente in scadenza/scaduti (data_scadenza <= oggi + alert).
@@ -111,10 +111,36 @@ async function controllaPersonale(admin: SupabaseClient, provider: Provider): Pr
   const since = new Date(Date.now() - 7 * 864e5).toISOString();
   const { data: recentNotif } = await admin
     .from("notifications").select("user_id, entity_id")
-    .eq("type", "hr_scadenza").gte("created_at", since).in("entity_id", docs.map((d) => d.id));
+    .in("type", ["hr_scadenza", "hr_scadenza_mia"]).gte("created_at", since).in("entity_id", docs.map((d) => d.id));
   const alreadySent = new Set<string>(((recentNotif ?? []) as Array<{ user_id: string; entity_id: string }>).map((n) => `${n.user_id}|${n.entity_id}`));
 
   let notified = 0, companiesProcessed = 0, emailsSent = 0;
+
+  // Anche alla persona (26/11/2026, piano campo completo 1.6): la sua visita medica, il suo corso. Prima
+  // lo sapeva solo l'ufficio, e lei lo vedeva solo aprendo la Home. Stesso anti-doppione (7 giorni);
+  // di scaduto solo l'ultima settimana. Il testo segue i modelli di lib/campo/lingua/notifiche.ts, così
+  // l'operaio lo legge nella sua lingua.
+  const notificheMie: Record<string, unknown>[] = [];
+  for (const d of docs) {
+    const prof = Array.isArray(d.hr_profili) ? d.hr_profili[0] : d.hr_profili;
+    const uid = prof?.user_id;
+    if (!uid || alreadySent.has(`${uid}|${d.id}`)) continue;
+    const sc = new Date(d.data_scadenza + "T00:00:00Z").getTime();
+    const scaduto = sc < todayMs;
+    if (scaduto && todayMs - sc > 7 * 864e5) continue;
+    const cat = CAT_LABEL[d.categoria] ?? "Documento";
+    notificheMie.push({
+      company_id: d.company_id, user_id: uid, type: "hr_scadenza_mia",
+      title: scaduto ? `Documento scaduto: ${cat}` : `Documento in scadenza: ${cat}`,
+      body: `${scaduto ? "Scaduto il" : "Scade il"} ${fmtDate(d.data_scadenza)}. Rinnovalo e caricalo dall'app.`,
+      entity_type: "hr_documento", entity_id: d.id, action_url: "/campo/documenti",
+    });
+  }
+  if (notificheMie.length) {
+    const { error } = await admin.from("notifications").insert(notificheMie);
+    if (!error) notified += notificheMie.length;
+    else console.error("[hr-check-scadenze] insert notifiche personali:", error.message);
+  }
 
   for (const [companyId, companyDocs] of byCompany) {
     // Admin dell'azienda = profili della company con ruolo admin.

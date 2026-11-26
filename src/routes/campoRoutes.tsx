@@ -4,6 +4,7 @@
  */
 // Le pagine si caricano col ritentativo: dopo un deploy i chunk vecchi non
 // esistono più e senza questo la pagina va in errore (vedi lazyWithRetry).
+import { SoloPersonaleInterno } from "@/components/campo/SoloPersonaleInterno";
 import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -96,20 +97,9 @@ export default function CampoRoutesContainer() {
           </Route>
           <Route path="sicurezza" element={<CampoChecklistSicurezza />} />
           <Route path="rapportino-vocale" element={<CampoRapportinoVoce />} />
-          <Route path="timbratura" element={<CampoTimbratura />} />
 
-          <Route path="squadra/:orderId" element={<CampoSquadra />} />
-          <Route path="presenze" element={<CampoPresenze />} />
-          <Route path="ferie" element={<CampoFerie />} />
-          <Route path="spese" element={<CampoSpese />} />
-          <Route path="cedolini" element={<CampoCedolini />} />
-          <Route path="magazzino" element={<CampoMagazzino />} />
           <Route path="ddt" element={<CampoDDT />} />
-          <Route path="merce" element={<CampoMerce />} />
-          <Route path="merce/arrivo/:odaId" element={<CampoArrivoPosizioni />} />
-          <Route path="mezzi" element={<CampoMezzi />} />
           {/* L'attrezzo appena inquadrato col QR: dove sta, e cosa se ne fa. */}
-          <Route path="mezzi/scansione/:codice" element={<CampoAttrezzo />} />
           <Route path="chat" element={<CampoChat />} />
           <Route path="chat/:channelId" element={<CampoChat />} />
           <Route path="documenti" element={<CampoDocumenti />} />
@@ -119,7 +109,6 @@ export default function CampoRoutesContainer() {
           {/* Infortuni, quasi-incidenti e situazioni pericolose (23/11/2026). */}
           <Route path="sicurezza/segnala" element={<CampoSegnalaSicurezza />} />
           <Route path="sicurezza/segnala/:orderId" element={<CampoSegnalaSicurezza />} />
-          <Route path="buoni-pasto" element={<CampoBuoniPasto />} />
           <Route path="avanzamento" element={<CampoAvanzamento />} />
           {/* Legacy: la vecchia pagina "SAL" era costruita sugli importi (e non ha
               mai funzionato: FK e colonne sbagliate). In cantiere serve segnare le
@@ -135,6 +124,21 @@ export default function CampoRoutesContainer() {
           <Route path="sopralluoghi" element={<CampoSopralluoghi />} />
           <Route path="sopralluoghi/:id" element={<CampoSopralluogo />} />
           <Route path="menu" element={<CampoMenu />} />
+          {/* Solo personale dell'azienda: il subappaltatore torna alla Home (fase 0.1, 26/11/2026). */}
+          <Route element={<SoloPersonaleInterno />}>
+            <Route path="timbratura" element={<CampoTimbratura />} />
+            <Route path="squadra/:orderId" element={<CampoSquadra />} />
+            <Route path="presenze" element={<CampoPresenze />} />
+            <Route path="ferie" element={<CampoFerie />} />
+            <Route path="spese" element={<CampoSpese />} />
+            <Route path="cedolini" element={<CampoCedolini />} />
+            <Route path="magazzino" element={<CampoMagazzino />} />
+            <Route path="merce" element={<CampoMerce />} />
+            <Route path="merce/arrivo/:odaId" element={<CampoArrivoPosizioni />} />
+            <Route path="mezzi" element={<CampoMezzi />} />
+            <Route path="mezzi/scansione/:codice" element={<CampoAttrezzo />} />
+            <Route path="buoni-pasto" element={<CampoBuoniPasto />} />
+          </Route>
         </Route>
         <Route path="*" element={<Navigate to="/campo" replace />} />
       </Route>

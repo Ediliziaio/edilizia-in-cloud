@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useRegoleAzienda, useSalvaRegoleAzienda } from "@/hooks/useRegoleCampo";
+import { AvvisoDomaniConfig } from "@/components/settings/AvvisoDomaniConfig";
 import { useVaiASezione } from "@/hooks/useVaiASezione";
 import { RegoleCampoAnteprima } from "@/components/settings/RegoleCampoAnteprima";
 import { ChiFaCosaRiquadro } from "@/components/settings/ChiFaCosaRiquadro";
@@ -54,7 +55,7 @@ const SCHEDE: Array<{ id: Scheda; etichetta: string; soloScrivania?: boolean }> 
 ];
 const SCHEDA_DI_ANCORA: Record<string, Scheda> = {
   "chi-fa-cosa": "compila", "chi-scrive": "compila", "in-pratica": "compila", ore: "ore", avviso: "ore", giorni: "ore",
-  parti: "moduli", "campi-propri": "moduli", "voci-rapportino": "voci", verbali: "verbali", "bozza-giornale": "giornale",
+  parti: "moduli", "campi-propri": "moduli", "voci-rapportino": "voci", verbali: "verbali", "bozza-giornale": "giornale", "avviso-domani": "giornale",
 };
 
 function Opzione({
@@ -411,6 +412,7 @@ export default function RegoleCampoConfig() {
         {/* Fuori dal fieldset: è una colonna dell'azienda, con un permesso diverso, e si salva subito. */}
         <div className={pannello("giornale")}>
           <BozzaGiornaleSerale companyId={companyId} canEdit={isAdmin || permissions.canEditSettingsProfile} evidenziata={evidenziata === "bozza-giornale"} />
+          <AvvisoDomaniConfig companyId={companyId} canEdit={puoModificare} evidenziata={evidenziata === "avviso-domani"} />
         </div>
 
         <details className={scheda === "compila" ? "group" : "hidden"} aria-label={t("Collegamenti")}>

@@ -214,7 +214,8 @@ export default function SubappaltatoreDetail() {
     durc: 'DURC', visura: 'Visura camerale', dvr: 'DVR', pos: 'POS',
     soa: 'Attestazione SOA', polizza_rc: 'Polizza RC', cassa_edile: 'Cassa Edile',
     antimafia: 'Antimafia', iscrizione_albo: 'Iscrizione Albo',
-    formazione_operai: 'Formazione operai', altro: 'Altro',
+    formazione_operai: 'Formazione operai', patente_crediti: 'Patente a crediti',
+    documento_identita: "Documento d'identità", altro: 'Altro',
   };
   const { data: documentiCompliance = [] } = useQuery({
     queryKey: ['sub-doc-compliance', sub?.campo_subappaltatore_id],
