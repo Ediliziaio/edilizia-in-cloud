@@ -1856,6 +1856,7 @@ export const BLOCCHI_UFFICIO: Record<string, string[]> = {
     "src/components/tesoreria/BankOrderMovements.tsx",
     "src/components/tesoreria/BankReconciliationWorkspace.tsx",
     "src/components/tesoreria/BankStatementImportDialog.tsx",
+    "src/components/tesoreria/CassaLiberaAzienda.tsx",
     "src/components/tesoreria/CategoriaMovimento.tsx",
     "src/components/tesoreria/CategorizationRules.tsx",
   ],

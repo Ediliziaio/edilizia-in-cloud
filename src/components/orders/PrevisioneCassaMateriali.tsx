@@ -11,7 +11,12 @@ import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
-export function PrevisioneCassaMateriali({ incassato, materiali, saldoResiduo, rate }: {
+/** Vale la pena mostrare lo scenario? Serve a chi decide se aprire il riquadro. */
+export function haScenarioMateriali(incassato: number, materiali: number) {
+  return incassato > 0 || materiali > 0;
+}
+
+export function PrevisioneCassaMateriali({ incassato, materiali, saldoResiduo, rate, senzaCard = false }: {
   /** Incassato dal cliente, IVA inclusa. */
   incassato: number;
   /** Costo dei materiali dai fornitori, IVA inclusa. */
@@ -20,6 +25,9 @@ export function PrevisioneCassaMateriali({ incassato, materiali, saldoResiduo, r
   saldoResiduo: number;
   saldoData: string | null;
   rate?: Array<{ label: string; amount: number; is_paid: boolean; expected_date?: string | null }>;
+  /** Dentro «Chi finanzia il cantiere»: niente riquadro proprio, solo il contenuto.
+   *  Due riquadri di cassa uno sotto l'altro raccontavano la stessa storia due volte. */
+  senzaCard?: boolean;
 }) {
   const t = useT();
   if (incassato <= 0 && materiali <= 0) return null;
@@ -41,34 +49,43 @@ export function PrevisioneCassaMateriali({ incassato, materiali, saldoResiduo, r
     ...incassiPrevisti,
     { etichetta: t("Saldo previsto dopo i soli materiali"), valore: finale, segno: finale < 0 ? "−" : "", colore: finale < 0 ? "bg-red-600" : "bg-slate-700", testo: finale < 0 ? "text-red-700" : "text-slate-900", forte: true },
   ];
+  const verdetto = (
+    <p className={cn("text-sm", copre ? "text-emerald-800" : "text-red-700")}>
+      {copre
+        ? t("Quello che hai incassato copre i materiali: non serve anticipare.")
+        : <>{anticipoPrima}<strong>{formatCurrency(Math.abs(minimo))}</strong>{anticipoDopo}</>}
+    </p>
+  );
+  const corpo = (
+    <div className="space-y-2">
+      {!pianoCoerente && <p className="text-xs text-muted-foreground">{t("Residuo aggregato: il piano rate non è disponibile o non coincide con il residuo. Verifica gli Incassi prima di usarlo come previsione delle scadenze.")}</p>}
+      <ul className="space-y-2" aria-label={t("Cassa a gradini")}>
+        {gradini.map((g, indice) => (
+          <li key={`${indice}-${g.etichetta}`} className="grid grid-cols-[minmax(0,15rem)_minmax(0,1fr)_auto] items-center gap-3 text-sm max-sm:grid-cols-[minmax(0,1fr)_auto]">
+            <span className={cn(g.forte ? "font-semibold" : "text-muted-foreground")}>{g.etichetta}</span>
+            <span className="h-3 overflow-hidden rounded-full bg-muted max-sm:hidden" aria-hidden="true">
+              <span className={cn("block h-full rounded-full", g.colore)} style={{ width: `${Math.max(2, Math.round((Math.abs(g.valore) / scala) * 100))}%` }} />
+            </span>
+            <span className={cn("text-right tabular-nums", g.testo, g.forte && "font-semibold")}>{g.segno}{formatCurrency(Math.abs(g.valore))}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-[11px] text-muted-foreground">{t("Scenario con tutti i materiali pagati prima dei prossimi incassi, importi IVA inclusa: contano solo incassi e materiali. Manodopera, ditte e altre spese escluse; i movimenti veri sono qui sopra.")}</p>
+    </div>
+  );
+
+  if (senzaCard) return <div className="space-y-2">{verdetto}{corpo}</div>;
+
   return (
-    <Card className={cn("border-l-4", copre ? "border-l-emerald-500" : "border-l-red-500")}>
+    <Card className={cn(!copre && "border-l-4 border-l-red-500")}>
       <CardHeader className="pb-2 max-sm:p-3 max-sm:pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
           <PackageOpen className={cn("h-4 w-4", copre ? "text-emerald-600" : "text-red-600")} aria-hidden="true" />
           {t("Previsione di cassa sui materiali")}
         </CardTitle>
-        <p className={cn("text-sm", copre ? "text-emerald-800" : "text-red-700")}>
-          {copre
-            ? t("Quello che hai incassato copre i materiali: non serve anticipare.")
-            : <>{anticipoPrima}<strong>{formatCurrency(Math.abs(minimo))}</strong>{anticipoDopo}</>}
-        </p>
+        {verdetto}
       </CardHeader>
-      <CardContent className="space-y-2 max-sm:p-3 max-sm:pt-0">
-        {!pianoCoerente && <p className="text-xs text-muted-foreground">{t("Residuo aggregato: il piano rate non è disponibile o non coincide con il residuo. Verifica gli Incassi prima di usarlo come previsione delle scadenze.")}</p>}
-        <ul className="space-y-2" aria-label={t("Cassa a gradini")}>
-          {gradini.map((g, indice) => (
-            <li key={`${indice}-${g.etichetta}`} className="grid grid-cols-[minmax(0,15rem)_minmax(0,1fr)_auto] items-center gap-3 text-sm max-sm:grid-cols-[minmax(0,1fr)_auto]">
-              <span className={cn(g.forte ? "font-semibold" : "text-muted-foreground")}>{g.etichetta}</span>
-              <span className="h-3 overflow-hidden rounded-full bg-muted max-sm:hidden" aria-hidden="true">
-                <span className={cn("block h-full rounded-full", g.colore)} style={{ width: `${Math.max(2, Math.round((Math.abs(g.valore) / scala) * 100))}%` }} />
-              </span>
-              <span className={cn("text-right tabular-nums", g.testo, g.forte && "font-semibold")}>{g.segno}{formatCurrency(Math.abs(g.valore))}</span>
-            </li>
-          ))}
-        </ul>
-        <p className="text-[11px] text-muted-foreground">{t("Scenario con tutti i materiali pagati prima dei prossimi incassi, importi IVA inclusa: contano solo incassi e materiali. Manodopera, ditte e altre spese escluse; i movimenti veri sono in «Chi finanzia il cantiere».")}</p>
-      </CardContent>
+      <CardContent className="max-sm:p-3 max-sm:pt-0">{corpo}</CardContent>
     </Card>
   );
 }

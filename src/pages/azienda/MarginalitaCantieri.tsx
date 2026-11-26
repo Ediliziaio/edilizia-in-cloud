@@ -958,6 +958,18 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
         {t("Premi Aggiorna dati per riprovare.")}
       </div>}
 
+      {!!structure.data && structure.data.daAttribuire.righe > 0 && (
+        <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <span>
+            {t("{n} costi per {importo} appartengono a un cantiere ma non hanno una commessa: non sono in nessuna di queste righe e non sono nella struttura.", {
+              n: structure.data.daAttribuire.righe,
+              importo: formatCurrency(structure.data.daAttribuire.totale),
+            })}
+          </span>
+          <Link to="/azienda/costi?tab=spese" className="shrink-0 font-semibold underline">{t("Apri i costi")}</Link>
+        </div>
+      )}
+
       {/* Riepilogo basso (25/11/2026): da 1600px titolo e target a sinistra, quattro riquadri compatti a destra (era 121px, ora ~62). */}
       <section aria-label={t("Riepilogo marginalità")} className="rounded-2xl border border-slate-200 bg-eic-navy-deep px-3 py-2 text-white shadow-sm xl:flex xl:items-center xl:gap-3">
         <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 xl:mb-0 xl:shrink-0 xl:flex-col xl:items-start xl:gap-1">
@@ -1074,6 +1086,16 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
               <p className="text-xs font-semibold uppercase text-blue-700">{t("Quota per commessa")}</p>
               <p className="mt-1 font-semibold">{structure.data?.monthlyPerActiveOrder ? formatCurrency(structure.data.monthlyPerActiveOrder) : "—"}</p>
               <p className="text-xs text-muted-foreground">{structure.data?.activeOrders ?? "—"} {t("commesse attive")}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase text-amber-700">{t("Da attribuire a un cantiere")}</p>
+              <p className="mt-1 font-semibold">{structure.data ? formatCurrency(structure.data.daAttribuire.totale) : "\u2014"}</p>
+              <p className="text-xs text-muted-foreground">{structure.data ? t("{n} costi di cantiere senza commessa: fuori dalla struttura e fuori da ogni commessa", { n: structure.data.daAttribuire.righe }) : t("subappalti, merci, ditte")}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase text-muted-foreground">{t("Gi\u00e0 contati altrove")}</p>
+              <p className="mt-1 font-semibold">{structure.data ? formatCurrency(structure.data.giaContati.totale) : "\u2014"}</p>
+              <p className="text-xs text-muted-foreground">{structure.data ? t("{n} costi tenuti fuori dalla struttura per non contarli due volte", { n: structure.data.giaContati.righe }) : t("stipendi, contributi, ordini d\u2019acquisto")}</p>
             </div>
             <div className="sm:col-span-2">
               <p className="text-xs font-semibold uppercase text-muted-foreground">{t("Metodo")}</p>

@@ -42,7 +42,7 @@ import { useOrderVariations } from "@/hooks/useOrderVariations";
 import { agreedContractValue, variantiApprovateDatate } from "@/lib/orders/contractValue";
 import { EsposizioneCommessa } from "@/components/orders/EsposizioneCommessa";
 import { AltroIncassiCommessa } from "@/components/orders/AltroIncassiCommessa";
-import { PrevisioneCassaMateriali } from "@/components/orders/PrevisioneCassaMateriali";
+import { PrevisioneCassaMateriali, haScenarioMateriali } from "@/components/orders/PrevisioneCassaMateriali";
 import { OrderCommissions } from "@/components/orders/OrderCommissions";
 import { IncassiMarginiCommessa } from "@/components/orders/IncassiMarginiCommessa";
 import { formatDateTime, formatCurrency } from "@/lib/formatters";
@@ -328,6 +328,8 @@ interface OrderDetail extends Pick<Tables<"orders">, "status" | "quote_number" |
   warehouse_arrival_date: string | null;
   work_start_date: string | null;
   work_end_date: string | null;
+  /** Stato di evasione: «completed» chiude il cantiere anche con l'avanzamento sotto il 100%. */
+  fulfillment_status?: string | null;
   work_start_time?: string | null;
   work_end_time?: string | null;
   /** Preventivo da cui nasce la commessa: la sua firma è la data del contratto. */
@@ -1798,7 +1800,7 @@ function OrderDetailInner() {
           {/* Materiali: acquisti, consegne, uscite e matricole. Le lavorazioni sono in Cantiere. */}
           <TabsContent value="articoli" className="order-detail-tab-panel space-y-4 mt-4">
             {permissions.canEditOrders && effectiveCompany?.id && <LegacyWorkReview items={orderItems} orderId={id!} companyId={effectiveCompany.id} showAmounts={permissions.canViewOrderAmounts} />}
-            <div id="materiali-workspace" className="scroll-mt-24 space-y-2">
+            <div id="materiali-workspace" className="commessa-subnav-sticky scroll-mt-24 space-y-2">
               <OrderWorkspaceNav label={t("Viste dei materiali")} views={MATERIALI_VIEWS} value={activeMaterialiView} onChange={materialiView => navigateTo({ tab: "articoli", materialiView })} counts={{ articoli: displayItems.length, offerte: conteggioOfferte, acquisti: conteggiViste?.ordiniAcquisto, bolle: bolleCommessa?.length }} />
             </div>
             <DocumentiInPopup orderId={id!}>
@@ -1918,7 +1920,7 @@ function OrderDetailInner() {
           {/* Fatture e costi: tutto quello che esce dalla commessa, diviso per chi lo riceve. */}
           <TabsContent value="costi" className="commessa-cost-workspace order-detail-tab-panel space-y-4 mt-4">
             {!permissions.canViewCosts ? <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">{t("Il tuo ruolo non permette di consultare fatture e costi di questa commessa.")}</p> : <>
-            <div id="costi-workspace" className="scroll-mt-24">
+            <div id="costi-workspace" className="commessa-subnav-sticky scroll-mt-24">
               <OrderWorkspaceNav label={t("Viste di fatture e costi")} views={visteCosti} value={vistaCosti} onChange={costiView => navigateTo({ tab: "costi", costiView })} counts={{ fornitori: fattureCommessa?.filter(f => f.legame !== "suggerita").length }} />
             </div>
             <DocumentiInPopup orderId={id!}>
@@ -1947,7 +1949,7 @@ function OrderDetailInner() {
           {/* Tab: Finanza */}
           <TabsContent value="finanza" className="order-detail-tab-panel space-y-4 mt-4">
             {operationalIntervention || contractFinancePending ? contractFinanceNotice : <>
-            <div id="economia-workspace" className="scroll-mt-24">
+            <div id="economia-workspace" className="commessa-subnav-sticky scroll-mt-24">
               <OrderWorkspaceNav label={t("Viste economiche")} views={visteEconomiche} value={activeEconomiaView} onChange={economiaView => navigateTo({ tab: "finanza", economiaView })} />
             </div>
             <OrderViewTransition viewKey={activeEconomiaView}>
@@ -1981,6 +1983,8 @@ function OrderDetailInner() {
                   avanzamentoPct={avanzamentoPct}
                   workStartDate={order.work_start_date}
                   workEndDate={order.work_end_date}
+                  fulfillmentStatus={order.fulfillment_status}
+                  currentStatusId={order.current_status_id}
                 />
               </ErrorBoundary>
             )}
@@ -2103,10 +2107,10 @@ function OrderDetailInner() {
                   cashTotalGross={cashTotalGross}
                   avanzamentoPct={avanzamentoPct}
                   anchorId="esposizione-commessa"
+                  scenarioMateriali={haScenarioMateriali(collectedGross, costoMaterialiGross)
+                    ? <PrevisioneCassaMateriali senzaCard incassato={collectedGross} materiali={costoMaterialiGross} saldoResiduo={saldoResiduoGross} saldoData={saldoDate} rate={resolvedInstallments} />
+                    : undefined}
                 />
-                <div className="mt-4 max-md:hidden">
-                  <PrevisioneCassaMateriali incassato={collectedGross} materiali={costoMaterialiGross} saldoResiduo={saldoResiduoGross} saldoData={saldoDate} rate={resolvedInstallments} />
-                </div>
               </ErrorBoundary>
             )}
 
@@ -2152,7 +2156,7 @@ function OrderDetailInner() {
               </section>
               <ContractInterventions key={id} orderId={id!} />
             </> : <>
-            <div id="cantiere-workspace" className="scroll-mt-24">
+            <div id="cantiere-workspace" className="commessa-subnav-sticky scroll-mt-24">
               <CantiereViewNav
                 value={vistaCantiere}
                 onChange={cantiereView => navigateTo({ tab: "cantiere", cantiereView })}
@@ -2201,7 +2205,7 @@ function OrderDetailInner() {
               <ErrorBoundary><OreEPersone key={id} orderId={id!} inizioLavori={order.work_start_date ?? order.created_at} /></ErrorBoundary>
               {/* Squadre, ditte e costi del personale: il riepilogo di prima, chiuso finché non serve. */}
               <OrderDisclosure title={t("Squadre, ditte e costi del personale")}>
-                <OrderResourceStatistics key={id} orderId={id!} onManage={() => navigateTo({ tab: "cantiere", cantiereView: "lavorazioni" })} />
+                <OrderResourceStatistics key={id} orderId={id!} annidato onManage={() => navigateTo({ tab: "cantiere", cantiereView: "lavorazioni" })} />
               </OrderDisclosure>
             </div>}
             {vistaCantiere === "lavorazioni" && <div id="section-mezzi" className="scroll-mt-36 space-y-3 md:scroll-mt-24">

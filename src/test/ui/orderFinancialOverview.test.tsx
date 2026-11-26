@@ -42,7 +42,7 @@ function mount(extra: Partial<ComponentProps<typeof OrderFinancialOverview>> = {
   render(<OrderFinancialOverview {...props} />);
   return props;
 }
-const cella = (nome: string) => screen.getByRole("cell", { name: `Apri dettagli: ${{ 'Costi sostenuti': 'Costi registrati', 'Margine reale': 'Margine su costi registrati' }[nome] ?? nome}` });
+const cella = (nome: string) => screen.getByRole("cell", { name: `Apri dettagli: ${{ 'Costi sostenuti': 'Costi registrati', 'Margine reale': 'Margine a oggi' }[nome] ?? nome}` });
 
 describe("La commessa in numeri: previsto e reale", () => {
   it("mostra il lordo dalle quote e le due aliquote nel riepilogo del contratto", () => {
@@ -157,8 +157,8 @@ describe("La commessa in numeri: previsto e reale", () => {
     const costi = screen.getByRole('cell', { name: 'Apri dettagli: Costi e impegni' });
     expect(costi).toHaveTextContent('300,00 € costi registrati');
     expect(costi).toHaveTextContent('100,00 € impegni ODA');
-    expect(screen.getByRole('cell', { name: 'Apri dettagli: Margine con impegni' })).toHaveTextContent('600,00');
-    expect(screen.getByRole('cell', { name: 'Apri dettagli: Margine con impegni' })).toHaveTextContent('Include gli impegni degli ODA');
+    expect(screen.getByRole('cell', { name: 'Apri dettagli: Margine a oggi, con gli impegni' })).toHaveTextContent('600,00');
+    expect(screen.getByRole('cell', { name: 'Apri dettagli: Margine a oggi, con gli impegni' })).toHaveTextContent('Include gli impegni degli ODA');
   });
 
   it("col permesso sui margini ma non sui costi: niente «da pagare»", () => {

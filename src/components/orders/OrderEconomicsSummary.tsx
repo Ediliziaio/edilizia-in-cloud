@@ -1,4 +1,3 @@
-import { CostiMezziRiepilogo } from "@/components/mezzi/CostiMezziRiepilogo";
 import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -21,7 +20,7 @@ import type { OrderControlCheck } from "@/lib/orders/controlWorkflow";
 import { materialCostVariance } from "@/lib/orders/materialCostVariance";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -67,6 +66,10 @@ interface OrderEconomicsSummaryProps {
   avanzamentoPct?: number | null;
   workStartDate?: string | null;
   workEndDate?: string | null;
+  /** Stato di evasione: «completed» chiude il cantiere anche con l'avanzamento sotto il 100%. */
+  fulfillmentStatus?: string | null;
+  /** Fase della commessa: l'ultima operativa e quelle di supporto chiudono il cantiere. */
+  currentStatusId?: string | null;
 }
 
 /** Percentuale it-IT a 1 decimale: 36,1 (virgola, non punto). */
@@ -95,6 +98,8 @@ export function OrderEconomicsSummary({
   avanzamentoPct = null,
   workStartDate = null,
   workEndDate = null,
+  fulfillmentStatus = null,
+  currentStatusId = null,
 }: OrderEconomicsSummaryProps) {
   const t = useT();
   void vatRate; // tenuto per parità d'interfaccia col conto economico esistente
@@ -107,6 +112,7 @@ export function OrderEconomicsSummary({
     isPending: basePending,
     isError: baseError,
     employees,
+    teams,
   } = useOrderEconomicsBase(orderId, totalAmount, items);
   const previsto = useCostoPrevistoCommessa(orderId, true);
   const direttiPerTipo = useCostiDirettiPerTipo(orderId, true);
@@ -119,10 +125,42 @@ export function OrderEconomicsSummary({
       workStartDate,
       workEndDate,
       progressPercent: avanzamentoPct,
+      fulfillmentStatus,
+      currentStatusId,
+      statiChiusi: structure.data?.statiChiusi,
       today: structure.data?.today ?? "",
     }),
-    [actual.margin, actual.revenue, avanzamentoPct, structure.data, workEndDate, workStartDate],
+    [actual.margin, actual.revenue, avanzamentoPct, currentStatusId, fulfillmentStatus, structure.data, workEndDate, workStartDate],
   );
+  // La manodopera interna arriva come aggregato: per aprire la riga serve la
+  // ripartizione per fase, dalla stessa funzione che il documento già usa.
+  const manodoperaPerFase = useQuery({
+    queryKey: ["oes-manodopera-per-fase", orderId],
+    enabled: !!orderId,
+    staleTime: 2 * 60 * 1000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any;
+      const [perFase, fasi] = await Promise.all([
+        db.rpc("commessa_costo_personale_per_fase", { p_order_id: orderId }),
+        db.from("order_work_phases_visibili").select("id, name, position").eq("order_id", orderId),
+      ]);
+      if (perFase.error) throw perFase.error;
+      const nomi = new Map<string, { nome: string; position: number }>(
+        ((fasi.data ?? []) as Array<{ id: string | null; name: string | null; position: number | null }>)
+          .filter((f) => !!f.id)
+          .map((f) => [f.id as string, { nome: f.name ?? "", position: Number(f.position) || 0 }]),
+      );
+      return ((perFase.data ?? []) as Array<{ phase_id: string | null; total_cost: number | null }>)
+        .map((r) => ({
+          id: r.phase_id ?? "senza-fase",
+          nome: (r.phase_id && nomi.get(r.phase_id)?.nome) || "",
+          position: (r.phase_id && nomi.get(r.phase_id)?.position) || 0,
+          costo: Number(r.total_cost) || 0,
+        }))
+        .sort((a, b) => a.position - b.position);
+    },
+  });
   const conto = useMemo(() => contoEconomicoCommessa({
     ricavi: actual.revenue,
     avanzamentoPct,
@@ -144,6 +182,47 @@ export function OrderEconomicsSummary({
       mesiMaturati: structureImpact.months,
     },
   }), [actual, avanzamentoPct, employees, direttiPerTipo.data, previsto.isError, previsto.previsto, structure.data, structureImpact.months, workEndDate, workStartDate]);
+  // Da dove arriva ogni macro-voce del consuntivo: la riga si apre e lo mostra.
+  // Nessun numero nuovo — sono le stesse fonti che compongono il totale.
+  const dettagliVoci = useMemo(() => {
+    const perTipo = direttiPerTipo.data ?? {};
+    const n = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+    const vivi = (righe: Array<{ id: string; label: string; value: number; nota?: string }>) =>
+      righe.filter((r) => Math.abs(r.value) >= 0.005);
+    const materiali = vivi([
+      { id: "acquisti", label: t("Acquisti e ordini ai fornitori"), value: n(actual.purchases) },
+      { id: "magazzino", label: t("Scarichi di magazzino"), value: n(actual.warehouseMaterials) },
+      { id: "fatture-materiali", label: t("Fatture materiali"), value: n(perTipo.materiali) },
+    ]);
+    // La manodopera interna si apre per fase: la somma delle fasi non copre
+    // sempre il totale (ore non ancora assegnate a una fase), e il residuo
+    // diventa una riga sua, così il dettaglio chiude sempre sul totale.
+    const totaleManodopera = n(conto.righe.find((r) => r.key === "manodopera")?.consuntivo);
+    const fasi = (manodoperaPerFase.data ?? []).filter((f) => Math.abs(f.costo) >= 0.005);
+    const sommaFasi = fasi.reduce((somma, f) => somma + f.costo, 0);
+    const residuo = totaleManodopera - sommaFasi;
+    const manodopera = totaleManodopera > 0 && fasi.length > 0
+      ? vivi([
+        ...fasi.map((f, i) => ({ id: `fase-${f.id}-${i}`, label: f.nome || t("Fase senza nome"), value: f.costo })),
+        { id: "fuori-fase", label: t("Ore non assegnate a una fase"), value: residuo },
+      ])
+      : [];
+    // Le ditte, una per una, stanno nella scheda «Dipendenti e operai interni».
+    const ditte = vivi([
+      { id: "ditte", label: t("Ditte esterne (squadre assegnate)"), value: teams.reduce((somma, x) => somma + n(x.total_cost) / (1 + n(x.vat_rate) / 100), 0) },
+      { id: "fatture-subappalti", label: t("Fatture di subappalto"), value: n(perTipo.subappalto) },
+    ]);
+    const noleggi = vivi([
+      { id: "noli", label: t("Noli e servizi fatturati"), value: n(perTipo.noli_servizi) },
+      { id: "mezzi-fatturati", label: t("Mezzi fatturati"), value: n(perTipo.mezzi) },
+    ]);
+    return {
+      ...(materiali.length > 1 ? { materiali } : {}),
+      ...(manodopera.length > 1 ? { manodopera } : {}),
+      ...(ditte.length > 1 ? { subappalti: ditte } : {}),
+      ...(noleggi.length > 1 ? { noleggi } : {}),
+    };
+  }, [actual.purchases, actual.warehouseMaterials, conto.righe, direttiPerTipo.data, manodoperaPerFase.data, t, teams]);
   const [controlliAperti, setControlliAperti] = useState(false);
   // «Scarica conto economico»: macro-voci, fasi, incassi e pagamenti in un documento da stampare o salvare in PDF.
   const permessi = usePermissions();
@@ -335,7 +414,7 @@ export function OrderEconomicsSummary({
   if (baseError) return <Card id="section-conto-economico" className="scroll-mt-24"><CardContent className="p-4 text-sm text-muted-foreground">{t("Conto economico non disponibile: impossibile caricare tutti i costi.")}</CardContent></Card>;
   if (costsLoading) {
     return (
-      <Card id="section-conto-economico" className="scroll-mt-24 border-l-4 border-l-orange-400">
+      <Card id="section-conto-economico" className="scroll-mt-24">
         <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
@@ -357,7 +436,9 @@ export function OrderEconomicsSummary({
               <Skeleton className="h-[140px] w-[140px] rounded-full" />
             </div>
           </div>
-        </CardContent>
+
+
+      </CardContent>
       </Card>
     );
   }
@@ -365,7 +446,7 @@ export function OrderEconomicsSummary({
   // Mobile: i tre numeri, gli avvisi e le voci di costo in riga. Grafico,
   // pianificato/consuntivo e barra incassi (già in testata) al computer.
   return (
-    <Card id="section-conto-economico" className="scroll-mt-24 border-l-4 border-l-orange-400">
+    <Card id="section-conto-economico" className="scroll-mt-24">
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3 max-sm:p-3 max-sm:pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
           {quality.canShowMargin && actual.margin >= 0 ? (
@@ -573,50 +654,7 @@ export function OrderEconomicsSummary({
           </div>
         </div>
 
-        <CostiMezziRiepilogo orderId={orderId} />
-
-        {/* Il mezzo e una stima gestionale: non viene confuso con i rimborsi km
-            approvati, che sono gia nel consuntivo diretto. */}
-        {vehicleCosts.dataVisible && vehicleCosts.vehiclesUsed > 0 && (
-          <div className="mt-3 rounded-xl border border-sky-100 bg-gradient-to-r from-sky-50/80 to-slate-50/70 p-3 dark:border-sky-900/50 dark:from-sky-950/30 dark:to-slate-950/20">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="flex min-w-0 items-start gap-2">
-                <Truck className="mt-0.5 h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" />
-                <div>
-                  <p className="text-sm font-semibold text-foreground">{t("Mezzi nostri su questo cantiere")}</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {t(vehicleCosts.vehiclesUsed === 1 ? "{n} mezzo · {giorni} giorni-mezzo sul cantiere" : "{n} mezzi · {giorni} giorni-mezzo sul cantiere", { n: vehicleCosts.vehiclesUsed, giorni: vehicleCosts.vehicleDays })}
-                  </p>
-                </div>
-              </div>
-              <Badge variant="outline" className="border-sky-200 bg-white/70 text-sky-700 dark:bg-background/60 dark:text-sky-300">
-                {t("Stima gestionale")}
-              </Badge>
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-              <StructureKpi label={t("Costo mezzi stimato")} value={formatCurrency(vehicleCosts.estimatedCost)} />
-              <StructureKpi
-                label={t("Margine con i mezzi nostri")}
-                value={quality.canShowMargin ? formatCurrency(actual.margin - vehicleCosts.estimatedCost) : "—"}
-                valueClass={quality.canShowMargin && actual.margin - vehicleCosts.estimatedCost < 0 ? "text-red-700 dark:text-red-300" : undefined}
-              />
-              <StructureKpi
-                label={t("Copertura dati")}
-                value={vehicleCosts.vehiclesWithoutCost > 0
-                  ? t("{n} senza costo", { n: vehicleCosts.vehiclesWithoutCost })
-                  : t("Completa")}
-                valueClass={vehicleCosts.vehiclesWithoutCost > 0
-                  ? "text-amber-700 dark:text-amber-300"
-                  : "text-emerald-700 dark:text-emerald-300"}
-              />
-            </div>
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              {t("Ore del rapportino per il costo orario del mezzo (gasolio, rate, assicurazione, manutenzioni degli ultimi 12 mesi); dove non ci sono ore, i giorni di utilizzo. I noleggi non sono qui: arrivano dalla fattura. Non modifica il consuntivo contabile e non va duplicato tra i costi diretti.")}
-            </p>
-          </div>
-        )}
-
-        {vehicleCostsError && (
+          {vehicleCostsError && (
           <p className="mt-3 rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
             {t("La stima dei mezzi non è disponibile; ricavi, costi diretti e margine restano invariati.")}
           </p>
@@ -626,7 +664,7 @@ export function OrderEconomicsSummary({
             struttura e margine netto (contoEconomicoCommessa). */}
         <div className="mt-3">
           {/* Da telefono bastano i tre numeri: il dettaglio per voce è da scrivania. */}
-          <div className="max-md:hidden"><ContoEconomicoMacroVoci conto={conto} mostraMargini={quality.canShowMargin} /></div>
+          <div className="max-md:hidden"><ContoEconomicoMacroVoci conto={conto} mostraMargini={quality.canShowMargin} mezziStimati={vehicleCosts.dataVisible && vehicleCosts.vehiclesUsed > 0 ? vehicleCosts : null} dettagli={dettagliVoci} /></div>
           {quality.canShowMargin && !structure.isLoading && (structure.isError || !structure.data?.monthlyPerActiveOrder || structureImpact.months === null) && (
             <p className="mt-1.5 text-[11px] text-muted-foreground">
               {structure.isError

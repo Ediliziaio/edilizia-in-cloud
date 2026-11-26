@@ -7,6 +7,11 @@ import { OrderWorkspaceNav } from "@/components/orders/OrderWorkspaceNav";
 import { OrderDisclosure } from "@/components/orders/OrderDisclosure";
 import { useOrderDetailNavigation } from "@/hooks/useOrderDetailNavigation";
 import { ECONOMIA_VIEWS, MATERIALI_VIEWS } from "@/lib/orders/detailNavigation";
+// Etichetta e descrizione si leggono dall'elenco vero: rinominare una vista non
+// deve far cadere il test. Il 25/11 cercava «Incassi» mentre la voce si chiamava
+// già «Fatture e Incassi», e il rosso è rimasto lì senza avvisare di niente.
+const vista = (value: typeof ECONOMIA_VIEWS[number]["value"]) =>
+  ECONOMIA_VIEWS.find((v) => v.value === value)!;
 const device = vi.hoisted(() => ({ mobile: false }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => device.mobile }));
 
@@ -46,13 +51,13 @@ describe("Viste materiali ed economia", () => {
   });
   it("mantiene selezione, descrizione e cronologia economica", () => {
     mount("?tab=finanza");
-    fireEvent.click(screen.getByRole("button", { name: "Incassi" }));
-    expect(screen.getByRole("button", { name: "Incassi" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByText(ECONOMIA_VIEWS.find(view => view.value === "pagamenti")!.description)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: vista("pagamenti").label }));
+    expect(screen.getByRole("button", { name: vista("pagamenti").label })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByText(vista("pagamenti").description)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Indietro" }));
-    expect(screen.getByRole("button", { name: "Margini e costi" })).toHaveAttribute("aria-current", "page");
-    fireEvent.click(screen.getByRole("button", { name: "Varianti" }));
-    expect(screen.getByText(ECONOMIA_VIEWS.find(view => view.value === "varianti")!.description)).toBeVisible();
+    expect(screen.getByRole("button", { name: vista("margini").label })).toHaveAttribute("aria-current", "page");
+    fireEvent.click(screen.getByRole("button", { name: vista("varianti").label }));
+    expect(screen.getByText(vista("varianti").description)).toBeVisible();
   });
   it("mostra il numero accanto alla vista solo se maggiore di zero", () => {
     render(<OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value="articoli" onChange={() => {}} counts={{ articoli: 7, acquisti: 0 }} />);
