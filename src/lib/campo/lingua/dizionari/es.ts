@@ -2,6 +2,7 @@ import type { Dizionario } from "../LinguaCampo";
 
 /** Spagnolo — area operai. Chiave = frase italiana (vedi LinguaCampo.tsx). Generato il 23/11/2026, da far rivedere a un madrelingua. */
 const dizionario: Dizionario = {
+  "Dal programma: {fase}": "Del programa: {fase}",
   "Navigazione campo": "Navegación de obra",
   "Timbratura": "Fichaje",
   "{azione}: senza rete, la mando appena torna": "{azione}: sin señal, lo envío cuando vuelva",

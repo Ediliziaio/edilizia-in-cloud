@@ -3,6 +3,7 @@ import es from "./es";
 
 /** Spagnolo argentino (voseo): lo spagnolo, con le frasi che qui si dicono diverse. Da far rivedere a un madrelingua. */
 const dizionario: Dizionario = {
+  "Dal programma: {fase}": "Del programa: {fase}",
   ...es,
   "{azione}: senza rete, la mando appena torna": "{azione}: sin señal, lo mando cuando vuelva",
   "Non sono riuscito a registrare la timbratura. Riprova.": "No pude registrar el fichaje. Probá de nuevo.",

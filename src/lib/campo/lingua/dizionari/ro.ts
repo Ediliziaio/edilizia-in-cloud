@@ -2,6 +2,7 @@ import type { Dizionario } from "../LinguaCampo";
 
 /** Rumeno — area operai. Chiave = frase italiana (vedi LinguaCampo.tsx). Generato il 23/11/2026, da far rivedere a un madrelingua. */
 const dizionario: Dizionario = {
+  "Dal programma: {fase}": "Din program: {fase}",
   "Navigazione campo": "Navigare șantier",
   "Timbratura": "Pontaj",
   "{azione}: senza rete, la mando appena torna": "{azione}: fără semnal, o trimit când revine",

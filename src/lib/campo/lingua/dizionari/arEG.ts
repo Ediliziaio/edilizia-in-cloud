@@ -2,6 +2,7 @@ import type { Dizionario } from "../LinguaCampo";
 
 /** Arabo egiziano — area operai. Chiave = frase italiana (vedi LinguaCampo.tsx). Generato il 23/11/2026, da far rivedere a un madrelingua. */
 const dizionario: Dizionario = {
+  "Dal programma: {fase}": "من البرنامج: {fase}",
   "Navigazione campo": "التنقل في الموقع",
   "Timbratura": "البصمة",
   "{azione}: senza rete, la mando appena torna": "{azione}: مفيش شبكة، هبعتها أول ما ترجع",

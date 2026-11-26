@@ -2,6 +2,7 @@ import type { Dizionario } from "../LinguaCampo";
 
 /** Albanese — area operai. Chiave = frase italiana (vedi LinguaCampo.tsx). Generato il 23/11/2026, da far rivedere a un madrelingua. */
 const dizionario: Dizionario = {
+  "Dal programma: {fase}": "Nga programi: {fase}",
   "Navigazione campo": "Navigimi në kantier",
   "Timbratura": "Regjistrimi i orarit",
   "{azione}: senza rete, la mando appena torna": "{azione}: pa rrjet, e dërgoj sapo të kthehet",

@@ -3,6 +3,7 @@ import es from "./es";
 
 /** Spagnolo peruviano: lo spagnolo, con le frasi che qui si dicono diverse. Da far rivedere a un madrelingua. */
 const dizionario: Dizionario = {
+  "Dal programma: {fase}": "Del programa: {fase}",
   ...es,
   "Bolla": "Guía",
   "I dati sono conservati sul telefono.": "Los datos se guardan en el celular.",

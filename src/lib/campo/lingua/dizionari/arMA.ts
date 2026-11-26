@@ -2,6 +2,7 @@ import type { Dizionario } from "../LinguaCampo";
 
 /** Arabo marocchino (darija) — area operai. Chiave = frase italiana (vedi LinguaCampo.tsx). Generato il 23/11/2026, da far rivedere a un madrelingua. */
 const dizionario: Dizionario = {
+  "Dal programma: {fase}": "من البرنامج: {fase}",
   "Navigazione campo": "التنقل فالشانطي",
   "Timbratura": "البوانتاج",
   "{azione}: senza rete, la mando appena torna": "{azione}: ماكاينش الريزو، غادي نصيفطها ملي يرجع",

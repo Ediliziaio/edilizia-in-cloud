@@ -2,6 +2,7 @@ import type { Dizionario } from "../LinguaCampo";
 
 /** Tedesco — area operai. Chiave = frase italiana (vedi LinguaCampo.tsx). Generato il 23/11/2026, da far rivedere a un madrelingua. */
 const dizionario: Dizionario = {
+  "Dal programma: {fase}": "Aus dem Tagesplan: {fase}",
   "Navigazione campo": "Baustellen-Navigation",
   "Timbratura": "Stempeln",
   "{azione}: senza rete, la mando appena torna": "{azione}: kein Netz, ich schicke es, sobald es wieder da ist",

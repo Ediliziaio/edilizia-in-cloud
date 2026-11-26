@@ -2,6 +2,7 @@ import type { Dizionario } from "../LinguaCampo";
 
 /** Inglese — area operai. Chiave = frase italiana (vedi LinguaCampo.tsx). Generato il 23/11/2026, da far rivedere a un madrelingua. */
 const dizionario: Dizionario = {
+  "Dal programma: {fase}": "From the schedule: {fase}",
   "Navigazione campo": "Site navigation",
   "Timbratura": "Clock in/out",
   "{azione}: senza rete, la mando appena torna": "{azione}: no network, I'll send it when it's back",

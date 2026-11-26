@@ -2,6 +2,7 @@ import type { Dizionario } from "../LinguaCampo";
 
 /** Francese — area operai. Chiave = frase italiana (vedi LinguaCampo.tsx). Generato il 23/11/2026, da far rivedere a un madrelingua. */
 const dizionario: Dizionario = {
+  "Dal programma: {fase}": "Du programme : {fase}",
   "Navigazione campo": "Navigation chantier",
   "Timbratura": "Pointage",
   "{azione}: senza rete, la mando appena torna": "{azione} : pas de réseau, je l’envoie dès qu’il revient",
