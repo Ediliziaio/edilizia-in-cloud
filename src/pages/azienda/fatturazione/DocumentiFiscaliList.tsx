@@ -21,6 +21,7 @@ import { useShipmentDDTPDF } from "@/hooks/useShipmentDDTPDF";
 import { scaricaXmlFattura } from "@/lib/fatturazione/scaricaXml";
 import { siPuoRipristinare } from "@/lib/fatturazione/cestino";
 import { creaNotaCredito } from "@/lib/fatturazione/noteCredito";
+import { documentoEliminabile, emessaMaiUscita } from "@/lib/fatturazione/correggibile";
 import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { BottoneMesi, MonthlyTimeline, useStrisciaMesi } from "@/components/fatturazione/MonthlyTimeline";
@@ -138,7 +139,8 @@ function haIncassi(doc: DocumentoFiscale) {
 }
 
 function isDocumentoEliminabile(doc: DocumentoFiscale) {
-  return doc.stato === "bozza" || doc.stato === "annullata";
+  // Bozza, già annullata, o emessa mai uscita di qui (26/11/2026): vedi correggibile.ts.
+  return documentoEliminabile(doc);
 }
 
 function BillingHubTabs({
@@ -1511,14 +1513,18 @@ function DocumentiFiscaliListInner({ sezioni }: { sezioni?: React.ReactNode } = 
                 ? tr("Eliminare il documento?")
                 : deleteTarget?.stato === "annullata"
                   ? tr("Eliminare definitivamente?")
-                  : tr("Documento non eliminabile")}
+                  : deleteTarget && emessaMaiUscita(deleteTarget)
+                    ? tr("Annullare la fattura?")
+                    : tr("Documento non eliminabile")}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget?.stato === "bozza"
                 ? <>{tr("Stai per spostare nel cestino il documento")} <strong>{deleteTarget?.numero}</strong>.</>
                 : deleteTarget?.stato === "annullata"
                   ? <>{tr("Il documento")} <strong>{deleteTarget?.numero}</strong> {tr("verrà mantenuto nel cestino secondo le regole di conservazione fiscale.")}</>
-                  : <>{tr("Il documento")} <strong>{deleteTarget?.numero}</strong> {tr("è emesso: usa una nota di credito per stornarlo.")}</>
+                  : deleteTarget && emessaMaiUscita(deleteTarget)
+                    ? <>{tr("La fattura")} <strong>{deleteTarget?.numero}</strong> {tr("non è mai stata inviata allo SDI: va nel cestino e il suo numero torna alla serie, quindi lo prenderà la prossima fattura. Nessuna nota di credito.")}</>
+                    : <>{tr("Il documento")} <strong>{deleteTarget?.numero}</strong> {tr("è emesso: usa una nota di credito per stornarlo.")}</>
               }
             </AlertDialogDescription>
           </AlertDialogHeader>
