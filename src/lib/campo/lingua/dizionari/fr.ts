@@ -69296,5 +69296,13 @@ const dizionario: Dizionario = {
   "Salva fra i conti dell'azienda": "Enregistrer parmi les comptes de l’entreprise",
   "Incassi su più banche? Scrivile una volta sola e poi le scegli da qui.": "Tu encaisses sur plusieurs banques ? Écris-les une seule fois, puis tu les choisis ici.",
   "Impostazioni → Fatturazione": "Paramètres → Facturation",
+  "Un pagamento riaperto: la rata è tornata fra quelle da pagare": "Un paiement réouvert : la mensualité est revenue parmi celles à payer",
+  "{n} pagamenti riaperti: le rate sono tornate fra quelle da pagare": "{n} paiements réouverts : les mensualités sont revenues parmi celles à payer",
+  "Non sono riuscito a riaprirli": "Je n’ai pas réussi à les réouvrir",
+  "Una fattura risulta pagata, ma il pagamento non è registrato": "Une facture est donnée comme payée, mais le paiement n’est pas enregistré",
+  "{n} fatture risultano pagate, ma il pagamento non è registrato": "{n} factures sont données comme payées, mais le paiement n’est pas enregistré",
+  "Finché restano così non si possono riconciliare con il movimento della banca. Riaprendole tornano fra quelle da pagare: poi le abbini al pagamento, oppure usi «Segna pagata» dalla fattura, che registra la scrittura.": "Tant qu’elles restent ainsi, elles ne peuvent pas être rapprochées du mouvement bancaire. En les réouvrant, elles reviennent parmi celles à payer : tu les rattaches ensuite au paiement, ou tu utilises « Marquer payée » depuis la facture, ce qui enregistre l’écriture.",
+  "Riaprire {n} pagamenti?": "Réouvrir {n} paiements ?",
+  "Le rate tornano fra quelle da pagare, per {importo} in tutto. Non si cancella niente: le fatture restano dove sono, e chi ha pagato davvero può risegnarle pagate in un clic. Si toccano solo quelle dove il pagamento non risulta registrato.": "Les mensualités reviennent parmi celles à payer, pour {importo} au total. Rien n’est supprimé : les factures restent où elles sont, et celui qui a vraiment payé peut les remarquer payées en un clic. Seules sont touchées celles dont le paiement n’est pas enregistré.",
 };
 export default dizionario;

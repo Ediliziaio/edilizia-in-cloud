@@ -13300,5 +13300,13 @@ const dizionario: Dizionario = {
   "Il tuo accesso non permette di cambiare la scheda dell'azienda: chiedi a chi gestisce le impostazioni di aggiungerlo in Impostazioni → Fatturazione.": "Tu acceso no permite cambiar los datos de la empresa: pedile a quien gestiona los ajustes que lo agregue en Ajustes → Facturación.",
   "Dalla prossima fattura lo scegli dalla tendina, senza riscriverlo.": "Desde la próxima factura lo elegís en el desplegable, sin volver a escribirlo.",
   "Incassi su più banche? Scrivile una volta sola e poi le scegli da qui.": "¿Cobrás en varios bancos? Escribilos una sola vez y después los elegís acá.",
+  "Un pagamento riaperto: la rata è tornata fra quelle da pagare": "Un pago reabierto: la cuota volvió entre las que están por pagar",
+  "{n} pagamenti riaperti: le rate sono tornate fra quelle da pagare": "{n} pagos reabiertos: las cuotas volvieron entre las que están por pagar",
+  "Non sono riuscito a riaprirli": "No pude reabrirlos",
+  "Una fattura risulta pagata, ma il pagamento non è registrato": "Una factura figura como pagada, pero el pago no está registrado",
+  "{n} fatture risultano pagate, ma il pagamento non è registrato": "{n} facturas figuran como pagadas, pero el pago no está registrado",
+  "Finché restano così non si possono riconciliare con il movimento della banca. Riaprendole tornano fra quelle da pagare: poi le abbini al pagamento, oppure usi «Segna pagata» dalla fattura, che registra la scrittura.": "Mientras sigan así no se pueden conciliar con el movimiento del banco. Al reabrirlas vuelven entre las que están por pagar: después las vinculás al pago, o usás «Marcar pagada» desde la factura, que registra el asiento.",
+  "Riaprire {n} pagamenti?": "¿Reabrir {n} pagos?",
+  "Le rate tornano fra quelle da pagare, per {importo} in tutto. Non si cancella niente: le fatture restano dove sono, e chi ha pagato davvero può risegnarle pagate in un clic. Si toccano solo quelle dove il pagamento non risulta registrato.": "Las cuotas vuelven entre las que están por pagar, por {importo} en total. No se borra nada: las facturas se quedan donde están, y quien pagó de verdad puede volver a marcarlas pagadas en un clic. Solo se tocan aquellas en las que el pago no figura registrado.",
 };
 export default dizionario;

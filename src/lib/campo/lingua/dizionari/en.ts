@@ -69296,5 +69296,13 @@ const dizionario: Dizionario = {
   "Salva fra i conti dell'azienda": "Save among the company accounts",
   "Incassi su più banche? Scrivile una volta sola e poi le scegli da qui.": "Collecting payments on several banks? Write them once and then pick them here.",
   "Impostazioni → Fatturazione": "Settings → Invoicing",
+  "Un pagamento riaperto: la rata è tornata fra quelle da pagare": "One payment reopened: the instalment is back among those to be paid",
+  "{n} pagamenti riaperti: le rate sono tornate fra quelle da pagare": "{n} payments reopened: the instalments are back among those to be paid",
+  "Non sono riuscito a riaprirli": "I couldn’t reopen them",
+  "Una fattura risulta pagata, ma il pagamento non è registrato": "One invoice shows as paid, but the payment isn’t recorded",
+  "{n} fatture risultano pagate, ma il pagamento non è registrato": "{n} invoices show as paid, but the payment isn’t recorded",
+  "Finché restano così non si possono riconciliare con il movimento della banca. Riaprendole tornano fra quelle da pagare: poi le abbini al pagamento, oppure usi «Segna pagata» dalla fattura, che registra la scrittura.": "While they stay like this they can’t be reconciled with the bank movement. Reopening them puts them back among those to be paid: then you match them to the payment, or you use «Mark as paid» on the invoice, which records the entry.",
+  "Riaprire {n} pagamenti?": "Reopen {n} payments?",
+  "Le rate tornano fra quelle da pagare, per {importo} in tutto. Non si cancella niente: le fatture restano dove sono, e chi ha pagato davvero può risegnarle pagate in un clic. Si toccano solo quelle dove il pagamento non risulta registrato.": "The instalments go back among those to be paid, for {importo} in total. Nothing is deleted: the invoices stay where they are, and whoever really paid can mark them paid again in one click. Only the ones whose payment isn’t recorded are touched.",
 };
 export default dizionario;

@@ -69296,5 +69296,13 @@ const dizionario: Dizionario = {
   "Salva fra i conti dell'azienda": "احفظه مع حسابات الشركة",
   "Incassi su più banche? Scrivile una volta sola e poi le scegli da qui.": "بتحصّل على كذا بنك؟ اكتبهم مرة واحدة وبعدها تختارهم من هنا.",
   "Impostazioni → Fatturazione": "الإعدادات ← الفواتير",
+  "Un pagamento riaperto: la rata è tornata fra quelle da pagare": "دفعة اتفتحت تاني: القسط رجع مع اللي لسه هيتدفع",
+  "{n} pagamenti riaperti: le rate sono tornate fra quelle da pagare": "{n} دفعات اتفتحت تاني: الأقساط رجعت مع اللي لسه هتتدفع",
+  "Non sono riuscito a riaprirli": "مقدرتش أفتحهم تاني",
+  "Una fattura risulta pagata, ma il pagamento non è registrato": "فاتورة ظاهرة مدفوعة، بس الدفع مش مسجّل",
+  "{n} fatture risultano pagate, ma il pagamento non è registrato": "{n} فواتير ظاهرة مدفوعة، بس الدفع مش مسجّل",
+  "Finché restano così non si possono riconciliare con il movimento della banca. Riaprendole tornano fra quelle da pagare: poi le abbini al pagamento, oppure usi «Segna pagata» dalla fattura, che registra la scrittura.": "وهي كده مش هتعرف تطابقها مع حركة البنك. لو فتحتها تاني بترجع مع اللي لسه هيتدفع: بعد كده بتطابقها مع الدفع، أو بتستخدم «علّم مدفوعة» من الفاتورة، واللي بيسجّل القيد.",
+  "Riaprire {n} pagamenti?": "تفتح {n} دفعات تاني؟",
+  "Le rate tornano fra quelle da pagare, per {importo} in tutto. Non si cancella niente: le fatture restano dove sono, e chi ha pagato davvero può risegnarle pagate in un clic. Si toccano solo quelle dove il pagamento non risulta registrato.": "الأقساط بترجع مع اللي لسه هتتدفع، بـ {importo} في الإجمالي. مش بيتمسح حاجة: الفواتير بتفضل في مكانها، واللي دفع بجد يقدر يعلّمها مدفوعة تاني بكليك. بتتغير بس اللي الدفع بتاعها مش مسجّل.",
 };
 export default dizionario;

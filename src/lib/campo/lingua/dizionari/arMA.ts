@@ -69296,5 +69296,13 @@ const dizionario: Dizionario = {
   "Salva fra i conti dell'azienda": "سجّلو مع الحسابات ديال الشركة",
   "Incassi su più banche? Scrivile una volta sola e poi le scegli da qui.": "كتقبض فبزاف ديال البنكات؟ كتبهم مرة وحدة ومن بعد كتختارهم من هنا.",
   "Impostazioni → Fatturazione": "الإعدادات ← الفاتورات",
+  "Un pagamento riaperto: la rata è tornata fra quelle da pagare": "خلاص واحد ترجع تحل: التريت رجعت مع اللي باقي يتخلّص",
+  "{n} pagamenti riaperti: le rate sono tornate fra quelle da pagare": "{n} خلاصات ترجعو تحلو: التريتات رجعو مع اللي باقي يتخلّص",
+  "Non sono riuscito a riaprirli": "ماقدرتش نرجع نحلهم",
+  "Una fattura risulta pagata, ma il pagamento non è registrato": "فاتورة كتبان مخلّصة، ولكن الخلاص ماسجّلش",
+  "{n} fatture risultano pagate, ma il pagamento non è registrato": "{n} فاتورات كيبانو مخلّصين، ولكن الخلاص ماسجّلش",
+  "Finché restano così non si possono riconciliare con il movimento della banca. Riaprendole tornano fra quelle da pagare: poi le abbini al pagamento, oppure usi «Segna pagata» dalla fattura, che registra la scrittura.": "باقي هكاك ما تقدرش تقابلهم مع الحركة ديال البانكا. إلا رجعتهم تحل كيرجعو مع اللي باقي يتخلّص: من بعد كتقابلهم مع الخلاص، ولا كتستعمل «علّم مخلّصة» من الفاتورة، اللي كتسجّل الكتابة.",
+  "Riaprire {n} pagamenti?": "ترجع تحل {n} خلاصات؟",
+  "Le rate tornano fra quelle da pagare, per {importo} in tutto. Non si cancella niente: le fatture restano dove sono, e chi ha pagato davvero può risegnarle pagate in un clic. Si toccano solo quelle dove il pagamento non risulta registrato.": "التريتات كيرجعو مع اللي باقي يتخلّص، ب {importo} بجوج. ما كيتمحا حتى شي: الفاتورات كيبقاو فبلاصتهم، و اللي خلّص بصح يقدر يعاود يعلّمهم مخلّصين بكليكة. كيتبدلو غير اللي الخلاص ديالهم ماسجّلش.",
 };
 export default dizionario;

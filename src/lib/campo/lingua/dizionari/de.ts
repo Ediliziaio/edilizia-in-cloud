@@ -69296,5 +69296,13 @@ const dizionario: Dizionario = {
   "Salva fra i conti dell'azienda": "Zu den Konten der Firma speichern",
   "Incassi su più banche? Scrivile una volta sola e poi le scegli da qui.": "Einnahmen über mehrere Banken? Schreib sie einmal auf und wähl sie dann hier aus.",
   "Impostazioni → Fatturazione": "Einstellungen → Fakturierung",
+  "Un pagamento riaperto: la rata è tornata fra quelle da pagare": "Eine Zahlung wieder geöffnet: die Rate steht wieder bei den zu zahlenden",
+  "{n} pagamenti riaperti: le rate sono tornate fra quelle da pagare": "{n} Zahlungen wieder geöffnet: die Raten stehen wieder bei den zu zahlenden",
+  "Non sono riuscito a riaprirli": "Ich konnte sie nicht wieder öffnen",
+  "Una fattura risulta pagata, ma il pagamento non è registrato": "Eine Rechnung gilt als bezahlt, aber die Zahlung ist nicht erfasst",
+  "{n} fatture risultano pagate, ma il pagamento non è registrato": "{n} Rechnungen gelten als bezahlt, aber die Zahlung ist nicht erfasst",
+  "Finché restano così non si possono riconciliare con il movimento della banca. Riaprendole tornano fra quelle da pagare: poi le abbini al pagamento, oppure usi «Segna pagata» dalla fattura, che registra la scrittura.": "Solange sie so bleiben, lassen sie sich nicht mit der Bankbewegung abstimmen. Öffnest du sie wieder, stehen sie wieder bei den zu zahlenden: dann ordnest du sie der Zahlung zu, oder du nimmst «Als bezahlt markieren» auf der Rechnung, was die Buchung erfasst.",
+  "Riaprire {n} pagamenti?": "{n} Zahlungen wieder öffnen?",
+  "Le rate tornano fra quelle da pagare, per {importo} in tutto. Non si cancella niente: le fatture restano dove sono, e chi ha pagato davvero può risegnarle pagate in un clic. Si toccano solo quelle dove il pagamento non risulta registrato.": "Die Raten stehen wieder bei den zu zahlenden, für {importo} insgesamt. Es wird nichts gelöscht: die Rechnungen bleiben, wo sie sind, und wer wirklich bezahlt hat, kann sie mit einem Klick wieder als bezahlt markieren. Betroffen sind nur die, bei denen die Zahlung nicht erfasst ist.",
 };
 export default dizionario;
