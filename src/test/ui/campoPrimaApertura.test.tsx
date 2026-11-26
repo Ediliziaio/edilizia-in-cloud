@@ -10,6 +10,9 @@ vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ profile: stato.prof
 
 import { PrimaAperturaCampo } from "@/components/campo/PrimaAperturaCampo";
 
+import { beforeEach } from "vitest";
+beforeEach(() => localStorage.clear());
+
 describe("prima apertura dell'app operai", () => {
   it("chi non ha scelto la lingua la sceglie, poi vede la guida e può saltarla", () => {
     stato.scelta = false; stato.profilo = { id: "p1" };
@@ -23,6 +26,15 @@ describe("prima apertura dell'app operai", () => {
 
   it("chi ha già scelto non vede niente", () => {
     stato.scelta = true; stato.profilo = { id: "p1" };
+    render(<PrimaAperturaCampo />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("dopo la scelta non ricompare, anche se la pagina si rimonta prima che il profilo sia aggiornato", () => {
+    stato.scelta = false; stato.profilo = { id: "p1" };
+    const primo = render(<PrimaAperturaCampo />);
+    fireEvent.click(screen.getByRole("button", { name: /Italiano/ }));
+    primo.unmount();
     render(<PrimaAperturaCampo />);
     expect(screen.queryByRole("dialog")).toBeNull();
   });

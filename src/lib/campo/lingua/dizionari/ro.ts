@@ -69189,5 +69189,15 @@ const dizionario: Dizionario = {
   "Timbratura, avvisi e pagamenti nell’app": "Pontaj, avize și plăți în aplicație",
   "Spento: nell'app non vede la timbratura, le ore le segna il caposquadra o l'ufficio. Vale solo se la timbratura dall'app è accesa per l'azienda (Regole dell'area operai).": "Oprit: nu vede pontajul în aplicație, orele le trece șeful de echipă sau biroul. Contează doar dacă pontajul din aplicație e pornit pentru firmă (Regulile zonei muncitorilor).",
   "Timbra dall'app": "Pontează din aplicație",
+  "Oggi qui": "Azi aici",
+  "Sei in programma qui oggi.": "Ești programat aici azi.",
+  "Oggi non sei in programma su questo cantiere.": "Azi nu ești programat pe acest șantier.",
+  "Entrato alle {e}, uscito alle {u}": "Intrat la {e}, ieșit la {u}",
+  "In cantiere dalle {e}": "Pe șantier de la {e}",
+  "Non hai ancora timbrato qui oggi.": "Încă nu ai pontat aici azi.",
+  "Rapportino di oggi": "Raportul de azi",
+  "in bozza": "ciornă",
+  "approvato": "aprobat",
+  "da rifare": "de refăcut",
 };
 export default dizionario;

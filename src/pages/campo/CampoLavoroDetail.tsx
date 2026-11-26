@@ -1,4 +1,5 @@
 import { COLONNE_RAPPORTINO, COLONNE_RAPPORTINO_CON_AUTORE } from "@/lib/campo/colonneRapportino";
+import { OggiQuiCampo } from "@/components/campo/OggiQuiCampo";
 import { useTimbraDallApp } from "@/hooks/campo/useTimbraDallApp";
 import { RuoloCantiereCampo } from "@/components/campo/RuoloCantiereCampo";
 import { BottoneCollaudo } from "@/components/campo/BottoneCollaudo";
@@ -24,7 +25,7 @@ import {
   CheckCircle, Clock, Loader2, FileText, PenLine,
   Send, Download, FileCheck,
 	  ClipboardSignature, ShieldCheck, Package, Wrench,
-	  Camera, BookOpenCheck, MessageSquare, Navigation, LogIn, LogOut, ClipboardList, Receipt, PlusCircle,
+	  Camera, BookOpenCheck, MessageSquare, Navigation, LogIn, LogOut, ClipboardList, Receipt, PlusCircle, Users,
 	} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
@@ -935,6 +936,10 @@ export default function CampoLavoroDetail() {
           <QuickAction icon={AlertCircle} label={t("Segnala")} onClick={() => navigate(`/campo/ticket/nuovo/${orderId}`)} />
           {/* Il cliente chiede un lavoro in più: si segnala subito, l'ufficio lo prezza (piano campo completo 2.1). */}
           <QuickAction icon={PlusCircle} label={t("Extra")} onClick={() => navigate(`/campo/lavoro/${orderId}/extra`)} />
+          {/* Chi coordina: la pagina Squadra (chi c'è, ingressi, 5 minuti di sicurezza, fermo, domani). */}
+          {!ruoloRapportiError && (ruoloRapporti?.isCapocantiere || ruoloRapporti?.isCaposquadra) && (
+            <QuickAction icon={Users} label={t("Squadra")} onClick={() => navigate(`/campo/squadra/${orderId}`)} />
+          )}
           {orderId && <BottoneCollaudo orderId={orderId} />}
           {/* «Piano e documenti» stava accanto al titolo e lo tagliava: ora è un'azione come le altre. */}
           {vedeSchedaTecnica && <QuickAction icon={BookOpenCheck} label={t("Piano e documenti")} onClick={() => navigate(percorsoCantiereTecnico(orderId))} />}
@@ -990,8 +995,12 @@ export default function CampoLavoroDetail() {
               </p>
             )}
 
-            {/* Con chi lavori: squadra, caposquadra, capocantiere */}
-            {orderId && <RuoloCantiereCampo orderId={orderId} ruolo={ruoloRapportiError ? undefined : ruoloRapporti} subappaltatore={isSubappaltatore} caricamento={ruoloRapportiLoading} errore={ruoloRapportiError} onRapportini={() => setActiveTab("rapportini")} onRiprova={() => void ricaricaRuoloRapporti()} />}
+            {/* Oggi qui: le mie fasi di oggi, il rapportino, la timbratura (26/11/2026). */}
+            {orderId && <OggiQuiCampo orderId={orderId} rapportino={statoRapportinoOggi}
+              mostraRapportino={!soloTimbratura || !!rapportinoOggi} timbra={isOperaio && timbraApp.timbra}
+              entrata={timbratureLavoroOggi.find(x => x.tipo === "entrata")?.timestamp_evento ?? null}
+              uscita={uscitaRegistrataOggi ? lastTimbro?.timestamp_evento ?? null : null}
+              onRapportino={() => navigate(rapportinoInviatoOggi ? rapportinoDiOggiUrl : soloTimbratura ? rapportinoDiOggiUrl : rapportinoManualeUrl)} />}
             {orderId && <ChiLavoraCampo orderId={orderId} />}
             {/* Le foto si vedono qui, senza aprire un'altra pagina (24/11/2026). */}
             {orderId && <FotoRecentiCantiere orderId={orderId} nomeCantiere={order?.order_code ?? order?.description ?? undefined} />}
@@ -1152,6 +1161,8 @@ export default function CampoLavoroDetail() {
               </details>
             )}
 
+            {/* Il tuo ruolo qui (spiegazione): in fondo, si consulta una volta (26/11/2026). */}
+            {orderId && <RuoloCantiereCampo orderId={orderId} ruolo={ruoloRapportiError ? undefined : ruoloRapporti} subappaltatore={isSubappaltatore} caricamento={ruoloRapportiLoading} errore={ruoloRapportiError} onRapportini={() => setActiveTab("rapportini")} onRiprova={() => void ricaricaRuoloRapporti()} />}
             {/* Diario del cantiere: si legge solo quando lo apri. */}
             {orderId && (diarioAperto ? (
               <DiarioCantiere orderId={orderId} />

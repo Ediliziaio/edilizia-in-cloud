@@ -19,13 +19,19 @@ const GUIDA = [
   { icona: AlertTriangle, titolo: "Segnala", testo: "Un problema, un infortunio, il materiale che manca." },
 ] as const;
 
+/** Già vista su questo telefono: la scelta salvata ricarica il profilo e rimonta la pagina, e per un attimo
+ * la lingua risulta «non scelta». Senza questo segno la schermata tornava subito dopo «Salta» (collaudo 26/11). */
+const CHIAVE_VISTA = "campo-prima-apertura-vista";
+const giaVista = () => { try { return localStorage.getItem(CHIAVE_VISTA) === "1" || !!localStorage.getItem("campo-lingua-scelta"); } catch { return false; } };
+const segnaVista = () => { try { localStorage.setItem(CHIAVE_VISTA, "1"); } catch { /* resta per questa pagina */ } };
+
 export function PrimaAperturaCampo() {
   const { scelta, scegli, t } = useLinguaCampo();
   const { profile } = useAuth();
   // null = forse serve la lingua: si decide solo a profilo caricato (prima «scelta» è falso per tutti).
   const [passo, setPasso] = useState<null | number | "fatto">(null);
   if (passo === "fatto") return null;
-  if (passo === null && (!profile || scelta)) return null;
+  if (passo === null && (!profile || scelta || giaVista())) return null;
 
   return (
     <div role="dialog" aria-modal="true" aria-labelledby="prima-apertura-titolo"
@@ -42,7 +48,7 @@ export function PrimaAperturaCampo() {
           <ul className="space-y-2">
             {LINGUE.map(l => (
               <li key={l.codice}>
-                <button type="button" onClick={() => { scegli(l.codice); setPasso(0); }}
+                <button type="button" onClick={() => { segnaVista(); scegli(l.codice); setPasso(0); }}
                   className="flex min-h-14 w-full items-center justify-between gap-3 rounded-2xl border bg-background px-4 text-start active:bg-muted">
                   <span dir={l.rtl ? "rtl" : "ltr"} className="text-base font-semibold">{l.nome}</span>
                   {l.codice !== "it" && <span className="text-xs text-muted-foreground">{l.nomeItaliano}</span>}

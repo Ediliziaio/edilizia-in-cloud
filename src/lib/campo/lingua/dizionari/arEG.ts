@@ -69152,5 +69152,15 @@ const dizionario: Dizionario = {
   "Timbratura, avvisi e pagamenti nell’app": "البصمة والتنبيهات والمدفوعات في الأبلكيشن",
   "Spento: nell'app non vede la timbratura, le ore le segna il caposquadra o l'ufficio. Vale solo se la timbratura dall'app è accesa per l'azienda (Regole dell'area operai).": "مقفول: مش بيشوف البصمة في الأبلكيشن، الساعات بيسجلها رئيس العمال أو المكتب. بس لو البصمة من الأبلكيشن مفتوحة للشركة (قواعد منطقة العمال).",
   "Timbra dall'app": "بصمة من الأبلكيشن",
+  "Oggi qui": "النهارده هنا",
+  "Sei in programma qui oggi.": "إنت متسجل هنا النهارده.",
+  "Oggi non sei in programma su questo cantiere.": "النهارده إنت مش متسجل على الموقع ده.",
+  "Entrato alle {e}, uscito alle {u}": "دخلت الساعة {e}، خرجت الساعة {u}",
+  "In cantiere dalle {e}": "في الموقع من {e}",
+  "Non hai ancora timbrato qui oggi.": "لسه مبصمتش هنا النهارده.",
+  "Rapportino di oggi": "تقرير النهارده",
+  "in bozza": "مسودة",
+  "approvato": "متعتمد",
+  "da rifare": "لازم يتعاد",
 };
 export default dizionario;

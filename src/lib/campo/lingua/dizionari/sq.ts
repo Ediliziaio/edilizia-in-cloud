@@ -69189,5 +69189,15 @@ const dizionario: Dizionario = {
   "Timbratura, avvisi e pagamenti nell’app": "Orari, njoftimet dhe pagesat në aplikacion",
   "Spento: nell'app non vede la timbratura, le ore le segna il caposquadra o l'ufficio. Vale solo se la timbratura dall'app è accesa per l'azienda (Regole dell'area operai).": "Fikur: nuk e sheh shënimin e orarit në aplikacion, orët i shënon përgjegjësi ose zyra. Vlen vetëm nëse shënimi nga aplikacioni është ndezur për firmën (Rregullat e zonës së punëtorëve).",
   "Timbra dall'app": "Shëno nga aplikacioni",
+  "Oggi qui": "Sot këtu",
+  "Sei in programma qui oggi.": "Je i planifikuar këtu sot.",
+  "Oggi non sei in programma su questo cantiere.": "Sot nuk je i planifikuar në këtë kantier.",
+  "Entrato alle {e}, uscito alle {u}": "Hyre në {e}, dole në {u}",
+  "In cantiere dalle {e}": "Në kantier nga {e}",
+  "Non hai ancora timbrato qui oggi.": "Nuk ke shënuar ende hyrjen këtu sot.",
+  "Rapportino di oggi": "Raporti i sotëm",
+  "in bozza": "draft",
+  "approvato": "miratuar",
+  "da rifare": "për t'u ribërë",
 };
 export default dizionario;

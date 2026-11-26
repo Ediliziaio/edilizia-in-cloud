@@ -69152,5 +69152,15 @@ const dizionario: Dizionario = {
   "Timbratura, avvisi e pagamenti nell’app": "Clocking, notices and payments in the app",
   "Spento: nell'app non vede la timbratura, le ore le segna il caposquadra o l'ufficio. Vale solo se la timbratura dall'app è accesa per l'azienda (Regole dell'area operai).": "Off: they don't see clocking in the app, hours are recorded by the foreman or the office. Only applies if clocking from the app is on for the company (Field area rules).",
   "Timbra dall'app": "Clock in from the app",
+  "Oggi qui": "Today here",
+  "Sei in programma qui oggi.": "You're scheduled here today.",
+  "Oggi non sei in programma su questo cantiere.": "You're not scheduled on this site today.",
+  "Entrato alle {e}, uscito alle {u}": "In at {e}, out at {u}",
+  "In cantiere dalle {e}": "On site since {e}",
+  "Non hai ancora timbrato qui oggi.": "You haven't clocked in here today.",
+  "Rapportino di oggi": "Today's report",
+  "in bozza": "draft",
+  "approvato": "approved",
+  "da rifare": "to redo",
 };
 export default dizionario;

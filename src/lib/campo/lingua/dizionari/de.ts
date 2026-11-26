@@ -69152,5 +69152,15 @@ const dizionario: Dizionario = {
   "Timbratura, avvisi e pagamenti nell’app": "Stempeln, Hinweise und Zahlungen in der App",
   "Spento: nell'app non vede la timbratura, le ore le segna il caposquadra o l'ufficio. Vale solo se la timbratura dall'app è accesa per l'azienda (Regole dell'area operai).": "Aus: sieht das Stempeln in der App nicht, die Stunden trägt der Vorarbeiter oder das Büro ein. Gilt nur, wenn das Stempeln in der App für die Firma an ist (Regeln des Arbeiterbereichs).",
   "Timbra dall'app": "In der App stempeln",
+  "Oggi qui": "Heute hier",
+  "Sei in programma qui oggi.": "Du bist heute hier eingeplant.",
+  "Oggi non sei in programma su questo cantiere.": "Heute bist du nicht auf dieser Baustelle eingeplant.",
+  "Entrato alle {e}, uscito alle {u}": "Gekommen um {e}, gegangen um {u}",
+  "In cantiere dalle {e}": "Auf der Baustelle seit {e}",
+  "Non hai ancora timbrato qui oggi.": "Du hast hier heute noch nicht gestempelt.",
+  "Rapportino di oggi": "Bericht von heute",
+  "in bozza": "Entwurf",
+  "approvato": "genehmigt",
+  "da rifare": "neu zu machen",
 };
 export default dizionario;
