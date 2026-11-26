@@ -1,6 +1,9 @@
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { leggiXmlRicevuta } from "@/lib/fatturazione/originaleRicevuta";
+import { fatturaRicevutaHtml } from "@/lib/fatturazione/fatturaRicevutaHtml";
 import { toast } from "sonner";
 import { Link, useSearchParams } from "react-router-dom";
 import {
@@ -472,6 +475,29 @@ export function ConfrontoFatturaDialog({
     fattura.pdf_storage_path || fattura.pdf_url,
     String(fattura.pdf_storage_bucket || "fatture-ricevute"),
   );
+  // Senza PDF caricato la fattura si guarda lo stesso: dall'XML si disegna il documento,
+  // lo stesso che esce da «Apri fattura XML e stampa». Prima qui c'era solo un avviso che
+  // diceva di andarselo a vedere da un'altra parte — e intanto mezzo schermo restava vuoto.
+  // Si legge solo quando si apre quella scheda: l'XML pesa, e la maggior parte delle volte
+  // nessuno la apre.
+  const vistaXml = useQuery({
+    queryKey: ["confronto-originale-xml", id],
+    enabled: !fileFattura && vistaFattura === "originale",
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("fatture_ricevute" as never)
+        .select("xml_raw,indice_corpo,xml_url" as never)
+        .eq("id", id)
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (error) throw error;
+      const o = data as { xml_raw: string | null; indice_corpo: number | null; xml_url: string | null } | null;
+      const xml = await leggiXmlRicevuta({ xml_raw: o?.xml_raw ?? null, xml_url: o?.xml_url ?? null });
+      if (!xml) return null;
+      return fatturaRicevutaHtml(xml, new DOMParser(), { indiceCorpo: o?.indice_corpo ?? 0 });
+    },
+  });
   const selezionaRiga = (indice: number) => {
     if (!righe[indice]) return;
     setFiltroRighe("tutte");
@@ -516,16 +542,23 @@ export function ConfrontoFatturaDialog({
         className={CLASSE_DIALOG_CONFRONTO}
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        <DialogHeader className="shrink-0 border-b px-4 py-3 pr-12 sm:px-5">
-          <DialogTitle className="flex items-center gap-2 text-lg">
-            <ArrowLeftRight className="h-5 w-5 text-orange-600" />
+        {/* 26/11/2026: testata compatta. Titolo, sottotitolo, barra dei pulsanti e
+            riquadri si prendevano un quarto dell'altezza, e il documento — che è la cosa
+            per cui si apre questa finestra — partiva a metà schermo. */}
+        <DialogHeader className="shrink-0 gap-0.5 border-b px-4 py-2 pr-12 sm:px-5">
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <ArrowLeftRight className="h-4 w-4 text-orange-600" />
             {t("Confronto fattura, DDT e ordini")}
           </DialogTitle>
-          <DialogDescription className="text-xs">{t("{fornitore} · Fattura {numero} del {data}", { fornitore: String(fattura.cedente_ragione_sociale ?? t("Fornitore")), numero: String(fattura.numero_fattura ?? ""), data: formatDateShort(String(fattura.data_fattura ?? "")) })}</DialogDescription>
+          <DialogDescription className="text-[11px] leading-tight">{t("{fornitore} · Fattura {numero} del {data}", { fornitore: String(fattura.cedente_ragione_sociale ?? t("Fornitore")), numero: String(fattura.numero_fattura ?? ""), data: formatDateShort(String(fattura.data_fattura ?? "")) })}</DialogDescription>
         </DialogHeader>
-        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-muted/20 px-4 py-2 sm:px-5">
-          <span className="mr-auto text-xs text-muted-foreground">
-            {t("Seleziona i documenti da confrontare e apri le rispettive righe o gli originali.")}
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-muted/20 px-4 py-1.5 sm:px-5">
+          {/* Sotto i 1280 la frase sparisce ma lo spazio resta: senza, i pulsanti
+              scivolerebbero a sinistra. Sotto resta leggibile da chi usa uno screen reader. */}
+          <span className="mr-auto text-[11px] text-muted-foreground">
+            <span className="max-xl:sr-only">
+              {t("Seleziona i documenti da confrontare e apri le rispettive righe o gli originali.")}
+            </span>
           </span>
           <Button
             variant="outline"
@@ -590,7 +623,7 @@ export function ConfrontoFatturaDialog({
                   : t("Analizza con AI")}
           </Button>
         </div>
-        <div className="shrink-0 border-b px-4 py-2 sm:px-5"><RiepilogoConfronto indicatori={[
+        <div className="shrink-0 border-b px-4 py-1.5 sm:px-5"><RiepilogoConfronto indicatori={[
           {label:t("Voci coerenti"),valore:esiti.filter(e=>e.stato==="coerente").length,tono:"verde",attivo:filtroRighe==="coerenti",onClick:()=>setFiltroRighe(filtroRighe==="coerenti"?"tutte":"coerenti")},
           {label:t("Da verificare"),valore:esiti.filter(e=>e.stato!=="coerente").length,tono:"ambra",attivo:filtroRighe==="differenze",onClick:()=>setFiltroRighe(filtroRighe==="differenze"?"tutte":"differenze")},
           {label:t("Documenti selezionati"),valore:scelti.size,onClick:()=>setFiltroRighe("tutte")},
@@ -653,13 +686,13 @@ export function ConfrontoFatturaDialog({
         ) : (
           <div className="contents"><PannelliConfrontoMobile valore={pannelloMobile} onChange={setPannelloMobile} sinistra={t("Fattura")} destra={t("DDT e ordini")}/>
           <ConfrontoDocumentiLayout>
-            <Tabs value={vistaFattura} onValueChange={setVistaFattura} className="contents"><PannelloDocumento nome={t("Fattura ricevuta")} lato="sinistra" attivo={pannelloMobile==="sinistra"} testata={<div className="space-y-2 border-b bg-background px-4 py-3 sm:px-5">
-                <div className="flex min-h-8 items-center justify-between gap-3">
-                  <h2 className="flex items-center gap-2 text-sm font-semibold">
-                    <FileText className="h-4 w-4 text-blue-600" />
+            <Tabs value={vistaFattura} onValueChange={setVistaFattura} className="contents"><PannelloDocumento nome={t("Fattura ricevuta")} lato="sinistra" attivo={pannelloMobile==="sinistra"} testata={<div className="space-y-1 border-b bg-background px-4 py-2 sm:px-5">
+                <div className="flex min-h-6 items-center justify-between gap-3">
+                  <h2 className="flex items-center gap-2 text-xs font-semibold">
+                    <FileText className="h-3.5 w-3.5 text-blue-600" />
                     {t("Fattura ricevuta")}
                   </h2>
-                  <Badge variant="secondary">
+                  <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
                     {fattura.xml_url || fattura.xml_bytes
                       ? "XML"
                       : fileFattura
@@ -667,18 +700,18 @@ export function ConfrontoFatturaDialog({
                         : t("Dati documento")}
                   </Badge>
                 </div>
-                <div className="flex h-10 items-center justify-between gap-3 rounded-md border px-3 text-sm">
+                <div className="flex h-8 items-center justify-between gap-3 rounded-md border px-2.5 text-xs">
                   <span
                     className="truncate font-medium"
                     title={String(fattura.numero_fattura ?? "")}
                   >
                     {String(fattura.numero_fattura ?? t("Fattura"))}
                   </span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
+                  <span className="shrink-0 text-[11px] text-muted-foreground">
                     {formatDateShort(String(fattura.data_fattura ?? ""))}
                   </span>
                 </div>
-                <div className="flex min-h-7 items-center justify-between gap-3 text-xs text-muted-foreground">
+                <div className="flex min-h-5 items-center justify-between gap-3 text-[11px] text-muted-foreground">
                   <span
                     className="truncate"
                     title={String(fattura.cedente_ragione_sociale ?? "")}
@@ -687,10 +720,10 @@ export function ConfrontoFatturaDialog({
                   </span>
                   <span className="shrink-0">{t("{n} voci", { n: righe.length })}</span>
                 </div>
-              </div>} viste={<div className="flex flex-wrap items-center gap-2 px-4 py-2 sm:px-5">
-                  <TabsList className="h-8">
-                    <TabsTrigger value="righe">{t("Righe e importi")}</TabsTrigger>
-                    <TabsTrigger value="originale">{t("File originale")}</TabsTrigger>
+              </div>} viste={<div className="flex flex-wrap items-center gap-2 px-4 py-1 sm:px-5">
+                  <TabsList className="h-7">
+                    <TabsTrigger value="righe" className="text-xs">{t("Righe e importi")}</TabsTrigger>
+                    <TabsTrigger value="originale" className="text-xs">{t("File originale")}</TabsTrigger>
                   </TabsList>
                   {rigaAttiva != null && (
                     <Button
@@ -703,7 +736,7 @@ export function ConfrontoFatturaDialog({
                 </div>}>
 <TabsContent
                   value="originale"
-                  className="m-0 flex min-h-0 flex-1 flex-col px-4 pb-4 sm:px-5"
+                  className="m-0 flex min-h-0 flex-1 flex-col px-2 pb-2 sm:px-2.5"
                 >
                   {fileFattura ? (
                     <OriginaliConfronto
@@ -716,6 +749,28 @@ export function ConfrontoFatturaDialog({
                       companyId={companyId}
                       adatta
                     />
+                  ) : vistaXml.isLoading ? (
+                    <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {t("Preparo la fattura dall’XML…")}
+                    </div>
+                  ) : vistaXml.data ? (
+                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
+                      <iframe
+                        title={vistaXml.data.titolo}
+                        srcDoc={vistaXml.data.html}
+                        sandbox=""
+                        className="min-h-0 w-full flex-1 border-0 bg-white"
+                      />
+                      {onVersioneCompleta && (
+                        <div className="flex shrink-0 items-center justify-between gap-2 border-t bg-muted/30 px-3 py-1.5 text-[11px] text-muted-foreground">
+                          <span>{t("Disegnata dall’XML: il fornitore non ha allegato un PDF.")}</span>
+                          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onVersioneCompleta}>
+                            {t("Apri e stampa")}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <div className="space-y-3 rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
                       <p>

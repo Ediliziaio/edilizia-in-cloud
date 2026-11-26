@@ -23,6 +23,8 @@ const fake = vi.hoisted(() => ({
   contesto: null as ContestoRiconciliazione | null,
   contestoErrore: false,
   contestoInCaricamento: false,
+  // L'XML della fattura ricevuta: senza PDF caricato è da lì che si disegna il documento.
+  xml: null as string | null,
 }));
 vi.mock("@/hooks/useConfrontoFattura", () => ({
   useConfrontoFattura: () => ({
@@ -87,6 +89,18 @@ vi.mock("@/lib/fatturazione/collegaDdt", () => ({
 }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
+    from: () => {
+      const catena: Record<string, unknown> = {};
+      catena.select = () => catena;
+      catena.eq = () => catena;
+      catena.maybeSingle = async () => ({
+        data: fake.xml
+          ? { xml_raw: fake.xml, indice_corpo: 0, xml_url: null as string | null }
+          : null,
+        error: null as Error | null,
+      });
+      return catena;
+    },
     storage: {
       from: () => ({
         createSignedUrl: async (p: string) => ({
@@ -98,6 +112,29 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 import { ConfrontoFatturaDialog } from "@/components/fatturazione/ConfrontoFatturaDialog";
+import { generateXML } from "../../../supabase/functions/_shared/generateXML";
+import { calcolaRiga, calcolaTotaliDocumento } from "@/lib/fatturazione/calcoli";
+
+/** Un XML FatturaPA vero, fatto con lo stesso generatore che spedisce le fatture. */
+function xmlDiProva() {
+  const righe = [calcolaRiga({
+    id: "r", numero_linea: 1, descrizione: "Malta A81", quantita: 45, unita_misura: "PZ",
+    prezzo_unitario: 12, aliquota_iva: "22", imponibile: 0, imposta: 0, totale_riga: 0,
+  } as never)];
+  const t = calcolaTotaliDocumento(righe, {});
+  return generateXML({
+    tipo: "fattura", numero: "QA-F", data_emissione: "2026-11-11",
+    cliente_snapshot: { tipo_cliente: "B2B", ragione_sociale: "IMPRESA QA S.R.L.", partita_iva: "01941970939",
+      codice_fiscale: "01941970939", indirizzo_via: "Via Uno 1", indirizzo_cap: "33170",
+      indirizzo_comune: "Pordenone", indirizzo_provincia: "PN", indirizzo_nazione: "IT", codice_sdi: "PIC7CPS" },
+    righe, riepilogo_iva: t.riepilogo_iva, imponibile_totale: t.imponibile_totale,
+    totale_documento: t.totale_documento, totale_da_pagare: t.totale_da_pagare,
+  } as never, {
+    ragione_sociale: "Fornitore DEMO", partita_iva: "01234567897", codice_fiscale: "01234567897",
+    indirizzo_via: "Via Roma 1", indirizzo_cap: "33080", indirizzo_comune: "Prata di Pordenone",
+    indirizzo_provincia: "PN", indirizzo_nazione: "IT", regime_fiscale: "RF01", codice_sdi: "KRRH6B9",
+  } as never, "00001");
+}
 const fattura = {
   id: "f",
   numero_fattura: "QA-F",
@@ -136,6 +173,7 @@ beforeEach(() => {
   fake.contestoErrore = false;
   fake.contestoInCaricamento = false;
   fake.isError = false;
+  fake.xml = null;
   fake.originali = false;
   fake.salva.mockReset().mockResolvedValue({ id: "link" });
   fake.documenti = [
@@ -396,5 +434,40 @@ describe("confronto affiancato della fattura", () => {
     expect(
       screen.getByRole("button", { name: "Controlla quantità e prezzi" }),
     ).toBeDisabled();
+  });
+});
+
+/** Le schede di Radix cambiano su mouseDown, non su click. */
+const apriFileOriginale = () => {
+  const sinistra = screen.getByRole("region", { name: "Fattura ricevuta" });
+  fireEvent.mouseDown(within(sinistra).getByRole("tab", { name: "File originale" }), {
+    button: 0,
+    ctrlKey: false,
+  });
+};
+
+describe("il documento da guardare nel confronto", () => {
+  /**
+   * 26/11/2026. Una fattura arrivata dallo SDI è un XML: il PDF spesso non c'è. Prima in
+   * «File originale» compariva solo un avviso che diceva di andarselo a vedere altrove, e
+   * metà finestra restava vuota proprio dove serve guardare il documento.
+   */
+  it("senza PDF caricato disegna la fattura dall'XML, nella scheda stessa", async () => {
+    fake.xml = xmlDiProva();
+    monta();
+    apriFileOriginale();
+    const foglio = await screen.findByTitle(/Fattura QA-F/);
+    expect(foglio.tagName).toBe("IFRAME");
+    expect(foglio.getAttribute("srcdoc")).toContain("Malta A81");
+    expect(screen.queryByText(/Il PDF o la foto della fattura non sono presenti/)).toBeNull();
+  });
+
+  it("senza PDF e senza XML resta l'avviso di prima: non si inventa un documento", async () => {
+    fake.xml = null;
+    monta();
+    apriFileOriginale();
+    await waitFor(() =>
+      expect(screen.getByText(/Il PDF o la foto della fattura non sono presenti/)).toBeTruthy(),
+    );
   });
 });
