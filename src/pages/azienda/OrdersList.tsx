@@ -1690,7 +1690,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
             >
               <Plus className="h-3.5 w-3.5 mr-1" />
               <span className="hidden lg:inline">{t("Nuova Commessa")}</span>
-              <span className="lg:hidden" aria-hidden="true">{t("Nuova")}</span>
+              <span className="hidden sm:inline lg:hidden" aria-hidden="true">{t("Nuova")}</span>
             </Button>
           ) : conBivio ? (
             <Button
@@ -1701,7 +1701,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
             >
               <Plus className="h-3.5 w-3.5 mr-1" />
               <span className="hidden lg:inline">{t("Nuova Commessa")}</span>
-              <span className="lg:hidden" aria-hidden="true">{t("Nuova")}</span>
+              <span className="hidden sm:inline lg:hidden" aria-hidden="true">{t("Nuova")}</span>
             </Button>
           ) : (
             <Button
@@ -1712,7 +1712,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
               <Link to="/azienda/ordini/nuovo" aria-label={t("Nuova commessa")}>
                 <Plus className="h-3.5 w-3.5 mr-1" />
                 <span className="hidden lg:inline">{t("Nuova Commessa")}</span>
-                <span className="lg:hidden" aria-hidden="true">{t("Nuova")}</span>
+                <span className="hidden sm:inline lg:hidden" aria-hidden="true">{t("Nuova")}</span>
               </Link>
             </Button>
           )}

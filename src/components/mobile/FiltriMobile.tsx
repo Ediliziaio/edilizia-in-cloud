@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ChevronDown, Search, SlidersHorizontal } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -97,9 +97,44 @@ export function SelettoreSezione<T extends string>({ nome, valore, sezioni, onSc
   className?: string;
   azione?: ReactNode;
 }) {
+  // Scorrere di lato era scomodo (founder, 26/11/2026): la pillola scelta finiva tagliata sotto il
+  // «+» e non si capiva che ce n'erano altre. Ora la scelta si porta da sola in vista e i bordi
+  // sfumano solo dal lato dove c'è altro da scorrere.
+  const fila = useRef<HTMLDivElement>(null);
+  const [altro, setAltro] = useState({ sinistra: false, destra: false });
+  const misura = useCallback(() => {
+    const el = fila.current;
+    if (!el) return;
+    const sinistra = el.scrollLeft > 2;
+    const destra = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
+    setAltro(prima => (prima.sinistra === sinistra && prima.destra === destra ? prima : { sinistra, destra }));
+  }, []);
+  useEffect(() => {
+    const el = fila.current;
+    const scelta = el?.querySelector<HTMLElement>('[aria-pressed="true"]');
+    if (el && scelta) {
+      // Solo in orizzontale: scrollIntoView muoverebbe anche la pagina.
+      const sinistra = scelta.offsetLeft; // la fila è «relative»: misura dal suo bordo
+      if (sinistra < el.scrollLeft || sinistra + scelta.offsetWidth > el.scrollLeft + el.clientWidth) {
+        el.scrollTo({ left: Math.max(0, sinistra - (el.clientWidth - scelta.offsetWidth) / 2) });
+      }
+    }
+    misura();
+  }, [valore, sezioni.length, misura]);
+  useEffect(() => {
+    const el = fila.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const osservatore = new ResizeObserver(misura);
+    osservatore.observe(el);
+    return () => osservatore.disconnect();
+  }, [misura]);
+  const sfuma = altro.sinistra && altro.destra
+    ? "[mask-image:linear-gradient(to_right,transparent,black_24px,black_calc(100%_-_32px),transparent)]"
+    : altro.destra ? "[mask-image:linear-gradient(to_right,black_calc(100%_-_32px),transparent)]"
+    : altro.sinistra ? "[mask-image:linear-gradient(to_right,transparent,black_24px)]" : "";
   return (
     <div className={cn("flex min-w-0 items-center gap-2", className)}>
-      <div role="group" aria-label={nome} className="-mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div ref={fila} onScroll={misura} role="group" aria-label={nome} className={cn("relative -mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto overscroll-x-contain px-1 py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", sfuma)}>
         {sezioni.map(({ id, label }) => {
           const attiva = id === valore;
           return (
