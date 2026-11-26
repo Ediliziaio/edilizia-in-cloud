@@ -220,9 +220,10 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
                 <TableBody>
                   {ddts.map((d) => {
                     const qta = typeof d.quantita_ricevuta === "number" ? d.quantita_ricevuta : 0;
+                    // Clic sulla riga = la bolla (righe, verifica, collegamenti); l'ordine resta su «Apri ODA».
                     return (
-                      <TableRow key={d.id} className={cn(RIGA, d.purchase_order_id && "cursor-pointer")}
-                        onClick={(e) => { if (d.purchase_order_id && !(e.target as HTMLElement).closest("button, a")) navigate(`/azienda/ordini-acquisto/${d.purchase_order_id}`); }}>
+                      <TableRow key={d.id} className={cn(RIGA, "cursor-pointer")}
+                        onClick={(e) => { if (!(e.target as HTMLElement).closest("button, a")) navigate(`/azienda/ddt/${d.id}`); }}>
                         <TableCell className="max-w-[360px] overflow-hidden text-ellipsis whitespace-nowrap">
                           <span className="font-medium">{d.numero_ddt}</span>
                           {d.note && (

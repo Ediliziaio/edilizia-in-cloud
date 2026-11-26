@@ -1,4 +1,5 @@
 import type * as React from "react";
+import { BOTTONE_SECONDARIO } from "@/components/orders/TestataScheda";
 import { useConsegneDDT } from "@/hooks/useConsegneDDT";
 import { PaginaDocumentoGenerale, percorsoDocumentoGenerale, useAspettoOperativo } from "@/components/orders/generali/design/ContestoOperativo";
 import { ricezioneNonAllineata } from "@/lib/magazzino/ricezioneNonAllineata";
@@ -533,13 +534,15 @@ function ContenutoDDTRicezioneDetail() {
           HEADER — back + title + status + azioni rapide
           ═══════════════════════════════════════════════════════════ */}
       <div className={cn("commessa-document-header flex items-start justify-between gap-3 flex-wrap", inPopup && isEditingHeader && "sticky top-0 z-20 rounded-lg bg-background p-3 shadow-sm")}>
-        {/* Il numero della bolla tiene almeno 18rem: con sei bottoni accanto si leggeva «DDT TES…»;
+        {/* Il numero della bolla tiene almeno 28rem (18 non bastavano più coi bottoni da 32px): con sei bottoni accanto si leggeva «DDT TES…»;
             ora sono i bottoni ad andare a capo (25/11/2026). */}
-        <div className="flex w-full items-center gap-2 min-w-0 sm:w-auto sm:flex-1 sm:min-w-[18rem]">
+        <div className="flex w-full items-center gap-2 min-w-0 sm:w-auto sm:flex-1 sm:min-w-[28rem]">
           {!inPopup && !aspettoGenerale && <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate("/azienda/ordini?tab=ddt")}
+            // Torna da dove si è arrivati (Magazzino, ODA, Commesse): prima riportava sempre alla lista DDT di Commesse.
+            onClick={() => ((window.history.state as { idx?: number } | null)?.idx ?? 0) > 0 ? navigate(-1) : navigate("/azienda/ordini?tab=ddt")}
+            aria-label={t("Indietro")}
             className="shrink-0"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -587,10 +590,11 @@ function ContenutoDDTRicezioneDetail() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setOriginaleAperto(true)}>
+          {/* 26/11/2026: comandi tutti da 32px come le altre testate; «Confronta» non più azzurro. */}
+          <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} onClick={() => setOriginaleAperto(true)}>
             <FileText className="size-4" aria-hidden="true" /> {t("Originale")}
           </Button>
-          <Button variant="outline" size="sm" className="gap-1.5 border-primary/25 text-primary"
+          <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO}
             onClick={() => setConfrontoAperto(true)}>
             <ArrowLeftRight className="size-4" aria-hidden="true" /> {t("Confronta con ordini")}
           </Button>
@@ -598,7 +602,7 @@ function ContenutoDDTRicezioneDetail() {
             <Button
               size="sm"
               onClick={markVerified}
-              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+              className={cn(BOTTONE_SECONDARIO, "bg-emerald-600 font-semibold text-white hover:bg-emerald-700")}
               disabled={updateDDT.isPending}
             >
               <ShieldCheck className="h-4 w-4" />
@@ -611,7 +615,7 @@ function ContenutoDDTRicezioneDetail() {
               size="sm"
               variant="outline"
               onClick={markNonConforme}
-              className="gap-1.5 border-rose-200 text-rose-700 hover:bg-rose-50 max-sm:hidden"
+              className={cn(BOTTONE_SECONDARIO, "border-rose-200 text-rose-700 hover:bg-rose-50 max-sm:hidden")}
               disabled={updateDDT.isPending}
             >
               <AlertTriangle className="h-4 w-4" />
@@ -620,15 +624,15 @@ function ContenutoDDTRicezioneDetail() {
           )}
           {!isEditingHeader ? (
             <>
-              <Button variant="outline" size="sm" onClick={startEditHeader} className="max-sm:hidden">
-                <Edit3 className="h-4 w-4 sm:mr-1" />
+              <Button variant="outline" size="sm" onClick={startEditHeader} className={cn(BOTTONE_SECONDARIO, "max-sm:hidden")}>
+                <Edit3 className="h-4 w-4" />
                 <span className="hidden sm:inline">{t("Modifica")}</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleDelete}
-                className="text-destructive hover:text-destructive max-sm:hidden"
+                className="h-8 w-8 p-0 text-destructive hover:text-destructive max-sm:hidden"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
