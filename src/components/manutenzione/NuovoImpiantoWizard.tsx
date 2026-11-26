@@ -123,7 +123,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
   const mutation = useMutation({
     mutationFn: async () => {
       if (!customerId) throw new Error("Seleziona un cliente");
-      if (!tipoImpianto) throw new Error("Seleziona il tipo di impianto");
+      if (!tipoImpianto) throw new Error("Scegli che cosa manuteniamo");
       // Se l'utente ha scelto di creare un contratto, i campi obbligatori
       // devono essere compilati: altrimenti il contratto verrebbe saltato in
       // silenzio (l'impianto si salva ma il contratto no). Meglio un errore chiaro.
@@ -158,7 +158,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
           .select()
           .single();
         if (impErr) throw impErr;
-        if (!impianto?.id) throw new Error("Il server non ha restituito l’ID dell’impianto.");
+        if (!impianto?.id) throw new Error("Il salvataggio non è andato a buon fine. Riprova.");
         impiantoId = impianto.id;
         progressRef.current.impiantoId = impiantoId;
         setCreatedImpiantoId(impiantoId);
@@ -228,7 +228,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
       }
     },
     onSuccess: () => {
-      toast.success(tr("Impianto registrato con successo"));
+      toast.success(tr("Manutenzione registrata"));
       onSuccess();
       pendingRef.current = false;
       handleClose();
@@ -261,20 +261,20 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent {...focusReturn} aria-busy={mutation.isPending} className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{tr("Nuovo Impianto")}</DialogTitle>
+          <DialogTitle>{tr("Nuova manutenzione")}</DialogTitle>
           <div className="flex gap-1 mt-2">
             {[1, 2, 3].map((s) => (
               <div key={s} className={`flex-1 h-1 rounded-full ${s <= step ? "bg-primary" : "bg-muted"}`} />
             ))}
           </div>
           <DialogDescription className="text-xs text-muted-foreground mt-1">
-            {tr("Passo {step} di 3: {fase}", { step, fase: step === 1 ? tr("Cliente e impianto") : step === 2 ? tr("Manutenzione e primo intervento") : tr("Contratto") })}
+            {tr("Passo {step} di 3: {fase}", { step, fase: step === 1 ? tr("Cliente e lavoro") : step === 2 ? tr("Ogni quanto si torna") : tr("Contratto") })}
           </DialogDescription>
         </DialogHeader>
 
         {createdImpiantoId && mutation.isError && (
           <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            {tr("L’impianto è già stato registrato. Riprova per completare le operazioni mancanti senza ricreare quelle confermate. Chiudendo abbandoni il completamento in questo modulo.")}
+            {tr("La manutenzione è già stata registrata. Riprova per completare quello che manca senza rifare quello che è già salvato. Chiudendo, lasci il completamento a metà.")}
           </div>
         )}
         <fieldset disabled={mutation.isPending || Boolean(createdImpiantoId)} className="space-y-4 min-h-[240px] max-sm:min-h-0 max-sm:space-y-3">
@@ -297,7 +297,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor={`${fieldId}-tipoImpianto`}>{tr("Tipo impianto *")}</Label>
+                <Label htmlFor={`${fieldId}-tipoImpianto`}>{tr("Che cosa manuteniamo *")}</Label>
                 <Select value={tipoImpianto} onValueChange={setTipoImpianto}>
                   <SelectTrigger id={`${fieldId}-tipoImpianto`}><SelectValue placeholder={tr("Seleziona tipo...")} /></SelectTrigger>
                   <SelectContent>
@@ -545,7 +545,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
                 mutation.mutate();
               }} disabled={mutation.isPending}>
                 {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-1" />}
-                {createdImpiantoId ? tr("Completa impianto") : tr("Salva Impianto")}
+                {createdImpiantoId ? tr("Completa la manutenzione") : tr("Salva la manutenzione")}
               </Button>
             )}
           </div>

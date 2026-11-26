@@ -59,7 +59,7 @@ async function scegli(label: string, option: string | RegExp) {
 }
 async function setup() {
   render(<QueryClientProvider client={new QueryClient({ defaultOptions: { mutations: { retry: false } } })}><Form /></QueryClientProvider>);
-  await scegli("Cliente *", "Cliente test"); await scegli("Tipo impianto *", /Infissi/);
+  await scegli("Cliente *", "Cliente test"); await scegli("Che cosa manuteniamo *", /Infissi/);
   fireEvent.click(screen.getByRole("button", { name: /Avanti/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: "Aggiungi piano di manutenzione" }));
   fireEvent.click(screen.getByRole("checkbox", { name: "Programma il primo intervento" }));
@@ -72,20 +72,20 @@ async function setup() {
 it("riprende il primo intervento fallito senza ricreare impianto, contratto e piano", async () => {
   api.tickets.mockResolvedValueOnce({ error: new Error("Intervento offline") });
   await setup();
-  fireEvent.click(screen.getByRole("button", { name: "Salva Impianto" }));
+  fireEvent.click(screen.getByRole("button", { name: "Salva la manutenzione" }));
   await waitFor(() => expect(api.error).toHaveBeenCalled());
-  await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("già stato registrato"));
+  await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("già stata registrata"));
   expect(screen.getByRole("textbox", { name: "Nome contratto" })).toBeDisabled();
-  fireEvent.click(screen.getByRole("button", { name: /Salva Impianto|Completa impianto/ }));
+  fireEvent.click(screen.getByRole("button", { name: /Salva la manutenzione|Completa la manutenzione/ }));
   await waitFor(() => expect(api.completed).toHaveBeenCalledOnce());
   expect(api.impianti).toHaveBeenCalledOnce(); expect(api.contratti).toHaveBeenCalledOnce(); expect(api.piani).toHaveBeenCalledOnce(); expect(api.tickets).toHaveBeenCalledTimes(2);
 });
 it("riprende un piano fallito mantenendo il contratto già registrato", async () => {
   api.piani.mockResolvedValueOnce({ error: new Error("Piano offline") });
   await setup();
-  fireEvent.click(screen.getByRole("button", { name: "Salva Impianto" }));
+  fireEvent.click(screen.getByRole("button", { name: "Salva la manutenzione" }));
   await waitFor(() => expect(api.error).toHaveBeenCalled());
-  fireEvent.click(screen.getByRole("button", { name: /Salva Impianto|Completa impianto/ }));
+  fireEvent.click(screen.getByRole("button", { name: /Salva la manutenzione|Completa la manutenzione/ }));
   await waitFor(() => expect(api.completed).toHaveBeenCalledOnce());
   expect(api.impianti).toHaveBeenCalledOnce(); expect(api.contratti).toHaveBeenCalledOnce();
   expect(api.piani.mock.calls.map(([row]) => row.contratto_id)).toEqual(["contratto-1", "contratto-1"]);
@@ -94,7 +94,7 @@ it("blocca il doppio salvataggio e la chiusura finché la richiesta è in corso"
   let resolve!: (value: { data: { id: string }; error: null }) => void;
   api.readImpianto.mockImplementation(() => new Promise<{ data: { id: string }; error: null }>((done) => { resolve = done; }));
   await setup();
-  const save = screen.getByRole("button", { name: "Salva Impianto" }); fireEvent.click(save); fireEvent.click(save);
+  const save = screen.getByRole("button", { name: "Salva la manutenzione" }); fireEvent.click(save); fireEvent.click(save);
   await waitFor(() => expect(api.impianti).toHaveBeenCalledOnce());
   expect(screen.getByRole("textbox", { name: "Nome contratto" })).toBeDisabled();
   fireEvent.click(screen.getByRole("button", { name: "Chiudi" })); fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
@@ -105,7 +105,7 @@ it("blocca il doppio salvataggio e la chiusura finché la richiesta è in corso"
 
 it("richiede data e ora quando si sceglie di programmare il primo intervento", async () => {
   render(<QueryClientProvider client={new QueryClient()}><Form /></QueryClientProvider>);
-  await scegli("Cliente *", "Cliente test"); await scegli("Tipo impianto *", /Infissi/);
+  await scegli("Cliente *", "Cliente test"); await scegli("Che cosa manuteniamo *", /Infissi/);
   fireEvent.click(screen.getByRole("button", { name: /Avanti/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: "Programma il primo intervento" }));
   expect(screen.getByRole("button", { name: /Avanti/ })).toBeDisabled();

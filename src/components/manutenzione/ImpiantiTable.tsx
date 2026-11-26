@@ -102,6 +102,8 @@ export function ImpiantiTable({
                     {im.marca && <span className="ml-1 font-normal text-muted-foreground">{im.marca}{im.modello ? ` ${im.modello}` : ""}</span>}
                   </p>
                   <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+                    {im.codice && <span className="shrink-0 font-mono font-semibold">{im.codice}</span>}
+                    {im.codice && <span aria-hidden>·</span>}
                     <span className="truncate">{cliente}</span>
                     {im.prossimaScadenza && (
                       <>
@@ -128,9 +130,10 @@ export function ImpiantiTable({
             <TableRow>
               {selezionabile && (
                 <TableHead className="w-10">
-                  <Checkbox checked={!!tutteSelezionate} onCheckedChange={onToggleTutti} aria-label={t("Seleziona tutti gli impianti")} />
+                  <Checkbox checked={!!tutteSelezionate} onCheckedChange={onToggleTutti} aria-label={t("Seleziona tutte le manutenzioni")} />
                 </TableHead>
               )}
+              <TableHead className="w-28">{t("Codice")}</TableHead>
               <TableHead className="w-32">{t("Tipo")}</TableHead>
               <TableHead>{t("Cliente")}</TableHead>
               <TableHead>{t("Marca e modello")}</TableHead>
@@ -155,6 +158,7 @@ export function ImpiantiTable({
                       <Checkbox checked={sel} onCheckedChange={() => onToggle?.(im.id)} aria-label={t("Seleziona {tipo_impianto}", { tipo_impianto: String(tipoLabel(im.tipo_impianto) ?? "") })} />
                     </TableCell>
                   )}
+                  <TableCell className="whitespace-nowrap font-mono text-xs font-semibold text-muted-foreground">{im.codice || "—"}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className="max-w-[7.5rem] justify-start truncate capitalize">{tipoLabel(im.tipo_impianto)}</Badge>
                   </TableCell>
@@ -183,7 +187,7 @@ export function ImpiantiTable({
                   </TableCell>
                   <TableCell>{garanziaBadge(im.garanzia_scadenza, t) ?? <span className="text-muted-foreground">—</span>}</TableCell>
                   <TableCell onClick={(event) => event.stopPropagation()}>
-                    <Button variant="ghost" size="icon" onClick={() => onOpen(im.id)} aria-label={t("Apri impianto")}>
+                    <Button variant="ghost" size="icon" onClick={() => onOpen(im.id)} aria-label={t("Apri la manutenzione")}>
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                   </TableCell>

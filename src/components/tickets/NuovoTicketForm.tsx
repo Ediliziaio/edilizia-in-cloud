@@ -412,11 +412,11 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated, onPendin
 
         {customerId && impianti.length > 0 && (
           <div className="space-y-1.5">
-            <Label htmlFor={`${fieldId}-impiantoId`} className="text-xs">{tr("Impianto collegato")}</Label>
+            <Label htmlFor={`${fieldId}-impiantoId`} className="text-xs">{tr("Manutenzione collegata")}</Label>
             <Select value={impiantoId} onValueChange={setImpiantoId}>
-              <SelectTrigger id={`${fieldId}-impiantoId`}><SelectValue placeholder={tr("Nessun impianto")} /></SelectTrigger>
+              <SelectTrigger id={`${fieldId}-impiantoId`}><SelectValue placeholder={tr("Nessuna manutenzione")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none__">{tr("Nessun impianto")}</SelectItem>
+                <SelectItem value="__none__">{tr("Nessuna manutenzione")}</SelectItem>
                 {impianti.map((im) => (
                   <SelectItem key={im.id} value={im.id}>
                     {im.tipo_impianto?.replace("_", " ")}{im.marca ? ` — ${im.marca}` : ""}{im.modello ? ` ${im.modello}` : ""}

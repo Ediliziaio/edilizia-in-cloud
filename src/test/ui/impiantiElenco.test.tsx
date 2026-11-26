@@ -17,6 +17,6 @@ it("apre la scheda dalla riga e permette di selezionare un impianto separatament
   expect(apri).not.toHaveBeenCalled();
   fireEvent.click(tabella.getByRole("cell", { name: "Annuale" }));
   expect(apri).toHaveBeenCalledWith("i1");
-  fireEvent.click(tabella.getByRole("button", { name: "Apri impianto" }));
+  fireEvent.click(tabella.getByRole("button", { name: "Apri la manutenzione" }));
   expect(apri).toHaveBeenCalledTimes(2);
 });
