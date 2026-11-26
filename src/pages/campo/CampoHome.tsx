@@ -27,7 +27,7 @@ import { useCampoMagazzinoConfig } from "@/hooks/campo/useCampoPrelievo";
 import { InterventiCampo } from "@/components/campo/InterventiCampo";
 import { useMiaGiornata } from "@/hooks/campo/useCampoGiornata";
 import { CampoTimbroCard } from "@/components/campo/CampoTimbroCard";
-import { useMyHrProfilo } from "@/hooks/useTimbratura";
+import { useTimbraDallApp } from "@/hooks/campo/useTimbraDallApp";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -103,7 +103,7 @@ export default function CampoHome() {
   const { t, lingua } = useLinguaCampo();
   const { isOperaio, isSubappaltatore } = useIsCampo();
   const magazzino = useCampoMagazzinoConfig(isOperaio);
-  const { data: mioProfiloHr } = useMyHrProfilo();
+  const timbraApp = useTimbraDallApp();
   const azienda = effectiveCompany?.id ?? profile?.company_id;
   // Sul telefono i blocchi nascosti col CSS (`hidden md:block`) erano comunque montati: ognuno faceva le sue
   // richieste a vuoto a ogni apertura della Home. Qui non si montano proprio.
@@ -163,8 +163,11 @@ export default function CampoHome() {
 
       {/* Timbratura: l'azione di ogni mattina, in cima. Un tocco per iniziare, un tocco per ogni posto. */}
       {/* Chi non timbra dall'app (scelta dell'ufficio nella scheda persona) non vede il riquadro: una riga lo dice. */}
-      {isOperaio && (mioProfiloHr?.timbra_dall_app === false
-        ? <p className="px-1 text-xs text-muted-foreground">{t("Non timbri dall'app: le tue ore le segna il caposquadra o l'ufficio.")}</p>
+      {/* Azienda e persona: una regola sola (useTimbraDallApp, 26/11/2026). */}
+      {isOperaio && (!timbraApp.timbra
+        ? <p className="px-1 text-xs text-muted-foreground">{timbraApp.motivo === "azienda"
+            ? t("In questa azienda non si timbra dall'app: le ore le segna il caposquadra o l'ufficio.")
+            : t("Non timbri dall'app: le tue ore le segna il caposquadra o l'ufficio.")}</p>
         : <CampoTimbroCard />)}
 
       {/* Visita medica, corsi, patentini scaduti o in scadenza: solo se c'è qualcosa (collaudo 23/11). */}
@@ -177,7 +180,7 @@ export default function CampoHome() {
 
       {/* A fine giornata il rapportino è la cosa che aspetta: sta sopra, non in fondo alla pagina. */}
       {/* La sera il caposquadra vede la fine giornata guidata (24/11): rapportino, materiale, uscita. */}
-      {isOperaio && sera && (isCaposquadra || isCapocantiere) && <FineGiornataCaposquadra timbra={mioProfiloHr?.timbra_dall_app !== false} />}
+      {isOperaio && sera && (isCaposquadra || isCapocantiere) && <FineGiornataCaposquadra timbra={timbraApp.timbra} />}
       {isOperaio && sera && <RapportiniDaCompilareOggi />}
 
       {/* Oggi: dove vai, cosa fai, con chi e chi chiamare — le TUE date */}
@@ -224,6 +227,7 @@ export default function CampoHome() {
 // Assistente Campo Operaio — guida pratica con dati già presenti
 // ─────────────────────────────────────────────────────────────────────────────
 function AssistenteCampoOperaio() {
+  const timbraQui = useTimbraDallApp().timbra;
   const t = useT();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
@@ -380,7 +384,7 @@ function AssistenteCampoOperaio() {
               {t("Lavoro")}
             </Button>
           )}
-          {focusOrder && (
+          {focusOrder && timbraQui && (
             <Button
               type="button"
               variant="outline"

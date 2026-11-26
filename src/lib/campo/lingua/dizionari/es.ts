@@ -69144,5 +69144,13 @@ const dizionario: Dizionario = {
   "Annullare la fattura n° {numero}?": "¿Cancelar la factura n.º {numero}?",
   "Non è mai stata inviata allo SDI, quindi non serve una nota di credito: va nel cestino e il numero {numero} torna alla serie, lo prenderà la prossima fattura.": "Nunca se envió al SDI, así que no hace falta una nota de abono: va a la papelera y el número {numero} vuelve a la serie, lo tomará la próxima factura.",
   "Annulla la fattura": "Cancelar la factura",
+  "In questa azienda non si timbra dall'app: le ore le segna il caposquadra o l'ufficio.": "En esta empresa no se ficha desde la app: las horas las anota el encargado o la oficina.",
+  "Il responsabile compila il giornaliero e segna le tue ore: qui non devi fare niente.": "El responsable rellena el parte diario y anota tus horas: aquí no tienes que hacer nada.",
+  "Torna alla Home": "Volver al Inicio",
+  "In questa azienda si timbra dall'app": "En esta empresa se ficha desde la app",
+  "Spento: nessuno vede la timbratura nell'app, le ore le segnano il caposquadra o l'ufficio. Acceso: timbra chi ha «Timbra dall'app» acceso nella sua scheda del personale.": "Desactivado: nadie ve el fichaje en la app, las horas las anotan el encargado o la oficina. Activado: ficha quien tiene «Fichar desde la app» activado en su ficha de personal.",
+  "Timbratura, avvisi e pagamenti nell’app": "Fichaje, avisos y pagos en la app",
+  "Spento: nell'app non vede la timbratura, le ore le segna il caposquadra o l'ufficio. Vale solo se la timbratura dall'app è accesa per l'azienda (Regole dell'area operai).": "Desactivado: no ve el fichaje en la app, las horas las anota el encargado o la oficina. Solo vale si el fichaje desde la app está activado para la empresa (Reglas del área de operarios).",
+  "Timbra dall'app": "Fichar desde la app",
 };
 export default dizionario;

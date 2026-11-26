@@ -11,6 +11,7 @@
  * serve. L'operaio mantiene il bottone centrale "Timbra" (i subappaltatori non timbrano).
  * Visibile solo su mobile (< md).
  */
+import { useTimbraDallApp } from "@/hooks/campo/useTimbraDallApp";
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -82,7 +83,9 @@ export function CampoBottomNav({ unreadCount = 0, onTimbraClick }: Props) {
   }, []);
 
   // Subappaltatori non timbrano — filtra il bottone Timbra
-  const visibleItems = isSubappaltatore
+  // e nemmeno chi non timbra dall'app (azienda o persona: useTimbraDallApp, 26/11/2026).
+  const { timbra } = useTimbraDallApp();
+  const visibleItems = isSubappaltatore || !timbra
     ? NAV_ITEMS.filter((item) => item.label !== "Timbra")
     : NAV_ITEMS;
 

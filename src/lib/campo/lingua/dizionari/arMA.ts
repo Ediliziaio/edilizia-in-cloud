@@ -69144,5 +69144,13 @@ const dizionario: Dizionario = {
   "Annullare la fattura n° {numero}?": "تلغي الفاتورة رقم {numero}؟",
   "Non è mai stata inviata allo SDI, quindi non serve una nota di credito: va nel cestino e il numero {numero} torna alla serie, lo prenderà la prossima fattura.": "ما تصيفطاتش عمرها لـ SDI، يعني ما خاصكش نوطة ديال الكريدي: كتمشي للقشلة والنمرة {numero} كترجع للسيري، كتاخدها الفاتورة الجاية.",
   "Annulla la fattura": "لغي الفاتورة",
+  "In questa azienda non si timbra dall'app: le ore le segna il caposquadra o l'ufficio.": "ف هاد الشركة ما كاينش التبوانطي من الأپليكاسيون: السوايع كيسجلهم الشاف ديال الفرقة ولا البيرو.",
+  "Il responsabile compila il giornaliero e segna le tue ore: qui non devi fare niente.": "المسؤول كيعمر الرابور ديال النهار وكيسجل السوايع ديالك: هنا ما عندك ما تدير.",
+  "Torna alla Home": "رجع للرئيسية",
+  "In questa azienda si timbra dall'app": "ف هاد الشركة كاين التبوانطي من الأپليكاسيون",
+  "Spento: nessuno vede la timbratura nell'app, le ore le segnano il caposquadra o l'ufficio. Acceso: timbra chi ha «Timbra dall'app» acceso nella sua scheda del personale.": "طافي: حتى واحد ما كيشوف التبوانطي ف الأپليكاسيون، السوايع كيسجلهم الشاف ولا البيرو. خدام: كيبوانطي اللي عندو «بوانطي من الأپليكاسيون» خدام ف الملف ديالو.",
+  "Timbratura, avvisi e pagamenti nell’app": "التبوانطي، التنبيهات والخلصات ف الأپليكاسيون",
+  "Spento: nell'app non vede la timbratura, le ore le segna il caposquadra o l'ufficio. Vale solo se la timbratura dall'app è accesa per l'azienda (Regole dell'area operai).": "طافي: ما كيشوفش التبوانطي ف الأپليكاسيون، السوايع كيسجلهم الشاف ولا البيرو. كيصلاح غير إلا كان التبوانطي من الأپليكاسيون خدام للشركة (قواعد منطقة الخدامة).",
+  "Timbra dall'app": "بوانطي من الأپليكاسيون",
 };
 export default dizionario;

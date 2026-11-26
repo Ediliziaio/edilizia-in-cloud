@@ -69144,5 +69144,13 @@ const dizionario: Dizionario = {
   "Annullare la fattura n° {numero}?": "Cancel invoice no. {numero}?",
   "Non è mai stata inviata allo SDI, quindi non serve una nota di credito: va nel cestino e il numero {numero} torna alla serie, lo prenderà la prossima fattura.": "It was never sent to the SDI, so no credit note is needed: it goes to the bin and number {numero} returns to the series, the next invoice will take it.",
   "Annulla la fattura": "Cancel the invoice",
+  "In questa azienda non si timbra dall'app: le ore le segna il caposquadra o l'ufficio.": "In this company you don't clock in from the app: hours are recorded by the foreman or the office.",
+  "Il responsabile compila il giornaliero e segna le tue ore: qui non devi fare niente.": "The manager fills in the daily report and records your hours: there's nothing for you to do here.",
+  "Torna alla Home": "Back to Home",
+  "In questa azienda si timbra dall'app": "In this company people clock in from the app",
+  "Spento: nessuno vede la timbratura nell'app, le ore le segnano il caposquadra o l'ufficio. Acceso: timbra chi ha «Timbra dall'app» acceso nella sua scheda del personale.": "Off: nobody sees clocking in the app, hours are recorded by the foreman or the office. On: whoever has «Clock in from the app» on in their staff record clocks in.",
+  "Timbratura, avvisi e pagamenti nell’app": "Clocking, notices and payments in the app",
+  "Spento: nell'app non vede la timbratura, le ore le segna il caposquadra o l'ufficio. Vale solo se la timbratura dall'app è accesa per l'azienda (Regole dell'area operai).": "Off: they don't see clocking in the app, hours are recorded by the foreman or the office. Only applies if clocking from the app is on for the company (Field area rules).",
+  "Timbra dall'app": "Clock in from the app",
 };
 export default dizionario;

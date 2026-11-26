@@ -69144,5 +69144,13 @@ const dizionario: Dizionario = {
   "Annullare la fattura n° {numero}?": "تلغي الفاتورة رقم {numero}؟",
   "Non è mai stata inviata allo SDI, quindi non serve una nota di credito: va nel cestino e il numero {numero} torna alla serie, lo prenderà la prossima fattura.": "عمرها ما اتبعتت لـ SDI، فمش محتاج إشعار دائن: بتروح سلة المهملات ورقم {numero} بيرجع للسلسلة، الفاتورة الجاية هي اللي تاخده.",
   "Annulla la fattura": "إلغاء الفاتورة",
+  "In questa azienda non si timbra dall'app: le ore le segna il caposquadra o l'ufficio.": "في الشركة دي مفيش بصمة من الأبلكيشن: الساعات بيسجلها رئيس العمال أو المكتب.",
+  "Il responsabile compila il giornaliero e segna le tue ore: qui non devi fare niente.": "المسؤول بيملا تقرير اليوم وبيسجل ساعاتك: هنا مش مطلوب منك حاجة.",
+  "Torna alla Home": "ارجع للرئيسية",
+  "In questa azienda si timbra dall'app": "في الشركة دي فيه بصمة من الأبلكيشن",
+  "Spento: nessuno vede la timbratura nell'app, le ore le segnano il caposquadra o l'ufficio. Acceso: timbra chi ha «Timbra dall'app» acceso nella sua scheda del personale.": "مقفول: محدش بيشوف البصمة في الأبلكيشن، الساعات بيسجلها رئيس العمال أو المكتب. مفتوح: بيبصم اللي عنده «بصمة من الأبلكيشن» مفتوحة في ملفه.",
+  "Timbratura, avvisi e pagamenti nell’app": "البصمة والتنبيهات والمدفوعات في الأبلكيشن",
+  "Spento: nell'app non vede la timbratura, le ore le segna il caposquadra o l'ufficio. Vale solo se la timbratura dall'app è accesa per l'azienda (Regole dell'area operai).": "مقفول: مش بيشوف البصمة في الأبلكيشن، الساعات بيسجلها رئيس العمال أو المكتب. بس لو البصمة من الأبلكيشن مفتوحة للشركة (قواعد منطقة العمال).",
+  "Timbra dall'app": "بصمة من الأبلكيشن",
 };
 export default dizionario;

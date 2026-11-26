@@ -69181,5 +69181,13 @@ const dizionario: Dizionario = {
   "Annullare la fattura n° {numero}?": "Anulezi factura nr. {numero}?",
   "Non è mai stata inviata allo SDI, quindi non serve una nota di credito: va nel cestino e il numero {numero} torna alla serie, lo prenderà la prossima fattura.": "Nu a fost trimisă niciodată la SDI, deci nu e nevoie de o notă de credit: merge în coș și numărul {numero} se întoarce în serie, îl va lua următoarea factură.",
   "Annulla la fattura": "Anulează factura",
+  "In questa azienda non si timbra dall'app: le ore le segna il caposquadra o l'ufficio.": "În această firmă nu se pontează din aplicație: orele le trece șeful de echipă sau biroul.",
+  "Il responsabile compila il giornaliero e segna le tue ore: qui non devi fare niente.": "Responsabilul completează raportul zilnic și îți trece orele: aici nu ai nimic de făcut.",
+  "Torna alla Home": "Înapoi la Acasă",
+  "In questa azienda si timbra dall'app": "În această firmă se pontează din aplicație",
+  "Spento: nessuno vede la timbratura nell'app, le ore le segnano il caposquadra o l'ufficio. Acceso: timbra chi ha «Timbra dall'app» acceso nella sua scheda del personale.": "Oprit: nimeni nu vede pontajul în aplicație, orele le trec șeful de echipă sau biroul. Pornit: pontează cine are «Pontează din aplicație» pornit în fișa sa de personal.",
+  "Timbratura, avvisi e pagamenti nell’app": "Pontaj, avize și plăți în aplicație",
+  "Spento: nell'app non vede la timbratura, le ore le segna il caposquadra o l'ufficio. Vale solo se la timbratura dall'app è accesa per l'azienda (Regole dell'area operai).": "Oprit: nu vede pontajul în aplicație, orele le trece șeful de echipă sau biroul. Contează doar dacă pontajul din aplicație e pornit pentru firmă (Regulile zonei muncitorilor).",
+  "Timbra dall'app": "Pontează din aplicație",
 };
 export default dizionario;

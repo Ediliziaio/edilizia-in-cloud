@@ -3,6 +3,7 @@
  * Usa la stessa UX white-sidebar dell'app principale.
  * Su mobile la sidebar diventa un sheet laterale.
  */
+import { useTimbraDallApp } from "@/hooks/campo/useTimbraDallApp";
 import { useEffect } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { destinazioneIndietro } from "@/lib/campo/tornaIndietro";
@@ -120,6 +121,8 @@ export default function CampoLayout() {
   const roleLabel = isTecnico ? t("Tecnico") : isOperaio ? t("Operaio") : t("Subappaltatore");
   const home = isTecnico ? percorsoCantiereTecnico() : "/campo";
 
+  // Chi non timbra dall'app non ha la voce Timbratura (useTimbraDallApp, 26/11/2026).
+  const timbraApp = useTimbraDallApp();
   // Nav items per operaio
   const operaioItems: CampoNavItem[] = [
     { title: "Home", url: "/campo", icon: Home, end: true },
@@ -128,7 +131,7 @@ export default function CampoLayout() {
     { title: "Avanzamento", url: "/campo/avanzamento", icon: ListChecks },
     // Su desktop la bottom nav è nascosta: senza queste voci Timbratura e
     // Magazzino erano raggiungibili SOLO da mobile (o per niente).
-    { title: "Timbratura", url: "/campo/timbratura", icon: Clock },
+    ...(timbraApp.timbra ? [{ title: "Timbratura", url: "/campo/timbratura", icon: Clock }] : []),
     { title: "Magazzino", url: "/campo/magazzino", icon: Package },
     { title: "Merce presa", url: "/campo/merce", icon: ShoppingBag },
     { title: mieiMezzi.length ? "Mezzi e attrezzi" : "Prendi un mezzo (QR)", url: mieiMezzi.length ? "/campo/mezzi" : "/campo/mezzi?scansiona=1", icon: Truck },

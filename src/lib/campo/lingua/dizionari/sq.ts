@@ -69181,5 +69181,13 @@ const dizionario: Dizionario = {
   "Annullare la fattura n° {numero}?": "Ta anulosh faturën nr. {numero}?",
   "Non è mai stata inviata allo SDI, quindi non serve una nota di credito: va nel cestino e il numero {numero} torna alla serie, lo prenderà la prossima fattura.": "Nuk është dërguar kurrë në SDI, kështu që nuk duhet notë krediti: shkon në kosh dhe numri {numero} kthehet në seri, do t'e marrë fatura e radhës.",
   "Annulla la fattura": "Anulo faturën",
+  "In questa azienda non si timbra dall'app: le ore le segna il caposquadra o l'ufficio.": "Në këtë firmë nuk shënohet hyrja nga aplikacioni: orët i shënon përgjegjësi i skuadrës ose zyra.",
+  "Il responsabile compila il giornaliero e segna le tue ore: qui non devi fare niente.": "Përgjegjësi plotëson raportin ditor dhe shënon orët e tua: këtu nuk ke asgjë për të bërë.",
+  "Torna alla Home": "Kthehu në Kreu",
+  "In questa azienda si timbra dall'app": "Në këtë firmë shënohet hyrja nga aplikacioni",
+  "Spento: nessuno vede la timbratura nell'app, le ore le segnano il caposquadra o l'ufficio. Acceso: timbra chi ha «Timbra dall'app» acceso nella sua scheda del personale.": "Fikur: askush nuk e sheh shënimin e orarit në aplikacion, orët i shënojnë përgjegjësi ose zyra. Ndezur: shënon kush e ka «Shëno nga aplikacioni» ndezur në kartelën e personelit.",
+  "Timbratura, avvisi e pagamenti nell’app": "Orari, njoftimet dhe pagesat në aplikacion",
+  "Spento: nell'app non vede la timbratura, le ore le segna il caposquadra o l'ufficio. Vale solo se la timbratura dall'app è accesa per l'azienda (Regole dell'area operai).": "Fikur: nuk e sheh shënimin e orarit në aplikacion, orët i shënon përgjegjësi ose zyra. Vlen vetëm nëse shënimi nga aplikacioni është ndezur për firmën (Rregullat e zonës së punëtorëve).",
+  "Timbra dall'app": "Shëno nga aplikacioni",
 };
 export default dizionario;

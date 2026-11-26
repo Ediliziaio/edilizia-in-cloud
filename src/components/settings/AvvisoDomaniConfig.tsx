@@ -15,7 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { motivoDelRifiuto } from "@/lib/impostazioni/erroriPerUtente";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
-type Rpc = "campo_avvisi_azienda_leggi" | "campo_avvisi_azienda_salva" | "campo_avvisi_azienda_salva_pagamenti_sub";
+type Rpc = "campo_avvisi_azienda_leggi" | "campo_avvisi_azienda_salva" | "campo_avvisi_azienda_salva_pagamenti_sub" | "campo_avvisi_azienda_salva_timbratura";
 const db = () => supabase as unknown as {
   rpc: (nome: Rpc, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
 };
@@ -27,11 +27,11 @@ export function AvvisoDomaniConfig({ companyId, canEdit, evidenziata }: { compan
   const [inSalvataggio, setInSalvataggio] = useState(false);
   const { data: impostazioni, isLoading, isError, refetch } = useQuery({
     queryKey: chiave(companyId),
-    queryFn: async (): Promise<{ domani: boolean; pagamentiSub: boolean }> => {
+    queryFn: async (): Promise<{ domani: boolean; pagamentiSub: boolean; timbratura: boolean }> => {
       const { data, error } = await db().rpc("campo_avvisi_azienda_leggi", { p_company_id: companyId });
       if (error) throw error;
-      const d = data as { avviso_domani?: boolean; sub_vede_pagamenti?: boolean } | null;
-      return { domani: d?.avviso_domani === true, pagamentiSub: d?.sub_vede_pagamenti !== false };
+      const d = data as { avviso_domani?: boolean; sub_vede_pagamenti?: boolean; timbratura_app?: boolean } | null;
+      return { domani: d?.avviso_domani === true, pagamentiSub: d?.sub_vede_pagamenti !== false, timbratura: d?.timbratura_app !== false };
     },
   });
   const acceso = impostazioni?.domani;
@@ -41,7 +41,7 @@ export function AvvisoDomaniConfig({ companyId, canEdit, evidenziata }: { compan
     try {
       const { error } = await db().rpc("campo_avvisi_azienda_salva", { p_company_id: companyId, p_avviso_domani: valore });
       if (error) throw error;
-      qc.setQueryData(chiave(companyId), { domani: valore, pagamentiSub: impostazioni?.pagamentiSub ?? true });
+      qc.setQueryData(chiave(companyId), { ...impostazioni, domani: valore, pagamentiSub: impostazioni?.pagamentiSub ?? true, timbratura: impostazioni?.timbratura ?? true });
       toast.success(valore ? t("Avviso della sera acceso") : t("Avviso della sera spento"));
     } catch (e) {
       toast.error(motivoDelRifiuto(e, t("Non sono riuscito a salvare: riprova.")));
@@ -56,7 +56,22 @@ export function AvvisoDomaniConfig({ companyId, canEdit, evidenziata }: { compan
     try {
       const { error } = await db().rpc("campo_avvisi_azienda_salva_pagamenti_sub", { p_company_id: companyId, p_attivo: valore });
       if (error) throw error;
-      qc.setQueryData(chiave(companyId), { domani: impostazioni?.domani ?? false, pagamentiSub: valore });
+      qc.setQueryData(chiave(companyId), { domani: impostazioni?.domani ?? false, pagamentiSub: valore, timbratura: impostazioni?.timbratura ?? true });
+      toast.success(t("Impostazione salvata"));
+    } catch (e) {
+      toast.error(motivoDelRifiuto(e, t("Non sono riuscito a salvare: riprova.")));
+    } finally {
+      setInSalvataggio(false);
+    }
+  };
+
+  // Si timbra dall'app in questa azienda? (26/11/2026) La persona può essere spenta a parte nella sua scheda.
+  const cambiaTimbratura = async (valore: boolean) => {
+    setInSalvataggio(true);
+    try {
+      const { error } = await db().rpc("campo_avvisi_azienda_salva_timbratura", { p_company_id: companyId, p_attivo: valore });
+      if (error) throw error;
+      qc.setQueryData(chiave(companyId), { domani: impostazioni?.domani ?? false, pagamentiSub: impostazioni?.pagamentiSub ?? true, timbratura: valore });
       toast.success(t("Impostazione salvata"));
     } catch (e) {
       toast.error(motivoDelRifiuto(e, t("Non sono riuscito a salvare: riprova.")));
@@ -66,7 +81,7 @@ export function AvvisoDomaniConfig({ companyId, canEdit, evidenziata }: { compan
   };
 
   return (
-    <SezioneImpostazione id="avviso-domani" evidenziata={evidenziata} titolo={t("Avvisi e pagamenti nell’app")}
+    <SezioneImpostazione id="avviso-domani" evidenziata={evidenziata} titolo={t("Timbratura, avvisi e pagamenti nell’app")}
       descrizione={t("Si salva subito, senza «Salva modifiche».")}>
       {isError ? (
         <div className="p-4 text-sm text-muted-foreground">
@@ -82,6 +97,16 @@ export function AvvisoDomaniConfig({ companyId, canEdit, evidenziata }: { compan
           </div>
           <Switch id="avviso-domani" checked={acceso === true} disabled={!canEdit || isLoading || inSalvataggio}
             onCheckedChange={(v) => void cambia(v)} />
+        </div>
+      )}
+      {!isError && (
+        <div className="flex items-start justify-between gap-4 border-t p-4">
+          <div className="min-w-0">
+            <Label htmlFor="timbratura-app" className="text-sm font-medium">{t("In questa azienda si timbra dall'app")}</Label>
+            <p className="mt-0.5 text-xs text-muted-foreground">{t("Spento: nessuno vede la timbratura nell'app, le ore le segnano il caposquadra o l'ufficio. Acceso: timbra chi ha «Timbra dall'app» acceso nella sua scheda del personale.")}</p>
+          </div>
+          <Switch id="timbratura-app" checked={impostazioni?.timbratura !== false} disabled={!canEdit || isLoading || inSalvataggio}
+            onCheckedChange={(v) => void cambiaTimbratura(v)} />
         </div>
       )}
       {!isError && (

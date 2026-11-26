@@ -69144,5 +69144,13 @@ const dizionario: Dizionario = {
   "Annullare la fattura n° {numero}?": "Annuler la facture n° {numero} ?",
   "Non è mai stata inviata allo SDI, quindi non serve una nota di credito: va nel cestino e il numero {numero} torna alla serie, lo prenderà la prossima fattura.": "Elle n’a jamais été envoyée au SDI, il n’y a donc pas besoin d’avoir : elle va à la corbeille et le numéro {numero} retourne à la série, la prochaine facture le prendra.",
   "Annulla la fattura": "Annuler la facture",
+  "In questa azienda non si timbra dall'app: le ore le segna il caposquadra o l'ufficio.": "Dans cette entreprise on ne pointe pas dans l’app : les heures sont saisies par le chef d’équipe ou le bureau.",
+  "Il responsabile compila il giornaliero e segna le tue ore: qui non devi fare niente.": "Le responsable remplit le rapport du jour et saisit tes heures : ici tu n’as rien à faire.",
+  "Torna alla Home": "Retour à l’accueil",
+  "In questa azienda si timbra dall'app": "Dans cette entreprise on pointe dans l’app",
+  "Spento: nessuno vede la timbratura nell'app, le ore le segnano il caposquadra o l'ufficio. Acceso: timbra chi ha «Timbra dall'app» acceso nella sua scheda del personale.": "Désactivé : personne ne voit le pointage dans l’app, les heures sont saisies par le chef d’équipe ou le bureau. Activé : pointe qui a «Pointer dans l’app» activé dans sa fiche du personnel.",
+  "Timbratura, avvisi e pagamenti nell’app": "Pointage, avis et paiements dans l’app",
+  "Spento: nell'app non vede la timbratura, le ore le segna il caposquadra o l'ufficio. Vale solo se la timbratura dall'app è accesa per l'azienda (Regole dell'area operai).": "Désactivé : il ne voit pas le pointage dans l’app, les heures sont saisies par le chef d’équipe ou le bureau. Vaut seulement si le pointage dans l’app est activé pour l’entreprise (Règles de l’espace ouvriers).",
+  "Timbra dall'app": "Pointer dans l’app",
 };
 export default dizionario;

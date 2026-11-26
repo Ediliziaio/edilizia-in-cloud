@@ -1,4 +1,5 @@
 import { COLONNE_RAPPORTINO, COLONNE_RAPPORTINO_CON_AUTORE } from "@/lib/campo/colonneRapportino";
+import { useTimbraDallApp } from "@/hooks/campo/useTimbraDallApp";
 import { RuoloCantiereCampo } from "@/components/campo/RuoloCantiereCampo";
 import { BottoneCollaudo } from "@/components/campo/BottoneCollaudo";
 import { leggiRuoloOperativoCampo } from "@/lib/campo/ruoloOperativo";
@@ -285,6 +286,7 @@ export default function CampoLavoroDetail() {
   const [searchParams] = useSearchParams();
   const { user, profile } = useAuth();
   const { isOperaio, isSubappaltatore } = useIsCampo();
+  const timbraApp = useTimbraDallApp();
   const schedeTecniche = useCantieriTecnici(isOperaio);
   const vedeSchedaTecnica = isOperaio && !!orderId && !schedeTecniche.isError && !!schedeTecniche.data?.some(c => c.id === orderId);
   const queryClient = useQueryClient();
@@ -859,7 +861,8 @@ export default function CampoLavoroDetail() {
   };
   const nextStickyAction = passiGiornata[prossimoPassoGiornata({
     statoRapportino: statoRapportinoOggi,
-    isOperaio,
+    // Chi non timbra dall'app non ha i passi «Timbra entrata/uscita» (azienda o persona, 26/11/2026).
+    isOperaio: isOperaio && timbraApp.timbra,
     hasTimbrato: hasTimbratoQui,
     uscitaRegistrata: uscitaRegistrataOggi,
     compilaGiornaliero: !soloTimbratura,
@@ -1174,19 +1177,21 @@ export default function CampoLavoroDetail() {
                 <p>{t("Non riesco a leggere le regole del rapportino.")}</p>
                 <button type="button" className="min-h-11 font-semibold text-primary" onClick={() => void regoleRapporti.refetch()}>{t("Riprova le regole")}</button>
               </div> : regoleDaVerificare ? <p role="status" className="text-sm text-muted-foreground">{t("Verifico come compili il rapportino…")}</p> : <>
-                <p className="text-sm text-muted-foreground">{soloTimbratura
+                <p className="text-sm text-muted-foreground">{soloTimbratura && !timbraApp.timbra
+                  ? t("Il responsabile compila il giornaliero e segna le tue ore: qui non devi fare niente.")
+                  : soloTimbratura
                   ? t("Segna entrata e uscita. Il responsabile compila il giornaliero.")
                   : flussoRapportino.soloOre
                     ? t("Qui registri le tue ore. Il responsabile racconta i lavori.")
                     : t("Apri il modulo per scrivere o raccontare i lavori. Lo storico è qui sotto.")}</p>
-                <button
+                {!(soloTimbratura && !timbraApp.timbra) && <button
                   type="button"
                   onClick={() => navigate(soloTimbratura ? timbraturaUrl : rapportinoManualeUrl)}
                   className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-bold text-primary-foreground motion-safe:transition-transform motion-safe:active:scale-[0.98]"
                 >
                   {soloTimbratura ? <LogIn className="size-5" aria-hidden="true" /> : <ClipboardList className="size-5" aria-hidden="true" />}
                   {soloTimbratura ? t("Entrata e uscita") : azioneRapportino}
-                </button>
+                </button>}
               </>}
             </section>
 

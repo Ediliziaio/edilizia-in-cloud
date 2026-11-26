@@ -3,8 +3,9 @@
  * La giornata è una sola: «Inizia la giornata», un tocco su ogni posto in cui si arriva,
  * «Fine giornata» (vedi CampoTimbroCard). Qui sotto: ore di oggi e storico degli ultimi 14 giorni.
  */
+import { useTimbraDallApp } from "@/hooks/campo/useTimbraDallApp";
 import { useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { LogIn, LogOut } from "lucide-react";
@@ -49,6 +50,19 @@ function etichettaRiga(r: RigaTimeline, t: ReturnType<typeof useT>): string {
 export default function CampoTimbratura() {
   const { user, profile } = useAuth();
   const [params] = useSearchParams();
+  const t = useT();
+  // Chi non timbra dall'app (azienda o persona, 26/11/2026) arriva qui solo da un vecchio link: lo si dice.
+  const timbraApp = useTimbraDallApp();
+  if (!timbraApp.timbra && timbraApp.motivo) {
+    return (
+      <div className="mx-auto max-w-lg space-y-3 p-1">
+        <p className="rounded-2xl border bg-muted/40 p-4 text-sm">{timbraApp.motivo === "azienda"
+          ? t("In questa azienda non si timbra dall'app: le ore le segna il caposquadra o l'ufficio.")
+          : t("Non timbri dall'app: le tue ore le segna il caposquadra o l'ufficio.")}</p>
+        <Link to="/campo" className="block min-h-12 rounded-2xl bg-primary px-4 py-3 text-center text-base font-semibold text-primary-foreground">{t("Torna alla Home")}</Link>
+      </div>
+    );
+  }
   return <CampoTimbraturaEditor key={`${profile?.company_id}:${user?.id}:${params.get("order_id")}`} />;
 }
 

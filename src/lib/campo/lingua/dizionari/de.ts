@@ -69144,5 +69144,13 @@ const dizionario: Dizionario = {
   "Annullare la fattura n° {numero}?": "Rechnung Nr. {numero} stornieren?",
   "Non è mai stata inviata allo SDI, quindi non serve una nota di credito: va nel cestino e il numero {numero} torna alla serie, lo prenderà la prossima fattura.": "Sie wurde nie an das SDI gesendet, es braucht also keine Gutschrift: sie landet im Papierkorb und die Nummer {numero} geht an die Serie zurück, die nächste Rechnung nimmt sie.",
   "Annulla la fattura": "Rechnung stornieren",
+  "In questa azienda non si timbra dall'app: le ore le segna il caposquadra o l'ufficio.": "In dieser Firma wird nicht in der App gestempelt: die Stunden trägt der Vorarbeiter oder das Büro ein.",
+  "Il responsabile compila il giornaliero e segna le tue ore: qui non devi fare niente.": "Der Verantwortliche füllt den Tagesbericht aus und trägt deine Stunden ein: hier musst du nichts tun.",
+  "Torna alla Home": "Zurück zur Startseite",
+  "In questa azienda si timbra dall'app": "In dieser Firma wird in der App gestempelt",
+  "Spento: nessuno vede la timbratura nell'app, le ore le segnano il caposquadra o l'ufficio. Acceso: timbra chi ha «Timbra dall'app» acceso nella sua scheda del personale.": "Aus: niemand sieht das Stempeln in der App, die Stunden tragen Vorarbeiter oder Büro ein. An: es stempelt, wer «In der App stempeln» in seiner Personalakte an hat.",
+  "Timbratura, avvisi e pagamenti nell’app": "Stempeln, Hinweise und Zahlungen in der App",
+  "Spento: nell'app non vede la timbratura, le ore le segna il caposquadra o l'ufficio. Vale solo se la timbratura dall'app è accesa per l'azienda (Regole dell'area operai).": "Aus: sieht das Stempeln in der App nicht, die Stunden trägt der Vorarbeiter oder das Büro ein. Gilt nur, wenn das Stempeln in der App für die Firma an ist (Regeln des Arbeiterbereichs).",
+  "Timbra dall'app": "In der App stempeln",
 };
 export default dizionario;

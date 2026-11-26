@@ -432,8 +432,8 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
                       {watch("lavora_in_cantiere") && (
                         <div className="col-span-2 flex items-center justify-between rounded-md border px-3 py-2 max-sm:order-last">
                           <div>
-                            <Label htmlFor="hr-timbra-dall-app">Timbra dall’app</Label>
-                            <p className="text-xs text-muted-foreground max-sm:hidden">Spento: nell’app non vede la timbratura, le ore le segna il caposquadra o l’ufficio.</p>
+                            <Label htmlFor="hr-timbra-dall-app">{t("Timbra dall'app")}</Label>
+                            <p className="text-xs text-muted-foreground max-sm:hidden">{t("Spento: nell'app non vede la timbratura, le ore le segna il caposquadra o l'ufficio. Vale solo se la timbratura dall'app è accesa per l'azienda (Regole dell'area operai).")}</p>
                           </div>
                           <Switch
                             id="hr-timbra-dall-app"
