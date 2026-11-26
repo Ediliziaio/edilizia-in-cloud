@@ -96,15 +96,29 @@ Il founder ha ragione: in quella sezione non si vende un impianto, si vende **ma
 
 ### 2.1 Quanto lavoro è, e il nodo della traduzione
 
-Nella sezione ci sono **215 frasi già tradotte**; di queste **36 contengono la parola «impianto»** ed è quelle che si toccano.
+*(corretto il 26/11 dopo la verifica con la sessione della lingua: l'app d'ufficio è tradotta in **tutte e dieci** le lingue, non solo in rumeno e albanese. Il nome della cartella `campo` è solo storico e copre tutta l'app: 69.000 voci per lingua.)*
 
-La traduzione dell'ufficio funziona con la **frase italiana come chiave**: se cambia il testo italiano, cambia la chiave, e la riga va rifatta in ogni lingua già pronta. Oggi l'ufficio è fatto in **rumeno e albanese**; l'area operai in tutte e dieci.
+Nella sezione ci sono **188 frasi** scritte per essere tradotte; di queste **36 contengono la parola «impianto»** ed è quelle che si toccano.
 
-Quindi, per ogni frase cambiata: 1 riga italiana nel codice + 1 riga in rumeno + 1 riga in albanese = **36 × 3 ≈ 108 righe**. C'è già un controllo automatico che si arrabbia se una frase resta senza traduzione (`src/test/logic/ufficioLingua.test.ts`), quindi non si può dimenticare niente di nascosto.
+Come funziona la traduzione: **la chiave è la frase italiana stessa**, non c'è un file italiano. Se cambio la frase nel codice, nasce una chiave nuova e tutte le lingue perdono quella riga: l'utente straniero rivedrebbe l'italiano e il controllo automatico diventerebbe rosso. Quindi ogni frase cambiata va riscritta negli **otto dizionari pieni** (ro, sq, de, fr, en, es, ar-MA, ar-EG); lo spagnolo d'Argentina e del Perù contengono solo le differenze rispetto allo spagnolo, quindi si toccano solo se avevano una loro versione di quella frase.
 
-Nell'**area operai** la parola «impianto» in questo senso quasi non compare, quindi i dizionari delle dieci lingue restano quasi intatti.
+**Conto vero del lavoro: 36 frasi × 8 lingue ≈ 290 righe**, più le 36 righe italiane nel codice. È una voce di lavoro a sé, non una rifinitura finale: vale circa i due terzi della fase 1.
 
-> **Da concordare con la sessione della lingua** prima di partire: chi scrive le righe rumene e albanesi, per non tradurre due volte la stessa frase come è già successo il 26/11. La richiesta è stata mandata; la risposta va messa qui prima della fase 1.
+Due cose rendono questo giro meno rischioso di quanto sembri:
+
+1. **La parola nuova è già tradotta ovunque.** «Manutenzione» esiste già nei dizionari e in modo coerente: *Întreținere* (ro), *Mirëmbajtje* (sq), *Wartung* (de), *Entretien* (fr), *Maintenance* (en), *Mantenimiento* (es), الصيانة (ar-MA), صيانة (ar-EG). Non si inventa un termine nuovo, si estende uno già in uso. Il rischio tedesco segnalato dalla sessione della lingua (*Anlage* = impianto, *Gerät* = apparecchio) non ci tocca proprio perché smettiamo di dire «impianto».
+2. **Si cambiano solo le 36 frasi di questa sezione.** Nei dizionari ci sono in tutto 215 chiavi con «impianto», ma le altre ~180 stanno in planimetrie, preventivi e computo, dove «impianto» è la parola giusta e **non si tocca**.
+
+**Come si fa, in pratica** (metodo della sessione della lingua, da rispettare alla lettera):
+- le righe nuove si aggiungono **in coda** a ogni dizionario, prima della chiusura del file, mai in mezzo: così due sessioni che lavorano insieme non si pestano i piedi;
+- il controllo da lanciare dopo ogni modifica e dopo ogni riallineamento con la versione online è `bun run vitest run src/test/logic/ufficioLingua.test.ts src/test/logic/campoLingua.test.ts`;
+- se nascono file nuovi con testi dentro, vanno aggiunti all'elenco del controllo, altrimenti restano scoperti senza che nessuno se ne accorga;
+- cercare le frasi con `/\bimpiant/i`, perché il filtro `/impianto/` si perde il plurale «impianti»; per l'albanese non si può usare `\b` dopo «ë».
+
+**La parola si decide una volta sola.** Ogni ripensamento dopo il giro delle lingue costa un secondo giro intero. Per questo il glossario qui sopra è la cosa che il founder approva per prima.
+
+**Chi fa il giro delle lingue:** la sessione della lingua si è offerta e ha già gli strumenti rodati. Proposta: io cambio le 36 frasi italiane nel codice e passo l'elenco esatto a quella sessione, che fa le otto lingue. Da concordare con il founder se preferisce che faccia tutto una sessione sola.
+
 
 ---
 
@@ -265,7 +279,7 @@ Nota pratica: questo Mac ha 8 GB e ci lavorano altre sessioni insieme, quindi un
 Per ogni fase, prima di dire che è fatta:
 
 1. **Prove automatiche.** La sezione ha già le sue (elenco, creazione parziale, sola lettura, schede accessibili, manodopera): vanno estese alle novità, non riscritte. Si aggiunge una prova per il codice (progressivo, prefisso, codice scritto a mano, nessun doppione) e una per i collegamenti delle fatture.
-2. **Il controllo della lingua** (`ufficioLingua`, `campoLingua`): deve restare verde, cioè nessuna frase senza rumeno e albanese.
+2. **Il controllo della lingua**: `bun run vitest run src/test/logic/ufficioLingua.test.ts src/test/logic/campoLingua.test.ts` deve restare verde, cioè nessuna frase senza traduzione in nessuna delle dieci lingue.
 3. **Il cricchetto dei tipi** sui file toccati — su questo Mac si fa solo sui file toccati, non su tutto.
 4. **Prova a schermo su Demo Azienda 2**, da computer e da telefono: creare una manutenzione saltando i passi 2 e 3, aggiungerli dopo, aprire ogni scheda, fare un intervento, segnare la visita, fare la fattura del canone e verificare che torni nella scheda.
 5. **Controllo che niente si sia rotto** per chi già usa la sezione: le due manutenzioni di Demo Azienda 2 devono aprirsi e comportarsi come prima, con in più il codice.
