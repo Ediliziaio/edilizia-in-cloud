@@ -69057,5 +69057,10 @@ const dizionario: Dizionario = {
   "Le ditte subappaltatrici vedono contratto e pagamenti": "Subcontractorii văd contractul și plățile",
   "Nell'app vedono solo i propri contratti: importo, SAL, pagato e da pagare.": "În aplicație văd doar contractele proprii: valoare, SAL, plătit și de plătit.",
   "Avvisi e pagamenti nell’app": "Avize și plăți în aplicație",
+  "Come usiamo la tua posizione": "Cum folosim poziția ta",
+  "Quando timbri, l'app salva dove sei in quel momento: serve solo a sapere in quale cantiere o sede inizi e finisci. Non segue i tuoi spostamenti durante il giorno. La vede l'ufficio della tua azienda.": "Când pontezi, aplicația salvează unde ești în acel moment: doar ca să știm pe ce șantier sau sediu începi și termini. Nu îți urmărește deplasările în timpul zilei. O vede biroul firmei tale.",
+  "Finché non tocchi «Ho letto» la posizione non viene presa: puoi timbrare lo stesso.": "Până nu atingi «Am citit» poziția nu se ia: poți ponta oricum.",
+  "Ho letto": "Am citit",
+  "Non sono riuscito a salvarlo. Riprova quando c'è rete.": "Nu am reușit să salvez. Reîncearcă când ai semnal.",
 };
 export default dizionario;

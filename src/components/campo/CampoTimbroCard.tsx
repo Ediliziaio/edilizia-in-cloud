@@ -12,6 +12,7 @@ import { UniformSelect } from "@/components/ui/uniform-select";
  * Lo stesso componente vale per la Home e per la pagina «Timbra».
  */
 import { useEffect, useMemo, useState } from "react";
+import { InformativaPosizione, useInformativaPosizione } from "@/components/campo/InformativaPosizione";
 import { useUnaVolta } from "@/hooks/campo/useUnaVolta";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -83,10 +84,12 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
   // La posizione si chiede quando la scheda compare (non al tocco, o la persona aspetterebbe
   // il fix col dito a mezz'aria) e si allega solo se è arrivata: la timbratura non la aspetta.
   const { lat, lng, accuracy, address, status: gpsStatus, requestPosition } = useGPS(companyId);
+  // Solo dopo l'informativa (piano campo completo 4.2): prima si timbra senza posizione.
+  const { letta: informativaLetta } = useInformativaPosizione();
   useEffect(() => {
-    if (companyId) void requestPosition();
+    if (companyId && informativaLetta === true) void requestPosition();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [companyId]);
+  }, [companyId, informativaLetta]);
 
   const summary = dayTime.summary;
   const inServizio = summary.state === "working";
@@ -217,6 +220,8 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
           <span className="text-sm font-semibold text-amber-600">{t("{ore} h oggi", { ore: campoReportHours(summary.workMinutes) })}</span>
         )}
       </div>
+
+      <InformativaPosizione />
 
       {dayTime.isError && !dayTime.pronto && (
         <div role="alert" className="space-y-1 rounded-xl border border-destructive/30 p-3 text-sm">

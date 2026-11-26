@@ -69057,5 +69057,10 @@ const dizionario: Dizionario = {
   "Le ditte subappaltatrici vedono contratto e pagamenti": "Nënkontraktorët shohin kontratën dhe pagesat",
   "Nell'app vedono solo i propri contratti: importo, SAL, pagato e da pagare.": "Në aplikacion shohin vetëm kontratat e tyre: vlerën, SAL, të paguarat dhe për t'u paguar.",
   "Avvisi e pagamenti nell’app": "Njoftime dhe pagesa në aplikacion",
+  "Come usiamo la tua posizione": "Si e përdorim pozicionin tënd",
+  "Quando timbri, l'app salva dove sei in quel momento: serve solo a sapere in quale cantiere o sede inizi e finisci. Non segue i tuoi spostamenti durante il giorno. La vede l'ufficio della tua azienda.": "Kur shënon hyrjen ose daljen, aplikacioni ruan ku je në atë moment: vetëm për të ditur në cilin kantier ose seli fillon dhe mbaron. Nuk ndjek lëvizjet e tua gjatë ditës. E sheh zyra e kompanisë tënde.",
+  "Finché non tocchi «Ho letto» la posizione non viene presa: puoi timbrare lo stesso.": "Derisa të prekësh «E lexova» pozicioni nuk merret: mund të shënosh njësoj.",
+  "Ho letto": "E lexova",
+  "Non sono riuscito a salvarlo. Riprova quando c'è rete.": "Nuk arrita ta ruaj. Provo përsëri kur ke rrjet.",
 };
 export default dizionario;

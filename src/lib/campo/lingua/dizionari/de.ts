@@ -69020,5 +69020,10 @@ const dizionario: Dizionario = {
   "Le ditte subappaltatrici vedono contratto e pagamenti": "Subunternehmer sehen Vertrag und Zahlungen",
   "Nell'app vedono solo i propri contratti: importo, SAL, pagato e da pagare.": "In der App sehen sie nur ihre eigenen Verträge: Betrag, SAL, bezahlt und offen.",
   "Avvisi e pagamenti nell’app": "Hinweise und Zahlungen in der App",
+  "Come usiamo la tua posizione": "Wie wir deinen Standort nutzen",
+  "Quando timbri, l'app salva dove sei in quel momento: serve solo a sapere in quale cantiere o sede inizi e finisci. Non segue i tuoi spostamenti durante il giorno. La vede l'ufficio della tua azienda.": "Wenn du stempelst, speichert die App, wo du in dem Moment bist: nur um zu wissen, auf welcher Baustelle oder an welchem Standort du anfängst und aufhörst. Sie verfolgt deine Wege während des Tages nicht. Das Büro deiner Firma sieht ihn.",
+  "Finché non tocchi «Ho letto» la posizione non viene presa: puoi timbrare lo stesso.": "Bis du «Gelesen» tippst, wird der Standort nicht erfasst: du kannst trotzdem stempeln.",
+  "Ho letto": "Gelesen",
+  "Non sono riuscito a salvarlo. Riprova quando c'è rete.": "Konnte es nicht speichern. Versuch es nochmal, wenn du Netz hast.",
 };
 export default dizionario;

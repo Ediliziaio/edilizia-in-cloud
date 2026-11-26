@@ -15,7 +15,7 @@ const item = (patch: Partial<SyncItem> = {}): SyncItem => ({ id, operationId: id
 beforeEach(() => { vi.clearAllMocks(); state.owner = "u"; state.error = null; state.existing = null; state.upload.mockResolvedValue({ error: null }); state.download.mockResolvedValue({ data: new BlobNode(["foto"]), error: null }); });
 describe("Sincronizzazione con API simulate", () => {
   // Piano campo completo 1.7 (26/11/2026): la spesa fatta senza rete.
-  const spesa = { company_id: "c", user_id: "u", riga: { id, company_id: "c", user_id: "u", order_id: null, tipo: "carburante", importo: 55.5, descrizione: null, pagata_con: "soldi_miei", giorno: "2026-11-26" },
+  const spesa = { company_id: "c", user_id: "u", riga: { id, company_id: "c", user_id: "u", order_id: null as string | null, tipo: "carburante", importo: 55.5, descrizione: null as string | null, pagata_con: "soldi_miei", giorno: "2026-11-26" },
     foto: { path: `c/u/${id}-s.jpg`, blob: new BlobNode(["s"]) as unknown as Blob, contentType: "image/jpeg" } };
   it("spesa in coda: prima la foto, poi la riga con l'id del telefono", async () => {
     await expect(processCampoOffline(item({ type: "spesa", payload: spesa }))).resolves.toBeUndefined();

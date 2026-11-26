@@ -69020,5 +69020,10 @@ const dizionario: Dizionario = {
   "Le ditte subappaltatrici vedono contratto e pagamenti": "الشركات المتعاقدة كيشوفو العقد والخلصات",
   "Nell'app vedono solo i propri contratti: importo, SAL, pagato e da pagare.": "ف الأپليكاسيون كيشوفو غير العقود ديالهم: المبلغ، SAL، اللي تخلص واللي باقي.",
   "Avvisi e pagamenti nell’app": "التنبيهات والخلصات ف الأپليكاسيون",
+  "Come usiamo la tua posizione": "كيفاش كنستعملو البلاصة ديالك",
+  "Quando timbri, l'app salva dove sei in quel momento: serve solo a sapere in quale cantiere o sede inizi e finisci. Non segue i tuoi spostamenti durante il giorno. La vede l'ufficio della tua azienda.": "ملي كتبوانطي، الأپليكاسيون كتسجل فين نتا ف داك الوقت: غير باش نعرفو ف أي شانطي ولا مقر كتبدا وكتسالي. ما كتتبعش التحركات ديالك ف النهار. كيشوفها البيرو ديال الشركة ديالك.",
+  "Finché non tocchi «Ho letto» la posizione non viene presa: puoi timbrare lo stesso.": "حتى تضغط «قريت» ما كتتاخدش البلاصة: تقدر تبوانطي عادي.",
+  "Ho letto": "قريت",
+  "Non sono riuscito a salvarlo. Riprova quando c'è rete.": "ما قدرتش نسجلها. عاود ملي يكون الريزو.",
 };
 export default dizionario;

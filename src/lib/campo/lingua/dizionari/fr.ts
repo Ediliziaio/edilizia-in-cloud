@@ -69020,5 +69020,10 @@ const dizionario: Dizionario = {
   "Le ditte subappaltatrici vedono contratto e pagamenti": "Les sous-traitants voient contrat et paiements",
   "Nell'app vedono solo i propri contratti: importo, SAL, pagato e da pagare.": "Dans l’app ils ne voient que leurs propres contrats : montant, SAL, payé et à payer.",
   "Avvisi e pagamenti nell’app": "Avis et paiements dans l’app",
+  "Come usiamo la tua posizione": "Comment nous utilisons ta position",
+  "Quando timbri, l'app salva dove sei in quel momento: serve solo a sapere in quale cantiere o sede inizi e finisci. Non segue i tuoi spostamenti durante il giorno. La vede l'ufficio della tua azienda.": "Quand tu pointes, l’app enregistre où tu es à ce moment : seulement pour savoir sur quel chantier ou site tu commences et finis. Elle ne suit pas tes déplacements pendant la journée. Le bureau de ton entreprise la voit.",
+  "Finché non tocchi «Ho letto» la posizione non viene presa: puoi timbrare lo stesso.": "Tant que tu ne touches pas «J’ai lu», la position n’est pas prise : tu peux pointer quand même.",
+  "Ho letto": "J’ai lu",
+  "Non sono riuscito a salvarlo. Riprova quando c'è rete.": "Je n’ai pas pu l’enregistrer. Réessaie quand tu as du réseau.",
 };
 export default dizionario;
