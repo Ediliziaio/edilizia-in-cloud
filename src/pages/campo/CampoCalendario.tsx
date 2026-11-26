@@ -3,6 +3,7 @@
  * Mostra cantieri + appuntamenti/sopralluoghi programmati per data.
  * Calcola distanze dalla sede e tra impegni consecutivi.
  */
+import { InterventiDelGiorno } from "@/components/campo/InterventiDelGiorno";
 import { useState, useMemo, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import type { NavigateFunction } from "react-router-dom";
@@ -568,6 +569,8 @@ export default function CampoCalendario() {
           <div className="min-h-[340px] px-3 py-3 md:min-h-[520px] md:px-5 md:pb-6">
 
         {campoCrewAgendaEnabled && <div className="mb-3"><CampoCrewAgenda day={format(selectedDay, "yyyy-MM-dd")} /></div>}
+        {/* Gli interventi brevi del giorno (manutenzioni, assistenze), sopra cantieri e appuntamenti. */}
+        <div className="mb-3 empty:hidden"><InterventiDelGiorno giorno={format(selectedDay, "yyyy-MM-dd")} /></div>
 
         {isLoading ? (
           <div className="flex items-center justify-center py-12">

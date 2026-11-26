@@ -2,6 +2,7 @@ import { RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useFiltriUrl } from "@/hooks/useFiltriUrl";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -105,23 +106,40 @@ function CustomersListInner() {
     setSearchParams(next, { replace: true });
     setPage(0);
   };
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filterSalesperson, setFilterSalesperson] = useState<string>("all");
-  const [filterOrders, setFilterOrders] = useState<string>("all");
+  // I filtri stanno nell'indirizzo e si ricordano (26/11/2026): cercando un cliente,
+  // entrando nella sua scheda e tornando indietro, la ricerca è ancora lì.
+  const filtriUrl = useFiltriUrl("clienti", {
+    cerca: "", venditore: "all", ordini: "all", telefono: "all", cf: "all",
+    sito: "all", portale: "all", dal: "", al: "", ordina: "name", verso: "asc",
+  });
+  const searchQuery = filtriUrl.valori.cerca;
+  const setSearchQuery = (v: string) => filtriUrl.imposta("cerca", v);
+  const filterSalesperson = filtriUrl.valori.venditore;
+  const setFilterSalesperson = (v: string) => filtriUrl.imposta("venditore", v);
+  const filterOrders = filtriUrl.valori.ordini;
+  const setFilterOrders = (v: string) => filtriUrl.imposta("ordini", v);
   // Filtri quick mobile collapsible (uniformato a pattern OrdersFilters)
   const [quickFiltersOpen, setQuickFiltersOpen] = useState(false);
 
   // Advanced filters
-  const [filterHasPhone, setFilterHasPhone] = useState<YesNoAll>("all");
-  const [filterHasFC, setFilterHasFC] = useState<YesNoAll>("all");
-  const [filterHasSite, setFilterHasSite] = useState<YesNoAll>("all");
-  const [filterPortal, setFilterPortal] = useState<PortalState>("all");
-  const [filterDateFrom, setFilterDateFrom] = useState<string>("");
-  const [filterDateTo, setFilterDateTo] = useState<string>("");
+  const filterHasPhone = filtriUrl.valori.telefono as YesNoAll;
+  const setFilterHasPhone = (v: YesNoAll) => filtriUrl.imposta("telefono", v);
+  const filterHasFC = filtriUrl.valori.cf as YesNoAll;
+  const setFilterHasFC = (v: YesNoAll) => filtriUrl.imposta("cf", v);
+  const filterHasSite = filtriUrl.valori.sito as YesNoAll;
+  const setFilterHasSite = (v: YesNoAll) => filtriUrl.imposta("sito", v);
+  const filterPortal = filtriUrl.valori.portale as PortalState;
+  const setFilterPortal = (v: PortalState) => filtriUrl.imposta("portale", v);
+  const filterDateFrom = filtriUrl.valori.dal;
+  const setFilterDateFrom = (v: string) => filtriUrl.imposta("dal", v);
+  const filterDateTo = filtriUrl.valori.al;
+  const setFilterDateTo = (v: string) => filtriUrl.imposta("al", v);
   const [advOpen, setAdvOpen] = useState(false);
 
-  const [sortField, setSortField] = useState<SortField>("name");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const sortField = filtriUrl.valori.ordina as SortField;
+  const setSortField = (v: SortField) => filtriUrl.imposta("ordina", v);
+  const sortDir = filtriUrl.valori.verso as SortDir;
+  const setSortDir = (v: SortDir) => filtriUrl.imposta("verso", v);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [importOpen, setImportOpen] = useState(false);
@@ -471,12 +489,9 @@ function CustomersListInner() {
 
   // ── Sort toggle ────────────────────────────────────────
   const toggleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDir(d => d === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortDir("asc");
-    }
+    // Cambiando colonna si scrivono colonna e verso insieme: una scrittura sola.
+    if (sortField === field) filtriUrl.imposta("verso", sortDir === "asc" ? "desc" : "asc");
+    else filtriUrl.impostaPiu({ ordina: field, verso: "asc" });
     setPage(0);
   };
 

@@ -227,7 +227,7 @@ begin
    for update;
 
   if p_versione is not null and v_g.versione <> p_versione then
-    raise exception using errcode = '40001',
+    raise exception using errcode = 'PT409',
       message = 'Qualcun altro ha cambiato questa giornata: ricarica per vedere le sue modifiche.';
   end if;
 
@@ -334,7 +334,7 @@ begin
     raise exception using errcode = 'P0002', message = 'Prima salva la giornata.';
   end if;
   if p_versione is not null and v_g.versione <> p_versione then
-    raise exception using errcode = '40001',
+    raise exception using errcode = 'PT409',
       message = 'Qualcun altro ha cambiato questa giornata: ricarica per vedere le sue modifiche.';
   end if;
 

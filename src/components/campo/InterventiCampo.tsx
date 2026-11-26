@@ -4,6 +4,7 @@
  * lì»), cosa fare (note) e il cliente — così so dove e cosa fare.
  */
 import { format, parseISO, isToday, isTomorrow } from "date-fns";
+import { Link } from "react-router-dom";
 import { Wrench, Navigation, Phone, CalendarClock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { linkMappa, linkTelefono } from "@/hooks/campo/useCampoGiornata";
@@ -26,7 +27,8 @@ function Scheda({ i }: { i: InterventoCampo }) {
   return (
     <div className={`rounded-2xl border p-3 ${oggi ? "border-orange-200 bg-orange-50/60 dark:border-orange-900 dark:bg-orange-950/30" : "bg-background"}`}>
       <div className="flex items-start justify-between gap-2">
-        <p className="min-w-0 font-semibold leading-tight">{i.titolo}</p>
+        {/* Si apre l'intervento: cosa fare, inizio, foto, firma, fine (26/11/2026). */}
+        <Link to={`/campo/intervento/${i.id}`} className="min-w-0 font-semibold leading-tight text-primary underline-offset-2 hover:underline">{i.titolo}</Link>
         <span className="shrink-0 rounded-full border px-2 py-0.5 text-xs tabular-nums text-muted-foreground">{quando(i.data, t)}</span>
       </div>
       {i.cliente && <p className="mt-0.5 text-sm text-muted-foreground">{i.cliente}</p>}
@@ -53,7 +55,9 @@ function Scheda({ i }: { i: InterventoCampo }) {
 
 export function InterventiCampo() {
   const t = useT();
-  const { data: interventi = [], isLoading } = useMieiInterventi(30);
+  const { data: tutti = [], isLoading } = useMieiInterventi(30);
+  // Quelli di oggi sono già in cima alla Home, con inizio e fine (InterventiDelGiorno): qui i prossimi giorni.
+  const interventi = tutti.filter(i => !i.data || !isToday(parseISO(i.data)));
 
   if (isLoading) return <Skeleton className="h-28 w-full rounded-2xl" />;
   if (interventi.length === 0) return null;
@@ -63,7 +67,7 @@ export function InterventiCampo() {
       <div className="flex items-center gap-2">
         <CalendarClock className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
         <h2 id="campo-interventi" className="text-base font-semibold">
-          <Wrench className="mr-1 inline h-4 w-4 align-[-2px]" aria-hidden="true" />{t("Interventi da fare")}
+          <Wrench className="mr-1 inline h-4 w-4 align-[-2px]" aria-hidden="true" />{t("Prossimi interventi")}
         </h2>
         <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">{interventi.length}</span>
       </div>

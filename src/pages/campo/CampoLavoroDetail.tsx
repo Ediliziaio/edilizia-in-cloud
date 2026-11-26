@@ -1,4 +1,5 @@
 import { COLONNE_RAPPORTINO, COLONNE_RAPPORTINO_CON_AUTORE } from "@/lib/campo/colonneRapportino";
+import { useVedoTelefonoClienti } from "@/lib/campo/interventi";
 import { AZIONE_CANTIERE, AZIONE_ICONA } from "@/components/campo/stileAzioneCantiere";
 import { AttivitaCantiereCampo } from "@/components/campo/AttivitaCantiereCampo";
 import { OggiQuiCampo } from "@/components/campo/OggiQuiCampo";
@@ -577,6 +578,8 @@ export default function CampoLavoroDetail() {
     },
   });
   const vedeRapportiniCantiere = !ruoloRapportiError && !!ruoloRapporti?.isCapocantiere;
+  // Il telefono del cliente: al capocantiere, se l'azienda lo dà (26/11/2026, «non tutti devono averlo»).
+  const vedoTelefonoClienti = useVedoTelefonoClienti().data === true;
 
   // Il capocantiere consulta i rapportini del suo cantiere; gli altri solo i propri.
   // Ruolo verificato, cache distinta e RLS del server restano tre confini separati.
@@ -1142,7 +1145,7 @@ export default function CampoLavoroDetail() {
                 </p>
                 {/* Il cliente parla con una persona sola: il telefono lo vede
                     il capocantiere, gli altri passano da lui. */}
-                {!ruoloRapportiError && ruoloRapporti?.isCapocantiere ? (
+                {!ruoloRapportiError && ruoloRapporti?.isCapocantiere && vedoTelefonoClienti ? (
                   customer.phone && (
                     <a
                       href={`tel:${customer.phone}`}
@@ -1153,7 +1156,7 @@ export default function CampoLavoroDetail() {
                     </a>
                   )
                 ) : (
-                  <p className="mt-1 text-xs text-muted-foreground">{t("Per parlare col cliente passa dal capocantiere.")}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{ruoloRapporti?.isCapocantiere ? t("Il numero del cliente lo ha l'ufficio.") : t("Per parlare col cliente passa dal capocantiere.")}</p>
                 )}
               </div>
             )}

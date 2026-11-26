@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useRegoleAzienda, useSalvaRegoleAzienda } from "@/hooks/useRegoleCampo";
+import { InterventiCampoConfig } from "@/components/settings/InterventiCampoConfig";
 import { AvvisoDomaniConfig } from "@/components/settings/AvvisoDomaniConfig";
 import { PosizioneTimbratureConfig } from "@/components/settings/PosizioneTimbratureConfig";
 import { useVaiASezione } from "@/hooks/useVaiASezione";
@@ -414,6 +415,7 @@ export default function RegoleCampoConfig() {
         <div className={pannello("giornale")}>
           <BozzaGiornaleSerale companyId={companyId} canEdit={isAdmin || permissions.canEditSettingsProfile} evidenziata={evidenziata === "bozza-giornale"} />
           <AvvisoDomaniConfig companyId={companyId} canEdit={puoModificare} evidenziata={evidenziata === "avviso-domani"} />
+          <InterventiCampoConfig companyId={companyId} canEdit={puoModificare} />
           {isAdmin && <PosizioneTimbratureConfig companyId={companyId} />}
         </div>
 

@@ -8,6 +8,7 @@ import { calcolaFermo, CLASSI_FERMO } from "@/lib/assistenzaSla";
 import { AssistenzaPipeline } from "@/components/tickets/AssistenzaPipeline";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
+import { useFiltriUrl } from "@/hooks/useFiltriUrl";
 import { NuovoTicketDialog } from "@/components/tickets/NuovoTicketDialog";
 import { type StatTileTone } from "@/components/common/StatTile";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -189,18 +190,35 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
   const [tabella, setTabella] = useState<HTMLDivElement | null>(null);
   const [nuovoOpen, setNuovoOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  // I filtri stanno nell'indirizzo e si ricordano (26/11/2026): aprendo un ticket e
+  // tornando all'elenco, la ricerca e i filtri sono ancora quelli.
+  const filtriUrl = useFiltriUrl("ticket", {
+    cerca: "", stato: "all", priorita: "all", merce: "tutte", pagamento: "tutti",
+    richiami: "0", fonte: "tutti", scadenza: "tutte", assegnato: "tutti",
+  });
+  const searchQuery = filtriUrl.valori.cerca;
+  const setSearchQuery = (v: string) => filtriUrl.imposta("cerca", v);
+  const statusFilter = filtriUrl.valori.stato;
+  const setStatusFilter = (v: string) => filtriUrl.imposta("stato", v);
+  const priorityFilter = filtriUrl.valori.priorita;
+  const setPriorityFilter = (v: string) => filtriUrl.imposta("priorita", v);
   // Filtri chiesti da Ke Bei: merce (da arrivare / arrivata / incompleta) e
   // assistenza a pagamento o gratuita.
-  const [merceFilter, setMerceFilter] = useState<"tutte" | "in_arrivo" | "incompleta" | "arrivata">("tutte");
-  const [pagamentoFilter, setPagamentoFilter] = useState<"tutti" | "pagamento" | "gratis">("tutti");
+  const merceFilter = filtriUrl.valori.merce as "tutte" | "in_arrivo" | "incompleta" | "arrivata";
+  const setMerceFilter = (v: typeof merceFilter) => filtriUrl.imposta("merce", v);
+  const pagamentoFilter = filtriUrl.valori.pagamento as "tutti" | "pagamento" | "gratis";
+  const setPagamentoFilter = (v: typeof pagamentoFilter) => filtriUrl.imposta("pagamento", v);
   /** Solo chi ha sollecitato almeno 3 volte: i clienti che stanno aspettando troppo. */
-  const [soloRichiami, setSoloRichiami] = useState(false);
-  const [fonteFilter, setFonteFilter] = useState<string>("tutti");
-  const [scadenzaFilter, setScadenzaFilter] = useState<string>("tutte");
-  const [assegnatoFilter, setAssegnatoFilter] = useState<string>("tutti");
+  const soloRichiami = filtriUrl.valori.richiami === "1";
+  /** Accetta anche `set(prima => dopo)`, come il `useState` che ha sostituito. */
+  const setSoloRichiami = (v: boolean | ((prima: boolean) => boolean)) =>
+    filtriUrl.imposta("richiami", (typeof v === "function" ? v(soloRichiami) : v) ? "1" : "0");
+  const fonteFilter = filtriUrl.valori.fonte;
+  const setFonteFilter = (v: string) => filtriUrl.imposta("fonte", v);
+  const scadenzaFilter = filtriUrl.valori.scadenza;
+  const setScadenzaFilter = (v: string) => filtriUrl.imposta("scadenza", v);
+  const assegnatoFilter = filtriUrl.valori.assegnato;
+  const setAssegnatoFilter = (v: string) => filtriUrl.imposta("assegnato", v);
   const [sort, setSort] = useState<{ key: TicketSortKey; direction: SortDirection }>({
     key: "updated",
     direction: "desc",

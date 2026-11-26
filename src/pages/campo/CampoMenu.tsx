@@ -15,7 +15,7 @@ import { useIsCampo } from "@/hooks/useIsCampo";
 import { useMieiMezzi } from "@/hooks/useMezzi";
 import { cn } from "@/lib/utils";
 import { useLinguaCampo } from "@/lib/campo/lingua/LinguaCampo";
-import { ClipboardList, Euro, Languages, ShieldAlert, Users, UtensilsCrossed } from "lucide-react";
+import { ClipboardList, Euro, Languages, ShieldAlert, Users, UtensilsCrossed, Wrench } from "lucide-react";
 import { useBuoniPastoCampo } from "@/hooks/campo/useBuoniPastoCampo";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useFieldSurveyAccess } from "@/hooks/useFieldSurveys";
@@ -53,6 +53,8 @@ export default function CampoMenu() {
       title: "Lavoro",
       items: [
         { icon: CheckSquare, label: "Attività", url: "/campo/attivita", color: "text-teal-600 bg-teal-50" },
+        // Manutenzioni e assistenze assegnate a me (26/11/2026).
+        { icon: Wrench, label: "Interventi", url: "/campo/interventi", color: "text-blue-700 bg-blue-50" },
         // Il rapportino si scrive dal cantiere (e lì si detta a voce): niente voce doppia.
         { icon: ListChecks, label: "Avanzamento", url: "/campo/avanzamento", color: "text-cyan-600 bg-cyan-50" },
         { icon: Package, label: "Magazzino", url: "/campo/magazzino", color: "text-amber-700 bg-amber-50" },
@@ -89,6 +91,7 @@ export default function CampoMenu() {
       items: [
         { icon: CheckSquare, label: "Attività", url: "/campo/attivita", color: "text-teal-600 bg-teal-50" },
         { icon: ClipboardCheck, label: "Avanzamento", url: "/campo/avanzamento", color: "text-cyan-600 bg-cyan-50" },
+        { icon: Wrench, label: "Interventi", url: "/campo/interventi", color: "text-blue-700 bg-blue-50" },
         { icon: Euro, label: "Contratto e pagamenti", url: "/campo/contratti", color: "text-emerald-700 bg-emerald-50" },
         { icon: ClipboardList, label: "Ordini dall'impresa", url: "/campo/ordini-servizio", color: "text-amber-700 bg-amber-50" },
         { icon: Users, label: "I miei operai", url: "/campo/operai-ditta", color: "text-sky-700 bg-sky-50" },
