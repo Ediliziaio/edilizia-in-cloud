@@ -69174,5 +69174,12 @@ const dizionario: Dizionario = {
   "Aggiungi un operaio": "Adaugă un muncitor",
   "Mansione (facoltativo)": "Meserie (opțional)",
   "Idoneità e corsi degli operai caricali nei Documenti della ditta: l'impresa li verifica.": "Aptitudinea și cursurile muncitorilor încarcă-le în Documentele firmei: antreprenorul le verifică.",
+  "Annullare la fattura?": "Anulezi factura?",
+  "La fattura": "Factura",
+  "non è mai stata inviata allo SDI: va nel cestino e il suo numero torna alla serie, quindi lo prenderà la prossima fattura. Nessuna nota di credito.": "nu a fost trimisă niciodată la SDI: merge în coș și numărul ei se întoarce în serie, deci îl va lua următoarea factură. Nicio notă de credit.",
+  "Annulla fattura": "Anulează factura",
+  "Annullare la fattura n° {numero}?": "Anulezi factura nr. {numero}?",
+  "Non è mai stata inviata allo SDI, quindi non serve una nota di credito: va nel cestino e il numero {numero} torna alla serie, lo prenderà la prossima fattura.": "Nu a fost trimisă niciodată la SDI, deci nu e nevoie de o notă de credit: merge în coș și numărul {numero} se întoarce în serie, îl va lua următoarea factură.",
+  "Annulla la fattura": "Anulează factura",
 };
 export default dizionario;

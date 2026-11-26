@@ -69174,5 +69174,12 @@ const dizionario: Dizionario = {
   "Aggiungi un operaio": "Shto një punëtor",
   "Mansione (facoltativo)": "Detyra (opsionale)",
   "Idoneità e corsi degli operai caricali nei Documenti della ditta: l'impresa li verifica.": "Aftësinë dhe kurset e punëtorëve ngarkoji te Dokumentet e firmës: sipërmarrësi i verifikon.",
+  "Annullare la fattura?": "Ta anulosh faturën?",
+  "La fattura": "Fatura",
+  "non è mai stata inviata allo SDI: va nel cestino e il suo numero torna alla serie, quindi lo prenderà la prossima fattura. Nessuna nota di credito.": "nuk është dërguar kurrë në SDI: shkon në kosh dhe numri i saj kthehet në seri, kështu do t'e marrë fatura e radhës. Asnjë notë krediti.",
+  "Annulla fattura": "Anulo faturën",
+  "Annullare la fattura n° {numero}?": "Ta anulosh faturën nr. {numero}?",
+  "Non è mai stata inviata allo SDI, quindi non serve una nota di credito: va nel cestino e il numero {numero} torna alla serie, lo prenderà la prossima fattura.": "Nuk është dërguar kurrë në SDI, kështu që nuk duhet notë krediti: shkon në kosh dhe numri {numero} kthehet në seri, do t'e marrë fatura e radhës.",
+  "Annulla la fattura": "Anulo faturën",
 };
 export default dizionario;

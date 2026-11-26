@@ -69137,5 +69137,12 @@ const dizionario: Dizionario = {
   "Aggiungi un operaio": "Add a worker",
   "Mansione (facoltativo)": "Role (optional)",
   "Idoneità e corsi degli operai caricali nei Documenti della ditta: l'impresa li verifica.": "Upload your workers' fitness and training in the company Documents: the contractor checks them.",
+  "Annullare la fattura?": "Cancel the invoice?",
+  "La fattura": "The invoice",
+  "non è mai stata inviata allo SDI: va nel cestino e il suo numero torna alla serie, quindi lo prenderà la prossima fattura. Nessuna nota di credito.": "was never sent to the SDI: it goes to the bin and its number returns to the series, so the next invoice will take it. No credit note.",
+  "Annulla fattura": "Cancel invoice",
+  "Annullare la fattura n° {numero}?": "Cancel invoice no. {numero}?",
+  "Non è mai stata inviata allo SDI, quindi non serve una nota di credito: va nel cestino e il numero {numero} torna alla serie, lo prenderà la prossima fattura.": "It was never sent to the SDI, so no credit note is needed: it goes to the bin and number {numero} returns to the series, the next invoice will take it.",
+  "Annulla la fattura": "Cancel the invoice",
 };
 export default dizionario;

@@ -183,9 +183,24 @@ italiano. Il verbo `llogarit` / `rillogarit` (calcolare, ricalcolare) resta dov'
 `Aufmaß` traduceva sia «computo» (371 voci) sia «rilievo» (119 voci): due cose diverse con la stessa parola.
 «Computo» è ora **`Mengenermittlung`** (femminile: cambiano articoli e declinazioni), `Aufmaß` resta il rilievo.
 
+### fr: «commessa» → `affaire`, `dossier` resta il fascicolo
+`Dossier` traduceva sia la commessa sia il fascicolo: «fascicolo della commessa» diceva «dossier» due volte.
+La commessa è ora **`affaire`** (il termine dei gestionali francesi: *gestion d'affaires*), perché `chantier` è già il
+cantiere e `dossier` serve al fascicolo. Convertite 1.965 voci.
+
+`affaire` è femminile e `dossier` maschile, quindi sono cambiati articoli, dimostrativi e accordi: `l'affaire`,
+`cette affaire`, `de l'affaire`, `une affaire`, `nouvelle affaire`, `Affaires générales`, e i participi a distanza
+(`l'affaire a été créée`, `les affaires seront déplacées`, `elle n'est pas liée`). 186 accordi sistemati su 1.343
+frasi riviste una per una.
+
+Due cose da sapere:
+- `chiffre d'affaires` (il fatturato) è un'espressione a sé e non è stata toccata.
+- In nove voci `dossier` traduceva **«pratica»** o **«cartella»**, non «commessa», e la sostituzione automatica le
+  aveva prese per errore: rimesse a `dossier` (la pratica amministrativa) e `répertoire` (la cartella documenti).
+  Chi fa una sostituzione di termine su tutto il dizionario deve controllare che la parola tradotta sia davvero
+  quella che cerca: il filtro «la chiave italiana contiene commessa» non basta.
+
 ### Da decidere ancora
-- **fr: «Commessa» = `Dossier` come «fascicolo».** «Fascicolo della commessa» diventa «dossier» due volte.
-  Serve un termine distinto per la commessa — `affaire` o `chantier` — ma tocca migliaia di voci: intervento a parte.
 - **«Scarichi» da sola è ambigua.** La chiave secca è tradotta come scarichi idraulici (de Abflüsse, en Drains,
   fr Évacuations), ma in magazzino significa uscite di merce: «Scarichi di magazzino» è stato reso Lagerausgänge /
   Warehouse issues / Sorties de dépôt. Se la parola secca compare in un elenco del magazzino, va divisa in due chiavi

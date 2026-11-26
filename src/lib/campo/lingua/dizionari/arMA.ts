@@ -69137,5 +69137,12 @@ const dizionario: Dizionario = {
   "Aggiungi un operaio": "زيد خدام",
   "Mansione (facoltativo)": "الخدمة (اختياري)",
   "Idoneità e corsi degli operai caricali nei Documenti della ditta: l'impresa li verifica.": "الأهلية والتكوينات ديال الخدامة طلعهم ف وثائق الشركة: المقاولة كتشوفهم.",
+  "Annullare la fattura?": "تلغي الفاتورة؟",
+  "La fattura": "الفاتورة",
+  "non è mai stata inviata allo SDI: va nel cestino e il suo numero torna alla serie, quindi lo prenderà la prossima fattura. Nessuna nota di credito.": "ما تصيفطاتش عمرها لـ SDI: كتمشي للقشلة والنمرة ديالها كترجع للسيري، يعني كتاخدها الفاتورة الجاية. ما كاينة حتى نوطة ديال الكريدي.",
+  "Annulla fattura": "لغي الفاتورة",
+  "Annullare la fattura n° {numero}?": "تلغي الفاتورة رقم {numero}؟",
+  "Non è mai stata inviata allo SDI, quindi non serve una nota di credito: va nel cestino e il numero {numero} torna alla serie, lo prenderà la prossima fattura.": "ما تصيفطاتش عمرها لـ SDI، يعني ما خاصكش نوطة ديال الكريدي: كتمشي للقشلة والنمرة {numero} كترجع للسيري، كتاخدها الفاتورة الجاية.",
+  "Annulla la fattura": "لغي الفاتورة",
 };
 export default dizionario;

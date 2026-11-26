@@ -69137,5 +69137,12 @@ const dizionario: Dizionario = {
   "Aggiungi un operaio": "Arbeiter hinzufügen",
   "Mansione (facoltativo)": "Tätigkeit (optional)",
   "Idoneità e corsi degli operai caricali nei Documenti della ditta: l'impresa li verifica.": "Eignung und Kurse der Arbeiter lädst du in den Dokumenten der Firma hoch: der Auftraggeber prüft sie.",
+  "Annullare la fattura?": "Rechnung stornieren?",
+  "La fattura": "Die Rechnung",
+  "non è mai stata inviata allo SDI: va nel cestino e il suo numero torna alla serie, quindi lo prenderà la prossima fattura. Nessuna nota di credito.": "wurde nie an das SDI gesendet: sie landet im Papierkorb und ihre Nummer geht an die Serie zurück, die nächste Rechnung nimmt sie also. Keine Gutschrift.",
+  "Annulla fattura": "Rechnung stornieren",
+  "Annullare la fattura n° {numero}?": "Rechnung Nr. {numero} stornieren?",
+  "Non è mai stata inviata allo SDI, quindi non serve una nota di credito: va nel cestino e il numero {numero} torna alla serie, lo prenderà la prossima fattura.": "Sie wurde nie an das SDI gesendet, es braucht also keine Gutschrift: sie landet im Papierkorb und die Nummer {numero} geht an die Serie zurück, die nächste Rechnung nimmt sie.",
+  "Annulla la fattura": "Rechnung stornieren",
 };
 export default dizionario;
