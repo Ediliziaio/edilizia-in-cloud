@@ -69302,5 +69302,13 @@ const dizionario: Dizionario = {
   "Nessuno: il cliente lo chiama l'ufficio": "Askush: klientin e telefonon zyra",
   "Vede il telefono dei clienti": "Sheh telefonin e klientëve",
   "Conta solo se l'azienda ha scelto «Solo chi ha la spunta» (Regole dell'area operai).": "Vlen vetëm nëse firma ka zgjedhur «Vetëm kush ka shenjën» (rregullat e zonës së punëtorëve).",
+  "Pagamento tolto": "Pagesa u hoq",
+  "La fattura torna da pagare, con le sue rate e le sue scadenze.": "Fatura kthehet për pagesë, bashkë me ratet dhe afatet e saj.",
+  "Il residuo della fattura è stato ricalcolato.": "Mbetja e faturës është rillogaritur.",
+  "Pagamento non tolto": "Pagesa nuk u hoq",
+  "Togliere il pagamento di {importo}?": "Të hiqet pagesa prej {importo}?",
+  "Il pagamento del {data} non risulterà più versato: la fattura torna da pagare per quella quota, e tornano indietro anche le rate e le scadenze che si erano chiuse. Resta nello storico della contabilità.": "Pagesa e {data} nuk do të figurojë më si e kryer: fatura kthehet për pagesë për atë pjesë, dhe rikthehen edhe ratet e afatet që ishin mbyllur. Mbetet në historikun e kontabilitetit.",
+  "Lo toglio…": "Po e heq…",
+  "Togli il pagamento": "Hiq pagesën",
 };
 export default dizionario;

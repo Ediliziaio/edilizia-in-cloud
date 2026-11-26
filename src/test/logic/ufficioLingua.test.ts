@@ -1245,6 +1245,7 @@ export const BLOCCHI_UFFICIO: Record<string, string[]> = {
     "src/components/orders/TempiFase.tsx",
     "src/components/orders/TimelineCantiere.tsx",
     "src/components/orders/TotaliCampiCommessa.tsx",
+    "src/components/orders/TogliPagamentoCosto.tsx",
     "src/components/orders/VarianteDaDocumento.tsx",
     "src/components/orders/VarianteVociDialog.tsx",
     "src/components/orders/VariantiCard.tsx",

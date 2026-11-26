@@ -69302,5 +69302,13 @@ const dizionario: Dizionario = {
   "Nessuno: il cliente lo chiama l'ufficio": "Nimeni: clientul îl sună biroul",
   "Vede il telefono dei clienti": "Vede telefonul clienților",
   "Conta solo se l'azienda ha scelto «Solo chi ha la spunta» (Regole dell'area operai).": "Contează doar dacă firma a ales «Doar cine are bifa» (regulile zonei muncitorilor).",
+  "Pagamento tolto": "Plată eliminată",
+  "La fattura torna da pagare, con le sue rate e le sue scadenze.": "Factura revine la neplătită, împreună cu ratele și scadențele ei.",
+  "Il residuo della fattura è stato ricalcolato.": "Restul de plată al facturii a fost recalculat.",
+  "Pagamento non tolto": "Plata nu a fost eliminată",
+  "Togliere il pagamento di {importo}?": "Eliminați plata de {importo}?",
+  "Il pagamento del {data} non risulterà più versato: la fattura torna da pagare per quella quota, e tornano indietro anche le rate e le scadenze che si erano chiuse. Resta nello storico della contabilità.": "Plata din {data} nu va mai figura ca efectuată: factura revine la neplătită pentru acea parte, iar ratele și scadențele închise se redeschid. Rămâne în istoricul contabilității.",
+  "Lo toglio…": "O elimin…",
+  "Togli il pagamento": "Elimină plata",
 };
 export default dizionario;

@@ -14,7 +14,12 @@ export interface ExpensePaymentDetail {
    * `fonte`: «prima_nota» per i pagamenti registrati, «banca» per un movimento abbinato dalla
    * tesoreria, «prova» per il movimento che conferma un pagamento già segnato.
    */
-  movimenti: { id: string; data: string; importo: number; direzione: string; banca: string | null; riferimento: string | null; storno_di: string | null; conto?: string | null; metodo?: string | null; bank_account_id?: string | null; fonte?: 'prima_nota' | 'banca' | 'prova' }[];
+  /**
+   * `versione` e `non_annullabile` (26/11/2026) servono al comando «Togli il pagamento»: la
+   * versione è il controllo di concorrenza di `pagamento_costo_annulla`, il motivo spiega perché
+   * una riga non si può togliere da qui (viene dalla banca, è già annullata, è una contropartita).
+   */
+  movimenti: { id: string; data: string; importo: number; direzione: string; banca: string | null; riferimento: string | null; storno_di: string | null; conto?: string | null; metodo?: string | null; bank_account_id?: string | null; fonte?: 'prima_nota' | 'banca' | 'prova'; versione?: string | null; non_annullabile?: string | null }[];
 }
 
 /** Riepilogo e finestra dei pagamenti condividono la stessa fonte e la stessa cache. */
