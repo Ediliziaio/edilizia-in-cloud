@@ -21,6 +21,7 @@ import { useShipmentDDTPDF } from "@/hooks/useShipmentDDTPDF";
 import { scaricaXmlFattura } from "@/lib/fatturazione/scaricaXml";
 import { siPuoRipristinare } from "@/lib/fatturazione/cestino";
 import { creaNotaCredito } from "@/lib/fatturazione/noteCredito";
+import { useFiltriUrl } from "@/hooks/useFiltriUrl";
 import { documentoEliminabile, emessaMaiUscita } from "@/lib/fatturazione/correggibile";
 import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
@@ -268,10 +269,24 @@ function DocumentiFiscaliListInner({ sezioni }: { sezioni?: React.ReactNode } = 
   const [collegaTarget,setCollegaTarget]=useState<DocumentoFiscale|null>(null);
   const sceltaColonne = useColonneEmesse(effectiveCompany?.id, user?.id);
   const [riquadroTabella, setRiquadroTabella] = useState<HTMLDivElement | null>(null);
-  const [filtriEmesse, setFiltriEmesse] = useState<FiltriEmesse>(FILTRI_EMESSE_VUOTI);
+  // Il pannello dei filtri sta nell'indirizzo e si ricorda (26/11/2026). «cerca», «stato» e
+  // «pagina» ce li scrive già la pagina per conto suo: qui si chiede solo che vengano
+  // ricordati insieme agli altri, se no tornando all'elenco si riparte da una ricerca
+  // diversa. I due interruttori diventano "1"/"0": nell'indirizzo ci vanno solo stringhe.
+  const filtriUrl = useFiltriUrl("emesse", {
+    sdi: "all", incasso: "all", cliente: "", commessa: "", dal: "", al: "",
+    note: "0", allegati: "0", mese: "", ordina: "progressivo",
+  }, ["cerca", "stato", "pagina", "tab", "tipo"]);
+  const filtriEmesse: FiltriEmesse = useMemo(() => ({
+    sdi: filtriUrl.valori.sdi, incasso: filtriUrl.valori.incasso,
+    cliente: filtriUrl.valori.cliente, commessa: filtriUrl.valori.commessa,
+    dal: filtriUrl.valori.dal, al: filtriUrl.valori.al,
+    conNote: filtriUrl.valori.note === "1", conAllegati: filtriUrl.valori.allegati === "1",
+  }), [filtriUrl.valori]);
   const clienteFiltro = useDebounce(filtriEmesse.cliente, 300);
   const commessaFiltro = useDebounce(filtriEmesse.commessa, 300);
-  const [ordinamento, setOrdinamento] = useState<"progressivo" | "data">("progressivo");
+  const ordinamento = filtriUrl.valori.ordina as "progressivo" | "data";
+  const setOrdinamento = (v: "progressivo" | "data") => filtriUrl.imposta("ordina", v);
   const [abbinaAperto, setAbbinaAperto] = useState(false);
 
   // Chi fattura con un altro programma: vede anche le importate, non crea documenti.
@@ -307,7 +322,8 @@ function DocumentiFiscaliListInner({ sezioni }: { sezioni?: React.ReactNode } = 
     else navigate(`/azienda/documenti/${doc.id}/dettaglio`);
   };
 
-  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  const selectedMonth = filtriUrl.valori.mese || null;
+  const setSelectedMonth = (v: string | null) => filtriUrl.imposta("mese", v ?? "");
   const [timelineYear, setTimelineYear] = useState(new Date().getFullYear());
   // «?cerca=» arriva da Clienti fiscali: le fatture di quel cliente.
   const [searchRaw, setSearchRaw] = useState(() => searchParams.get("cerca") ?? "");
@@ -361,11 +377,11 @@ function DocumentiFiscaliListInner({ sezioni }: { sezioni?: React.ReactNode } = 
   const currentTab = TIPO_TABS.find((t) => t.id === activeTab) ?? TIPO_TABS[0];
   const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
-  const azzeraFiltriElenco = () => {
+  /** `anche` finisce nella stessa scrittura dell'indirizzo: vedi `azzeraCon` nel hook. */
+  const azzeraFiltriElenco = (anche?: Record<string, string>) => {
     setPage(0);
-    setSelectedMonth(null);
     setSearchRaw("");
-    setFiltriEmesse(FILTRI_EMESSE_VUOTI);
+    filtriUrl.azzeraCon({ cerca: "", ...anche });
     clearSelection();
   };
 
@@ -594,9 +610,17 @@ function DocumentiFiscaliListInner({ sezioni }: { sezioni?: React.ReactNode } = 
   };
 
   const cambiaFiltriEmesse = (patch: Partial<FiltriEmesse>) => {
-    setFiltriEmesse(v => ({ ...v, ...patch }));
-    if ("dal" in patch || "al" in patch) setSelectedMonth(null);
-    vaiAPagina(0);
+    // Una scrittura sola dell'indirizzo: due di fila farebbero gara e la seconda
+    // cancellerebbe la prima.
+    const cambi: Record<string, string> = {};
+    for (const [k, v] of Object.entries(patch)) {
+      if (k === "conNote") cambi.note = v ? "1" : "0";
+      else if (k === "conAllegati") cambi.allegati = v ? "1" : "0";
+      else cambi[k] = String(v ?? "");
+    }
+    if ("dal" in patch || "al" in patch) cambi.mese = "";
+    filtriUrl.impostaPiu(cambi);
+    setPage(0);
     clearSelection();
   };
 
@@ -730,8 +754,9 @@ function DocumentiFiscaliListInner({ sezioni }: { sezioni?: React.ReactNode } = 
             {elencoEmesse && !esterna && (
               <Button type="button" variant={soloBozzeFatture ? "secondary" : "outline"} size="sm" aria-pressed={soloBozzeFatture}
                 className={cn(BOTTONE_SECONDARIO, "max-sm:h-11 max-sm:px-3 max-sm:text-sm")} onClick={() => {
-                  setStatoFilter(soloBozzeFatture ? "all" : "bozza", true);
-                  azzeraFiltriElenco();
+                  // Una scrittura sola: lo stato e l'azzeramento insieme, se no la seconda
+                  // navigazione cancella la prima e il filtro non si accende.
+                  azzeraFiltriElenco({ stato: soloBozzeFatture ? "" : "bozza" });
                 }}>
                 <FileText aria-hidden="true" />
                 {tr("Fatture in bozza")}
@@ -881,9 +906,10 @@ function DocumentiFiscaliListInner({ sezioni }: { sezioni?: React.ReactNode } = 
             months={mesiStriscia}
             selectedMonth={selectedMonth}
             onSelectMonth={(m) => {
-              setSelectedMonth(m);
-              setFiltriEmesse(v => ({ ...v, dal: "", al: "" }));
-              vaiAPagina(0);
+              // Mese e intervallo di date sono due modi di dire la stessa cosa: scegliendo
+              // il mese l'intervallo si toglie, in una scrittura sola dell'indirizzo.
+              filtriUrl.impostaPiu({ mese: m ?? "", dal: "", al: "" });
+              setPage(0);
               clearSelection();
             }}
             year={timelineYear}

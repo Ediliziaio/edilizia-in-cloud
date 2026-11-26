@@ -526,6 +526,29 @@ export function getAmountDue(order: OrderPaymentDetails): number {
   return Math.max(0, Math.round((incassabile - getAmountCollected(order)) * 100) / 100);
 }
 
+/**
+ * La parte del totale di un'unità immobiliare che NESSUNA rata scritta a mano
+ * copre: per un'unità ancora in vendita (libera o prenotata) quella parte è il
+ * LISTINO, e un listino non è un credito di nessuno.
+ *
+ * Contano solo le righe vere del piano pagamenti (`order_installments`): una
+ * caparra, un saldo previsto al rogito con la sua data, cose che una persona ha
+ * deciso. La ricostruzione dalle vecchie colonne-riassunto non conta, perché il
+ * saldo che il modulo di creazione scrive da sé è il listino intero.
+ *
+ * È la stessa regola di `rate_da_incassare` nel database (migrazioni
+ * 20290612100000 e 20290614100000), così la riga dell'unità nell'elenco e lo
+ * Scadenzario dicono lo stesso numero.
+ */
+export function listinoNonPianificato(order: OrderPaymentDetails): number {
+  if (order.order_type === 'appaltatore_lavoro' && order.valorizzazione === 'a_misura') return 0;
+  const rate = order.installments ?? [];
+  // Un piano con un saldo copre tutto: il saldo è il totale meno le altre rate.
+  if (rate.some((rata) => rata.type === 'balance')) return 0;
+  const pianificato = rate.reduce((totale, rata) => totale + (Number(rata.amount) || 0), 0);
+  return Math.max(0, Math.round((getGrossOrderAmount(order) - pianificato) * 100) / 100);
+}
+
 export function getPendingPayments(order: OrderWithDetails): string[] {
   if(order.order_type==='appaltatore_lavoro' && order.valorizzazione==='a_misura') return order.crediti_misura?.residuo ? ['Fatture emesse'] : [];
   const pending: string[] = [];

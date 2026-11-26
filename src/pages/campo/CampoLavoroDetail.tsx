@@ -1,4 +1,6 @@
 import { COLONNE_RAPPORTINO, COLONNE_RAPPORTINO_CON_AUTORE } from "@/lib/campo/colonneRapportino";
+import { useVedoTelefonoClienti } from "@/lib/campo/interventi";
+import { AZIONE_CANTIERE, AZIONE_ICONA } from "@/components/campo/stileAzioneCantiere";
 import { AttivitaCantiereCampo } from "@/components/campo/AttivitaCantiereCampo";
 import { OggiQuiCampo } from "@/components/campo/OggiQuiCampo";
 import { useTimbraDallApp } from "@/hooks/campo/useTimbraDallApp";
@@ -88,6 +90,8 @@ type CampoOrder = {
   work_start_date: string | null;
   work_end_date: string | null;
   customer: CampoCustomer | null;
+  /** Tolto dall'ufficio: la pagina si apre ancora da un vecchio link, ma non ci si lavora più (26/11/2026). */
+  deleted_at?: string | null;
 };
 
 type CampoAssignment = {
@@ -332,6 +336,7 @@ export default function CampoLavoroDetail() {
         percentuale_avanzamento,
         work_start_date,
         work_end_date,
+        deleted_at,
         customer:profiles!orders_customer_id_fkey(
           first_name, last_name, phone, email
         )
@@ -573,6 +578,8 @@ export default function CampoLavoroDetail() {
     },
   });
   const vedeRapportiniCantiere = !ruoloRapportiError && !!ruoloRapporti?.isCapocantiere;
+  // Il telefono del cliente: al capocantiere, se l'azienda lo dà (26/11/2026, «non tutti devono averlo»).
+  const vedoTelefonoClienti = useVedoTelefonoClienti().data === true;
 
   // Il capocantiere consulta i rapportini del suo cantiere; gli altri solo i propri.
   // Ruolo verificato, cache distinta e RLS del server restano tre confini separati.
@@ -784,6 +791,24 @@ export default function CampoLavoroDetail() {
     );
   }
 
+  // Cantiere tolto dall'ufficio (26/11/2026): prima la pagina si apriva da un vecchio link o da una notifica come se
+  // niente fosse, ma il server rifiutava regole e invii e l'app ricadeva sulle regole «come oggi».
+  if (assignment?.order?.deleted_at) {
+    return (
+      <div className="flex h-full min-h-[420px] flex-col items-center justify-center p-6 text-center">
+        <AlertCircle className="mb-3 h-10 w-10 text-muted-foreground" aria-hidden="true" />
+        <p className="font-semibold text-foreground">{t("Cantiere tolto dall'ufficio")}</p>
+        <p className="mt-1 max-w-xs text-sm text-muted-foreground">
+          {t("{codice} non è più tra i lavori: non si possono mandare rapportini, foto o bolle. Se ci stai ancora lavorando, avvisa l'ufficio.", { codice: assignment.order.order_code ?? t("Questo cantiere") })}
+        </p>
+        <button onClick={() => navigate("/campo")}
+          className="mt-4 min-h-11 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+          {t("Torna alla Home")}
+        </button>
+      </div>
+    );
+  }
+
   if (!assignment || !assignment.order) {
     return (
       <div className="flex h-full min-h-[420px] flex-col items-center justify-center p-6 text-center">
@@ -929,7 +954,9 @@ export default function CampoLavoroDetail() {
           <span className="shrink-0 text-xs font-semibold text-muted-foreground">{t("avanzamento")}</span>
         </div>
 
-        <div className="grid auto-cols-fr grid-flow-col gap-1">
+        {/* Riquadri bassi, tre per fila (26/11/2026, founder: «non deve essere invasivo», ma la riga unica di
+            icone era troppo fitta). Con 4 azioni due per fila; sui telefoni molto stretti sempre due. */}
+        <div className="grid grid-cols-2 gap-1.5 min-[360px]:grid-cols-3 min-[360px]:[&:has(>:nth-child(4):last-child)]:grid-cols-2">
           {/* Le foto hanno casa loro: si scattano durante il lavoro, non la sera dentro al rapportino. */}
           <QuickAction icon={Camera} label={t("Foto")} onClick={() => navigate(`/campo/lavoro/${orderId}/foto`)} />
           {/* La bolla del cantiere si fa nella sua scheda, non nella pagina generale (24/11/2026). */}
@@ -943,24 +970,27 @@ export default function CampoLavoroDetail() {
           )}
           {orderId && <BottoneCollaudo orderId={orderId} />}
           {/* «Piano e documenti» stava accanto al titolo e lo tagliava: ora è un'azione come le altre. */}
-          {vedeSchedaTecnica && <QuickAction icon={BookOpenCheck} label={t("Piano e documenti")} onClick={() => navigate(percorsoCantiereTecnico(orderId))} />}
+          {vedeSchedaTecnica && <QuickAction icon={BookOpenCheck} label={t("Documenti")} onClick={() => navigate(percorsoCantiereTecnico(orderId))} />}
         </div>
         </>}
       </div>
 
       {/* Le schede restano in alto mentre si scorre: sono l'unica cosa fissa. -top-3 compensa il padding del <main>. */}
       <div className="sticky -top-3 z-10 -mx-3 border-b bg-background/95 px-3 py-2 backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:px-0">
-        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
+        {/* Una barra unica a tutta larghezza (26/11/2026): le schede si dividono lo spazio; solo se le
+            parole non ci stanno (telefono stretto, lingue lunghe) la barra scorre, e porta in vista quella scelta. */}
+        <div className="flex gap-0.5 overflow-x-auto rounded-2xl bg-muted p-1 scrollbar-hide">
           {tabs.map(({ key, label }) => (
             <button
               key={key}
+              type="button"
               aria-pressed={activeTab === key}
-              onClick={() => setActiveTab(key)}
+              onClick={(e) => { setActiveTab(key); e.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" }); }}
               className={cn(
-                "min-h-9 whitespace-nowrap rounded-full px-4 text-[13px] font-semibold transition-colors",
+                "min-h-10 flex-auto shrink-0 whitespace-nowrap rounded-xl px-2 text-[12px] font-semibold transition-colors min-[380px]:px-3 min-[380px]:text-[13px]",
                 activeTab === key
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground active:bg-muted"
+                  ? "bg-background text-primary shadow-sm"
+                  : "text-muted-foreground active:bg-background/60"
               )}
             >
               {t(label)}
@@ -971,16 +1001,17 @@ export default function CampoLavoroDetail() {
 
       {/* Contenuto tab */}
       <div className="space-y-3 py-3 md:space-y-4 md:px-4 md:py-4">
-        {/* Le istruzioni dell'ufficio vengono prima di tutto: si leggono entrando. */}
-        {orderId && <NoteCantiereCampo orderId={orderId} />}
-        {/* Le cose da fare qui: attività assegnate a me e, per la ditta, gli ordini dell'impresa (26/11/2026). */}
-        {orderId && <AttivitaCantiereCampo orderId={orderId} oggi={today} />}
         {/* La giornata (timbra → rapportino → uscita) ha UN solo bottone: la barra in
             basso, che dice sempre il passo successivo. Niente scheda che la ripete. */}
 
         {/* ── Tab: Descrizione ── */}
         {activeTab === "descrizione" && (
           <>
+            {/* Le istruzioni dell'ufficio vengono prima di tutto: si leggono entrando. Solo in Info: nelle altre
+                schede (Bolle, Chat…) ripeterle in cima spingeva giù quello che si era aperto (26/11/2026). */}
+            {orderId && <NoteCantiereCampo orderId={orderId} />}
+            {/* Le cose da fare qui: attività assegnate a me e, per la ditta, gli ordini dell'impresa (26/11/2026). */}
+            {orderId && <AttivitaCantiereCampo orderId={orderId} oggi={today} />}
             {/* Le date in una riga: lo stato è già nell'intestazione, non serve ripeterlo. */}
             {(order?.work_start_date || order?.work_end_date) && (
               <p className="flex items-center gap-2 px-1 text-sm text-muted-foreground">
@@ -1114,7 +1145,7 @@ export default function CampoLavoroDetail() {
                 </p>
                 {/* Il cliente parla con una persona sola: il telefono lo vede
                     il capocantiere, gli altri passano da lui. */}
-                {!ruoloRapportiError && ruoloRapporti?.isCapocantiere ? (
+                {!ruoloRapportiError && ruoloRapporti?.isCapocantiere && vedoTelefonoClienti ? (
                   customer.phone && (
                     <a
                       href={`tel:${customer.phone}`}
@@ -1125,7 +1156,7 @@ export default function CampoLavoroDetail() {
                     </a>
                   )
                 ) : (
-                  <p className="mt-1 text-xs text-muted-foreground">{t("Per parlare col cliente passa dal capocantiere.")}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{ruoloRapporti?.isCapocantiere ? t("Il numero del cliente lo ha l'ufficio.") : t("Per parlare col cliente passa dal capocantiere.")}</p>
                 )}
               </div>
             )}
@@ -1680,10 +1711,10 @@ function QuickAction({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="flex min-h-[60px] min-w-0 flex-col items-center justify-start gap-1 rounded-2xl px-0.5 pt-1 text-center text-[12px] font-semibold leading-tight text-foreground active:bg-muted disabled:opacity-50"
+      className={AZIONE_CANTIERE}
     >
-      <span className="flex size-10 items-center justify-center rounded-full border bg-background"><Icon className="size-[18px] text-primary" aria-hidden="true" /></span>
-      {label}
+      <span className={AZIONE_ICONA}><Icon className="size-[18px]" aria-hidden="true" /></span>
+      <span className="min-w-0 truncate">{label}</span>
     </button>
   );
 }

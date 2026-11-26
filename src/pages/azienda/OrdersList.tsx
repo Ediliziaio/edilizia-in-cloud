@@ -23,6 +23,7 @@ import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useOperationalViewMemory } from "@/hooks/useOperationalViewMemory";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useRiepilogoCommesse } from "@/hooks/useRiepilogoCommesse";
@@ -36,6 +37,7 @@ import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 // 🆕 Sprint S3: Sopralluoghi come tab dentro Commesse
 const SopralluoghiList = lazy(() => import("@/pages/azienda/sopralluoghi/SopralluoghiList"));
 const RapportiniCommesse = lazy(() => import("@/pages/azienda/RapportiniCommesse"));
+// Chi va dove domani: persone, squadre e mezzi trascinati sugli interventi (26/11/2026).
 const OrderCommissionsOverview = lazy(() =>
   import("@/components/orders/OrderCommissionsOverview").then((module) => ({
     default: module.OrderCommissionsOverview,
@@ -143,6 +145,15 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
     expectedFrom: {key:"posa_dal", defaultValue:""}, expectedTo: {key:"posa_al", defaultValue:""},
     hideCompleted: { key: "nascondi_completati", defaultValue: false, serialize: (v) => v ? "1" : "0", deserialize: (v) => v === "1" },
   });
+  // I filtri erano già nell'indirizzo, quindi il tasto indietro li ritrovava; mancava il
+  // ritorno dal menu, che va all'indirizzo nudo (26/11/2026). La vista non si ripristina:
+  // tabella o schede è una scelta che sta già nel localStorage suo.
+  useOperationalViewMemory("commesse", [
+    "q", "status", "payment", "generali", "cliente", "anno", "mese", "venditore",
+    "manodopera", "fornitore", "focus", "gruppo", "avanzati",
+    "contratto_dal", "contratto_al", "merce_dal", "merce_al", "posa_dal", "posa_al",
+    "nascondi_completati",
+  ], { restoreView: false });
 
   const searchQuery = urlFilters.searchQuery;
   const debouncedSearch = useDebounce(searchQuery, 400);
@@ -1690,7 +1701,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
             >
               <Plus className="h-3.5 w-3.5 mr-1" />
               <span className="hidden lg:inline">{t("Nuova Commessa")}</span>
-              <span className="hidden sm:inline lg:hidden" aria-hidden="true">{t("Nuova")}</span>
+              <span className="lg:hidden" aria-hidden="true">{t("Nuova")}</span>
             </Button>
           ) : conBivio ? (
             <Button
@@ -1701,7 +1712,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
             >
               <Plus className="h-3.5 w-3.5 mr-1" />
               <span className="hidden lg:inline">{t("Nuova Commessa")}</span>
-              <span className="hidden sm:inline lg:hidden" aria-hidden="true">{t("Nuova")}</span>
+              <span className="lg:hidden" aria-hidden="true">{t("Nuova")}</span>
             </Button>
           ) : (
             <Button
@@ -1712,7 +1723,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
               <Link to="/azienda/ordini/nuovo" aria-label={t("Nuova commessa")}>
                 <Plus className="h-3.5 w-3.5 mr-1" />
                 <span className="hidden lg:inline">{t("Nuova Commessa")}</span>
-                <span className="hidden sm:inline lg:hidden" aria-hidden="true">{t("Nuova")}</span>
+                <span className="lg:hidden" aria-hidden="true">{t("Nuova")}</span>
               </Link>
             </Button>
           )}

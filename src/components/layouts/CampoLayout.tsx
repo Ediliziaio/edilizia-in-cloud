@@ -66,6 +66,7 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar";
 import { CompanyContextSwitcher } from "@/components/layouts/CompanyContextSwitcher";
+import { TestataAziendaCampo } from "@/components/campo/TestataAziendaCampo";
 import { AreaSwitcher } from "@/components/layouts/AreaSwitcher";
 import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
 import { percorsoCantiereTecnico } from "@/lib/campo/schedaCantiere";
@@ -316,21 +317,9 @@ export default function CampoLayout() {
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             )}
-            <Link to={home} aria-label={t("Home Edilizia in Cloud")} className="shrink-0">
-              <img
-                src={ediliziaLogo}
-                alt="Edilizia in Cloud"
-                className="h-7 w-auto max-w-[120px] object-contain"
-              />
-            </Link>
-            <div className="min-w-0 flex-1 border-l border-border/60 pl-2">
-              {activeCompany?.name && (
-                <p dir="auto" className="truncate text-xs font-semibold leading-tight">{activeCompany.name}</p>
-              )}
-              <p className="text-[10px] uppercase leading-none tracking-wider text-muted-foreground">
-                {isOperaio ? t("Area Operaio") : t("Area Subappaltatore")}
-              </p>
-            </div>
+            {/* Solo l'area in alto; il logo (dell'azienda, se l'ha) apre la scelta dell'azienda a chi ne ha più
+                d'una o passa anche dall'ufficio (26/11/2026). */}
+            <TestataAziendaCampo home={home} area={isOperaio ? t("Area Operaio") : t("Area Subappaltatore")} />
             <CampanellaCampo tecnico={isTecnico} />
             {isTecnico && <Button asChild variant="ghost" size="icon" className="h-11 w-11 shrink-0">
               <Link to="/campo/invii" aria-label={t("Invii e bozze")}><CloudUpload className="size-4" aria-hidden="true" /></Link>

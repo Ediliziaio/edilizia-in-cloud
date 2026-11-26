@@ -24,6 +24,7 @@ vi.mock("@/components/settings/BozzaGiornaleSerale", () => ({
 vi.mock("@/components/settings/VociRapportinoConfig", () => ({ default: (): null => null }));
 vi.mock("@/components/settings/AvvisoDomaniConfig", () => ({ AvvisoDomaniConfig: (): null => null }));
 vi.mock("@/components/settings/PosizioneTimbratureConfig", () => ({ PosizioneTimbratureConfig: (): null => null }));
+vi.mock("@/components/settings/InterventiCampoConfig", () => ({ InterventiCampoConfig: (): null => null }));
 vi.mock("sonner", () => ({ toast: { success: state.successo, error: state.erroreToast } }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ role: state.role, effectiveCompany: { id: state.azienda } }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ isLoading: state.caricamentoPermessi, canEditSettingsOrders: state.modifica }) }));

@@ -189,7 +189,11 @@ export function UsciteCommessa({ orderId, onApriSubappalti, onApriMezzi }: {
           ) : righe.length === 0 ? (
             <p className="commessa-empty commessa-empty-success rounded-md bg-green-50 p-3 text-sm text-green-800">{t("Niente da pagare qui: tutto saldato.")}</p>
           ) : (
-            <TabellaCommessa etichetta={t("Pagamenti della commessa")} righe={righe} chiave={(u) => u.chiave} colonne={[
+            <TabellaCommessa etichetta={t("Pagamenti della commessa")} righe={righe} chiave={(u) => u.chiave}
+              /* Clic sulla riga: apre quello che apre il pulsante in fondo (26/11/2026).
+                 Chi guarda l'elenco vuole vedere il costo o l'ordine, e doveva arrivare
+                 fino in fondo alla riga per riuscirci. */
+              onRiga={(u) => azione(u)?.()} colonne={[
               { titolo: t("A chi"), principale: true, cella: (u) => <CellaUscita u={u} /> },
               { titolo: t("Documento"), soloComputer: true, cella: (u) => <span className="text-xs">{documentoUscita(u)}{u.ha_ricevuta && !u.senza_fattura && <span className="block text-muted-foreground"><Paperclip className="mr-1 inline h-3 w-3" aria-hidden="true" />{t("Ricevuta allegata")}</span>}</span> },
               { titolo: t("Scadenza"), cella: (u) => <CellaScadenza u={u} oggi={data.oggi} /> },

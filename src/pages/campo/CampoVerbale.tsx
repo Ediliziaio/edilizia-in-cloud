@@ -4,7 +4,7 @@ import { UniformSelect } from "@/components/ui/uniform-select";
  * fa firmare sullo schermo. Se il cliente non c'è, resta la bozza e la chiude l'ufficio.
  * Lo vede solo il capocantiere interno della commessa, se il modello lo permette (verbale_capo_autorizzato).
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, FileText, Loader2, Plus } from "lucide-react";
@@ -21,6 +21,10 @@ import { CampiModulo } from "@/components/campo/CampiModulo";
 import { FirmaVerbaleDialog, type FirmaVerbale } from "@/components/orders/FirmaVerbaleDialog";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { useNetworkStatus } from "@/hooks/campo/useNetworkStatus";
+import {
+  cancellaVerbaleSulTelefono, erroreDiRete, leggiVerbaleSulTelefono, scriviVerbaleSulTelefono, type VerbaleSulTelefono,
+} from "@/lib/campo/verbaleSulTelefono";
 import {
   acceptanceDaModello, outcomes, results, validateAcceptance, type AcceptanceContent, type CheckResult,
 } from "../../../supabase/functions/collaudo-commessa/model";
@@ -48,7 +52,14 @@ export default function CampoVerbale() {
   const navigate = useNavigate();
   const t = useT();
   const qc = useQueryClient();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const online = useNetworkStatus();
+  // La bozza compilata e non ancora salvata sul server (rete assente): sopravvive anche alla chiusura dell'app.
+  const [sulTelefono, setSulTelefono] = useState<VerbaleSulTelefono | null>(() => leggiVerbaleSulTelefono(user?.id, orderId));
+  const [attesaRete, setAttesaRete] = useState(false);
+  // L'utente arriva dopo il primo disegno: si rilegge quando c'è.
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- rilettura dalla memoria del telefono quando arriva l'utente
+  useEffect(() => { setSulTelefono(leggiVerbaleSulTelefono(user?.id, orderId)); }, [user?.id, orderId]);
   const modelliQuery = useModelliCapo(orderId);
   const modelli = modelliQuery.data ?? [];
   const elenco = useQuery<Verbale[]>({
@@ -91,6 +102,12 @@ export default function CampoVerbale() {
     if (occupato) return;
     setOccupato(true);
     try { await fn(); } catch (e) {
+      if (erroreDiRete(e)) {
+        // Senza rete non si perde niente: la bozza è già sul telefono e parte da sola al ritorno del segnale.
+        if (modificato) setAttesaRete(true);
+        toast.error(t("Senza rete. Il verbale resta sul telefono e si salva da solo appena torna il segnale. Per il PDF e la firma serve la rete."));
+        return;
+      }
       toast.error(e instanceof Error ? e.message : t("Operazione non riuscita. Riprova."));
       // Un altro può aver cambiato il verbale: riaprendolo si deve avere la versione nuova.
       void qc.invalidateQueries({ queryKey: ["verbali-capo", orderId] });
@@ -98,7 +115,8 @@ export default function CampoVerbale() {
   };
   const salvaBozza = async (): Promise<Verbale> => {
     const { report: r } = await chiama<{ report: Verbale }>({ action: "save", order_id: orderId, id: report?.id, version: report?.version, content });
-    setReport(r); setModificato(false);
+    setReport(r); setModificato(false); setAttesaRete(false);
+    cancellaVerbaleSulTelefono(user?.id, orderId); setSulTelefono(null);
     void qc.invalidateQueries({ queryKey: ["verbali-capo", orderId] });
     return r;
   };
@@ -106,6 +124,7 @@ export default function CampoVerbale() {
     if (!content) return;
     const problemi = validateAcceptance(content, true);
     if (problemi.length) { setErrori(problemi); return; }
+    if (!online) { toast.error(t("Per mostrare il PDF al cliente serve la rete. Il verbale intanto resta sul telefono.")); return; }
     void conErrore(async () => {
       const r = modificato || !report ? await salvaBozza() : report;
       const { report: aggiornato, url } = await chiama<{ report: Verbale; url: string }>({ action: "preview", order_id: orderId, id: r.id, version: r.version });
@@ -121,6 +140,7 @@ export default function CampoVerbale() {
       action: "sign", order_id: orderId, id: report.id, version: report.version, document_hash: report.document_hash, reviewed: visto, firma: f,
     });
     setReport(r); setFirma(false); setFirmato(r.firma_cliente_nome ?? f.nome);
+    cancellaVerbaleSulTelefono(user?.id, orderId); setSulTelefono(null);
     toast.success(avvisato ? t("Verbale firmato. L’ufficio è stato avvisato.") : t("Verbale firmato. Avvisa tu l’ufficio: l’avviso non è partito."));
     void qc.invalidateQueries({ queryKey: ["verbali-capo", orderId] });
   });
@@ -128,10 +148,30 @@ export default function CampoVerbale() {
     const { url } = await chiama<{ url: string }>({ action: "open", order_id: orderId, id: r.id });
     window.open(url, "_blank");
   });
+  // Ogni modifica finisce anche sul telefono: se la rete cade o l'app si chiude, il lavoro non si perde.
+  useEffect(() => {
+    if (!content || !modificato || firmato) return;
+    const v = { content, valori: valoriCampi, reportId: report?.id ?? null, version: report?.version ?? null };
+    scriviVerbaleSulTelefono(user?.id, orderId, v);
+  }, [content, valoriCampi, modificato, firmato, report?.id, report?.version, user?.id, orderId]);
+  // Torna il segnale: la bozza rimasta in attesa si salva da sola.
+  useEffect(() => {
+    if (!online || !attesaRete || !content || !modificato || occupato) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- il salvataggio parte al ritorno della rete, dentro una chiamata asincrona
+    void conErrore(async () => { await salvaBozza(); toast.success(t("Tornata la rete: bozza del verbale salvata.")); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [online, attesaRete]);
+  const riprendiDalTelefono = (v: VerbaleSulTelefono) => {
+    const sulServer = (elenco.data ?? []).find(r => r.id === v.reportId);
+    setReport(sulServer ? { ...sulServer, version: v.version ?? sulServer.version } : null);
+    setFirmato(null); setErrori([]); setAnteprima(null); setVisto(false);
+    setContent(v.content); setValoriCampi(v.valori); setModificato(true); setAttesaRete(true);
+  };
   const conferma = useConfirm();
   const indietro = async () => {
     if (content && !firmato) {
       if (modificato && !(await conferma({ title: t("Uscire senza salvare?"), description: t("Le modifiche al verbale non salvate si perdono."), confirmLabel: t("Esci senza salvare"), cancelLabel: t("Resta"), variant: "destructive" }))) return;
+      if (modificato) { cancellaVerbaleSulTelefono(user?.id, orderId); setSulTelefono(null); setAttesaRete(false); }
       setContent(null); setReport(null);
     } else if (content) { setContent(null); setReport(null); setFirmato(null); } else navigate(`/campo/lavoro/${orderId}`);
   };
@@ -146,6 +186,20 @@ export default function CampoVerbale() {
 
       {firmato && (
         <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">{t("Firmato da {nome}", { nome: firmato })}</p>
+      )}
+
+      {!content && sulTelefono && (
+        <div role="status" className="space-y-2 rounded-2xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+          <p className="font-semibold">{t("Hai un verbale non ancora salvato")}</p>
+          <p>{t("«{titolo}», compilato senza rete. Riprendilo: si salva appena c'è segnale.", { titolo: sulTelefono.content.title || t("Verbale") })}</p>
+          <div className="flex gap-2">
+            <Button type="button" className="h-10" onClick={() => riprendiDalTelefono(sulTelefono)}>{t("Riprendi")}</Button>
+            <Button type="button" variant="ghost" className="h-10" onClick={() => void (async () => {
+              if (!(await conferma({ title: t("Buttare il verbale non salvato?"), description: t("Quello che hai scritto si perde."), confirmLabel: t("Butta"), cancelLabel: t("Tieni"), variant: "destructive" }))) return;
+              cancellaVerbaleSulTelefono(user?.id, orderId); setSulTelefono(null);
+            })()}>{t("Butta")}</Button>
+          </div>
+        </div>
       )}
 
       {!content && (
@@ -184,6 +238,12 @@ export default function CampoVerbale() {
             </div>
           )}
         </div>
+      )}
+
+      {content && !firmato && (!online || attesaRete) && (
+        <p role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-2.5 text-xs font-medium text-amber-950">
+          {online ? t("Salvo la bozza…") : t("Senza rete: quello che scrivi resta sul telefono. Per il PDF e la firma serve il segnale.")}
+        </p>
       )}
 
       {content && !firmato && (

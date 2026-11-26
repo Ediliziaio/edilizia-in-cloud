@@ -193,7 +193,7 @@ matrice di collaudo e le correzioni in giornata.
 | 1.4 Documenti del cantiere | **Già c'è** | l'operaio vede la selezione del cartello QR (`DocumentiQrCampo`) |
 | 1.5 Emergenza | **Fatto** | `DoveSiamo` in `CampoSegnalaSicurezza` |
 | 1.6 Mie scadenze | **Fatto** | `hr-check-scadenze` pubblicata dal CI alle 11:43 |
-| 1.7 Senza rete | **Fatto** per spese, segnalazioni, sicurezza (con foto) e mezzi | resta il verbale (firma del cliente + PDF sul server) |
+| 1.7 Senza rete | **Fatto** per spese, segnalazioni, sicurezza (con foto), mezzi e verbale | verbale: la bozza resta sul telefono e si salva al ritorno del segnale (`verbaleSulTelefono`); PDF e firma restano col segnale, di proposito |
 | 2.1 Lavori extra | **Fatto** (bozza dal cantiere → ufficio prezza e manda in firma) | `campo_lavoro_extra_crea` |
 | 2.2 Domani della squadra | **Fatto** come segnalazione «serve entro domani» | `CampoSquadra` |
 | 2.3 Materiale chiesto | **Fatto** | trigger `campo_materiale_avvisa_richiedente` |

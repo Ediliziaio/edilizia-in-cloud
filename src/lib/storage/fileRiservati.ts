@@ -36,6 +36,8 @@ export const BUCKET_MEDIA_PROGETTI = "progetti-media";
 /** Contenitori che vanno letti con link firmato. */
 export const BUCKET_RISERVATI = [
   "campo-rapportini",
+  // Foto degli interventi brevi fatte dal telefono (26/11/2026): contenitore privato, si leggono con link firmato.
+  "campo-foto",
   "campo-firme",
   "foto-cantiere",
   "documenti-sub",

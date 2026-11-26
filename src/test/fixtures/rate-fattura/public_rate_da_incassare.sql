@@ -16,6 +16,12 @@ AS $function$
       from public.orders o
      where o.company_id = p_company and o.deleted_at is null
   ),
+  -- Le unità che nessuno ha ancora comprato: il loro totale è il listino.
+  vendita as (
+    select ui.order_id
+      from public.unita_immobiliari ui
+     where ui.company_id = p_company and ui.stato_vendita::text in ('libera','prenotata')
+  ),
   r as (select * from public.rate_importi(p_company)),
   incassato as (select x.order_id, sum(x.importo) as i from public.rate_incassi(p_company) x group by x.order_id),
   righe as (
@@ -25,6 +31,10 @@ AS $function$
            r.type = 'financing' as finanziamento
       from r left join public.documenti_fiscali d on d.id = r.documento_fiscale_id
      where not r.is_paid and not exists(select 1 from public.orders oo where oo.id=r.order_id and oo.order_type='appaltatore_lavoro' and oo.valorizzazione='a_misura')
+       -- Unità ancora in vendita: solo le rate scritte a mano, non quelle
+       -- ricostruite dalle colonne-riassunto (sarebbero il listino).
+       and (not exists(select 1 from vendita v where v.order_id = r.order_id)
+            or exists(select 1 from public.order_installments i2 where i2.id = r.installment_id))
     union all
     select c.order_id,coalesce(c.documento_id,c.invoice_id),c.scadenza,greatest(0,c.credito_lordo-c.pagato_lordo),false
       from public.commessa_documenti_credito(p_company) c join public.orders oo on oo.id=c.order_id
@@ -37,6 +47,8 @@ AS $function$
               from o left join r on r.order_id = o.id
              group by o.id, o.totale) s
      where s.scoperto > 0
+       -- Mai per un'unità ancora in vendita: il suo totale è il listino, non un credito.
+       and not exists(select 1 from vendita v where v.order_id = s.order_id)
   ),
   ordinate as (
     select righe.*,

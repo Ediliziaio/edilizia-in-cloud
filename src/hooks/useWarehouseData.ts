@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { readAllOrderRows } from "@/lib/orders/listScope";
+import { useFiltriUrl } from "@/hooks/useFiltriUrl";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
@@ -28,15 +29,30 @@ export function useWarehouseData() {
 
   // View and filter states
   const [viewMode, setViewMode] = useState<ViewMode>("stock");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [orderFilter, setOrderFilter] = useState("all");
-  const [supplierFilter, setSupplierFilter] = useState("all");
-  const [sectionFilter, setSectionFilter] = useState("all");
+  // I filtri stanno nell'indirizzo e si ricordano (26/11/2026): aprendo un articolo e
+  // tornando all'elenco, la ricerca è ancora lì. Fuori restano la vista, il
+  // raggruppamento e la scelta del magazzino: sono modi di guardare e una preselezione
+  // automatica, non filtri che uno ha scritto.
+  const filtriUrl = useFiltriUrl("magazzino", {
+    cerca: "", stato: "all", ordine: "all", fornitore: "all", sezione: "all",
+    lotto: "all", rapido: "active",
+  });
+  const searchQuery = filtriUrl.valori.cerca;
+  const setSearchQuery = (v: string) => filtriUrl.imposta("cerca", v);
+  const statusFilter = filtriUrl.valori.stato;
+  const setStatusFilter = (v: string) => filtriUrl.imposta("stato", v);
+  const orderFilter = filtriUrl.valori.ordine;
+  const setOrderFilter = (v: string) => filtriUrl.imposta("ordine", v);
+  const supplierFilter = filtriUrl.valori.fornitore;
+  const setSupplierFilter = (v: string) => filtriUrl.imposta("fornitore", v);
+  const sectionFilter = filtriUrl.valori.sezione;
+  const setSectionFilter = (v: string) => filtriUrl.imposta("sezione", v);
   const [warehouseChoice, setWarehouseFilter] = useState<{ companyId: string | undefined; id: string | null } | null>(null);
-  const [lottoFilter, setLottoFilter] = useState<string>("all");
+  const lottoFilter = filtriUrl.valori.lotto;
+  const setLottoFilter = (v: string) => filtriUrl.imposta("lotto", v);
   const [groupBy, setGroupBy] = useState<GroupBy>("order");
-  const [quickFilter, setQuickFilter] = useState<QuickFilter>("active");
+  const quickFilter = filtriUrl.valori.rapido as QuickFilter;
+  const setQuickFilter = (v: QuickFilter) => filtriUrl.imposta("rapido", v);
   const [page, setPage] = useState(0);
 
   // Pre-selezione automatica del magazzino quando l'utente ha esattamente

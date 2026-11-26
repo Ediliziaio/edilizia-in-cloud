@@ -61,6 +61,8 @@ export interface HrProfilo {
   lavora_in_cantiere?: boolean;
   /** false: non timbra dall'app operai (ore segnate dal caposquadra o dall'ufficio). */
   timbra_dall_app?: boolean;
+  /** Vede il telefono dei clienti nell'app (conta solo se l'azienda sceglie «solo chi ha la spunta»), 26/11/2026. */
+  vede_telefono_clienti?: boolean;
   created_at: string;
   updated_at: string;
   // Organigramma fields

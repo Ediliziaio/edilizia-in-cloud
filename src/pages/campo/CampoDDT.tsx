@@ -524,7 +524,9 @@ export function CampoDDTEditor({ companyId, cantiereFisso }: { companyId?: strin
             </UniformSelect>
           </label>
         )}
-        {destinazione === "cantiere" && richiesto && !assegnazioni.isLoading && !assegnazioni.isError &&
+        {/* Dentro la scheda del cantiere non si avvisa: ci si è già dentro, e l'elenco degli assegnati ha solo i
+            cantieri in corso (su un cantiere completato l'avviso compariva a torto, 26/11/2026). */}
+        {destinazione === "cantiere" && richiesto && !cantiereFisso && !assegnazioni.isLoading && !assegnazioni.isError &&
           !cantieri.some((c) => c.order_id === richiesto) && (
             <p className="text-sm text-amber-800 dark:text-amber-300">{t("Il cantiere del link non è tra quelli assegnati. Controlla la destinazione prima di inviare.")}</p>
           )}

@@ -183,6 +183,28 @@ describe("unità in vendita nella lista (URBAN VISION, 14/11/2026)", () => {
     expect(venduta).not.toHaveTextContent("Non venduta");
   });
 
+  it("un'unità ancora in vendita con una rata scritta a mano la mostra da incassare", () => {
+    // 26/11/2026: il listino non è un credito, ma una caparra pattuita sì — ed è quello che
+    // dicono anche lo Scadenzario e il previsionale di cassa (rate_da_incassare).
+    const conCaparra = {
+      ...unita("u1", "O-0012", 365_000), balance_amount: 0,
+      installments: [{ id: "r1", position: 0, label: "Caparra", type: "deposit", amount: 20_000, is_paid: false }],
+    } as unknown as OrderWithDetails;
+    render(
+      <MemoryRouter>
+        <OrdersTable
+          orders={[riga("g", "O-0002", 0)]} figlieFuoriPagina={[conCaparra]}
+          onDelete={vi.fn()} isDeleting={false} orderCosts={new Map()} visibleColumns={new Set(["totalIvato", "due"])} mappaGenerali={mappa}
+        />
+      </MemoryRouter>,
+    );
+    fireEvent.click(within(tabella()).getByRole("button", { name: /commesse dentro/ }));
+    const riga1 = within(tabella()).getByText("O-0012").closest("tr")!;
+    expect(riga1).toHaveTextContent(/365\.000,00 €listino/);
+    expect(riga1).toHaveTextContent(/20\.000,00/);
+    expect(riga1).not.toHaveTextContent("Non venduta");
+  });
+
   it("la generale somma solo il venduto e dice a parte quanto è ancora in vendita", () => {
     disegnaUnita();
     const generale = within(tabella()).getByText("Generale · 3").closest("tr")!;

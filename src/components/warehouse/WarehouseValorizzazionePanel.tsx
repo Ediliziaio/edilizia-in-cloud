@@ -23,6 +23,9 @@ import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { Calculator, TrendingUp, AlertCircle } from "lucide-react";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { usePermissions } from "@/hooks/usePermissions";
+import { AssegnaUnitaDialog } from "./AssegnaUnitaDialog";
+import { ArticoloMagazzinoDialog } from "./ArticoloMagazzinoDialog";
 
 interface Props {
   warehouseId?: string | null;
@@ -31,6 +34,9 @@ interface Props {
 export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
   const t = useT();
   const [method, setMethod] = useState<ValorizzazioneMethod>("media");
+  const [assegnaUnita, setAssegnaUnita] = useState(false);
+  const [articoloAperto, setArticoloAperto] = useState<string | null>(null);
+  const permissions = usePermissions();
   const q = useValorizzazione(method, warehouseId);
 
   if (q.isLoading) {
@@ -97,7 +103,10 @@ export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
         <div className="rounded-xl border bg-card px-3 py-2">
           <p className="text-[11px] text-muted-foreground">{t("Quantità per unità")}</p>
           <div className="flex flex-wrap gap-x-2 text-sm font-bold leading-tight tabular-nums">{summary.quantita.map(([unit, quantity]) => <span key={unit}>{quantity.toLocaleString(intlCampo(), {maximumFractionDigits:6})} {unit}</span>)}</div>
-          {summary.unitaDaVerificare > 0 && <p className="text-[11px] text-amber-800">{t("{unitaDaVerificare} articoli con unità da verificare", { unitaDaVerificare: String(summary.unitaDaVerificare ?? "") })}</p>}
+          {summary.unitaDaVerificare > 0 && <p className="text-[11px] text-amber-800">
+            {t("{unitaDaVerificare} articoli con unità da verificare", { unitaDaVerificare: String(summary.unitaDaVerificare ?? "") })}
+            {permissions.canEditWarehouse && <Button variant="link" className="ml-1 h-auto p-0 text-[11px] font-semibold text-amber-800" onClick={() => setAssegnaUnita(true)}>{t("Assegna l'unità")}</Button>}
+          </p>}
           {summary.quantita.length === 0 && !summary.unitaDaVerificare && <p>—</p>}
         </div>
         <div className="rounded-xl border bg-card px-3 py-2">
@@ -116,6 +125,17 @@ export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
           <span className="min-w-0 truncate">{t("La valorizzazione usa il costo unitario dell'anagrafica articoli (fallback). Per un calcolo preciso FIFO/LIFO, registra i carichi via DDT ricezione con costo unitario. In quel modo ogni lotto entra a magazzino col suo prezzo storico.")}</span>
         </div>
       )}
+
+      {assegnaUnita && (
+        <AssegnaUnitaDialog
+          open
+          onOpenChange={setAssegnaUnita}
+          articoli={articoli.filter((a) => Number(a.quantity) > 0 && !a.unita_misura?.trim())}
+        />
+      )}
+
+      {/* Clic sulla riga = la finestra dell'articolo, come nelle Giacenze (26/11/2026). */}
+      {articoloAperto && <ArticoloMagazzinoDialog stockItemId={articoloAperto} onClose={() => setArticoloAperto(null)} />}
 
       {/* Tabella dettaglio */}
       <Card className="rounded-xl">
@@ -154,7 +174,7 @@ export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
                 </thead>
                 <tbody>
                   {articoli.map((a) => (
-                    <tr key={a.id} className="border-t hover:bg-muted/20 [&>td]:whitespace-nowrap [&>td]:py-1.5">
+                    <tr key={a.id} className="cursor-pointer border-t hover:bg-muted/20 [&>td]:whitespace-nowrap [&>td]:py-1.5" onClick={() => setArticoloAperto(a.id)}>
                       <td className="max-w-[320px] truncate px-3 py-1.5 font-medium" title={a.name}>{a.name}</td>
                       <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
                         {a.internal_code ?? "—"}
