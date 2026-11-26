@@ -144,7 +144,8 @@ function WarehouseListView({
 
   return (
     <div className="space-y-2">
-      <p className="text-xs text-muted-foreground">{t("Le fasi operative sono separate dalle quantità. “Da coprire” è il residuo senza prenotazione: verifica il libero nel deposito e gli ordini in arrivo prima di acquistare.")}</p>
+      {/* Una riga sola: il testo intero resta nel tooltip. */}
+      <p className="truncate text-[11px] text-muted-foreground" title={t("Le fasi operative sono separate dalle quantità. “Da coprire” è il residuo senza prenotazione: verifica il libero nel deposito e gli ordini in arrivo prima di acquistare.")}>{t("Le fasi operative sono separate dalle quantità. “Da coprire” è il residuo senza prenotazione: verifica il libero nel deposito e gli ordini in arrivo prima di acquistare.")}</p>
       {balances.isError && <p role="alert" className="text-sm text-amber-800">{t("Quantità di commessa non verificabili.")} <Button variant="outline" size="sm" onClick={() => void balances.refetch()}>{t("Riprova quantità")}</Button></p>}
       {/* Batch actions bar */}
       {!readOnly && selectedItems.size > 0 && (
@@ -226,7 +227,7 @@ function WarehouseListView({
                     className={cn(
                       // Mobile: due righe (commessa · data/articoli e «x/y pronti»),
                       // non tre con quattro badge.
-                      "flex flex-col gap-3 p-3 cursor-pointer hover:bg-muted/50 transition-colors sm:flex-row sm:items-center sm:justify-between max-sm:gap-1 max-sm:py-2",
+                      "flex flex-col gap-3 p-3 cursor-pointer hover:bg-muted/50 transition-colors sm:flex-row sm:items-center sm:justify-between sm:py-2 max-sm:gap-1 max-sm:py-2",
                       isExpanded && "border-b"
                     )}
                     onClick={() => toggleOrder(group.orderId)}
@@ -234,7 +235,7 @@ function WarehouseListView({
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-semibold truncate max-sm:text-sm">
+                          <span className="truncate text-sm font-semibold">
                             {isSupplierGroup
                               ? group.orderCode
                               : `${group.orderCode || "Ordine"} - ${group.customerName}`}
@@ -286,6 +287,14 @@ function WarehouseListView({
                         </Badge>
                       </div>
                       <span className="text-xs text-muted-foreground">{t("{n} art.", { n: group.items.length })}</span>
+                      {/* «Vai all'ordine» in testata (26/11/2026): prima aveva una riga sua sotto gli articoli. */}
+                      {!isSupplierGroup && (
+                        <Button variant="ghost" size="icon" className="h-7 w-7 max-sm:hidden" asChild onClick={(e) => e.stopPropagation()}>
+                          <Link to={`/azienda/ordini/${group.orderId}`} aria-label={t("Vai all'ordine")} title={t("Vai all'ordine")}>
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </Link>
+                        </Button>
+                      )}
                       <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", isExpanded && "rotate-180")} />
                     </div>
                   </div>
@@ -314,7 +323,7 @@ function WarehouseListView({
                       ))}
 
                       {/* Group actions */}
-                      <div className="flex items-center justify-between pt-2">
+                      <div className="flex items-center justify-between pt-1">
                         {!readOnly && isSupplierGroup ? (
                           <Button
                             variant="ghost"
@@ -332,7 +341,7 @@ function WarehouseListView({
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-xs"
+                            className="h-7 text-xs"
                             onClick={() => onMarkAllInstalled(group.items)}
                             disabled={isUpdating}
                           >
@@ -342,7 +351,7 @@ function WarehouseListView({
                           <span className="text-xs text-muted-foreground">{t("Vista consulente in sola lettura")}</span>
                         )}
                         {!isSupplierGroup && (
-                          <Button variant="ghost" size="sm" asChild>
+                          <Button variant="ghost" size="sm" asChild className="sm:hidden">
                             <Link to={`/azienda/ordini/${group.orderId}`} className="text-xs">
                               <ExternalLink className="h-3 w-3 mr-1" />
                               {t("Vai all'ordine")}

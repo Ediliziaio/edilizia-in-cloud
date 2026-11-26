@@ -1056,7 +1056,7 @@ function WarehousePage() {
 
               {viewMode === "list" && (
                 <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
-                  <SelectTrigger className="w-full sm:w-[180px] max-sm:hidden">
+                  <SelectTrigger className="h-8 w-full text-xs sm:w-[170px] max-sm:hidden" aria-label={t("Raggruppa per")}>
                     <SelectValue placeholder={t("Raggruppa per")} />
                   </SelectTrigger>
                   <SelectContent>
@@ -1069,84 +1069,10 @@ function WarehousePage() {
               )}
             </div>
 
+            {/* 26/11/2026: magazzino, ricerca, filtri e comandi su una riga (prima tre righe). */}
             {viewMode !== "stock" && <div className="flex flex-wrap items-center gap-2">
               {warehouseSelect}
-              <div className="flex flex-wrap items-center gap-2 sm:ml-auto">{warehouseActions}
-                <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" className="h-10 max-sm:h-11 gap-1.5" aria-label={t("Altre azioni del magazzino")}><MoreHorizontal className="h-4 w-4" />{t("Altro")}</Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-64">{warehouseMenuItems}</DropdownMenuContent></DropdownMenu>
-              </div>
-            </div>}
-
-            {/* Quick filters — solo workflow commesse (sono filtri commessa-related:
-                Da Lavorare, Urgenti, In Ritardo, Questa/Prox. sett. di lavori). Su
-                Inventario sono inerti e occupano spazio inutilmente. */}
-            {isOrderView && (
-            <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1 sm:flex-wrap sm:pb-0 max-sm:gap-1.5 max-sm:pb-0 [&>button]:max-sm:h-8 [&>button]:max-sm:rounded-full [&>button]:max-sm:px-3 [&>button]:max-sm:text-xs">
-              <Button
-                variant={quickFilter === "all" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setQuickFilter("all")}
-                className="tap-compact shrink-0"
-              >
-                {t("Tutti")}
-              </Button>
-              <Button
-                variant={quickFilter === "active" ? "secondary" : "outline"}
-                size="sm"
-                onClick={() => setQuickFilter("active")}
-                className="tap-compact gap-1 shrink-0"
-              >
-                <WarehouseIcon className="h-4 w-4" />
-                {t("Da Lavorare")}
-                {activeItemsCount > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                    {activeItemsCount}
-                  </Badge>
-                )}
-              </Button>
-              <Button
-                variant={quickFilter === "urgent" ? "destructive" : "outline"}
-                size="sm"
-                onClick={() => setQuickFilter("urgent")}
-                className="tap-compact gap-1 shrink-0"
-              >
-                <AlertTriangle className="h-4 w-4" />
-                {t("Urgenti")}
-                {urgentItemsCount > 0 && (
-                  <span className="ml-1 bg-destructive-foreground text-destructive rounded-full px-1.5 py-0.5 text-xs font-bold">
-                    {urgentItemsCount}
-                  </span>
-                )}
-              </Button>
-              {/* "In Ritardo" pill rimosso — duplicato della KPI card cliccabile sopra. */}
-              <Button
-                variant={quickFilter === "thisWeek" ? "secondary" : "outline"}
-                size="sm"
-                onClick={() => setQuickFilter("thisWeek")}
-                className="tap-compact gap-1 shrink-0"
-                title={t("Articoli con la posa in questa settimana (lunedì–domenica)")}
-              >
-                <Clock className="h-4 w-4" />
-                {t("Questa settimana")}
-              </Button>
-              <Button
-                variant={quickFilter === "nextWeek" ? "secondary" : "outline"}
-                size="sm"
-                onClick={() => setQuickFilter("nextWeek")}
-                className="gap-1 shrink-0 max-sm:hidden"
-                title={t("Articoli con la posa nella prossima settimana")}
-              >
-                <Clock className="h-4 w-4" />
-                {t("Prossima settimana")}
-              </Button>
-            </div>
-            )}
-
-            {/* Filtri compatti — solo workflow commesse.
-                In Inventario (Giacenze/Lotti/DDT) ogni sub-tab ha i suoi filtri
-                propri (vedi WarehouseStockTab toolbar QR), evitiamo doppione confondente.
-                I Select (Stato/Ordine/Fornitore/Zona) sono dentro lo Sheet sidebar. */}
-            {isOrderView && (
-            <div className="flex gap-2">
+              {isOrderView && (<>
               <div className={RICERCA_BARRA}>
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
@@ -1168,7 +1094,7 @@ function WarehousePage() {
               <Button
                 variant="outline"
                 onClick={() => setFiltersSheetOpen(true)}
-                className="tap-compact shrink-0 gap-2 max-sm:h-9 max-sm:px-2.5"
+                className="tap-compact h-8 shrink-0 gap-1.5 px-2.5 text-xs max-sm:h-9 [&_svg]:h-3.5 [&_svg]:w-3.5"
                 title={t("Apri filtri avanzati")}
               >
                 <SlidersHorizontal className="h-4 w-4" />
@@ -1188,14 +1114,88 @@ function WarehousePage() {
               <Button
                 variant="outline"
                 onClick={() => setSerialsSheetOpen(true)}
-                className="shrink-0 gap-2 max-sm:hidden"
+                className="h-8 shrink-0 gap-1.5 px-2.5 text-xs max-sm:hidden [&_svg]:h-3.5 [&_svg]:w-3.5"
                 title={t("Cerca tra tutti i seriali del magazzino")}
               >
                 <Package className="h-4 w-4" />
                 <span className="hidden sm:inline">{t("Seriali")}</span>
               </Button>
+              </>)}
+              <div className="flex flex-wrap items-center gap-2 sm:ml-auto">{warehouseActions}
+                <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" className="h-8 max-sm:h-11 gap-1.5 px-2.5 text-xs [&_svg]:h-3.5 [&_svg]:w-3.5" aria-label={t("Altre azioni del magazzino")}><MoreHorizontal className="h-4 w-4" />{t("Altro")}</Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-64">{warehouseMenuItems}</DropdownMenuContent></DropdownMenu>
+              </div>
+            </div>}
+
+            {/* Quick filters — solo workflow commesse (sono filtri commessa-related:
+                Da Lavorare, Urgenti, In Ritardo, Questa/Prox. sett. di lavori). Su
+                Inventario sono inerti e occupano spazio inutilmente. */}
+            {isOrderView && (
+            <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-1 sm:flex-wrap sm:pb-0 max-sm:pb-0 [&>button]:h-7 [&>button]:rounded-full [&>button]:px-3 [&>button]:text-xs [&>button]:font-medium [&_svg]:h-3.5 [&_svg]:w-3.5 [&>button[aria-pressed=true]]:border-orange-200 [&>button[aria-pressed=true]]:bg-orange-50 [&>button[aria-pressed=true]]:text-orange-700 [&>button[aria-pressed=true]]:shadow-none">
+              <Button
+                variant="outline"
+                aria-pressed={quickFilter === "all"}
+                size="sm"
+                onClick={() => setQuickFilter("all")}
+                className="tap-compact shrink-0"
+              >
+                {t("Tutti")}
+              </Button>
+              <Button
+                variant="outline"
+                aria-pressed={quickFilter === "active"}
+                size="sm"
+                onClick={() => setQuickFilter("active")}
+                className="tap-compact gap-1 shrink-0"
+              >
+                <WarehouseIcon className="h-4 w-4" />
+                {t("Da Lavorare")}
+                {activeItemsCount > 0 && (
+                  <Badge variant="secondary" className="ml-0.5 h-4 px-1 text-[10px]">
+                    {activeItemsCount}
+                  </Badge>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                aria-pressed={quickFilter === "urgent"}
+                size="sm"
+                onClick={() => setQuickFilter("urgent")}
+                className="tap-compact gap-1 shrink-0"
+              >
+                <AlertTriangle className="h-4 w-4" />
+                {t("Urgenti")}
+                {urgentItemsCount > 0 && (
+                  <span className="ml-0.5 rounded-full bg-red-100 px-1.5 text-[10px] font-bold text-red-700">
+                    {urgentItemsCount}
+                  </span>
+                )}
+              </Button>
+              {/* "In Ritardo" pill rimosso — duplicato della KPI card cliccabile sopra. */}
+              <Button
+                variant="outline"
+                aria-pressed={quickFilter === "thisWeek"}
+                size="sm"
+                onClick={() => setQuickFilter("thisWeek")}
+                className="tap-compact gap-1 shrink-0"
+                title={t("Articoli con la posa in questa settimana (lunedì–domenica)")}
+              >
+                <Clock className="h-4 w-4" />
+                {t("Questa settimana")}
+              </Button>
+              <Button
+                variant="outline"
+                aria-pressed={quickFilter === "nextWeek"}
+                size="sm"
+                onClick={() => setQuickFilter("nextWeek")}
+                className="gap-1 shrink-0 max-sm:hidden"
+                title={t("Articoli con la posa nella prossima settimana")}
+              >
+                <Clock className="h-4 w-4" />
+                {t("Prossima settimana")}
+              </Button>
             </div>
             )}
+
           </div>
         </CardContent>
       </Card>

@@ -30,6 +30,7 @@ import { formattaQuantitaMovimento } from "@/lib/magazzino/quantitaMovimento";
 import { leggiMovimentiMagazzino } from "@/lib/magazzino/registroMovimenti";
 import { queryKeys } from "@/lib/queryKeys";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { BOTTONE_SECONDARIO, RICERCA_BARRA } from "@/components/orders/TestataScheda";
 
 interface Props {
   companyId: string;
@@ -122,57 +123,52 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
   };
 
   return (
-    <div className="space-y-4">
-      {/* Toolbar */}
-      <Card>
-        <CardContent className="flex flex-col gap-3 p-3 sm:p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                aria-label={t("Cerca nei movimenti")}
-                placeholder={t("Cerca articolo, commessa, operatore…")}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as typeof typeFilter)}>
-              <SelectTrigger className="w-full sm:w-[150px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t("Tutti i tipi")}</SelectItem>
-                <SelectItem value="carico">{t("Solo carichi")}</SelectItem>
-                <SelectItem value="scarico">{t("Solo scarichi")}</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={period} onValueChange={(v) => setPeriod(v as PeriodKey)}>
-              <SelectTrigger className="w-full sm:w-[170px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {(Object.keys(PERIOD_LABEL) as PeriodKey[]).map((k) => (
-                  <SelectItem key={k} value={k}>{t(PERIOD_LABEL[k])}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching} className="gap-2">
-              {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              <span className="sr-only sm:not-sr-only">{t("Aggiorna")}</span>
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleExport} disabled={filtered.length === 0} className="gap-2">
-              <Download className="h-4 w-4" />
-              <span className="sr-only sm:not-sr-only">CSV</span>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Riepilogo */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <SummaryCard label={t("Movimenti")} value={String(summary.count)} icon={History} tone="slate" />
-        <SummaryCard label={t("Carichi e resi · movimenti")} value={String(summary.carichi)} icon={ArrowDownToLine} tone="emerald" />
-        <SummaryCard label={t("Scarichi · movimenti")} value={String(summary.scarichi)} icon={ArrowUpFromLine} tone="red" />
-        {canViewCosts && <SummaryCard label={t("Valore movimentato")} value={formatCurrency(summary.valore)} icon={Download} tone="blue" />}
+    <div className="space-y-2">
+      {/* 26/11/2026: barra senza riquadro e numeri su una fascia sola, come le altre schede
+          (prima riquadro alto 88px e quattro riquadri da 150px anche con zero movimenti). */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className={RICERCA_BARRA}>
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            aria-label={t("Cerca nei movimenti")}
+            placeholder={t("Cerca articolo, commessa, operatore…")}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="h-8 pl-8 text-xs"
+          />
+        </div>
+        <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as typeof typeFilter)}>
+          <SelectTrigger className="h-8 w-full text-xs sm:w-[140px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("Tutti i tipi")}</SelectItem>
+            <SelectItem value="carico">{t("Solo carichi")}</SelectItem>
+            <SelectItem value="scarico">{t("Solo scarichi")}</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={period} onValueChange={(v) => setPeriod(v as PeriodKey)}>
+          <SelectTrigger className="h-8 w-full text-xs sm:w-[150px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {(Object.keys(PERIOD_LABEL) as PeriodKey[]).map((k) => (
+              <SelectItem key={k} value={k}>{t(PERIOD_LABEL[k])}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground" aria-label={t("Riepilogo")}>
+          <SummaryCard label={t("Movimenti")} value={String(summary.count)} icon={History} tone="slate" />
+          <SummaryCard label={t("Carichi e resi · movimenti")} value={String(summary.carichi)} icon={ArrowDownToLine} tone="emerald" />
+          <SummaryCard label={t("Scarichi · movimenti")} value={String(summary.scarichi)} icon={ArrowUpFromLine} tone="red" />
+          {canViewCosts && <SummaryCard label={t("Valore movimentato")} value={formatCurrency(summary.valore)} icon={Download} tone="blue" />}
+        </div>
+        <div className="flex items-center gap-1.5 sm:ml-auto">
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching} className={BOTTONE_SECONDARIO} title={t("Aggiorna")}>
+            {isFetching ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+            <span className="sr-only">{t("Aggiorna")}</span>
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExport} disabled={filtered.length === 0} className={BOTTONE_SECONDARIO}>
+            <Download />
+            CSV
+          </Button>
+        </div>
       </div>
 
       {isError ? (
@@ -193,8 +189,8 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
         </div>
       ) : filtered.length === 0 ? (
         <Card>
-          <CardContent className="flex flex-col items-center justify-center gap-3 py-14 text-center">
-            <History className="h-12 w-12 text-muted-foreground/40" />
+          <CardContent className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+            <History className="h-8 w-8 text-muted-foreground/40" />
             <div>
               <p className="text-sm font-medium text-foreground">{t("Nessun movimento nel periodo")}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
@@ -222,7 +218,7 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
                 </TableHeader>
                 <TableBody>
                   {filtered.slice(0, mostrate).map((m) => (
-                    <TableRow key={m.id}>
+                    <TableRow key={m.id} className="sm:[&>td]:py-1.5">
                       <TableCell className="text-sm text-muted-foreground max-sm:px-2 sm:whitespace-nowrap">
                         <time dateTime={m.created_at} className="max-sm:text-xs">{format(new Date(m.created_at), "dd/MM/yy HH:mm")}</time>
                       </TableCell>
@@ -276,6 +272,7 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
   );
 }
 
+/** Un numero del riepilogo: icona, etichetta e valore su una riga. */
 function SummaryCard({
   label, value, icon: Icon, tone,
 }: {
@@ -291,14 +288,10 @@ function SummaryCard({
     blue: "text-blue-600",
   };
   return (
-    <Card>
-      <CardContent className="flex items-center gap-3 p-3 sm:p-4">
-        <Icon className={`h-5 w-5 shrink-0 ${toneCls[tone]}`} />
-        <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-xs">{label}</p>
-          <p className="truncate text-lg font-bold leading-tight tabular-nums sm:text-xl">{value}</p>
-        </div>
-      </CardContent>
-    </Card>
+    <span className="inline-flex items-center gap-1 whitespace-nowrap">
+      <Icon className={`h-3.5 w-3.5 shrink-0 ${toneCls[tone]}`} aria-hidden />
+      <span>{label}</span>
+      <b className="tabular-nums text-foreground">{value}</b>
+    </span>
   );
 }
