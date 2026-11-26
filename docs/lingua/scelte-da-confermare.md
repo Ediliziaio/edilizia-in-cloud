@@ -186,3 +186,7 @@ italiano. Il verbo `llogarit` / `rillogarit` (calcolare, ricalcolare) resta dov'
 ### Da decidere ancora
 - **fr: «Commessa» = `Dossier` come «fascicolo».** «Fascicolo della commessa» diventa «dossier» due volte.
   Serve un termine distinto per la commessa — `affaire` o `chantier` — ma tocca migliaia di voci: intervento a parte.
+- **«Scarichi» da sola è ambigua.** La chiave secca è tradotta come scarichi idraulici (de Abflüsse, en Drains,
+  fr Évacuations), ma in magazzino significa uscite di merce: «Scarichi di magazzino» è stato reso Lagerausgänge /
+  Warehouse issues / Sorties de dépôt. Se la parola secca compare in un elenco del magazzino, va divisa in due chiavi
+  come si è fatto per «Tetto».
