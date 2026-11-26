@@ -6,7 +6,7 @@ it("apre la scheda dalla riga e permette di selezionare un impianto separatament
   const apri = vi.fn();
   const seleziona = vi.fn();
   render(<ImpiantiTable onOpen={apri} onToggle={seleziona} impianti={[{
-    id: "i1", tipo_impianto: "caldaia", marca: "Demo", modello: "X1",
+    id: "i1", codice: "MAN-0001", tipo_impianto: "caldaia", marca: "Demo", modello: "X1",
     garanzia_scadenza: null, data_installazione: null, customer: { first_name: "Anna", last_name: "Rossi" },
     stato: "senza_piano", prossimaScadenza: null, prossimoPianoId: null, contrattoNome: "Annuale",
     tecnicoId: null, tecnicoNome: null, priorita: null,
