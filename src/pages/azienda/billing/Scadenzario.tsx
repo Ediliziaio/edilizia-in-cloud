@@ -21,6 +21,9 @@ import ScadenzarioKPIs from "@/components/scadenzario/ScadenzarioKPIs";
 import { RateFornitori } from "@/components/scadenzario/RateFornitori";
 import { DistintePagamenti } from "@/components/scadenzario/DistintePagamenti";
 import ScadenzarioTable from "@/components/scadenzario/ScadenzarioTable";
+import { DEF_SCADENZE } from "@/lib/scadenzario/colonneScadenzario";
+import { SceltaColonne } from "@/components/tabelle/SceltaColonne";
+import { useColonneTabella } from "@/hooks/useColonneTabella";
 import { ScadenzaDettaglio } from "@/components/scadenzario/ScadenzaDettaglio";
 import MarkPaidDialog from "@/components/scadenzario/MarkPaidDialog";
 import NewScadenzaDialog from "@/components/scadenzario/NewScadenzaDialog";
@@ -132,6 +135,8 @@ export default function Scadenzario() {
 
   // Advanced filters
   const [showFilters, setShowFilters] = useState(false);
+  // Quali colonne vede questa azienda, e in che ordine (26/11/2026).
+  const colonneScadenze = useColonneTabella("scadenzario", DEF_SCADENZE);
   const [datePreset, setDatePreset] = useState("");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -537,6 +542,8 @@ export default function Scadenzario() {
           {vistaElenco && <>
             <FiltriScadenzario valore={valoriFiltri} anno={yearFilter} periodi={periodiRapidi}
               aperto={showFilters} onAperto={setShowFilters} cambia={cambiaFiltri} azzera={clearFilters} />
+            {/* Solo da computer: sotto i 1024px lo scadenzario è una riga per scadenza, senza colonne. */}
+            <span className="hidden lg:inline-flex"><SceltaColonne colonne={colonneScadenze} /></span>
             <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={handleExport}
               disabled={exportDisabilitato} title={tr("Esporta CSV")} aria-label={tr("Esporta CSV")}>
               {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
@@ -575,6 +582,7 @@ export default function Scadenzario() {
               azione={tr("Annulla selezionate")} inCorso={cancelMany.isPending} escluse={escluse} onPagina={selezione.pagina} onAzione={() => void annullaSelezionate()} />}
             <ErroriOperazioneRighe errori={erroriAnnullamento} />
             <ScadenzarioTable
+              colonne={colonneScadenze.colonne}
               scadenze={filtered}
               onNota={(s, nota) => updateNotes(s.id, nota)}
               onMarkPaid={apriPagamento}

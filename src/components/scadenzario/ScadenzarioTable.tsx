@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, CreditCard, ArrowUpRight, ArrowDownLeft, CalendarClock, Plus, Undo2, Pencil, Trash2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { type ColonnaTabella, colonneVisibili } from "@/lib/tabelle/colonneTabella";
+import { DEF_SCADENZE, TESTA_A_DESTRA } from "@/lib/scadenzario/colonneScadenzario";
 import { percheScadenzaNonModificabile } from "@/lib/finance/modificaScadenza";
 import { controparteScadenza, type Scadenza } from "@/hooks/useScadenzario";
 import { CLASSE_TONO, giorniDaOggi, statoScadenza } from "@/lib/finance/collegamentiFinanza";
@@ -45,6 +47,11 @@ interface Props {
   inCorso?: boolean;
   /** La riga si paga qui, anche se viene da un documento (23/11/2026: le rate dei fornitori). */
   pagaSulPosto?: (s: Scadenza) => boolean;
+  /**
+   * Le colonne scelte dall'azienda, nell'ordine scelto (`useColonneTabella` con `DEF_SCADENZE`).
+   * Senza, valgono le predefinite: così chi usa questa tabella altrove non deve saperne niente.
+   */
+  colonne?: ColonnaTabella[];
 }
 
 const monthLabel = (d: Date | null) => {
@@ -56,7 +63,9 @@ const monthLabel = (d: Date | null) => {
 /** I totali di un mese nella riga del titolo: quanto entra, quanto esce, quanto resta aperto. */
 interface TotaliMese { incassi: number; pagamenti: number; apertoIn: number; apertoOut: number }
 
-export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnnullaIncasso, onAdd, onRowClick, onNota, onModifica, selezionate, onSeleziona, onSelezionaPagina, tutteSelezionate, selezioneParziale, inCorso = false, pagaSulPosto }: Props) {
+
+export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnnullaIncasso, onAdd, onRowClick, onNota, onModifica, selezionate, onSeleziona, onSelezionaPagina, tutteSelezionate, selezioneParziale, inCorso = false, pagaSulPosto, colonne }: Props) {
+  const mostrate = colonne ?? colonneVisibili(DEF_SCADENZE);
   const tTesto = useT();
   const azionePagamento = (s: Scadenza) => pagaSulPosto?.(s) ? tTesto("Paga") : scadenzaDaFonte(s) ? tTesto("Apri fonte") : s.direction === "entrata" ? tTesto("Incassa") : tTesto("Paga");
   // «Senza data» fa anche da chiave del gruppo: si traduce solo quando si mostra.
@@ -195,15 +204,10 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
         <thead>
           <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
             {onSeleziona && <th className="w-10">{onSelezionaPagina ? <Checkbox aria-label={tTesto("Seleziona le scadenze di questa pagina")} checked={tutteSelezionate ? true : selezioneParziale ? "indeterminate" : false} disabled={inCorso} onCheckedChange={v => onSelezionaPagina(v === true)} /> : <span className="sr-only">{tTesto("Selezione")}</span>}</th>}
-            <th className="py-2 font-medium">{tTesto("Scadenza")}</th>
-            <th className="hidden py-2 font-medium min-[1800px]:table-cell">{tTesto("Tipo")}</th>
-            <th className="py-2 font-medium">{tTesto("Cliente / fornitore")}</th>
-            <th className="w-full py-2 font-medium">{tTesto("Descrizione")}</th>
-            <th className="hidden py-2 font-medium lg:table-cell">{tTesto("Documento · commessa")}</th>
-            <th className="py-2 font-medium">{tTesto("Modalità")}</th>
-            <th className="py-2 text-right font-medium">{tTesto("Importo")}</th>
-            <th className="py-2 text-right font-medium">{tTesto("Residuo")}</th>
-            <th className="py-2 font-medium">{tTesto("Stato")}</th>
+            {mostrate.map(c => <th key={c.chiave}
+              className={`py-2 font-medium ${TESTA_A_DESTRA.has(c.chiave) ? "text-right" : ""} ${c.chiave === "descrizione" ? "w-full" : ""}`}>
+              {tTesto(c.etichetta)}
+            </th>)}
             <th className="py-2"><span className="sr-only">{tTesto("Azioni")}</span></th>
           </tr>
         </thead>
@@ -230,7 +234,7 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                   const t = totaliMese.get(monthLabel(dueDate));
                   return (
                     <tr className="bg-muted/30">
-                      <td colSpan={onSeleziona ? 11 : 10} className="!py-1.5 text-xs">
+                      <td colSpan={mostrate.length + 1 + (onSeleziona ? 1 : 0)} className="!py-1.5 text-xs">
                         <span className="flex flex-wrap items-center gap-x-4 gap-y-0.5">
                           <span className="font-semibold text-foreground">{meseMostrato(dueDate)}</span>
                           {t && t.incassi > 0 && <span className="tabular-nums text-emerald-700 dark:text-emerald-400">{tTesto("↓ {incassi} da clienti", { incassi: fmtEur(t.incassi) })}</span>}
@@ -248,7 +252,9 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                 className={`border-b hover:bg-muted/30 ${rowStyle} ${onRowClick ? "cursor-pointer" : ""}`}
                 >
                 {onSeleziona && <td onClick={(e) => e.stopPropagation()}><Checkbox aria-label={tTesto("Seleziona {descrizione}", { descrizione: String(s.description ?? "") })} checked={selezionate?.has(s.id) ?? false} disabled={inCorso} onCheckedChange={() => onSeleziona(s.id)} /></td>}
-                <td>
+                {(() => {
+                  const celle: Record<string, React.ReactNode> = {
+                    scadenza: <td key="scadenza">
                   <span className={`inline-flex items-center gap-1.5 tabular-nums ${isOverdue ? "font-semibold text-destructive" : ""}`}>
                     {isOverdue && <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
                     {dueDate ? format(dueDate, "dd/MM/yyyy", { locale: dateFnsCampo() }) : tTesto("Senza data")}
@@ -259,35 +265,38 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                       {isOverdue ? tTesto("+{giorni} gg", { giorni: stato.giorniRitardo }) : isDueToday ? tTesto("oggi") : tTesto("fra {giorni} gg", { giorni: String(daysLeft ?? "") })}
                     </span>
                   )}
-                </td>
-                <td className="hidden min-[1800px]:table-cell">
+                </td>,
+                    tipo: <td key="tipo">
                   <Badge variant="secondary" className={`text-xs ${tipoInfo.color}`}>
                     {s.direction === "entrata" ? <ArrowDownLeft className="mr-1 inline h-3 w-3" /> : <ArrowUpRight className="mr-1 inline h-3 w-3" />}
                     {tTesto(tipoInfo.label)}
                   </Badge>
-                </td>
-                <td><span className="block max-w-[130px] truncate xl:max-w-[160px] min-[1800px]:max-w-[220px]" title={controparte ?? undefined}>{controparte ?? <span className="text-muted-foreground">—</span>}</span></td>
-                <td className="w-full min-w-[186px] max-w-0"><span className="block truncate font-medium" title={s.description}>{s.description}</span></td>
-                <td className="hidden lg:table-cell">
+                </td>,
+                    controparte: <td key="controparte"><span className="block max-w-[130px] truncate xl:max-w-[160px] min-[1800px]:max-w-[220px]" title={controparte ?? undefined}>{controparte ?? <span className="text-muted-foreground">—</span>}</span></td>,
+                    descrizione: <td key="descrizione" className="w-full min-w-[186px] max-w-0"><span className="block truncate font-medium" title={s.description}>{s.description}</span></td>,
+                    documento: <td key="documento">
                   <span className="block max-w-[150px] truncate font-mono text-xs min-[1800px]:max-w-[260px]" title={[documento === "Costo" ? `Costo · ${s.company_costs?.name}` : documento, commesse ? `Commesse ${commesse}` : null].filter(Boolean).join(" · ") || undefined}>
                     {[commesse, documento].filter(Boolean).join(" · ") || <span className="text-muted-foreground">—</span>}
                   </span>
-                </td>
-                <td className="text-xs" title={s.payment_method ?? undefined}>
+                </td>,
+                    metodo: <td key="metodo" className="text-xs" title={s.payment_method ?? undefined}>
                   {etichettaMetodo(s.payment_method)
                     ? <span className={gruppoMetodo(s.payment_method) === "riba" ? "rounded border border-sky-300 bg-sky-50 px-1.5 py-0.5 font-medium text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300" : ""}>{etichettaMetodo(s.payment_method)}</span>
                     : <span className="text-muted-foreground">—</span>}
-                </td>
-                <td className={`text-right tabular-nums ${s.direction === "entrata" ? "text-green-700" : ""}`}>
+                </td>,
+                    importo: <td key="importo" className={`text-right tabular-nums ${s.direction === "entrata" ? "text-green-700" : ""}`}>
                   {s.direction === "uscita" ? "−" : "+"}{fmtEur(s.amount)}
-                </td>
-                <td className={`text-right tabular-nums ${isOverdue ? "font-semibold text-destructive" : "font-medium"}`}
+                </td>,
+                    residuo: <td key="residuo" className={`text-right tabular-nums ${isOverdue ? "font-semibold text-destructive" : "font-medium"}`}
                   title={s.status === "parziale" && s.amount > 0 ? `${fmtEur(s.paid_amount)} già ${s.direction === "entrata" ? "incassati" : "pagati"} (${Math.round((s.paid_amount / s.amount) * 100)}%)` : undefined}>
                   {isPaid || isCancelled ? <span className="font-normal text-muted-foreground">—</span> : <>
                     {fmtEur(remaining)}
                   </>}
-                </td>
-                <td><Badge variant="outline" className={`px-1.5 text-[11px] ${CLASSE_TONO[stato.tono]}`}>{tTesto(stato.label)}</Badge></td>
+                </td>,
+                    stato: <td key="stato"><Badge variant="outline" className={`px-1.5 text-[11px] ${CLASSE_TONO[stato.tono]}`}>{tTesto(stato.label)}</Badge></td>,
+                  };
+                  return mostrate.map(c => celle[c.chiave] ?? null);
+                })()}
                 <td onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-end gap-1">
                     {onModifica && !percheScadenzaNonModificabile(s) && <>
