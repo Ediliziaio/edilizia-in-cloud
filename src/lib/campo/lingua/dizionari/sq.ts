@@ -69166,5 +69166,13 @@ const dizionario: Dizionario = {
   "Ingressi controllati (ultimi 7 giorni)": "Hyrje të kontrolluara (7 ditët e fundit)",
   "Sei senza rete: la segnalazione parte da sola appena torna il segnale. Se è grave chiama subito il capocantiere.": "Je pa rrjet: sinjalizimi niset vetë kur kthehet sinjali. Nëse është e rëndë, telefono menjëherë përgjegjësin e kantierit.",
   "Segnalazione del mezzo": "Sinjalizim i mjetit",
+  "Operai delle ditte senza tesserino": "Punëtorë të firmave pa kartë",
+  "Senza tesserino l'ingresso resta «da verificare»: controlla i documenti della ditta.": "Pa kartë hyrja mbetet «për t'u verifikuar»: kontrollo dokumentet e firmës.",
+  "I miei operai": "Punëtorët e mi",
+  "La tua ditta non ha ancora cantieri con questa impresa.": "Firma jote nuk ka ende kantiere me këtë sipërmarrës.",
+  "Nessun operaio su questo cantiere.": "Asnjë punëtor në këtë kantier.",
+  "Aggiungi un operaio": "Shto një punëtor",
+  "Mansione (facoltativo)": "Detyra (opsionale)",
+  "Idoneità e corsi degli operai caricali nei Documenti della ditta: l'impresa li verifica.": "Aftësinë dhe kurset e punëtorëve ngarkoji te Dokumentet e firmës: sipërmarrësi i verifikon.",
 };
 export default dizionario;

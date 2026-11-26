@@ -69129,5 +69129,13 @@ const dizionario: Dizionario = {
   "Ingressi controllati (ultimi 7 giorni)": "Entrées contrôlées (7 derniers jours)",
   "Sei senza rete: la segnalazione parte da sola appena torna il segnale. Se è grave chiama subito il capocantiere.": "Pas de réseau : le signalement partira tout seul quand le signal revient. Si c’est grave, appelle tout de suite le chef de chantier.",
   "Segnalazione del mezzo": "Signalement de l’engin",
+  "Operai delle ditte senza tesserino": "Ouvriers des sous-traitants sans carte",
+  "Senza tesserino l'ingresso resta «da verificare»: controlla i documenti della ditta.": "Sans carte l’entrée reste «à vérifier» : contrôle les documents de l’entreprise.",
+  "I miei operai": "Mes ouvriers",
+  "La tua ditta non ha ancora cantieri con questa impresa.": "Ton entreprise n’a pas encore de chantiers avec ce donneur d’ordre.",
+  "Nessun operaio su questo cantiere.": "Aucun ouvrier sur ce chantier.",
+  "Aggiungi un operaio": "Ajouter un ouvrier",
+  "Mansione (facoltativo)": "Poste (facultatif)",
+  "Idoneità e corsi degli operai caricali nei Documenti della ditta: l'impresa li verifica.": "L’aptitude et les formations des ouvriers, charge-les dans les Documents de l’entreprise : le donneur d’ordre les vérifie.",
 };
 export default dizionario;

@@ -69129,5 +69129,13 @@ const dizionario: Dizionario = {
   "Ingressi controllati (ultimi 7 giorni)": "Checked entries (last 7 days)",
   "Sei senza rete: la segnalazione parte da sola appena torna il segnale. Se è grave chiama subito il capocantiere.": "No network: the report will go out by itself when the signal is back. If it's serious, call the site manager now.",
   "Segnalazione del mezzo": "Vehicle report",
+  "Operai delle ditte senza tesserino": "Subcontractor workers without ID card",
+  "Senza tesserino l'ingresso resta «da verificare»: controlla i documenti della ditta.": "Without an ID card the entry stays «to check»: check the subcontractor's documents.",
+  "I miei operai": "My workers",
+  "La tua ditta non ha ancora cantieri con questa impresa.": "Your company has no sites with this contractor yet.",
+  "Nessun operaio su questo cantiere.": "No workers on this site.",
+  "Aggiungi un operaio": "Add a worker",
+  "Mansione (facoltativo)": "Role (optional)",
+  "Idoneità e corsi degli operai caricali nei Documenti della ditta: l'impresa li verifica.": "Upload your workers' fitness and training in the company Documents: the contractor checks them.",
 };
 export default dizionario;

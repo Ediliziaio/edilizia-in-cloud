@@ -69129,5 +69129,13 @@ const dizionario: Dizionario = {
   "Ingressi controllati (ultimi 7 giorni)": "دخول اتراجع (آخر 7 أيام)",
   "Sei senza rete: la segnalazione parte da sola appena torna il segnale. Se è grave chiama subito il capocantiere.": "مفيش شبكة: البلاغ هيتبعت لوحده لما الشبكة ترجع. لو خطير، كلم مسؤول الموقع حالا.",
   "Segnalazione del mezzo": "بلاغ عن المعدة",
+  "Operai delle ditte senza tesserino": "عمال مقاولين الباطن من غير كارنيه",
+  "Senza tesserino l'ingresso resta «da verificare»: controlla i documenti della ditta.": "من غير كارنيه الدخول بيفضل «محتاج مراجعة»: راجع مستندات الشركة.",
+  "I miei operai": "عمالي",
+  "La tua ditta non ha ancora cantieri con questa impresa.": "شركتك لسه معندهاش مواقع مع المقاول ده.",
+  "Nessun operaio su questo cantiere.": "مفيش عمال في الموقع ده.",
+  "Aggiungi un operaio": "ضيف عامل",
+  "Mansione (facoltativo)": "الوظيفة (اختياري)",
+  "Idoneità e corsi degli operai caricali nei Documenti della ditta: l'impresa li verifica.": "اللياقة والدورات بتاعة العمال ارفعها في مستندات الشركة: المقاول بيراجعها.",
 };
 export default dizionario;

@@ -69166,5 +69166,13 @@ const dizionario: Dizionario = {
   "Ingressi controllati (ultimi 7 giorni)": "Intrări verificate (ultimele 7 zile)",
   "Sei senza rete: la segnalazione parte da sola appena torna il segnale. Se è grave chiama subito il capocantiere.": "Nu ai semnal: semnalarea pleacă singură când revine semnalul. Dacă e grav, sună imediat șeful de șantier.",
   "Segnalazione del mezzo": "Semnalare utilaj",
+  "Operai delle ditte senza tesserino": "Muncitori ai firmelor fără ecuson",
+  "Senza tesserino l'ingresso resta «da verificare»: controlla i documenti della ditta.": "Fără ecuson intrarea rămâne «de verificat»: verifică documentele firmei.",
+  "I miei operai": "Muncitorii mei",
+  "La tua ditta non ha ancora cantieri con questa impresa.": "Firma ta nu are încă șantiere cu acest antreprenor.",
+  "Nessun operaio su questo cantiere.": "Niciun muncitor pe acest șantier.",
+  "Aggiungi un operaio": "Adaugă un muncitor",
+  "Mansione (facoltativo)": "Meserie (opțional)",
+  "Idoneità e corsi degli operai caricali nei Documenti della ditta: l'impresa li verifica.": "Aptitudinea și cursurile muncitorilor încarcă-le în Documentele firmei: antreprenorul le verifică.",
 };
 export default dizionario;

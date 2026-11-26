@@ -69129,5 +69129,13 @@ const dizionario: Dizionario = {
   "Ingressi controllati (ultimi 7 giorni)": "Kontrollierte Zutritte (letzte 7 Tage)",
   "Sei senza rete: la segnalazione parte da sola appena torna il segnale. Se è grave chiama subito il capocantiere.": "Kein Netz: die Meldung geht von selbst raus, wenn das Signal zurück ist. Wenn es ernst ist, ruf sofort den Bauleiter an.",
   "Segnalazione del mezzo": "Fahrzeugmeldung",
+  "Operai delle ditte senza tesserino": "Arbeiter der Subunternehmer ohne Ausweis",
+  "Senza tesserino l'ingresso resta «da verificare»: controlla i documenti della ditta.": "Ohne Ausweis bleibt der Zutritt «zu prüfen»: prüf die Dokumente der Firma.",
+  "I miei operai": "Meine Arbeiter",
+  "La tua ditta non ha ancora cantieri con questa impresa.": "Deine Firma hat noch keine Baustellen mit diesem Auftraggeber.",
+  "Nessun operaio su questo cantiere.": "Keine Arbeiter auf dieser Baustelle.",
+  "Aggiungi un operaio": "Arbeiter hinzufügen",
+  "Mansione (facoltativo)": "Tätigkeit (optional)",
+  "Idoneità e corsi degli operai caricali nei Documenti della ditta: l'impresa li verifica.": "Eignung und Kurse der Arbeiter lädst du in den Dokumenten der Firma hoch: der Auftraggeber prüft sie.",
 };
 export default dizionario;

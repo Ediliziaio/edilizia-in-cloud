@@ -49,6 +49,7 @@ const CampoCedolini       = lazy(() => import("@/pages/campo/CampoCedolini"));
 const CampoAvanzamento    = lazy(() => import("@/pages/campo/CampoAvanzamento"));
 const SubContratti        = lazy(() => import("@/pages/campo/subappaltatore/SubContratti"));
 const SubOrdiniServizio   = lazy(() => import("@/pages/campo/subappaltatore/SubOrdiniServizio"));
+const SubOperai           = lazy(() => import("@/pages/campo/subappaltatore/SubOperai"));
 const CampoLavoroExtra    = lazy(() => import("@/pages/campo/CampoLavoroExtra"));
 const CampoFermo          = lazy(() => import("@/pages/campo/CampoFermo"));
 const CampoBriefingSicurezza = lazy(() => import("@/pages/campo/CampoBriefingSicurezza"));
@@ -123,6 +124,7 @@ export default function CampoRoutesContainer() {
           {/* Contratto e pagamenti della ditta (piano campo completo 3.3): ognuno vede solo i suoi. */}
           <Route path="contratti" element={<SubContratti />} />
           <Route path="ordini-servizio" element={<SubOrdiniServizio />} />
+          <Route path="operai-ditta" element={<SubOperai />} />
           {/* Legacy: la vecchia pagina "SAL" era costruita sugli importi (e non ha
               mai funzionato: FK e colonne sbagliate). In cantiere serve segnare le
               fasi fatte, non la contabilità → redirect all'avanzamento. */}

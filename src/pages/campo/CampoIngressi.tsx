@@ -62,6 +62,25 @@ export default function CampoIngressi() {
     onSuccess: r => { setEsito(r); void qc.invalidateQueries({ queryKey: ["campo-ingressi", orderId] }); },
     onError: (e: unknown) => { setEsito(null); setErrore(e instanceof Error && e.message ? e.message : t("Non riesco a verificarlo. Riprova.")); },
   });
+  const operaiDitte = useQuery({
+    queryKey: ["campo-operai-ditte", orderId],
+    enabled: !!orderId,
+    queryFn: async (): Promise<Array<{ id: string; nome: string; ditta: string | null }>> => {
+      const { data, error } = await (supabase as unknown as { rpc: (n: "campo_ditte_operai_cantiere", a: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message: string } | null }> })
+        .rpc("campo_ditte_operai_cantiere", { p_order_id: orderId });
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; nome: string; ditta: string | null }>;
+    },
+  });
+  const ingressoDitta = useMutation({
+    mutationFn: async (operaioId: string) => {
+      const { error } = await (supabase as unknown as { rpc: (n: "campo_ingresso_ditta", a: Record<string, unknown>) => PromiseLike<{ error: { message: string } | null }> })
+        .rpc("campo_ingresso_ditta", { p_order_id: orderId, p_operaio_id: operaioId });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["campo-ingressi", orderId] }),
+    onError: (e: unknown) => setErrore(e instanceof Error ? e.message : t("Non riesco a verificarlo. Riprova.")),
+  });
   const colore = !esito ? "" : esito.esito === "non_valido" ? "border-red-300 bg-red-50" : esito.esito === "valido" && esito.assegnato ? "border-emerald-300 bg-emerald-50" : "border-amber-300 bg-amber-50";
 
   return (
@@ -84,6 +103,21 @@ export default function CampoIngressi() {
           <ul className="space-y-0.5 text-sm">
             {esito.controlli.map(c => <li key={c.voce}>{t(NOME_CONTROLLO[c.voce])}: <span className="font-medium">{t(testoControllo(c))}</span></li>)}
           </ul>
+        </section>
+      )}
+      {/* Operai delle ditte senza tesserino: dall'elenco della ditta per questo cantiere (piano 3.2). */}
+      {(operaiDitte.data ?? []).length > 0 && (
+        <section className={RIQUADRO}>
+          <p className="mb-1 text-sm font-semibold">{t("Operai delle ditte senza tesserino")}</p>
+          <ul className="divide-y text-sm">
+            {(operaiDitte.data ?? []).map(o => (
+              <li key={o.id} className="flex items-center justify-between gap-2 py-1.5">
+                <span className="min-w-0 truncate" dir="auto">{o.nome} · <span className="text-muted-foreground">{o.ditta}</span></span>
+                <button type="button" disabled={ingressoDitta.isPending} onClick={() => ingressoDitta.mutate(o.id)} className="min-h-10 shrink-0 rounded-full border px-3 text-xs font-semibold">{t("Entra")}</button>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-xs text-muted-foreground">{t("Senza tesserino l'ingresso resta «da verificare»: controlla i documenti della ditta.")}</p>
         </section>
       )}
       <section className={RIQUADRO}>

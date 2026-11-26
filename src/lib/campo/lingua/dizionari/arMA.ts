@@ -69129,5 +69129,13 @@ const dizionario: Dizionario = {
   "Ingressi controllati (ultimi 7 giorni)": "الدخول اللي تراقب (آخر 7 أيام)",
   "Sei senza rete: la segnalazione parte da sola appena torna il segnale. Se è grave chiama subito il capocantiere.": "ما كاينش الريزو: التبليغ غادي يمشي بوحدو ملي يرجع الريزو. إلا كان خطير، عيط دابا للشاف ديال الشانطي.",
   "Segnalazione del mezzo": "تبليغ على الماكينة",
+  "Operai delle ditte senza tesserino": "خدامة الشركات بلا بطاقة",
+  "Senza tesserino l'ingresso resta «da verificare»: controlla i documenti della ditta.": "بلا بطاقة الدخول كيبقى «خاصو يتشاف»: شوف الوثائق ديال الشركة.",
+  "I miei operai": "الخدامة ديالي",
+  "La tua ditta non ha ancora cantieri con questa impresa.": "الشركة ديالك مازال ما عندها شانطيات مع هاد المقاولة.",
+  "Nessun operaio su questo cantiere.": "حتى خدام ف هاد الشانطي.",
+  "Aggiungi un operaio": "زيد خدام",
+  "Mansione (facoltativo)": "الخدمة (اختياري)",
+  "Idoneità e corsi degli operai caricali nei Documenti della ditta: l'impresa li verifica.": "الأهلية والتكوينات ديال الخدامة طلعهم ف وثائق الشركة: المقاولة كتشوفهم.",
 };
 export default dizionario;
