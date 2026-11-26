@@ -1,6 +1,6 @@
 # Manutenzioni e Assistenza — piano di sviluppo
 
-**Data:** 26/11/2026 · **Stato:** da approvare dal founder · **Sezione:** `/azienda/assistenza` (schede «Assistenza» e «Manutenzioni»)
+**Data:** 26/11/2026 · **Stato:** APPROVATO dal founder il 26/11/2026 · **Sezione:** `/azienda/assistenza` (schede «Assistenza» e «Manutenzioni»)
 
 > Questo documento si legge in italiano semplice. Non si scrive una riga di codice prima del sì del founder.
 
@@ -273,8 +273,10 @@ Per ogni fase, prima di dire che è fatta:
 
 ---
 
-## 10. Le tre cose da decidere prima di partire
+## 10. Decisioni del founder (26/11/2026)
 
-1. **Il nome dell'oggetto.** Il piano propone che la scheda si chiami **«Manutenzione»** e che la caldaia/il cappotto siano descritti dentro, in «Che cosa manuteniamo». L'alternativa era tenere due parole diverse (la cosa e il servizio), ma sarebbe più confuso.
-2. **Il prefisso del codice.** Il piano propone `MAN-0001`, personalizzabile per azienda.
-3. **L'ordine delle fasi.** Il piano mette per prime le parole e il codice perché si vedono subito; se al founder interessa di più vedere le fatture collegate, la fase 4 si può anticipare.
+1. **Il nome dell'oggetto: «Manutenzione».** Approvato. L'elenco si chiama Manutenzioni, il pulsante «Nuova manutenzione», e dentro la scheda il riquadro «Che cosa manuteniamo» con tipo, marca, modello, matricola.
+2. **Il prefisso del codice:** `MAN-0001`, personalizzabile per azienda.
+3. **Da dove si parte:** fase 1 (le parole), poi fase 2 (il codice `MAN-`). Le altre fasi restano nell'ordine del piano.
+
+**Unica cosa ancora aperta prima della fase 1:** chi scrive le righe in rumeno e albanese delle 36 frasi che cambiano. La domanda è stata mandata alla sessione della lingua il 26/11 per non tradurre due volte le stesse frasi, come era già successo quella mattina. La risposta va scritta qui.
