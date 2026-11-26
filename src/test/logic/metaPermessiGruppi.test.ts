@@ -19,10 +19,12 @@ import { modalitaMessaggiDaImpostazioni } from "../../../supabase/functions/_sha
 const ROOT = join(__dirname, "../../..");
 
 describe("leggiModalitaGruppi", () => {
-  it("senza impostazioni: solo le sponsorizzate (già approvate)", () => {
+  it("senza impostazioni: sponsorizzate attive e permessi non approvati solo in revisione", () => {
     expect(leggiModalitaGruppi(null)).toEqual(MODALITA_PREDEFINITE);
     expect(MODALITA_PREDEFINITE.sponsorizzate).toBe("attivo");
     expect(MODALITA_PREDEFINITE.post).toBe("spento");
+    expect(MODALITA_PREDEFINITE.reportPubblicitari).toBe("revisione");
+    expect(MODALITA_PREDEFINITE.webhookPagine).toBe("revisione");
   });
 
   it("legge il JSON e ignora valori sbagliati", () => {
@@ -40,7 +42,25 @@ describe("leggiModalitaGruppi", () => {
 });
 
 describe("scopeRichiesti", () => {
-  const tuttoSpento = { sponsorizzate: "spento", messaggi: "spento", post: "spento", statistiche: "spento" } as const;
+  const tuttoSpento = { sponsorizzate: "spento", messaggi: "spento", post: "spento", statistiche: "spento", reportPubblicitari: "spento", webhookPagine: "spento" } as const;
+
+  it("con le impostazioni esistenti i clienti non chiedono scope rifiutati o non inviati", () => {
+    const modalita = leggiModalitaGruppi('{"sponsorizzate":"attivo","messaggi":"revisione","post":"revisione","statistiche":"revisione"}');
+    const cliente = scopeRichiesti(modalita, false);
+    expect(cliente).toEqual(expect.arrayContaining(["pages_show_list", "pages_read_engagement", "leads_retrieval", "pages_manage_ads", "business_management", "ads_management"]));
+    for (const scope of ["ads_read", "pages_manage_metadata", "pages_messaging", "pages_manage_posts", "read_insights"]) {
+      expect(cliente).not.toContain(scope);
+    }
+    expect(scopeRichiesti(modalita, true)).toEqual(expect.arrayContaining(["ads_read", "pages_manage_metadata"]));
+  });
+
+  it("la futura approvazione dei webhook non abilita anche il permesso report rifiutato", () => {
+    const modalita = leggiModalitaGruppi({ webhookPagine: "attivo" });
+    expect(scopeRichiesti(modalita, false)).toContain("pages_manage_metadata");
+    expect(scopeRichiesti(modalita, false)).not.toContain("ads_read");
+    expect(scopeRichiesti(leggiModalitaGruppi({ reportPubblicitari: "attivo", webhookPagine: "spento" }), false)).toContain("ads_read");
+    expect(scopeRichiesti(leggiModalitaGruppi({ reportPubblicitari: "attivo", webhookPagine: "spento" }), true)).not.toContain("pages_manage_metadata");
+  });
 
   it("i permessi base ci sono sempre, i gruppi spenti no", () => {
     expect(scopeRichiesti({ ...tuttoSpento }, true)).toEqual(PERMESSI_BASE);
@@ -53,7 +73,7 @@ describe("scopeRichiesti", () => {
   });
 
   it("nessun doppione quando più gruppi condividono instagram_basic", () => {
-    const s = scopeRichiesti({ sponsorizzate: "attivo", messaggi: "attivo", post: "attivo", statistiche: "attivo" }, false);
+    const s = scopeRichiesti({ ...tuttoSpento, sponsorizzate: "attivo", messaggi: "attivo", post: "attivo", statistiche: "attivo" }, false);
     expect(s.filter((p) => p === "instagram_basic")).toHaveLength(1);
     expect(s).toEqual(expect.arrayContaining(["ads_management", "read_insights", "instagram_manage_insights", "pages_messaging"]));
   });
