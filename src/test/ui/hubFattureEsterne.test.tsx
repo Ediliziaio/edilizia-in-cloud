@@ -205,15 +205,28 @@ describe("Hub fatture per chi fattura con un altro programma", () => {
     expect(screen.queryByRole("columnheader", { name: "SDI" })).not.toBeInTheDocument();
   });
 
-  it("le colonne opzionali si possono attivare e restano scelte alla riapertura", async () => {
+  it("le colonne opzionali si possono attivare e restano scelte alla riapertura", () => {
     monta();
     expect(screen.queryByRole("columnheader", { name: "IVA" })).not.toBeInTheDocument();
-    fireEvent.pointerDown(screen.getByRole("button", { name: "Colonne" }), { button: 0, ctrlKey: false });
-    fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "IVA" }));
-    // Il menu resta aperto per consentire più scelte; la tabella è aria-hidden.
+    // Dal 26/11/2026 il pannellino è un popover con spunte vere, non un menu: il
+    // trascinamento per riordinare non convive con un DropdownMenu di Radix.
+    fireEvent.click(screen.getByRole("button", { name: "Colonne" }));
+    fireEvent.click(screen.getByLabelText("IVA"));
     cleanup();
     monta();
     expect(screen.getByRole("columnheader", { name: "IVA" })).toBeInTheDocument();
+  });
+
+  it("l'ordine scelto resta alla riapertura", () => {
+    monta();
+    const prima = screen.getAllByRole("columnheader").map(th => th.textContent?.trim());
+    fireEvent.click(screen.getByRole("button", { name: "Colonne" }));
+    fireEvent.click(screen.getByRole("button", { name: /Sposta Totale a sinistra/ }));
+    cleanup();
+    monta();
+    const dopo = screen.getAllByRole("columnheader").map(th => th.textContent?.trim());
+    expect(dopo).not.toEqual(prima);
+    expect(dopo.indexOf("Totale")).toBeLessThan(prima.indexOf("Totale"));
   });
 
   it("mostra tutti i lavori collegati senza aprire la fattura", () => {

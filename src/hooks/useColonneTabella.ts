@@ -61,15 +61,18 @@ function leggi(chiave: string): PreferenzaColonne {
  */
 function leggiOTraduci(
   chiave: string,
-  vecchiaChiave?: string,
+  vecchieChiavi?: readonly string[],
   traduci?: TraduciPreferenza,
 ): PreferenzaColonne {
   try {
     if (localStorage.getItem(chiave) !== null) return leggi(chiave);
-    if (!vecchiaChiave || !traduci) return PREFERENZA_VUOTA;
-    const prima = localStorage.getItem(vecchiaChiave);
-    if (prima === null) return PREFERENZA_VUOTA;
-    const tradotta = traduci(JSON.parse(prima));
+    if (!vecchieChiavi?.length || !traduci) return PREFERENZA_VUOTA;
+    // Dalla più recente alla più vecchia: una pagina può aver cambiato forma due volte.
+    const vecchia = vecchieChiavi
+      .map((k) => ({ k, valore: localStorage.getItem(k) }))
+      .find((v) => v.valore !== null);
+    if (!vecchia) return PREFERENZA_VUOTA;
+    const tradotta = traduci(JSON.parse(vecchia.valore as string), vecchia.k);
     if (!tradotta) return PREFERENZA_VUOTA;
     // Si riscrive subito nella forma nuova: così la traduzione avviene una volta e la
     // scelta non dipende più da come la scriveva la versione di prima.
@@ -85,7 +88,7 @@ function leggiOTraduci(
  * capisce. Va dichiarata fuori dal componente: il hook la tiene fra le dipendenze, e una
  * funzione ricreata a ogni render farebbe ripartire la lettura in continuazione.
  */
-export type TraduciPreferenza = (letta: unknown) => PreferenzaColonne | null;
+export type TraduciPreferenza = (letta: unknown, chiave: string) => PreferenzaColonne | null;
 
 export interface ColonneTabella {
   /** Le colonne da disegnare, nell'ordine giusto. */
@@ -109,9 +112,12 @@ export interface ColonneTabella {
 export function useColonneTabella(
   tabella: string,
   def: ColonnaTabella[],
-  /** La chiave con cui una versione precedente salvava la stessa scelta, se c'era. */
-  vecchiaChiave?: string,
-  /** Come leggerla. Dichiarata fuori dal componente, quindi stabile. */
+  /**
+   * Le chiavi con cui le versioni precedenti salvavano la stessa scelta, dalla più recente
+   * alla più vecchia: si legge la prima che c'è e si traduce.
+   */
+  vecchieChiavi?: readonly string[],
+  /** Come leggerla; riceve anche da quale chiave arriva. */
   traduci?: TraduciPreferenza,
 ): ColonneTabella {
   const { effectiveCompany, user } = useAuth();
@@ -126,10 +132,10 @@ export function useColonneTabella(
   // disegno e per un istante si vedrebbero le colonne sbagliate.
   const [salvato, setSalvato] = useState<{ chiave: string; pref: PreferenzaColonne }>(() => ({
     chiave,
-    pref: leggiOTraduci(chiave, vecchiaChiave, traduci),
+    pref: leggiOTraduci(chiave, vecchieChiavi, traduci),
   }));
   const pref =
-    salvato.chiave === chiave ? salvato.pref : leggiOTraduci(chiave, vecchiaChiave, traduci);
+    salvato.chiave === chiave ? salvato.pref : leggiOTraduci(chiave, vecchieChiavi, traduci);
 
   const salva = useCallback(
     (nuova: PreferenzaColonne) => {

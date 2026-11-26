@@ -239,8 +239,10 @@ export function SceltaColonne({
         <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs">
           <Columns3 className="h-3.5 w-3.5" />
           {compatto ? null : t("Colonne")}
+          {/* Il contatore è un ornamento: dentro il nome accessibile il pulsante
+              diventerebbe «Colonne 3» e nessuno lo troverebbe più per nome. */}
           {nascoste > 0 ? (
-            <span className="rounded bg-muted px-1 text-[11px] tabular-nums">{nascoste}</span>
+            <span aria-hidden="true" className="rounded bg-muted px-1 text-[11px] tabular-nums">{nascoste}</span>
           ) : null}
         </Button>
       </PopoverTrigger>

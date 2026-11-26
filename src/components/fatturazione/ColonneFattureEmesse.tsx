@@ -59,11 +59,18 @@ export const DEF_EMESSE: ColonnaTabella[] = COLONNE_EMESSE.map((c) => ({
   spentaDiSerie: "opzionale" in c || undefined,
 }));
 
-/** La scelta vecchia era un elenco di id senza ordine: quelle che c'erano restano accese
- *  nell'ordine di serie, le altre spente. Fuori dal componente, così è stabile. */
-const traduciScelta = (letta: unknown) => {
+/**
+ * La scelta vecchia era un elenco di id senza ordine: quelle che c'erano restano accese
+ * nell'ordine di serie, le altre spente.
+ *
+ * Due forme da leggere, non una. Chi si era fermato alla `-v1:` (prima che «Note interne»
+ * esistesse) la vede comparire, come faceva il passaggio da v1 a v2: se no una colonna
+ * aggiunta allora sparirebbe a chi non ha più riaperto il pannellino da quel giorno.
+ */
+const traduciScelta = (letta: unknown, chiave: string) => {
   if (!Array.isArray(letta)) return null;
   const viste = new Set(letta.filter((k): k is string => typeof k === "string"));
+  if (chiave.includes("-v1:")) viste.add("note_interne");
   const centrali = DEF_EMESSE.filter((c) => !c.ancorata);
   return {
     ordine: centrali.filter((c) => viste.has(c.chiave)).map((c) => c.chiave),
@@ -80,8 +87,11 @@ const traduciScelta = (letta: unknown) => {
  * spente. Nessuno si ritrova la tabella rimescolata al primo accesso.
  */
 export function useColonneEmesse(companyId?: string, userId?: string) {
-  const vecchiaChiave = `fatture-emesse-colonne-v2:${userId ?? "sessione"}:${companyId ?? "nessuna"}`;
-  const tabella = useColonneTabella("fatture-emesse", DEF_EMESSE, vecchiaChiave, traduciScelta);
+  const chi = `${userId ?? "sessione"}:${companyId ?? "nessuna"}`;
+  const tabella = useColonneTabella("fatture-emesse", DEF_EMESSE, [
+    `fatture-emesse-colonne-v2:${chi}`,
+    `fatture-emesse-colonne-v1:${chi}`,
+  ], traduciScelta);
   return {
     ...tabella,
     /** Le colonne visibili, nell'ordine scelto: è quello che disegnano testata e righe. */
