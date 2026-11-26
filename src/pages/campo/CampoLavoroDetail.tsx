@@ -929,7 +929,9 @@ export default function CampoLavoroDetail() {
           <span className="shrink-0 text-xs font-semibold text-muted-foreground">{t("avanzamento")}</span>
         </div>
 
-        <div className="grid auto-cols-fr grid-flow-col gap-1">
+        {/* Fino a 4 azioni in una riga; da 5 in su tre per riga (3+2, 3+3), centrate (26/11/2026): in una
+            riga sola sei-sette azioni diventavano minuscole e le parole lunghe andavano a capo male. */}
+        <div className="flex flex-wrap justify-center gap-y-2 [&>*]:w-1/4 [&:has(>:nth-child(5))>*]:w-1/3">
           {/* Le foto hanno casa loro: si scattano durante il lavoro, non la sera dentro al rapportino. */}
           <QuickAction icon={Camera} label={t("Foto")} onClick={() => navigate(`/campo/lavoro/${orderId}/foto`)} />
           {/* La bolla del cantiere si fa nella sua scheda, non nella pagina generale (24/11/2026). */}
@@ -950,17 +952,20 @@ export default function CampoLavoroDetail() {
 
       {/* Le schede restano in alto mentre si scorre: sono l'unica cosa fissa. -top-3 compensa il padding del <main>. */}
       <div className="sticky -top-3 z-10 -mx-3 border-b bg-background/95 px-3 py-2 backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:px-0">
-        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
+        {/* Una barra unica a tutta larghezza (26/11/2026): le schede si dividono lo spazio; solo se le
+            parole non ci stanno (telefono stretto, lingue lunghe) la barra scorre, e porta in vista quella scelta. */}
+        <div className="flex gap-0.5 overflow-x-auto rounded-full bg-muted p-1 scrollbar-hide">
           {tabs.map(({ key, label }) => (
             <button
               key={key}
+              type="button"
               aria-pressed={activeTab === key}
-              onClick={() => setActiveTab(key)}
+              onClick={(e) => { setActiveTab(key); e.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" }); }}
               className={cn(
-                "min-h-9 whitespace-nowrap rounded-full px-4 text-[13px] font-semibold transition-colors",
+                "min-h-10 flex-auto shrink-0 whitespace-nowrap rounded-full px-2 text-[12px] font-semibold transition-colors min-[380px]:px-3 min-[380px]:text-[13px]",
                 activeTab === key
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground active:bg-muted"
+                  ? "bg-background text-primary shadow-sm"
+                  : "text-muted-foreground active:bg-background/60"
               )}
             >
               {t(label)}
@@ -971,16 +976,17 @@ export default function CampoLavoroDetail() {
 
       {/* Contenuto tab */}
       <div className="space-y-3 py-3 md:space-y-4 md:px-4 md:py-4">
-        {/* Le istruzioni dell'ufficio vengono prima di tutto: si leggono entrando. */}
-        {orderId && <NoteCantiereCampo orderId={orderId} />}
-        {/* Le cose da fare qui: attività assegnate a me e, per la ditta, gli ordini dell'impresa (26/11/2026). */}
-        {orderId && <AttivitaCantiereCampo orderId={orderId} oggi={today} />}
         {/* La giornata (timbra → rapportino → uscita) ha UN solo bottone: la barra in
             basso, che dice sempre il passo successivo. Niente scheda che la ripete. */}
 
         {/* ── Tab: Descrizione ── */}
         {activeTab === "descrizione" && (
           <>
+            {/* Le istruzioni dell'ufficio vengono prima di tutto: si leggono entrando. Solo in Info: nelle altre
+                schede (Bolle, Chat…) ripeterle in cima spingeva giù quello che si era aperto (26/11/2026). */}
+            {orderId && <NoteCantiereCampo orderId={orderId} />}
+            {/* Le cose da fare qui: attività assegnate a me e, per la ditta, gli ordini dell'impresa (26/11/2026). */}
+            {orderId && <AttivitaCantiereCampo orderId={orderId} oggi={today} />}
             {/* Le date in una riga: lo stato è già nell'intestazione, non serve ripeterlo. */}
             {(order?.work_start_date || order?.work_end_date) && (
               <p className="flex items-center gap-2 px-1 text-sm text-muted-foreground">
@@ -1680,10 +1686,10 @@ function QuickAction({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="flex min-h-[60px] min-w-0 flex-col items-center justify-start gap-1 rounded-2xl px-0.5 pt-1 text-center text-[12px] font-semibold leading-tight text-foreground active:bg-muted disabled:opacity-50"
+      className="flex min-h-[68px] min-w-0 flex-col items-center justify-start gap-1.5 rounded-2xl px-1 pt-1 text-center text-[12px] font-semibold leading-tight text-foreground active:bg-muted disabled:opacity-50"
     >
-      <span className="flex size-10 items-center justify-center rounded-full border bg-background"><Icon className="size-[18px] text-primary" aria-hidden="true" /></span>
-      {label}
+      <span className="flex size-12 items-center justify-center rounded-full border bg-background shadow-sm"><Icon className="size-5 text-primary" aria-hidden="true" /></span>
+      <span className="line-clamp-2 [overflow-wrap:anywhere]">{label}</span>
     </button>
   );
 }
