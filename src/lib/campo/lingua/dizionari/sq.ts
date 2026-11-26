@@ -69323,5 +69323,13 @@ const dizionario: Dizionario = {
   "Salva fra i conti dell'azienda": "Ruaje mes llogarive të kompanisë",
   "Incassi su più banche? Scrivile una volta sola e poi le scegli da qui.": "Arkëton në disa banka? Shkruaji një herë të vetme dhe pastaj i zgjedh nga këtu.",
   "Impostazioni → Fatturazione": "Cilësimet → Faturimi",
+  "Un pagamento riaperto: la rata è tornata fra quelle da pagare": "Një pagesë u rihap: rata u kthye mes atyre për t'u paguar",
+  "{n} pagamenti riaperti: le rate sono tornate fra quelle da pagare": "{n} pagesa u rihapën: ratet u kthyen mes atyre për t'u paguar",
+  "Non sono riuscito a riaprirli": "Nuk arrita t'i rihap",
+  "Una fattura risulta pagata, ma il pagamento non è registrato": "Një faturë figuron e paguar, por pagesa nuk është regjistruar",
+  "{n} fatture risultano pagate, ma il pagamento non è registrato": "{n} fatura figurojnë të paguara, por pagesa nuk është regjistruar",
+  "Finché restano così non si possono riconciliare con il movimento della banca. Riaprendole tornano fra quelle da pagare: poi le abbini al pagamento, oppure usi «Segna pagata» dalla fattura, che registra la scrittura.": "Derisa rrinë kështu nuk mund të përputhen me lëvizjen e bankës. Duke i rihapur kthehen mes atyre për t'u paguar: pastaj i lidh me pagesën, ose përdor «Shëno të paguar» nga fatura, që e regjistron veprimin.",
+  "Riaprire {n} pagamenti?": "Të rihapen {n} pagesa?",
+  "Le rate tornano fra quelle da pagare, per {importo} in tutto. Non si cancella niente: le fatture restano dove sono, e chi ha pagato davvero può risegnarle pagate in un clic. Si toccano solo quelle dove il pagamento non risulta registrato.": "Ratet kthehen mes atyre për t'u paguar, për {importo} gjithsej. Nuk fshihet asgjë: faturat mbeten ku janë, dhe kush ka paguar vërtet mund t'i shënojë sërish të paguara me një klik. Preken vetëm ato ku pagesa nuk figuron e regjistruar.",
 };
 export default dizionario;

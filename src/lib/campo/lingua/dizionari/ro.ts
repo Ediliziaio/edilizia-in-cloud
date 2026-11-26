@@ -69323,5 +69323,13 @@ const dizionario: Dizionario = {
   "Salva fra i conti dell'azienda": "Salvează printre conturile firmei",
   "Incassi su più banche? Scrivile una volta sola e poi le scegli da qui.": "Încasezi la mai multe bănci? Scrie-le o singură dată și apoi le alegi de aici.",
   "Impostazioni → Fatturazione": "Setări → Facturare",
+  "Un pagamento riaperto: la rata è tornata fra quelle da pagare": "O plată redeschisă: rata a revenit printre cele de plătit",
+  "{n} pagamenti riaperti: le rate sono tornate fra quelle da pagare": "{n} plăți redeschise: ratele au revenit printre cele de plătit",
+  "Non sono riuscito a riaprirli": "Nu am reușit să le redeschid",
+  "Una fattura risulta pagata, ma il pagamento non è registrato": "O factură figurează ca plătită, dar plata nu este înregistrată",
+  "{n} fatture risultano pagate, ma il pagamento non è registrato": "{n} facturi figurează ca plătite, dar plata nu este înregistrată",
+  "Finché restano così non si possono riconciliare con il movimento della banca. Riaprendole tornano fra quelle da pagare: poi le abbini al pagamento, oppure usi «Segna pagata» dalla fattura, che registra la scrittura.": "Cât timp rămân așa nu pot fi reconciliate cu mișcarea din bancă. Redeschizându-le revin printre cele de plătit: apoi le asociezi plății, sau folosești «Marchează plătită» din factură, care înregistrează operațiunea.",
+  "Riaprire {n} pagamenti?": "Redeschizi {n} plăți?",
+  "Le rate tornano fra quelle da pagare, per {importo} in tutto. Non si cancella niente: le fatture restano dove sono, e chi ha pagato davvero può risegnarle pagate in un clic. Si toccano solo quelle dove il pagamento non risulta registrato.": "Ratele revin printre cele de plătit, pentru {importo} în total. Nu se șterge nimic: facturile rămân unde sunt, iar cine a plătit cu adevărat le poate marca din nou plătite dintr-un clic. Se ating doar cele la care plata nu figurează înregistrată.",
 };
 export default dizionario;

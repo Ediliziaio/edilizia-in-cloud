@@ -1812,6 +1812,7 @@ export const BLOCCHI_UFFICIO: Record<string, string[]> = {
     "src/components/fatturazione/NoteInterneFattura.tsx",
     "src/components/fatturazione/OriginaliConfronto.tsx",
     "src/components/fatturazione/PaDaConfermare.tsx",
+    "src/components/fatturazione/PagamentiSegnatiDaSistemare.tsx",
     "src/components/fatturazione/PagamentoRicevuta.tsx",
     "src/components/fatturazione/PartnerReconciliationPanel.tsx",
     "src/components/fatturazione/PdfRigaConfronto.tsx",
