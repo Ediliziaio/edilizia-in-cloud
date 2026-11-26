@@ -429,7 +429,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
       {/* Riepilogo condiviso; i contratti e i canoni restano disponibili sotto. Fino a 1024 non c'è:
           ripeteva le stesse quattro scelte delle pillole qui sopra (stessi numeri, stesso filtro). */}
       <div className="max-lg:hidden">
-      <OperationalSummary compatto label={t("Riepilogo manutenzioni")} title={t("Manutenzioni e scadenze")} icon={ClipboardList} error={impiantiError || contrattiError || pianiError} note={t("Manutenzioni e ricorrenze accessibili al tuo utente.")}>
+      <OperationalSummary compatto fascia label={t("Riepilogo manutenzioni")} title={t("Manutenzioni e scadenze")} icon={ClipboardList} error={impiantiError || contrattiError || pianiError} note={t("Manutenzioni e ricorrenze accessibili al tuo utente.")}>
         <OperationalSummaryMetric label={t("Manutenzioni")} value={impianti.length} isLoading={loadingImpianti || loadingPiani} onClick={() => setPill("all")} active={pill === "all"} />
         <OperationalSummaryMetric label={t("Scadenza imminente")} value={nScaduteInScadenza} tone={nScaduteInScadenza > 0 ? "amber" : undefined} isLoading={loadingImpianti || loadingContratti || loadingPiani} onClick={() => setPill("urgenti")} active={pill === "urgenti"} hint={t("Scadute o in scadenza")} />
         <OperationalSummaryMetric label={t("In regola")} value={contaStato.in_regola} isLoading={loadingImpianti || loadingPiani} onClick={() => setPill("in_regola")} active={pill === "in_regola"} />

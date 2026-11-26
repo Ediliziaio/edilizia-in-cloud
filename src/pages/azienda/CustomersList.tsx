@@ -1,3 +1,6 @@
+import { ordinaElementiTabella } from "@/lib/tabelle/ordinaElementiTabella";
+import { SceltaColonne } from "@/components/tabelle/SceltaColonne";
+import { useColonneTabella, type TraduciPreferenza } from "@/hooks/useColonneTabella";
 import { RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { useState, useCallback, useMemo, useEffect } from "react";
@@ -9,7 +12,7 @@ import {
   Users, Plus, Search, Mail, Phone, ClipboardList, KeyRound, Copy, Check,
   Pencil, Trash2, Download, Upload, MoreVertical, AlertTriangle, ArrowUpDown,
   Calendar, UserCheck, ChevronLeft, ChevronRight,
-  UserPlus, ShoppingBag, ShieldOff, Columns3, Filter, FileSpreadsheet,
+  UserPlus, ShoppingBag, ShieldOff, Filter, FileSpreadsheet,
   FileText, ChevronDown, X, CreditCard, HardHat, MapPin, StickyNote, Sparkles, MoreHorizontal,
   TrendingUp,
 } from "lucide-react";
@@ -36,7 +39,7 @@ import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-  DropdownMenuSeparator, DropdownMenuLabel, DropdownMenuCheckboxItem,
+  DropdownMenuSeparator, DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -67,19 +70,31 @@ import type {
   CustomerAnomalySeverity,
 } from "./CustomersList/types";
 import {
-  PAGE_SIZES, CUSTOMER_IMPORT_FIELDS, ALL_COLUMNS,
+  PAGE_SIZES, CUSTOMER_IMPORT_FIELDS, ALL_COLUMNS, COLUMN_STORAGE_KEY,
   type ColumnKey,
 } from "./CustomersList/constants";
 import { formatDisplayName, formatInitials, formatLocality,
   formatPhone, formatCustomerEmail, truncate,
 } from "./CustomersList/formatters";
 import { getCustomerAnomalies, getWorstSeverity } from "./CustomersList/anomalies";
-import { useColumnVisibility } from "./CustomersList/hooks/useColumnVisibility";
+
 
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ConfermaQuantita, useConfermaQuantita } from "@/components/shared/ConfermaQuantita";
 import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
+const COLONNE_CLIENTI = ALL_COLUMNS.filter(c => c.key !== "avatar" && c.key !== "actions").map(c => ({
+  chiave: c.key, etichetta: c.label, fissa: c.key === "name", spentaDiSerie: !c.defaultVisible,
+}));
+const VECCHIE_COLONNE_CLIENTI = [COLUMN_STORAGE_KEY] as const;
+const traduciColonneClienti: TraduciPreferenza = (valore) => {
+  if (!valore || typeof valore !== "object" || Array.isArray(valore)) return null;
+  const precedenti = valore as Record<string, boolean>;
+  return {
+    ordine: COLONNE_CLIENTI.filter(c => c.fissa || (precedenti[c.chiave] ?? !c.spentaDiSerie)).map(c => c.chiave),
+    nascoste: COLONNE_CLIENTI.filter(c => !c.fissa && !(precedenti[c.chiave] ?? !c.spentaDiSerie)).map(c => c.chiave),
+  };
+};
 /* ─── KPI Card ──────────────────────────────────────────────────── */
 /* ─── Main ──────────────────────────────────────────────────────── */
 function CustomersListInner() {
@@ -162,7 +177,8 @@ function CustomersListInner() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [tabellaClienti, setTabellaClienti] = useState<HTMLDivElement | null>(null);
-  const { visible, toggle, resetColumns } = useColumnVisibility();
+  const colonneClienti = useColonneTabella("clienti", COLONNE_CLIENTI, VECCHIE_COLONNE_CLIENTI, traduciColonneClienti);
+  const visible = Object.fromEntries(ALL_COLUMNS.map(c => [c.key, c.key === "avatar" || c.key === "actions" || colonneClienti.visibili.has(c.key)])) as Record<ColumnKey, boolean>;
 
   // 2026-05-27 (audit UX role-based): gating dei pulsanti Elimina/Assegna
   // — prima erano visibili a chi non aveva can_edit_customers, generando
@@ -957,34 +973,6 @@ function CustomersListInner() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Columns — la scelta colonne agisce solo sulla tabella desktop;
-              su mobile la lista è a card, quindi il bottone è inutile. */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" aria-label={t("Colonne")} className="hidden h-8 w-8 sm:inline-flex">
-                <Columns3 className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuLabel>{t("Colonne visibili")}</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {ALL_COLUMNS.filter((c) => !("required" in c) || !c.required).map((c) => (
-                <DropdownMenuCheckboxItem
-                  key={c.key}
-                  checked={visible[c.key as ColumnKey]}
-                  onCheckedChange={() => toggle(c.key as ColumnKey)}
-                  onSelect={(e) => e.preventDefault()}
-                >
-                  {t(c.label)}
-                </DropdownMenuCheckboxItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={resetColumns}>
-                {t("Ripristina default")}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
           {/* I numeri dell'appalto: ha senso solo nella divisione committenti, e
               solo per chi vede gli importi delle commesse (è la rotta a
               chiederlo). */}
@@ -1056,10 +1044,10 @@ function CustomersListInner() {
               { label: t("Con ordini"), value: stats?.with_orders ?? 0, sub: "almeno 1 ordine", icon: ShoppingBag, tone: "text-blue-100" },
               { label: t("Senza accesso al portale"), value: stats?.portal_disabled ?? 0, sub: "clienti con accesso disattivato", icon: ShieldOff, tone: "text-blue-100" },
             ]).map(({ label, value, sub, icon: Icon, tone, subScritta }) => (
-              <span key={label} title={sub} className="flex min-w-0 items-center gap-2 text-xs">
+              <span key={label} title={sub} className="flex min-w-0 items-center gap-2 text-sm">
                 <Icon className={cn("h-3.5 w-3.5 shrink-0", tone)} />
                 <span className="text-blue-100">{label}</span>
-                <span className="text-base font-semibold tabular-nums leading-6 text-white">{value}</span>
+                <span className="text-lg font-semibold tabular-nums leading-6 text-white">{value}</span>
                 {subScritta && <span className="text-[11px] text-blue-50/70">{sub}</span>}
               </span>
             ))}
@@ -1072,7 +1060,7 @@ function CustomersListInner() {
           Desktop: tutto inline una riga */}
       {/* Da tablet una riga sola sullo sfondo, come in Commesse: era un
           riquadro su due righe per la ricerca e due tendine. */}
-      <div className="sm:flex sm:flex-wrap sm:items-center sm:gap-2">
+      <div className="sm:flex sm:items-center sm:gap-2 sm:overflow-x-auto sm:pb-1">
         {/* Riga 1: Search + Filtri avanzati button + Clear */}
         <div className="flex items-center gap-2 sm:contents">
           <div className={RICERCA_BARRA}>
@@ -1183,6 +1171,7 @@ function CustomersListInner() {
             </SelectContent>
           </Select>
         </div>
+        <span className="hidden shrink-0 sm:inline-flex"><SceltaColonne colonne={colonneClienti} compatto /></span>
       </div>
 
       <Sheet open={advOpen} onOpenChange={setAdvOpen}>
@@ -1496,37 +1485,39 @@ function CustomersListInner() {
                   />
                 </TableHead>
                 {visible.avatar && <TableHead className="w-10"></TableHead>}
+                {ordinaElementiTabella(<>
                 {visible.name && (
-                  <TableHead>
+                  <TableHead key="name">
                     <button className="flex items-center gap-1 hover:text-foreground transition-colors" onClick={() => toggleSort("name")}>
                       {t("Nome")} <ArrowUpDown className="h-3.5 w-3.5" />
                     </button>
                   </TableHead>
                 )}
-                {visible.locality && <TableHead>{t("Località")}</TableHead>}
-                {visible.health && <TableHead>{t("Salute")}</TableHead>}
-                {visible.email && <TableHead>Email</TableHead>}
-                {visible.phone && <TableHead>{t("Telefono")}</TableHead>}
-                {visible.fiscal_code && <TableHead>{t("CF / P.IVA")}</TableHead>}
-                {visible.address && <TableHead>{t("Indirizzo")}</TableHead>}
-                {visible.site_address && <TableHead>{t("Cantiere")}</TableHead>}
-                {visible.notes && <TableHead>{t("Note")}</TableHead>}
+                {visible.locality && <TableHead key="locality">{t("Località")}</TableHead>}
+                {visible.health && <TableHead key="health">{t("Salute")}</TableHead>}
+                {visible.email && <TableHead key="email">Email</TableHead>}
+                {visible.phone && <TableHead key="phone">{t("Telefono")}</TableHead>}
+                {visible.fiscal_code && <TableHead key="fiscal_code">{t("CF / P.IVA")}</TableHead>}
+                {visible.address && <TableHead key="address">{t("Indirizzo")}</TableHead>}
+                {visible.site_address && <TableHead key="site_address">{t("Cantiere")}</TableHead>}
+                {visible.notes && <TableHead key="notes">{t("Note")}</TableHead>}
                 {visible.created_at && (
-                  <TableHead className="whitespace-nowrap">
+                  <TableHead key="created_at" className="whitespace-nowrap">
                     <button className="flex items-center gap-1 hover:text-foreground transition-colors" onClick={() => toggleSort("created_at")}>
                       <Calendar className="h-3.5 w-3.5" /> {t("Data")} <ArrowUpDown className="h-3.5 w-3.5" />
                     </button>
                   </TableHead>
                 )}
-                {visible.salesperson && <TableHead>{t("Venditore")}</TableHead>}
+                {visible.salesperson && <TableHead key="salesperson">{t("Venditore")}</TableHead>}
                 {visible.orders && (
-                  <TableHead className="text-center">
+                  <TableHead key="orders" className="text-center">
                     <button className="flex items-center gap-1 hover:text-foreground transition-colors mx-auto" onClick={() => toggleSort("orders")}>
                       {t("Ordini")} <ArrowUpDown className="h-3.5 w-3.5" />
                     </button>
                   </TableHead>
                 )}
-                {visible.portal && <TableHead>{t("Portale")}</TableHead>}
+                {visible.portal && <TableHead key="portal">{t("Portale")}</TableHead>}
+                </>, colonneClienti.colonne.map(c => c.chiave))}
                 <TableHead className="text-right">{t("Azioni")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -1564,8 +1555,9 @@ function CustomersListInner() {
                         </Avatar>
                       </TableCell>
                     )}
+                    {ordinaElementiTabella(<>
                     {visible.name && (
-                      <TableCell>
+                      <TableCell key="name">
                         <div className="space-y-0.5 min-w-0">
                           <div className="flex items-center gap-1.5">
                             <Link to={`${schedaBase}/${customer.id}`} onClick={e => e.stopPropagation()} title={fullName} className="truncate max-w-[220px] font-semibold hover:underline">{fullName}</Link>
@@ -1593,9 +1585,9 @@ function CustomersListInner() {
                         </div>
                       </TableCell>
                     )}
-                    {visible.locality && <TableCell>{locality || "—"}</TableCell>}
+                    {visible.locality && <TableCell key="locality">{locality || "—"}</TableCell>}
                     {visible.health && (
-                      <TableCell>
+                      <TableCell key="health">
                         {severity === "ok" ? (
                           <Badge variant="outline" className="border-emerald-500/40 text-emerald-700 dark:text-emerald-400">
                             OK
@@ -1632,7 +1624,7 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.email && (
-                      <TableCell>
+                      <TableCell key="email">
                         {cleanEmail ? (
                           <a
                             href={`mailto:${cleanEmail}`}
@@ -1648,7 +1640,7 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.phone && (
-                      <TableCell>
+                      <TableCell key="phone">
                         {cleanPhone ? (
                           <a
                             href={`tel:${cleanPhone}`}
@@ -1664,7 +1656,7 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.fiscal_code && (
-                      <TableCell>
+                      <TableCell key="fiscal_code">
                         {customer.fiscal_code ? (
                           <span className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground">
                             <CreditCard className="h-3.5 w-3.5" />
@@ -1674,7 +1666,7 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.address && (
-                      <TableCell>
+                      <TableCell key="address">
                         {customer.address ? (
                           <span className="flex items-center gap-1.5 text-xs text-muted-foreground truncate max-w-[220px]">
                             <MapPin className="h-3.5 w-3.5 shrink-0" />
@@ -1684,7 +1676,7 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.site_address && (
-                      <TableCell>
+                      <TableCell key="site_address">
                         {customer.site_address ? (
                           <span className="flex items-center gap-1.5 text-xs text-muted-foreground truncate max-w-[220px]">
                             <HardHat className="h-3.5 w-3.5 shrink-0" />
@@ -1694,7 +1686,7 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.notes && (
-                      <TableCell>
+                      <TableCell key="notes">
                         {customer.notes ? (
                           <TooltipProvider delayDuration={200}>
                             <Tooltip>
@@ -1713,14 +1705,14 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.created_at && (
-                      <TableCell className="whitespace-nowrap">
+                      <TableCell key="created_at" className="whitespace-nowrap">
                         <span className="text-sm text-muted-foreground">
                           {customer.created_at ? format(new Date(customer.created_at), "dd MMM yyyy", { locale: dateFnsCampo() }) : "—"}
                         </span>
                       </TableCell>
                     )}
                     {visible.salesperson && (
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell key="salesperson" onClick={(e) => e.stopPropagation()}>
                         <Select
                           value={customer.salesperson_id || "none"}
                           onValueChange={(val) => handleInlineSalesperson(customer.id, val)}
@@ -1739,7 +1731,7 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.orders && (
-                      <TableCell className="text-center">
+                      <TableCell key="orders" className="text-center">
                         {customer.order_count === 0 ? (
                           <span className="text-muted-foreground text-sm">—</span>
                         ) : (
@@ -1753,7 +1745,7 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.portal && (
-                      <TableCell>
+                      <TableCell key="portal">
                         {customer.portal_disabled ? (
                           <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-400">
                             <ShieldOff className="h-3 w-3 mr-1" />
@@ -1766,6 +1758,7 @@ function CustomersListInner() {
                         )}
                       </TableCell>
                     )}
+                    </>, colonneClienti.colonne.map(c => c.chiave))}
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

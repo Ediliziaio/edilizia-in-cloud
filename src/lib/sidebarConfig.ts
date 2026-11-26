@@ -8,6 +8,7 @@ import {
   Receipt,
   Warehouse,
   CalendarDays,
+  CalendarRange,
   CheckSquare,
   MessageSquare,
   MessageCircle,
@@ -145,6 +146,7 @@ export const macroAreas: MacroArea[] = [
       // Ordine del menu (27/09, richiesta founder): Clienti subito sotto le
       // Commesse; Magazzino sotto Manodopera e Mezzi.
       { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },
+      { title: "Programmazione", url: "/azienda/ordini?tab=programmazione", icon: CalendarRange, permissionKey: "canViewOrders", moduleKey: "orders" },
       // Operai, Subappaltatori e Mezzi in una voce sola, con tre schede (26/09):
       // ognuna ha il suo permesso, e la voce si vede se almeno una è
       // disponibile (regola in lib/manodopera/schede, applicata da CompanyLayout).
@@ -152,6 +154,7 @@ export const macroAreas: MacroArea[] = [
       // Gli ODA vivono in un tab «acquisto» dentro Commesse, non è più una voce
       // di menu (doppia porta = menu più lungo e basta).
       { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse" },
+      { title: "Calendario", url: "/azienda/calendario", icon: CalendarDays, permissionKey: "canViewCalendar", moduleKey: "calendar" },
       // Gli acquisti (materiali da ordinare, offerte, ordini, consegne) sono la
       // scheda «Acquisti» di Commesse (23/10/2026). Questa voce serve solo a chi
       // ha l'«Ufficio acquisti» senza vedere le Commesse: gli altri ci arrivano da lì.
@@ -163,7 +166,6 @@ export const macroAreas: MacroArea[] = [
       // canViewManutenzione (regola in CompanyLayout, come per Manodopera).
       // Il titolo di gruppo «Pianificazione» è stato tolto (26/09/2026).
       { title: "Assistenza", url: "/azienda/assistenza", icon: LifeBuoy, permissionKey: "canViewTickets", moduleKey: "tickets", hideWhenLocked: true },
-      { title: "Calendario", url: "/azienda/calendario", icon: CalendarDays, permissionKey: "canViewCalendar", moduleKey: "calendar" },
       // La sicurezza del cantiere passerà nella scheda «Sicurezza» di ogni
       // commessa; la voce resta finché quel travaso non è completo (fase 3).
       { title: "Sicurezza Cantiere", url: "/azienda/sicurezza-cantiere", icon: ShieldAlert, permissionKey: "canViewSicurezzaCantiere", featureKey: "cantieri_avanzati" },
@@ -250,7 +252,7 @@ export const macroAreas: MacroArea[] = [
       // Call Center NON è una voce di sidebar: è un cruscotto, raggiungibile dal
       // selettore dei cruscotti in /azienda/cruscotto/aziendale («Cruscotto Call
       // Center»). La rotta /azienda/call-center resta (redirect di ruolo + selettore).
-      { title: "Contatti CRM", url: "/azienda/marketing/contatti", icon: ContactRound, permissionKey: "canViewMarketingContacts", featureKey: "crm_modulo", groupLabel: "CRM & Vendita" },
+      { title: "Contatti / Lead", url: "/azienda/marketing/contatti", icon: ContactRound, permissionKey: "canViewMarketingContacts", featureKey: "crm_modulo", groupLabel: "CRM & Vendita" },
       { title: "Opportunità", url: "/azienda/marketing/opportunita", icon: Target, permissionKey: "canViewMarketingOpportunities", featureKey: "crm_modulo" },
       // Flag dedicato (non crm_modulo): il Piano Marketing tiene il CRM ma spegne i preventivi.
       // Stesso permesso della rotta (canViewPreventivi): prima usava le

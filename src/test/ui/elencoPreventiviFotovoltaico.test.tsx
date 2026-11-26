@@ -26,7 +26,7 @@ vi.mock("@/integrations/supabase/client", () => {
     },
     {
       id: "fv2", numero: "FV-2026-0002", stato: "bozza", prezzo_vendita_iva_inclusa: null, prezzo_vendita_manuale: null, kit_bundle_id: "k1", kit_prezzo: 10000,
-      iva_aliquota: 0.22, created_by: "u1", created_at: "2026-10-01T09:00:00Z", updated_at: "2026-10-02T09:00:00Z", cliente: { first_name: "Anna", last_name: "Verdi" },
+      iva_aliquota: 0.22, created_by: "u1", created_at: "2026-10-01T09:00:00Z", updated_at: "2026-10-02T09:00:00Z", indirizzo: "Via Roma 2", cliente: { first_name: "Mario", last_name: "Rossi" },
     },
     {
       id: "fv3", numero: "FV-2026-0003", stato: "emesso", prezzo_vendita_iva_inclusa: 11000, prezzo_vendita_manuale: null, kit_bundle_id: null, kit_prezzo: null,
@@ -93,6 +93,30 @@ describe("elenco unificato: il totale del Fotovoltaico", () => {
     // totale già calcolato: com'era
     expect(riga("FV-2026-0003")).toMatch(/11\.000,00/);
   });
+});
+
+it("confronta preventivi dello stesso nominativo senza unirli o nascondere le bozze", async () => {
+  apriElenco();
+  const confronta = await screen.findAllByRole("button", { name: "2 preventivi con il nome Mario Rossi" });
+  fireEvent.click(confronta[0]);
+  const dialog = within(screen.getByRole("dialog", { name: "Preventivi per Mario Rossi" }));
+  expect(dialog.getByText(/FV-2026-0001/)).toBeInTheDocument();
+  expect(dialog.getByText(/FV-2026-0002/)).toBeInTheDocument();
+  expect(dialog.getByText(/Via Roma 2/)).toBeInTheDocument();
+  expect(dialog.getByText(/nomi uguali possono riferirsi a persone diverse/)).toBeInTheDocument();
+});
+
+it("passa dall'elenco alla pipeline mantenendo la ricerca", async () => {
+  apriElenco();
+  await screen.findAllByText("FV-2026-0001");
+  fireEvent.change(screen.getByPlaceholderText("Cerca numero, cliente o commerciale…"), { target: { value: "FV-2026-0001" } });
+  fireEvent.click(within(screen.getAllByRole("group", { name: "Vista preventivi" })[0]).getByRole("button", { name: "Pipeline" }));
+  expect(screen.getByPlaceholderText("Cerca numero, cliente o commerciale…")).toHaveValue("FV-2026-0001");
+  const pipeline = within(screen.getByLabelText("Pipeline preventivi"));
+  expect(pipeline.getByText(/FV-2026-0001/)).toBeInTheDocument();
+  expect(pipeline.queryByText(/FV-2026-0002/)).not.toBeInTheDocument();
+  fireEvent.click(within(screen.getAllByRole("group", { name: "Vista preventivi" })[0]).getByRole("button", { name: "Elenco" }));
+  expect(screen.getByPlaceholderText("Cerca numero, cliente o commerciale…")).toHaveValue("FV-2026-0001");
 });
 
 it("sul telefono filtra le bozze dal pannello e lascia l’ordinamento fra gli altri filtri", async () => {

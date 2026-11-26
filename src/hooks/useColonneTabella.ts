@@ -162,11 +162,14 @@ export function useColonneTabella(
   const ripristina = useCallback(() => {
     setSalvato({ chiave, pref: PREFERENZA_VUOTA });
     try {
-      localStorage.removeItem(chiave);
+      // Se esiste una vecchia preferenza, lascia il nuovo valore vuoto come
+      // marcatore: al prossimo accesso non va importata una seconda volta.
+      if (vecchieChiavi?.length && traduci) localStorage.setItem(chiave, JSON.stringify(PREFERENZA_VUOTA));
+      else localStorage.removeItem(chiave);
     } catch {
       /* come sopra */
     }
-  }, [chiave]);
+  }, [chiave, vecchieChiavi, traduci]);
 
   return useMemo(
     () => ({

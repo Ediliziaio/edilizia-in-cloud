@@ -18,7 +18,7 @@ interface Status {
   id: string;
   name: string;
   color: string;
-  position: number;
+  position?: number;
 }
 
 const MONTHS = [

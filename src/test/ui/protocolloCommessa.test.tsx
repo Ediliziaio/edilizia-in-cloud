@@ -96,7 +96,8 @@ describe("protocollo di cantiere delle fatture ricevute", () => {
 
   it("la lista delle ricevute ha la colonna e il pulsante", () => {
     const pagina = readFileSync("src/pages/azienda/fatturazione/FattureRicevutePage.tsx", "utf8");
-    expect(pagina).toContain("protocolliCantiere.visibile && <TableCell><CellaProtocolloCommessa");
+    expect(pagina).toContain('protocolliCantiere.visibile && colonne.has("protocollo_cantiere")');
+    expect(pagina).toContain("<CellaProtocolloCommessa fattura={f}");
     expect(pagina).toContain("<NumeraProtocolliCommesse");
     // Le due colonne nuove vanno chieste per nome: la lista non fa select("*").
     expect(pagina).toMatch(/protocollo_commessa_id, protocollo_commessa_numero" as never/);

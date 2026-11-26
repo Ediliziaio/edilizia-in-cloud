@@ -926,7 +926,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
         nuovo={{ etichetta: t("Nuovo DDT"), onClick: () => { if (canCreate) setNewOpen(true); }, disabled: !canCreate }}
       />
 
-      <OperationalSummary compatto label={t("Riepilogo DDT")} title={t("Ricezioni e controlli")} icon={Truck} error={isError}>
+      <OperationalSummary compatto fascia label={t("Riepilogo DDT")} title={t("Ricezioni e controlli")} icon={Truck} error={isError}>
         {([{ key: "atteso", label: t("Attesi") }, { key: "parziale", label: t("Ricezioni parziali") }, { key: "ricevuto", label: t("Da verificare") }, { key: "non_conforme", label: t("Non conformi") }] as const).map(item => {
           const registrati = baseFiltered.filter(ddt => stage(ddt) === item.key).length;
           const totale = registrati + (item.key === "ricevuto" ? pendingDaVerificare.length : 0);

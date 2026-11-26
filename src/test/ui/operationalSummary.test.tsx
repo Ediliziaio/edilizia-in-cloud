@@ -19,4 +19,15 @@ describe("Riepilogo operativo condiviso", () => {
     render(<OperationalSummary label="Riepilogo DDT" title="Ricezioni" icon={ClipboardList} error><OperationalSummaryMetric label="Attesi" value={0} /></OperationalSummary>);
     expect(screen.getByRole("alert")).toHaveTextContent("Riepilogo non disponibile"); expect(screen.queryByText("Attesi")).not.toBeInTheDocument();
   });
+  it("nella fascia compatta mantiene filtri cliccabili e segnala gli errori", () => {
+    const click = vi.fn();
+    const view = render(<OperationalSummary fascia label="Riepilogo firme" title="Firme" icon={ClipboardList}><OperationalSummaryMetric label="Da firmare" value={3} active onClick={click} /></OperationalSummary>);
+    const bottone = screen.getByRole("button", { name: "Da firmare 3" });
+    expect(bottone).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(bottone);
+    expect(click).toHaveBeenCalledOnce();
+    view.rerender(<OperationalSummary fascia label="Riepilogo firme" title="Firme" icon={ClipboardList} error><OperationalSummaryMetric label="Da firmare" value={3} /></OperationalSummary>);
+    expect(screen.getByRole("alert")).toHaveTextContent("Riepilogo non disponibile");
+    expect(screen.queryByText("Da firmare")).not.toBeInTheDocument();
+  });
 });

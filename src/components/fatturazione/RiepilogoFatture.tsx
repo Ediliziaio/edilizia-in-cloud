@@ -95,10 +95,10 @@ function Voce({
   const pieno = valore != null && cifra == null ? formatCurrency(valore) : undefined;
   return (
     <div className="flex min-w-0 items-center gap-1.5" title={[pieno, nota].filter(Boolean).join(" · ") || undefined}>
-      <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{etichetta}</span>
+      <span className="whitespace-nowrap text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{etichetta}</span>
       <span
         className={cn(
-          "whitespace-nowrap text-sm font-bold tabular-nums leading-tight",
+          "whitespace-nowrap text-[15px] font-bold tabular-nums leading-tight",
           tono === "buono" && "text-emerald-600 dark:text-emerald-400",
           tono === "cattivo" && "text-rose-600 dark:text-rose-400",
           cifra === "…" && "text-muted-foreground",
@@ -107,7 +107,7 @@ function Voce({
         {testo}
       </span>
       {extra}
-      {notaInVista && nota && <span className="whitespace-nowrap text-[10px] text-muted-foreground">{nota}</span>}
+      {notaInVista && nota && <span className="whitespace-nowrap text-[11px] text-muted-foreground">{nota}</span>}
     </div>
   );
 }

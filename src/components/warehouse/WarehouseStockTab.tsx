@@ -855,6 +855,14 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
             </DropdownMenu>
             {/* Il conteggio sta nella barra (26/11/2026): prima aveva una riga tutta sua. */}
             <p className="col-span-2 whitespace-nowrap text-xs text-muted-foreground tabular-nums sm:col-span-1" aria-live="polite">{isLoading ? t("Caricamento articoli…") : isError ? t("Elenco non disponibile") : `${filtered.length} ${filtered.length === 1 ? "articolo" : "articoli"}${searchQuery || activeFilterCount ? " trovati" : ""}`}</p>
+          {aZeroNascosti > 0 ? (
+            <Button size="sm" variant="ghost" className="h-8 px-2 text-sm" onClick={() => cambiaMostraAZero(true)}>{t("Mostra anche {aZeroNascosti} a zero", { aZeroNascosti: String(aZeroNascosti ?? "") })}</Button>
+          ) : mostraAZero && !searchQuery && metricFilter === "all" && lottoFilter === "all" && tuttiFiltrati.some((i) => eArticoloAZero(i, inArrivo)) ? (
+            <Button size="sm" variant="ghost" className="h-8 px-2 text-sm" onClick={() => cambiaMostraAZero(false)}>
+              {t("Nascondi quelli a zero")}
+            </Button>
+          ) : null}
+          {onReorder && !readOnly && metricFilter === "low_stock" && lowStockItems.length > 0 && <Button size="sm" variant="outline" onClick={onReorder}>{t("Riordina sotto scorta")}</Button>}
             <div className="col-span-2 grid grid-cols-3 gap-2 sm:ml-auto sm:flex sm:flex-wrap sm:items-center">
               {primaryActions}
               {/* «Prenota» sta in «Altro» sotto i 1536px: le azioni restano su una riga con la ricerca. */}
@@ -895,18 +903,6 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
           </SheetContent>
         </Sheet>
         {importOpen && <Suspense fallback={<p role="status">{t("Apertura importazione…")}</p>}><ArticoliCSVImportDialog warehouseId={warehouseFilter} open={importOpen} onOpenChange={setImportOpen} onCloseAutoFocus={(event) => { event.preventDefault(); toolsTriggerRef.current?.focus(); }} hideTrigger /></Suspense>}
-        {/* Resta solo per «Mostra anche quelli a zero» e «Riordina»: senza bottoni non occupa spazio. */}
-        <div className="flex flex-wrap items-center justify-end gap-2 px-1 empty:hidden">
-          {aZeroNascosti > 0 ? (
-            <Button size="sm" variant="ghost" className="h-8 px-2 text-sm" onClick={() => cambiaMostraAZero(true)}>{t("Mostra anche {aZeroNascosti} a zero", { aZeroNascosti: String(aZeroNascosti ?? "") })}</Button>
-          ) : mostraAZero && !searchQuery && metricFilter === "all" && lottoFilter === "all" && tuttiFiltrati.some((i) => eArticoloAZero(i, inArrivo)) ? (
-            <Button size="sm" variant="ghost" className="h-8 px-2 text-sm" onClick={() => cambiaMostraAZero(false)}>
-              {t("Nascondi quelli a zero")}
-            </Button>
-          ) : null}
-          {onReorder && !readOnly && metricFilter === "low_stock" && lowStockItems.length > 0 && <Button size="sm" variant="outline" onClick={onReorder}>{t("Riordina sotto scorta")}</Button>}
-        </div>
-
         {metricFilter !== "all" && <div className="flex items-center gap-2 text-sm"><Badge variant="secondary">{t(INVENTORY_FILTER_LABELS[metricFilter])}</Badge><Button size="sm" variant="ghost" onClick={() => { onMetricFilterChange?.("all"); setStockPage(0); }}>{t("Mostra tutti gli articoli")}</Button></div>}
 
         {/* Batch action bar */}

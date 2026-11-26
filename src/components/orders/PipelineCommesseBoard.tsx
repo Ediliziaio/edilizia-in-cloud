@@ -21,8 +21,10 @@ interface Props {
   statuses: OrderStatus[];
   onStatusChange?: (id: string, fase: string) => Promise<void>;
   showAmounts: boolean;
+  mostraSelettore?: boolean;
+  onDelete?: (order: OrderWithDetails) => void;
 }
-export function PipelineCommesseBoard({ azienda, orders, statuses, onStatusChange, filtri, showAmounts }: Props) {
+export function PipelineCommesseBoard({ azienda, orders, statuses, onStatusChange, filtri, showAmounts, mostraSelettore = true, onDelete }: Props) {
   const t = useT();
   const archivio = usePipelineLocali(azienda);
   const [params, setParams] = useSearchParams();
@@ -55,7 +57,7 @@ export function PipelineCommesseBoard({ azienda, orders, statuses, onStatusChang
   if (archivio.caricamento) return <p role="status">{t("Caricamento pipeline…")}</p>;
   if (archivio.errore) return <p role="alert">{archivio.errore} <Button variant="link" onClick={() => void archivio.riprova()}>{t("Riprova")}</Button></p>;
   const controls = <>
-      <label htmlFor="pipeline-commesse" className="sr-only">{t("Pipeline")}</label>
+      {mostraSelettore && <><label htmlFor="pipeline-commesse" className="sr-only">{t("Pipeline")}</label>
       <UniformSelect className="h-8 max-w-[180px] font-semibold" id="pipeline-commesse" value={vista} onChange={e => {
         const next = new URLSearchParams(params); next.set("pipeline",e.target.value); setParams(next);
         setAperto(false); setOrdine(""); setFase("");
@@ -63,10 +65,10 @@ export function PipelineCommesseBoard({ azienda, orders, statuses, onStatusChang
         {principale && <option value={PIPELINE_PRINCIPALE}>{t("Principale")}</option>}
         {archivio.pipeline.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
         {!principale && <option value={SENZA_PIPELINE}>{t("Senza pipeline")}</option>}
-      </UniformSelect>
+      </UniformSelect></>}
       {filtri}
-      {onStatusChange && archivio.pipeline.length > 0 && (pipeline || principale) && <Popover open={aperto} onOpenChange={v => {setAperto(v); setOrdine(""); setFase("");}}>
-        <PopoverTrigger asChild><Button size="sm" className="h-8 gap-1"><Plus className="size-3.5" />{t("Assegna commessa")}</Button></PopoverTrigger>
+      {onStatusChange && pipeline && <Popover open={aperto} onOpenChange={v => {setAperto(v); setOrdine(""); setFase("");}}>
+        <PopoverTrigger asChild><Button variant="outline" size="sm" className="h-8 gap-1 text-xs"><Plus className="size-3.5" />{t("Aggiungi alla pipeline")}</Button></PopoverTrigger>
         <PopoverContent className="space-y-3" align="start"><p className="text-sm font-semibold">{t("Sposta in {nome}", { nome: pipeline?.nome ?? t("Principale") })}</p>
           <OrderSelectCombobox companyId={azienda} filtroIniziale="all" value={ordine || undefined} onChange={setOrdine} placeholder={t("Cerca una commessa")}/>
           {pipeline && <UniformSelect aria-label={t("Fase di destinazione")} value={destinazione?.id} onChange={e => setFase(e.target.value)}>{pipeline.fasi.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</UniformSelect>}
@@ -86,7 +88,7 @@ export function PipelineCommesseBoard({ azienda, orders, statuses, onStatusChang
       </div>
     )}
     {vista === SENZA_PIPELINE && <p className="text-sm text-muted-foreground">{t("Commesse senza percorso assegnato. Usa «Sposta» per inserirle in una pipeline.")}</p>}
-    <OrdersPipelineView controls={controls} canEdit={!!onStatusChange} showAmounts={showAmounts} onMove={onStatusChange && archivio.pipeline.length ? order => {
+    <OrdersPipelineView controls={controls} canEdit={!!onStatusChange} showAmounts={showAmounts} onDelete={onDelete} onMove={onStatusChange && archivio.pipeline.length ? order => {
       const origine = archivio.fasiPerCommessa[order.id] ?? null;
       const meta = pipeline ?? (principale ? undefined : archivio.pipeline[0]);
       setSpostamento({order, origine, pipelineId:meta?.id ?? PIPELINE_PRINCIPALE, faseId:origine ?? meta?.fasi[0]?.id ?? ""});

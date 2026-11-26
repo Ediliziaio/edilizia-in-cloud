@@ -22,6 +22,13 @@ beforeEach(()=>{
   });
 });
 describe("Filtri prima della paginazione delle commesse",()=>{
+  it("esclude le commesse nelle altre pipeline prima di contare e paginare", async () => {
+    const lettura = { ...filters, excludeOrderIds: ["000", "001", "042"] };
+    const pagina = await readOrdersPage(lettura, 0, 9);
+    expect(pagina.totalCount).toBe(62);
+    expect(pagina.orders.map(r => r.id)).toEqual(["002", "003", "004", "005", "006", "007", "008", "009", "010", "011"]);
+    expect((await readOrdersPage({ ...lettura, focusIds: ["001", "042", "043"] }, 0, Infinity)).orders.map(r => r.id)).toEqual(["043"]);
+  });
   it("la data finale del mese usa la mezzanotte locale del giorno successivo", async () => {
     const contractDateRange = { from: new Date(2027, 9, 1), to: new Date(2027, 9, 31) };
     await readOrdersPage({ ...filters, monthFilter: "9", contractDateRange }, 0, 19);

@@ -39,6 +39,14 @@ function scheda(order = ordine, showAmounts = true) {
   </PipelineDragScope></MemoryRouter>);
 }
 
+it("mostra il cestino soltanto quando l'azione è autorizzata e non apre la commessa", () => {
+  const elimina = vi.fn();
+  render(<MemoryRouter><PipelineDragScope><OrdersPipelineCard order={ordine} stage="firmato" onDelete={elimina} /></PipelineDragScope></MemoryRouter>);
+  fireEvent.click(screen.getByRole("button", { name: "Elimina commessa DEMO-27" }));
+  expect(elimina).toHaveBeenCalledOnce();
+  expect(elimina).toHaveBeenCalledWith(ordine);
+});
+
 function verificaIntestazione(contenitore: HTMLElement, nome: string) {
   const t = within(contenitore);
   const riga = t.getByText(nome).parentElement!;

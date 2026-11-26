@@ -2454,6 +2454,7 @@ export const BLOCCHI_UFFICIO: Record<string, string[]> = {
     "src/components/marketing/preventivi/UnifiedBulkToolbar.tsx",
     "src/components/marketing/preventivi/UnifiedFiltersSheet.tsx",
     "src/components/marketing/preventivi/UnifiedPreventiviList.tsx",
+    "src/components/marketing/preventivi/PreventiviPipeline.tsx",
     "src/components/marketing/preventivi/VersioniPreventivo.tsx",
     "src/components/marketing/preventivi/VociContrattoDialog.tsx",
     "src/components/marketing/preventivi/configurators/ArticleConfigurator.tsx",

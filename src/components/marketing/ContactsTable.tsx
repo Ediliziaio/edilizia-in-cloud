@@ -1,4 +1,6 @@
-import { memo, useMemo } from "react";
+import { COLUMNS, DEFAULT_VISIBLE } from "./colonneContatti";
+import { memo, useMemo, useState } from "react";
+import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { Link, useNavigate } from "react-router-dom";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { Trash2, Pencil, ChevronUp, ChevronDown, ListChecks, Loader2 } from "lucide-react";
@@ -69,39 +71,8 @@ export interface MarketingContact {
 export type SortField = "first_name" | "phone" | "email" | "company_name" | "created_at" | "last_activity_at";
 export type SortDirection = "asc" | "desc";
 
-export const COLUMNS = [
-  { key: "name", label: "Nome del Contatto", sortField: "first_name" as SortField, fixed: true, group: "Contatto" },
-  { key: "temperature", label: "Temp.", group: "Contatto" },
-  { key: "phone", label: "Telefono", sortField: "phone" as SortField, group: "Contatto" },
-  { key: "email", label: "Email", sortField: "email" as SortField, group: "Contatto" },
-  { key: "company_name", label: "Azienda", sortField: "company_name" as SortField, group: "Contatto" },
-  { key: "city", label: "Città", group: "Contatto" },
-  { key: "province", label: "Provincia", group: "Contatto" },
-  { key: "address", label: "Indirizzo", group: "Contatto" },
-  { key: "postal_code", label: "CAP", group: "Contatto" },
-  { key: "country", label: "Paese", group: "Contatto" },
-  { key: "contact_type", label: "Tipo contatto", group: "Contatto" },
-  { key: "website", label: "Sito web", group: "Contatto" },
-  { key: "notes_col", label: "Note", group: "Contatto" },
-  { key: "source", label: "Fonte", group: "Contatto" },
-  { key: "created_at", label: "Creato", sortField: "created_at" as SortField, group: "Date" },
-  { key: "last_activity_at", label: "Ultima Attività", sortField: "last_activity_at" as SortField, group: "Date" },
-  { key: "date_of_birth", label: "Data di nascita", group: "Date" },
-  { key: "tags", label: "Tag", group: "Tag" },
-  { key: "opp_name", label: "Opportunità", group: "Opportunità" },
-  { key: "opp_value", label: "Valore opp.", group: "Opportunità" },
-  { key: "opp_status", label: "Stato opp.", group: "Opportunità" },
-  { key: "opp_pipeline", label: "Pipeline", group: "Opportunità" },
-  { key: "opp_stage", label: "Fase pipeline", group: "Opportunità" },
-  { key: "call_center", label: "Call Center", group: "Assegnazione" },
-  { key: "attr_source", label: "Sorgente", group: "Attribuzione" },
-  { key: "attr_campaign", label: "Campagna", group: "Attribuzione" },
-] as const;
-
-export type ColumnKey = (typeof COLUMNS)[number]["key"];
-
-export const DEFAULT_VISIBLE: ColumnKey[] = ["name", "phone", "email", "company_name", "created_at", "last_activity_at", "tags"];
-
+export { COLUMNS, DEFAULT_VISIBLE } from "./colonneContatti";
+export type { ColumnKey } from "./colonneContatti";
 const STORAGE_KEY_PREFIX = "contacts-visible-columns";
 
 export function getStorageKey(userId?: string, companyId?: string): string {
@@ -148,6 +119,7 @@ interface ContactsTableProps {
   selezionandoTutti?: boolean;
   onAnnullaSelezione?: () => void;
   visibleColumns: Set<string>;
+  columnOrder?: string[];
   customFields?: CustomFieldDef[];
   customFieldValues?: Record<string, Record<string, string>>;
   canEdit?: boolean;
@@ -275,7 +247,7 @@ export const ContactsTable = memo(function ContactsTable({
   onEdit, onDelete, page, pageSize, onPageChange, onPageSizeChange,
   sortField, sortDirection, onSort, bulkActions,
   onSelezionaTuttiIRisultati, selezionandoTutti = false, onAnnullaSelezione,
-  visibleColumns,
+  visibleColumns, columnOrder,
   customFields = [], customFieldValues = {}, canEdit = true, onOpenPreview,
 }: ContactsTableProps) {
   const t = useT();
@@ -302,15 +274,15 @@ export const ContactsTable = memo(function ContactsTable({
     }
   };
 
-  const visibleCols = allCols.filter((c) => isVisible(c.key));
+  const indiceColonne = new Map((columnOrder ?? []).map((key, i) => [key, i]));
+  const visibleCols = allCols.filter((c) => isVisible(c.key)).sort((a, b) =>
+    (indiceColonne.get(a.key) ?? Number.MAX_SAFE_INTEGER) - (indiceColonne.get(b.key) ?? Number.MAX_SAFE_INTEGER));
+  const [scorrimento, setScorrimento] = useState<HTMLDivElement | null>(null);
   const borderClass = "border-r border-border/30";
   // La tabella si vede da 1024: con le colonne di serie era larga 1032px e a
   // 1024 scorreva di lato per 300px. Azienda da 1280, Creato da 1536 (se
   // scelte nel menu Colonne); sotto, celle più strette e email tagliata.
-  const perLarghezza: Record<string, string> = {
-    company_name: "hidden xl:table-cell",
-    created_at: "hidden 2xl:table-cell",
-  };
+  const perLarghezza: Record<string, string> = {};
 
   return (
     <div className="space-y-3">
@@ -352,7 +324,8 @@ export const ContactsTable = memo(function ContactsTable({
 
       <div className="rounded-md border">
         {/* 26/11/2026: ogni contatto su una riga (nomi, aziende e titoli andavano a capo). */}
-        <Table className="[&_td]:whitespace-nowrap [&_th]:whitespace-nowrap [&_td]:px-2 [&_th]:px-2 2xl:[&_td]:px-4 2xl:[&_th]:px-4">
+        <BarraScorrimentoOrizzontale contenitore={scorrimento} className="mx-3 my-2" />
+        <Table wrapperRef={setScorrimento} className="[&_td]:whitespace-nowrap [&_th]:whitespace-nowrap [&_td]:px-2 [&_th]:px-2 2xl:[&_td]:px-4 2xl:[&_th]:px-4">
           <TableHeader>
             <TableRow>
               <TableHead className={`w-[40px] ${borderClass}`}>

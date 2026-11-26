@@ -391,7 +391,7 @@ export default function SopralluoghiList() {
         nuovo={puoCreare ? { etichetta: t("Nuovo sopralluogo"), onClick: () => vaiA("/azienda/sopralluoghi/nuovo") } : undefined}
       />
       {!isError && (
-        <OperationalSummary compatto label={t("Riepilogo sopralluoghi")} title={t("Dalla visita al preventivo")} icon={Calendar} note={t("I numeri principali seguono le regole dell’agenda e delle fasi. Seleziona un indicatore per filtrare.")}>
+        <OperationalSummary compatto fascia label={t("Riepilogo sopralluoghi")} title={t("Dalla visita al preventivo")} icon={Calendar} note={t("I numeri principali seguono le regole dell’agenda e delle fasi. Seleziona un indicatore per filtrare.")}>
           {isLoading ? (
             [0, 1, 2, 3].map((i) => (
               <Skeleton key={i} className="h-12 rounded-lg" />

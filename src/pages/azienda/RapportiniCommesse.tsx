@@ -312,7 +312,7 @@ function Pagina({ companyId }: { companyId?: string }) {
           {/* Il riepilogo del mese: stessa fascia blu della scheda Commesse */}
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="grid gap-0">
-              <OperationalSummary embedded compatto label={t("Riepilogo rapportini")} title={giorno ? giornoLungo(giorno) : periodo === "mese" ? t("Il lavoro del mese") : periodo === "tutti" ? tipo === "rapportino" ? t("Tutti i rapportini") : t("Tutti i documenti del cantiere") : periodoLabel} icon={NotebookPen}>
+              <OperationalSummary embedded compatto fascia label={t("Riepilogo rapportini")} title={giorno ? giornoLungo(giorno) : periodo === "mese" ? t("Il lavoro del mese") : periodo === "tutti" ? tipo === "rapportino" ? t("Tutti i rapportini") : t("Tutti i documenti del cantiere") : periodoLabel} icon={NotebookPen}>
                 {numeri.filter(n => !n.soloScrivania).map(n => <OperationalSummaryMetric key={n.label} label={n.label} value={n.valore} hint={n.nota} tone={n.evidenza ? "amber" : undefined} onClick={n.onClick} active={!!n.onClick && stato === (tipo === "giornale" ? "bozza" : "inviato")} />)}
               </OperationalSummary>
 

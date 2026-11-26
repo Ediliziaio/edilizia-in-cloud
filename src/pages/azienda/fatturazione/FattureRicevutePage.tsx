@@ -1,3 +1,7 @@
+import { ordinaElementiTabella } from "@/lib/tabelle/ordinaElementiTabella";
+import { SceltaColonne } from "@/components/tabelle/SceltaColonne";
+import { useColonneTabella, type TraduciPreferenza } from "@/hooks/useColonneTabella";
+import type { ColonnaTabella } from "@/lib/tabelle/colonneTabella";
 import { BOTTONE_SECONDARIO, BOTTONE_NUOVO, RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { corrispondeTestoPronto, terminiRicercaRicevute, testoRicercaRicevute, type TestoRicerca } from "@/lib/fatturazione/ricercaRicevute";
 import { leggiXmlRicevuta, scaricaOriginaleRicevuta } from "@/lib/fatturazione/originaleRicevuta";
@@ -21,7 +25,7 @@ import { useSaldiRicevute, type SaldoRicevuta } from "@/hooks/useSaldiRicevute";
 import { imponibileIvaFornitori, importoFornitori, nonSiPaga, testoRatePagate } from "@/lib/fatturazione/noteDiCredito";
 import { importoNotaCredito } from "@/lib/fatturazione/notaCreditoStorno";
 import { tutteLePagine } from "@/lib/fatturazione/registroVendite";
-import { COLONNE_RICEVUTE, leggiColonne, metodiPagamento, prossimaScadenza, salvaColonne, type ColonnaRicevute } from "@/lib/fatturazione/colonneRicevute";
+import { COLONNE_RICEVUTE, metodiPagamento, prossimaScadenza } from "@/lib/fatturazione/colonneRicevute";
 import { useConteggiAllegatiRicevute } from "@/components/fatturazione/AllegatiFattura";
 import { Checkbox } from "@/components/ui/checkbox";
 import { UsciteSenzaFattura } from "@/components/fatturazione/UsciteSenzaFattura";
@@ -90,7 +94,6 @@ import {
   Eye,
   FileText,
   CheckCircle2,
-  Columns3,
   Paperclip,
   Inbox,
   Loader2,
@@ -328,6 +331,39 @@ function IntestazioneOrdinabile({ children, campo, ordinamento, onOrdina, classN
 
 // ─── Component ────────────────────────────────────────────────
 
+const COLONNE_FATTURE_RICEVUTE: ColonnaTabella[] = [
+  { chiave: "numero", etichetta: "Numero", fissa: true },
+  { chiave: "protocollo", etichetta: "Protocollo" },
+  { chiave: "protocollo_cantiere", etichetta: "Protocollo cantiere" },
+  { chiave: "data", etichetta: "Emessa il" },
+  { chiave: "scadenza", etichetta: "Prossima scadenza" },
+  { chiave: "fornitore", etichetta: "Fornitore", fissa: true },
+  { chiave: "arrivo", etichetta: "Arrivata il" },
+  { chiave: "imponibile", etichetta: "Imponibile" },
+  { chiave: "totale", etichetta: "Totale" },
+  { chiave: "netto", etichetta: "Netto a pagare", spentaDiSerie: true },
+  { chiave: "pagato", etichetta: "Pagato" },
+  { chiave: "residuo", etichetta: "Residuo" },
+  { chiave: "pagamento", etichetta: "Pagamento" },
+  { chiave: "metodo", etichetta: "Modalità di pagamento" },
+  { chiave: "stato", etichetta: "Stato" },
+  { chiave: "verifica", etichetta: "Verifica" },
+  { chiave: "collegata", etichetta: "Collegata a" },
+  { chiave: "allegati", etichetta: "Allegati" },
+  { chiave: "note", etichetta: "Note interne", spentaDiSerie: true },
+];
+const VECCHIE_COLONNE_RICEVUTE = ["fatture-ricevute-colonne-v2", "fatture-ricevute-colonne-v1"] as const;
+const traduciColonneRicevute: TraduciPreferenza = (valore, chiave) => {
+  if (!Array.isArray(valore) || !valore.every(v => typeof v === "string")) return null;
+  const accese = new Set<string>(valore);
+  if (chiave.endsWith("-v1") && accese.has("pagamento")) { accese.add("pagato"); accese.add("residuo"); }
+  const opzionali = new Set<string>(COLONNE_RICEVUTE.map(c => c.id));
+  return {
+    ordine: COLONNE_FATTURE_RICEVUTE.filter(c => !opzionali.has(c.chiave) || accese.has(c.chiave)).map(c => c.chiave),
+    nascoste: [...opzionali].filter(c => !accese.has(c)),
+  };
+};
+
 export default function FattureRicevutePage() {
   const tr = useT();
   // La barra di scorrimento in alto, come nei DDT (12/11/2026): la tabella è larga e quella di sistema sta in fondo.
@@ -425,13 +461,12 @@ export default function FattureRicevutePage() {
   const setMetodoFilter = (v: Aggiorna<string>) => cambiaFiltro("metodo", v, metodoFilter);
   const allegatiFilter = filtriUrl.valori.allegati as "all" | "con" | "senza";
   const setAllegatiFilter = (v: Aggiorna<"all" | "con" | "senza">) => cambiaFiltro("allegati", v, allegatiFilter);
-  const [colonne, setColonne] = useState<Set<ColonnaRicevute>>(() => leggiColonne());
-  const cambiaColonna = (c: ColonnaRicevute, attiva: boolean) => setColonne((prima) => {
-    const dopo = new Set(prima);
-    if (attiva) dopo.add(c); else dopo.delete(c);
-    salvaColonne(dopo);
-    return dopo;
-  });
+  const definizioneColonne = useMemo(() => COLONNE_FATTURE_RICEVUTE.filter(c =>
+    (c.chiave !== "protocollo" || protocolli.visibile) &&
+    (c.chiave !== "protocollo_cantiere" || protocolliCantiere.visibile)
+  ), [protocolli.visibile, protocolliCantiere.visibile]);
+  const sceltaColonne = useColonneTabella("fatture-ricevute", definizioneColonne, VECCHIE_COLONNE_RICEVUTE, traduciColonneRicevute);
+  const colonne = sceltaColonne.visibili;
   const { data: conteggiAllegati } = useConteggiAllegatiRicevute(companyId);
   const oggiIso = useMemo(() => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Rome" }), []);
   const [collegaCommesse, setCollegaCommesse] = useState<FatturaRicevuta | null>(null);
@@ -1416,19 +1451,7 @@ export default function FattureRicevutePage() {
           {companyId && <NumeraProtocolliCommesse companyId={companyId} protocolli={protocolliCantiere} />}
           {companyId && <NumeraProtocolliRicevute companyId={companyId} protocolli={protocolli}
             anni={[...new Set(fatture.map(f => Number((f.data_ricezione_sdi ?? f.data_fattura ?? "").slice(0, 4))).filter(a => a > 2000))]} />}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className={cn(BOTTONE_SECONDARIO, "max-sm:hidden")}><Columns3 />{tr("Colonne")}</Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-60 space-y-2">
-              {COLONNE_RICEVUTE.map((c) => (
-                <label key={c.id} className="flex items-center gap-2 text-sm">
-                  <Checkbox checked={colonne.has(c.id)} onCheckedChange={(v) => cambiaColonna(c.id, v === true)} />
-                  {c.etichetta}
-                </label>
-              ))}
-            </PopoverContent>
-          </Popover>
+          <span className="max-sm:hidden"><SceltaColonne colonne={sceltaColonne} /></span>
         </div>
         {/* La striscia dei mesi è di un anno: con «tutti gli anni» non c'è. */}
         {strisciaVisibile && mesi && (
@@ -1583,26 +1606,28 @@ export default function FattureRicevutePage() {
                       onCheckedChange={(v) => (v === true ? selezionaTutte() : setSelezionate(new Set()))} />
                   </TableHead>
                 )}
+                {ordinaElementiTabella(<>
                 {/* Numero, data, fornitore (16/11/2026): come si cerca una fattura su carta. */}
-                <TableHead>{tr("Numero")}</TableHead>
-                {protocolli.visibile && <TableHead className="whitespace-nowrap" title={tr("Protocollo interno: 1, 2, 3… per anno")}>{tr("Prot.")}</TableHead>}
-                {protocolliCantiere.visibile && <TableHead className="whitespace-nowrap" title={tr("Protocollo del cantiere: un progressivo per commessa, che non riparte a gennaio")}>{tr("Prot. cantiere")}</TableHead>}
-                <IntestazioneOrdinabile campo="data" ordinamento={ordinamento} onOrdina={ordinaPer}>{tr("Emessa il")}</IntestazioneOrdinabile>
-                {colonne.has("scadenza") && <TableHead className="whitespace-nowrap">{tr("Scadenza fattura")}</TableHead>}
-                <IntestazioneOrdinabile campo="fornitore" ordinamento={ordinamento} onOrdina={ordinaPer}>{tr("Fornitore")}</IntestazioneOrdinabile>
-                <TableHead className="whitespace-nowrap">{tr("Arrivata il")}</TableHead>
-                {colonne.has("imponibile") && <TableHead className="text-right">{tr("Imponibile")}</TableHead>}
-                <IntestazioneOrdinabile campo="totale" ordinamento={ordinamento} onOrdina={ordinaPer} className="text-right">{tr("Totale")}</IntestazioneOrdinabile>
-                {colonne.has("netto") && <TableHead className="whitespace-nowrap text-right">{tr("Netto a pagare")}</TableHead>}
-                {colonne.has("pagato") && <TableHead className="whitespace-nowrap text-right">{tr("Pagato")}</TableHead>}
-                {colonne.has("residuo") && <TableHead className="whitespace-nowrap text-right">{tr("Residuo")}</TableHead>}
-                {colonne.has("pagamento") && <TableHead className="whitespace-nowrap">{tr("Pagamento")}</TableHead>}
-                {colonne.has("metodo") && <TableHead>{tr("Modalità")}</TableHead>}
-                {colonne.has("stato") && <TableHead>{tr("Stato")}</TableHead>}
-                {colonne.has("verifica") && <TableHead>{tr("Verifica")}</TableHead>}
-                {colonne.has("collegata") && <TableHead>{tr("Collegata a")}</TableHead>}
-                {colonne.has("allegati") && <TableHead>{tr("Allegati")}</TableHead>}
-                {colonne.has("note") && <TableHead>{tr("Note")}</TableHead>}
+                <TableHead key="numero">{tr("Numero")}</TableHead>
+                {protocolli.visibile && colonne.has("protocollo") && <TableHead key="protocollo" className="whitespace-nowrap" title={tr("Protocollo interno: 1, 2, 3… per anno")}>{tr("Prot.")}</TableHead>}
+                {protocolliCantiere.visibile && colonne.has("protocollo_cantiere") && <TableHead key="protocollo_cantiere" className="whitespace-nowrap" title={tr("Protocollo del cantiere: un progressivo per commessa, che non riparte a gennaio")}>{tr("Prot. cantiere")}</TableHead>}
+                {colonne.has("data") && <IntestazioneOrdinabile key="data" campo="data" ordinamento={ordinamento} onOrdina={ordinaPer}>{tr("Emessa il")}</IntestazioneOrdinabile>}
+                {colonne.has("scadenza") && <TableHead key="scadenza" className="whitespace-nowrap">{tr("Prossima scadenza")}</TableHead>}
+                <IntestazioneOrdinabile key="fornitore" campo="fornitore" ordinamento={ordinamento} onOrdina={ordinaPer}>{tr("Fornitore")}</IntestazioneOrdinabile>
+                {colonne.has("arrivo") && <TableHead key="arrivo" className="whitespace-nowrap">{tr("Arrivata il")}</TableHead>}
+                {colonne.has("imponibile") && <TableHead key="imponibile" className="text-right">{tr("Imponibile")}</TableHead>}
+                {colonne.has("totale") && <IntestazioneOrdinabile key="totale" campo="totale" ordinamento={ordinamento} onOrdina={ordinaPer} className="text-right">{tr("Totale")}</IntestazioneOrdinabile>}
+                {colonne.has("netto") && <TableHead key="netto" className="whitespace-nowrap text-right">{tr("Netto a pagare")}</TableHead>}
+                {colonne.has("pagato") && <TableHead key="pagato" className="whitespace-nowrap text-right">{tr("Pagato")}</TableHead>}
+                {colonne.has("residuo") && <TableHead key="residuo" className="whitespace-nowrap text-right">{tr("Residuo")}</TableHead>}
+                {colonne.has("pagamento") && <TableHead key="pagamento" className="whitespace-nowrap">{tr("Pagamento")}</TableHead>}
+                {colonne.has("metodo") && <TableHead key="metodo">{tr("Modalità")}</TableHead>}
+                {colonne.has("stato") && <TableHead key="stato">{tr("Stato")}</TableHead>}
+                {colonne.has("verifica") && <TableHead key="verifica">{tr("Verifica")}</TableHead>}
+                {colonne.has("collegata") && <TableHead key="collegata">{tr("Collegata a")}</TableHead>}
+                {colonne.has("allegati") && <TableHead key="allegati">{tr("Allegati")}</TableHead>}
+                {colonne.has("note") && <TableHead key="note">{tr("Note")}</TableHead>}
+                </>, sceltaColonne.colonne.map(c => c.chiave))}
                 <TableHead className="text-right">{tr("Azioni")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -1629,7 +1654,8 @@ export default function FattureRicevutePage() {
                       <Checkbox checked={selezionate.has(f.id)} onCheckedChange={(v) => cambiaSelezione(f.id, v === true)} aria-label={tr("Seleziona la fattura {numero_fattura}", { numero_fattura: String(f.numero_fattura ?? "") })} />
                     </TableCell>
                   )}
-                  <TableCell>
+                  {ordinaElementiTabella(<>
+                  <TableCell key="numero">
                     <div className="flex items-center gap-1.5">
                       <span className="block max-w-[190px] truncate font-mono text-sm" title={f.numero_fattura}>{f.numero_fattura}</span>
                       {integrazioni?.get(f.id) ? (
@@ -1642,13 +1668,13 @@ export default function FattureRicevutePage() {
                       {etichettaTipoRicevuta(f.tipo_documento) !== "Fattura" && <span className="whitespace-nowrap text-xs text-muted-foreground">{etichettaTipoRicevuta(f.tipo_documento)}</span>}
                     </div>
                   </TableCell>
-                  {protocolli.visibile && <TableCell><CellaProtocolloRicevuta fattura={f} protocolli={protocolli} /></TableCell>}
-                  {protocolliCantiere.visibile && <TableCell><CellaProtocolloCommessa fattura={f} protocolli={protocolliCantiere} /></TableCell>}
-                  <TableCell className="whitespace-nowrap">
+                  {protocolli.visibile && colonne.has("protocollo") && <TableCell key="protocollo"><CellaProtocolloRicevuta fattura={f} protocolli={protocolli} /></TableCell>}
+                  {protocolliCantiere.visibile && colonne.has("protocollo_cantiere") && <TableCell key="protocollo_cantiere"><CellaProtocolloCommessa fattura={f} protocolli={protocolliCantiere} /></TableCell>}
+                  {colonne.has("data") && <TableCell key="data" className="whitespace-nowrap">
                     <DataEmissione f={f} />
-                  </TableCell>
-                  {colonne.has("scadenza") && <TableCell className="whitespace-nowrap text-xs tabular-nums">{dataScadenza(f)}</TableCell>}
-                  <TableCell>
+                  </TableCell>}
+                  {colonne.has("scadenza") && <TableCell key="scadenza" className="whitespace-nowrap text-xs tabular-nums">{dataScadenza(f)}</TableCell>}
+                  <TableCell key="fornitore">
                     {/* Una riga sola: P.IVA, tipo e categoria si leggono passando il mouse. */}
                     <button type="button" className="block max-w-[260px] truncate text-left font-medium underline-offset-2 hover:underline" onClick={() => setRiepilogoId(f.id)}
                       title={[
@@ -1660,23 +1686,23 @@ export default function FattureRicevutePage() {
                       {f.cedente_ragione_sociale}
                     </button>
                   </TableCell>
-                  <TableCell className="whitespace-nowrap">
+                  {colonne.has("arrivo") && <TableCell key="arrivo" className="whitespace-nowrap">
                     <DataArrivo f={f} />
-                  </TableCell>
-                  {colonne.has("imponibile") && <TableCell className="text-right">
+                  </TableCell>}
+                  {colonne.has("imponibile") && <TableCell key="imponibile" className="text-right">
                     {f.imponibile_totale != null ? formatCurrency(f.imponibile_totale) : <span className="text-muted-foreground">—</span>}
                   </TableCell>}
-                  <TableCell className="whitespace-nowrap text-right font-medium" title={f.iva_totale != null ? `IVA ${formatCurrency(f.iva_totale)}` : undefined}>
+                  {colonne.has("totale") && <TableCell key="totale" className="whitespace-nowrap text-right font-medium" title={f.iva_totale != null ? `IVA ${formatCurrency(f.iva_totale)}` : undefined}>
                     {f.totale_documento != null ? formatCurrency(f.totale_documento) : <span className="text-muted-foreground">—</span>}
-                  </TableCell>
-                  {colonne.has("netto") && <TableCell className="whitespace-nowrap text-right"><ImportoRicevuta valore={saldo?.dovuto} /></TableCell>}
-                  {colonne.has("pagato") && <TableCell className="whitespace-nowrap text-right">
+                  </TableCell>}
+                  {colonne.has("netto") && <TableCell key="netto" className="whitespace-nowrap text-right"><ImportoRicevuta valore={saldo?.dovuto} /></TableCell>}
+                  {colonne.has("pagato") && <TableCell key="pagato" className="whitespace-nowrap text-right">
                     <ImportoRicevuta valore={saldo?.pagato} titolo={tr("Pagamenti registrati e anticipi compensati")} />
                   </TableCell>}
-                  {colonne.has("residuo") && <TableCell className={cn("whitespace-nowrap text-right font-medium", daPagare(f) && "text-amber-800 dark:text-amber-400")}>
+                  {colonne.has("residuo") && <TableCell key="residuo" className={cn("whitespace-nowrap text-right font-medium", daPagare(f) && "text-amber-800 dark:text-amber-400")}>
                     <ImportoRicevuta valore={saldo?.residuo} titolo={titoloResiduo} />
                   </TableCell>}
-                  {colonne.has("pagamento") && <TableCell className="whitespace-nowrap">
+                  {colonne.has("pagamento") && <TableCell key="pagamento" className="whitespace-nowrap">
                     {isNotaCreditoRicevuta(f.tipo_documento) ? (
                       f.stato === "rifiutata" ? <span className="text-muted-foreground">—</span> : (
                         <button type="button" className="whitespace-nowrap text-xs underline underline-offset-2 hover:text-foreground" onClick={() => setCollegaNota(f)}>
@@ -1703,14 +1729,14 @@ export default function FattureRicevutePage() {
                       </span>
                     )}
                   </TableCell>}
-                  {colonne.has("metodo") && <TableCell className="whitespace-nowrap text-xs">
+                  {colonne.has("metodo") && <TableCell key="metodo" className="whitespace-nowrap text-xs">
                     {[metodo, split ? "Split payment" : null].filter(Boolean).join(" · ") || <span className="text-muted-foreground">—</span>}
                   </TableCell>}
-                  {colonne.has("stato") && <TableCell><StatoBadge stato={f.stato} storico={f.storico_esterno} daLeggere={f.da_leggere} /></TableCell>}
-                  {colonne.has("verifica") && <TableCell>
+                  {colonne.has("stato") && <TableCell key="stato"><StatoBadge stato={f.stato} storico={f.storico_esterno} daLeggere={f.da_leggere} /></TableCell>}
+                  {colonne.has("verifica") && <TableCell key="verifica">
                     {f.stato === "rifiutata" ? <span className="text-muted-foreground">—</span> : !verifichePronte ? <span className="text-xs text-muted-foreground">{caricaVerifiche ? tr("Lettura verifica…") : tr("Verifica non disponibile")}</span> : <VerificaFatturaPill daRettificare={verifiche[f.id] === "da_rettificare"} motivoRettifica={f.rettifica_motivo} id={f.id} numero={f.numero_fattura} verificata={verificata(f)} puoCambiare={!!permessiCosti.canViewCosts && !permessiCosti.solaLettura} />}
                   </TableCell>}
-                  {colonne.has("collegata") && <TableCell>
+                  {colonne.has("collegata") && <TableCell key="collegata">
                     <div className="flex flex-nowrap items-center gap-1">
                     {(quoteOrdini[f.id]?.length ?? 0) > 0 ? (
                       <div className="flex flex-wrap items-center gap-0.5">
@@ -1794,12 +1820,13 @@ export default function FattureRicevutePage() {
                     )}
                     </div>
                   </TableCell>}
-                  {colonne.has("allegati") && <TableCell>
+                  {colonne.has("allegati") && <TableCell key="allegati">
                     <button type="button" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" title={tr("Apri la fattura per vedere o aggiungere allegati")} aria-label={tr("Allegati della fattura {numero_fattura}", { numero_fattura: String(f.numero_fattura ?? "") })} onClick={() => setRiepilogoId(f.id)}>
                       <Paperclip className="h-3.5 w-3.5" />{conteggiAllegati?.get(f.id) ?? 0}
                     </button>
                   </TableCell>}
-                  {colonne.has("note") && <TableCell className="max-w-[220px] truncate text-xs" title={f.note_interne ?? undefined}>{f.note_interne || <span className="text-muted-foreground">—</span>}</TableCell>}
+                  {colonne.has("note") && <TableCell key="note" className="max-w-[220px] truncate text-xs" title={f.note_interne ?? undefined}>{f.note_interne || <span className="text-muted-foreground">—</span>}</TableCell>}
+                  </>, sceltaColonne.colonne.map(c => c.chiave))}
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
                       <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8" aria-label={tr("Lettura fattura {numero_fattura}", { numero_fattura: String(f.numero_fattura ?? "") })}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem disabled={lettura.isPending} onSelect={() => lettura.mutate({id:f.id,daLeggere:!ricevutaDaLeggere(f)})}>{ricevutaDaLeggere(f) ? tr("Segna come letta") : tr("Segna come non letta")}</DropdownMenuItem></DropdownMenuContent></DropdownMenu>

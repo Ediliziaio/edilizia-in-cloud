@@ -1,3 +1,4 @@
+import { ordinaElementiTabella } from "@/lib/tabelle/ordinaElementiTabella";
 import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import {OrderTrashConfirmDialog} from './OrderTrashConfirmDialog';
 import {orderPaymentTiming} from "@/lib/orders/listPayments";
@@ -73,6 +74,7 @@ interface OrdersTableProps {
   onBulkDelete?: (orderIds: string[]) => void;
   isBulkUpdating?: boolean;
   visibleColumns?: Set<string>;
+  columnOrder?: string[];
   salespeopleMap?: Map<string, string[]>;
   laborMap?: Map<string, string[]>;
   supplierMap?: Map<string, string[]>;
@@ -139,6 +141,7 @@ export const OrdersTable = React.memo(function OrdersTable({
   onBulkDelete,
   isBulkUpdating = false,
   visibleColumns = new Set(["date"]),
+  columnOrder,
   salespeopleMap = new Map(),
   laborMap = new Map(),
   supplierMap = new Map(),
@@ -454,29 +457,31 @@ export const OrdersTable = React.memo(function OrdersTable({
                   aria-label={t("Seleziona tutti")}
                 />
               </TableHead>
-              <SortableTableHead column="order_code" label={t("Codice")} sortConfig={sortConfig} onSort={toggleSort} />
-              {visibleColumns.has("date") && <SortableTableHead column="created_at" label={t("Data")} sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell" />}
-              <SortableTableHead column="description" label={t("Descrizione")} sortConfig={sortConfig} onSort={toggleSort} />
-              {visibleColumns.has("customer") && <SortableTableHead column="customer" label={t("Nome Cliente")} sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell" />}
-              {visibleColumns.has("totalIvato") && <SortableTableHead column="totalIvato" label={t("Tot. Ivato")} sortConfig={sortConfig} onSort={toggleSort} className="hidden sm:table-cell text-right" />}
-              {visibleColumns.has("imponibile") && <SortableTableHead column="total_amount" label={t("Imponibile con varianti")} sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell text-right" />}
-              {visibleColumns.has("collected") && <SortableTableHead column="collected" label={t("Incassato")} sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell text-right" />}
-              {visibleColumns.has("due") && <SortableTableHead column="due" label={t("Da incassare")} sortConfig={sortConfig} onSort={toggleSort} className="hidden md:table-cell text-right" />}
-              {visibleColumns.has("variableCosts") && <SortableTableHead column="variableCosts" label={t("Costi Var.")} sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell text-right" />}
-              {visibleColumns.has("margin") && <SortableTableHead column="grossMargin" label={t("Margine")} sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell text-right" />}
-              {visibleColumns.has("deposit") && <SortableTableHead column="deposit" label={t("Acconti")} sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell text-right" />}
-              {visibleColumns.has("balance") && <SortableTableHead column="balance" label={t("Saldo")} sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell text-right" />}
-              {visibleColumns.has("salesperson") && <SortableTableHead column="salesperson" label={t("Venditore")} sortConfig={sortConfig} onSort={toggleSort} className="hidden xl:table-cell" />}
-              {visibleColumns.has("labor") && <SortableTableHead column="labor" label={t("Manodopera")} sortConfig={sortConfig} onSort={toggleSort} className="hidden xl:table-cell" />}
-              {visibleColumns.has("supplier") && <SortableTableHead column="supplier" label={t("Fornitore")} sortConfig={sortConfig} onSort={toggleSort} className="hidden xl:table-cell" />}
-              {visibleColumns.has("expected_date") && <SortableTableHead column="expected_date" label={t("Data Posa")} sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell" />}
-              {visibleColumns.has("warehouse_date") && <SortableTableHead column="warehouse_arrival_date" label={t("Arrivo Merce")} sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell" />}
-              {visibleColumns.has("work_start") && <SortableTableHead column="work_start_date" label={t("Inizio Lavori")} sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell" />}
-              {visibleColumns.has("work_end") && <SortableTableHead column="work_end_date" label={t("Fine Lavori")} sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell" />}
-              {visibleColumns.has("payment_type") && <SortableTableHead column="payment_type" label={t("Tipo Pagamento")} sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell" />}
-              {visibleColumns.has("payments") && <SortableTableHead column="payments" label={t("Pagamenti")} sortConfig={sortConfig} onSort={toggleSort} className="hidden xl:table-cell" />}
-              {visibleColumns.has("pipeline") && <TableHead>{t("Pipeline")}</TableHead>}
-              <SortableTableHead column="status" label={t("Stato")} sortConfig={sortConfig} onSort={toggleSort} />
+              {ordinaElementiTabella(<>
+              <SortableTableHead key="order_code" column="order_code" label={t("Codice")} sortConfig={sortConfig} onSort={toggleSort} />
+              {visibleColumns.has("date") && <SortableTableHead key="date" column="created_at" label={t("Data")} sortConfig={sortConfig} onSort={toggleSort} className="" />}
+              <SortableTableHead key="description" column="description" label={t("Descrizione")} sortConfig={sortConfig} onSort={toggleSort} />
+              {visibleColumns.has("customer") && <SortableTableHead key="customer" column="customer" label={t("Nome Cliente")} sortConfig={sortConfig} onSort={toggleSort} className="" />}
+              {visibleColumns.has("totalIvato") && <SortableTableHead key="totalIvato" column="totalIvato" label={t("Tot. Ivato")} sortConfig={sortConfig} onSort={toggleSort} className="text-right" />}
+              {visibleColumns.has("imponibile") && <SortableTableHead key="imponibile" column="total_amount" label={t("Imponibile con varianti")} sortConfig={sortConfig} onSort={toggleSort} className="text-right" />}
+              {visibleColumns.has("collected") && <SortableTableHead key="collected" column="collected" label={t("Incassato")} sortConfig={sortConfig} onSort={toggleSort} className="text-right" />}
+              {visibleColumns.has("due") && <SortableTableHead key="due" column="due" label={t("Da incassare")} sortConfig={sortConfig} onSort={toggleSort} className="text-right" />}
+              {visibleColumns.has("variableCosts") && <SortableTableHead key="variableCosts" column="variableCosts" label={t("Costi Var.")} sortConfig={sortConfig} onSort={toggleSort} className="text-right" />}
+              {visibleColumns.has("margin") && <SortableTableHead key="margin" column="grossMargin" label={t("Margine")} sortConfig={sortConfig} onSort={toggleSort} className="text-right" />}
+              {visibleColumns.has("deposit") && <SortableTableHead key="deposit" column="deposit" label={t("Acconti")} sortConfig={sortConfig} onSort={toggleSort} className="text-right" />}
+              {visibleColumns.has("balance") && <SortableTableHead key="balance" column="balance" label={t("Saldo")} sortConfig={sortConfig} onSort={toggleSort} className="text-right" />}
+              {visibleColumns.has("salesperson") && <SortableTableHead key="salesperson" column="salesperson" label={t("Venditore")} sortConfig={sortConfig} onSort={toggleSort} className="" />}
+              {visibleColumns.has("labor") && <SortableTableHead key="labor" column="labor" label={t("Manodopera")} sortConfig={sortConfig} onSort={toggleSort} className="" />}
+              {visibleColumns.has("supplier") && <SortableTableHead key="supplier" column="supplier" label={t("Fornitore")} sortConfig={sortConfig} onSort={toggleSort} className="" />}
+              {visibleColumns.has("expected_date") && <SortableTableHead key="expected_date" column="expected_date" label={t("Data Posa")} sortConfig={sortConfig} onSort={toggleSort} className="" />}
+              {visibleColumns.has("warehouse_date") && <SortableTableHead key="warehouse_date" column="warehouse_arrival_date" label={t("Arrivo Merce")} sortConfig={sortConfig} onSort={toggleSort} className="" />}
+              {visibleColumns.has("work_start") && <SortableTableHead key="work_start" column="work_start_date" label={t("Inizio Lavori")} sortConfig={sortConfig} onSort={toggleSort} className="" />}
+              {visibleColumns.has("work_end") && <SortableTableHead key="work_end" column="work_end_date" label={t("Fine Lavori")} sortConfig={sortConfig} onSort={toggleSort} className="" />}
+              {visibleColumns.has("payment_type") && <SortableTableHead key="payment_type" column="payment_type" label={t("Tipo Pagamento")} sortConfig={sortConfig} onSort={toggleSort} className="" />}
+              {visibleColumns.has("payments") && <SortableTableHead key="payments" column="payments" label={t("Pagamenti")} sortConfig={sortConfig} onSort={toggleSort} className="" />}
+              {visibleColumns.has("pipeline") && <TableHead key="pipeline">{t("Pipeline")}</TableHead>}
+              <SortableTableHead key="status" column="status" label={t("Stato")} sortConfig={sortConfig} onSort={toggleSort} />
+              </>, columnOrder)}
               <TableHead className="text-right">{t("Azioni")}</TableHead>
             </TableRow>
           </TableHeader>
@@ -520,7 +525,8 @@ export const OrdersTable = React.memo(function OrdersTable({
                       aria-label={t("Seleziona commessa {codice}", { codice: order.order_code || order.description || "" })}
                     />
                   </TableCell>
-                  <TableCell className="font-medium">
+                  {ordinaElementiTabella(<>
+                  <TableCell key="order_code" className="font-medium">
                     <div className={`flex items-center gap-1.5 min-w-0 ${riga.livello === 1 ? "pl-6" : ""}`}>
                       {riga.figlie.length > 0 && (
                         <button
@@ -555,11 +561,11 @@ export const OrdersTable = React.memo(function OrdersTable({
                       fuori). Pagamenti da 1280; Cliente (sotto i 1536 sta sotto la
                       descrizione), Data, Imponibile, Incassato e Costi da 1536. */}
                   {visibleColumns.has("date") && (
-                    <TableCell className="hidden 2xl:table-cell text-muted-foreground text-sm whitespace-nowrap">
+                    <TableCell key="date" className="text-muted-foreground text-sm whitespace-nowrap">
                       {format(new Date(order.created_at), "dd/MM/yyyy")}
                     </TableCell>
                   )}
-                  <TableCell className="min-w-[160px] max-w-[240px] xl:max-w-[300px]" title={order.description ?? undefined}>
+                  <TableCell key="description" className="min-w-[160px] max-w-[240px] xl:max-w-[300px]" title={order.description ?? undefined}>
                     <span className="line-clamp-2 lg:line-clamp-1 whitespace-normal text-sm font-medium leading-5 text-slate-800">{order.description}</span>
                     {visibleColumns.has("customer") && order.customer && (
                       <span className="block truncate text-xs text-muted-foreground lg:hidden">
@@ -568,7 +574,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                     )}
                   </TableCell>
                   {visibleColumns.has("customer") && (
-                    <TableCell className="hidden lg:table-cell">
+                    <TableCell key="customer" className="">
                       <span className="block max-w-[160px] truncate" title={order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : undefined}>
                         {order.customer
                           ? `${order.customer.first_name} ${order.customer.last_name}`
@@ -577,7 +583,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                     </TableCell>
                   )}
                   {visibleColumns.has("totalIvato") && (
-                    <TableCell className="hidden sm:table-cell text-right" title={generale ? t("Somma delle commesse dentro") : undefined}>
+                    <TableCell key="totalIvato" className="text-right" title={generale ? t("Somma delle commesse dentro") : undefined}>
                       {libera ? (
                         <span className="text-muted-foreground" title={t("Prezzo di listino: l'unità non è ancora venduta")}>
                           {formatCurrency(totalIvato)}<span className="block text-xs">{t("listino")}</span>
@@ -589,19 +595,19 @@ export const OrdersTable = React.memo(function OrdersTable({
                     </TableCell>
                   )}
                   {visibleColumns.has("imponibile") && (
-                    <TableCell className="hidden 2xl:table-cell text-right">
+                    <TableCell key="imponibile" className="text-right">
                       {formatCurrency(generale ? ricaviFiglie : contrattoPattuito(order))}
                     </TableCell>
                   )}
                   {visibleColumns.has("collected") && (
-                    <TableCell className="hidden 2xl:table-cell text-right">
+                    <TableCell key="collected" className="text-right">
                       <span className={collected > 0 ? "text-emerald-600 dark:text-emerald-400" : ""}>
                         {formatCurrency(collected)}
                       </span>
                     </TableCell>
                   )}
                   {visibleColumns.has("due") && (
-                    <TableCell className="hidden md:table-cell text-right">
+                    <TableCell key="due" className="text-right">
                       {(libera && due <= 0.01) || nienteVenduto ? (
                         <span className="text-muted-foreground">—<span className="block text-xs">{libera ? t("Non venduta") : t("Niente di venduto")}</span></span>
                       ) : (
@@ -615,14 +621,14 @@ export const OrdersTable = React.memo(function OrdersTable({
                     </TableCell>
                   )}
                   {visibleColumns.has("variableCosts") && (
-                    <TableCell className="hidden 2xl:table-cell text-right">
+                    <TableCell key="variableCosts" className="text-right">
                       <span className="text-muted-foreground">
                         {costsState === "loading" ? "…" : costsState === "error" ? "—" : formatCurrency(variableCosts)}
                       </span>
                     </TableCell>
                   )}
                   {visibleColumns.has("margin") && (
-                    <TableCell className="hidden lg:table-cell text-right">
+                    <TableCell key="margin" className="text-right">
                       {costsState !== "ready" ? <span className="text-xs text-muted-foreground">{costsState === "loading" ? t("Verifica margine…") : t("Margine non disponibile")}</span> : marginReliable ? (
                         <span className={`font-medium ${
                           grossMargin < 0 ? "text-destructive" : marginPercent < 20 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"
@@ -637,70 +643,70 @@ export const OrdersTable = React.memo(function OrdersTable({
                     </TableCell>
                   )}
                   {visibleColumns.has("deposit") && (
-                    <TableCell className="hidden lg:table-cell text-right">
+                    <TableCell key="deposit" className="text-right">
                       {formatCurrency((order.deposit_amount || 0) + (order.deposit_2_amount || 0))}
                     </TableCell>
                   )}
                   {visibleColumns.has("balance") && (
-                    <TableCell className="hidden lg:table-cell text-right">
+                    <TableCell key="balance" className="text-right">
                       {formatCurrency(order.balance_amount || 0)}
                     </TableCell>
                   )}
                   {visibleColumns.has("salesperson") && (
-                    <TableCell className="hidden xl:table-cell text-sm">
+                    <TableCell key="salesperson" className="text-sm">
                       <span className="block max-w-[140px] truncate" title={(salespeopleMap.get(order.id) || []).join(", ") || undefined}>
                         {(salespeopleMap.get(order.id) || []).join(", ") || "—"}
                       </span>
                     </TableCell>
                   )}
                   {visibleColumns.has("labor") && (
-                    <TableCell className="hidden xl:table-cell text-sm">
+                    <TableCell key="labor" className="text-sm">
                       <span className="block max-w-[140px] truncate" title={(laborMap.get(order.id) || []).join(", ") || undefined}>
                         {(laborMap.get(order.id) || []).join(", ") || "—"}
                       </span>
                     </TableCell>
                   )}
                   {visibleColumns.has("supplier") && (
-                    <TableCell className="hidden xl:table-cell text-sm">
+                    <TableCell key="supplier" className="text-sm">
                       <span className="block max-w-[140px] truncate" title={(supplierMap.get(order.id) || []).join(", ") || undefined}>
                         {(supplierMap.get(order.id) || []).join(", ") || "—"}
                       </span>
                     </TableCell>
                   )}
                   {visibleColumns.has("expected_date") && (
-                    <TableCell className="hidden lg:table-cell text-sm text-muted-foreground whitespace-nowrap">
+                    <TableCell key="expected_date" className="text-sm text-muted-foreground whitespace-nowrap">
                       {order.expected_date ? format(new Date(order.expected_date), "dd/MM/yyyy") : "—"}
                     </TableCell>
                   )}
                   {visibleColumns.has("warehouse_date") && (
-                    <TableCell className="hidden lg:table-cell text-sm text-muted-foreground whitespace-nowrap">
+                    <TableCell key="warehouse_date" className="text-sm text-muted-foreground whitespace-nowrap">
                       {order.warehouse_arrival_date ? format(new Date(order.warehouse_arrival_date), "dd/MM/yyyy") : "—"}
                     </TableCell>
                   )}
                   {visibleColumns.has("work_start") && (
-                    <TableCell className="hidden lg:table-cell text-sm text-muted-foreground whitespace-nowrap">
+                    <TableCell key="work_start" className="text-sm text-muted-foreground whitespace-nowrap">
                       {order.work_start_date ? format(new Date(order.work_start_date), "dd/MM/yyyy") : "—"}
                     </TableCell>
                   )}
                   {visibleColumns.has("work_end") && (
-                    <TableCell className="hidden lg:table-cell text-sm text-muted-foreground whitespace-nowrap">
+                    <TableCell key="work_end" className="text-sm text-muted-foreground whitespace-nowrap">
                       {order.work_end_date ? format(new Date(order.work_end_date), "dd/MM/yyyy") : "—"}
                     </TableCell>
                   )}
                   {visibleColumns.has("payment_type") && (
-                    <TableCell className="hidden lg:table-cell text-sm">
+                    <TableCell key="payment_type" className="text-sm">
                       {order.payment_type || "—"}
                     </TableCell>
                   )}
                   {visibleColumns.has("payments") && (
-                    <TableCell className="hidden xl:table-cell">
+                    <TableCell key="payments" className="">
                       <Badge className={due <= 0.01 ? "bg-green-100 text-green-800 border-0" : timing.overdueDays ? "bg-red-100 text-red-800 border-0" : "bg-orange-100 text-orange-800 border-0"}>
                         {order.order_type==='appaltatore_lavoro' && order.valorizzazione==='a_misura' && totalIvato<=0 ? t("Da rendicontare · stima nel piano") : totalIvato <= 0 ? t("Importo da definire") : due <= 0.01 ? t("Saldato") : timing.overdueDays ? t("Rate scadute") : t("Da incassare")}
                       </Badge>
                     </TableCell>
                   )}
-                  {visibleColumns.has("pipeline") && <TableCell className="text-xs">{riferimentiPipeline?.get(order.id) ?? pipelineFallback}</TableCell>}
-                  <TableCell>
+                  {visibleColumns.has("pipeline") && <TableCell key="pipeline" className="text-xs">{riferimentiPipeline?.get(order.id) ?? pipelineFallback}</TableCell>}
+                  <TableCell key="status">
                     {stato ? (
                       <Badge
                         variant="outline"
@@ -717,6 +723,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                       "—"
                     )}
                   </TableCell>
+                  </>, columnOrder)}
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>

@@ -858,6 +858,7 @@ function WarehousePage() {
             riga intera sopra i numeri per un bottone. */}
         <OperationalSummary
           compatto
+          fascia
           inLinea
           label={t("Riepilogo magazzino")}
           title={activeWarehouse?.name ?? t("Tutti i magazzini")}
@@ -865,7 +866,7 @@ function WarehousePage() {
           error={riepilogoError}
           note={<>{riepilogoFetching ? t("Aggiornamento del riepilogo…") : t("Totali del magazzino selezionato, indipendenti dai filtri dell’elenco.")}{riepilogoError && <Button variant="ghost" size="sm" className="ml-2 text-white hover:bg-white/10 hover:text-white" onClick={() => void refetchRiepilogo()}>{t("Riprova riepilogo")}</Button>}</>}
         >
-        <div className="col-span-full space-y-3">
+        <div className="col-span-full min-w-0 flex-1 space-y-3">
           {gruppoAttivo === "preparare" ? (
             <WarehouseStats riepilogo={riepilogo?.righe} activeFilter={activeStatsFilter} onCardClick={handleStatsCardClick} isLoading={riepilogoLoading} canViewCosts={canViewCosts} visibleCards={metricPreferences.order} />
           ) : (

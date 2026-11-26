@@ -13,6 +13,7 @@ import { type OrderWithDetails, type OrderStatus, getGrossOrderAmount } from "@/
 interface OrdersPipelineViewProps {
   controls?: React.ReactNode;
   onMove?: (order: OrderWithDetails) => void;
+  onDelete?: (order: OrderWithDetails) => void;
   canEdit: boolean;
   showAmounts: boolean;
   orders: OrderWithDetails[];
@@ -87,7 +88,7 @@ const CONFRONTO: Record<Ordinamento, (a: OrderWithDetails, b: OrderWithDetails) 
   valore: perValore,
 };
 
-export function OrdersPipelineView({ orders, statuses, onStatusChange, controls, onMove, canEdit, showAmounts }: OrdersPipelineViewProps) {
+export function OrdersPipelineView({ orders, statuses, onStatusChange, controls, onMove, onDelete, canEdit, showAmounts }: OrdersPipelineViewProps) {
   const t = useT();
   const [ordinamento, setOrdinamento] = useState<Ordinamento>(leggiOrdinamento);
   const [compresse, setCompresse] = useState<Set<string>>(leggiCompresse);
@@ -251,7 +252,7 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange, controls,
               destinazioni={destinazioni}
               onPhaseChange={spostaInFase}
               collapsed={compresse.has(status.id)}
-              onMove={onMove} onToggleCollapse={alternaColonna}
+              onMove={onMove} onDelete={onDelete} onToggleCollapse={alternaColonna}
             />
           ))}
 
@@ -266,7 +267,7 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange, controls,
               destinazioni={destinazioni}
               onPhaseChange={spostaInFase}
               collapsed={compresse.has(ID_SENZA_STATO)}
-              onMove={onMove} onToggleCollapse={alternaColonna}
+              onMove={onMove} onDelete={onDelete} onToggleCollapse={alternaColonna}
             />
           )}
         </div>

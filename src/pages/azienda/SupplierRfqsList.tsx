@@ -403,7 +403,7 @@ export default function SupplierRfqsList() {
         altre={filtered.length > 0 ? [{ gruppo: t("Esporta"), etichetta: "CSV (Excel)", icona: FileDown, onSelect: esportaCsv }] : undefined}
         nuovo={{ etichetta: t("Nuova richiesta"), onClick: () => setNewOpen(true), disabled: !canCreate }}
       />
-      <OperationalSummary compatto label={t("Riepilogo richieste d’offerta")} title={t("Le richieste ai fornitori")} icon={FileQuestion} error={isError} note={t("Richieste aperte, risposte e aggiudicazioni nel perimetro corrente.")}>
+      <OperationalSummary compatto fascia label={t("Riepilogo richieste d’offerta")} title={t("Le richieste ai fornitori")} icon={FileQuestion} error={isError} note={t("Richieste aperte, risposte e aggiudicazioni nel perimetro corrente.")}>
         <OperationalSummaryMetric
           icon={FileQuestion}
           label={t("Aperte")}

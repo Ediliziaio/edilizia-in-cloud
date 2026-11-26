@@ -35,6 +35,18 @@ const disegna = () => render(
 const tabella = () => screen.getByRole("table");
 
 describe("commesse generali nella lista", () => {
+  it("riordina intestazioni e celle nello stesso ordine senza spostare selezione e azioni", () => {
+    render(<MemoryRouter><OrdersTable orders={[riga("a", "A1", 100)]} onDelete={vi.fn()} isDeleting={false}
+      orderCosts={new Map()} visibleColumns={new Set(["totalIvato"])}
+      columnOrder={["description", "totalIvato", "order_code", "status"]} /></MemoryRouter>);
+    const righe = within(tabella()).getAllByRole("row");
+    const intestazioni = within(righe[0]).getAllByRole("columnheader").map(h => h.textContent);
+    expect(intestazioni.indexOf("Descrizione")).toBeLessThan(intestazioni.indexOf("Codice"));
+    const celle = within(righe[1]).getAllByRole("cell");
+    expect(celle[1]).toHaveTextContent("Lavoro A1");
+    expect(celle[2]).toHaveTextContent("100,00");
+    expect(celle[3]).toHaveTextContent("A1");
+  });
   it("nella lista compatta apre il gruppo separatamente dal link e rispetta la visibilità degli importi", () => {
     render(<MemoryRouter><OrdersTable
       orders={[riga("g", "C-014", 0), riga("a", "ODL-1", 1000), riga("b", "ODL-2", 500)]}

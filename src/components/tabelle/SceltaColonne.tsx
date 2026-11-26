@@ -236,7 +236,7 @@ export function SceltaColonne({
   return (
     <Popover open={aperto} onOpenChange={setAperto}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs">
+        <Button variant="outline" size="sm" aria-label={t("Colonne")} className="h-8 gap-1.5 px-2.5 text-xs">
           <Columns3 className="h-3.5 w-3.5" />
           {compatto ? null : t("Colonne")}
           {/* Il contatore è un ornamento: dentro il nome accessibile il pulsante

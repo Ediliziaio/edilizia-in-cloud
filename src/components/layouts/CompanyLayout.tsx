@@ -95,6 +95,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 import { useGarePilot } from "@/modules/gare-appalti/useGarePilot";
 import { macroAreas, type NavItem, type MacroArea } from "@/lib/sidebarConfig";
+import { voceSidebarAttiva } from "@/lib/sidebarAttiva";
 import { getSmartCruscottoPath } from "@/lib/dashboardRouting";
 import { canAccessMediaLibrary } from "@/lib/mediaLibrary";
 import { useBillingMode } from "@/contexts/BillingModeContext";
@@ -454,36 +455,9 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
   const { state, isMobile: sidebarAPannello } = useSidebar();
   // Nel pannello a scomparsa (tablet) le voci sono sempre per esteso.
   const collapsed = state === "collapsed" && !sidebarAPannello;
+  const searchCorrente = useLocation().search;
 
-  const isActive = (url: string) => {
-    if (url === "/azienda") return pathname === "/azienda";
-    if (url === "/azienda/marketing") return pathname === "/azienda/marketing";
-    // "Fatture" è l'hub unico della fatturazione nativa: documenti, rubrica,
-    // incassi, SDI e fiscalità vivono come tab interne.
-    // Ma se la rotta ha una voce propria (es. /azienda/documenti/fatture-ricevute),
-    // la voce propria è l'unica accesa.
-    if (url === "/azienda/documenti") {
-      if (pathname === url) return true;
-      if (!pathname.startsWith(url + "/")) return false;
-      return !ALL_NAV_URLS.some(
-        otherUrl => otherUrl !== url && otherUrl.startsWith(url + "/") &&
-          (pathname === otherUrl || pathname.startsWith(otherUrl + "/"))
-      );
-    }
-    if (pathname === url) return true;
-    if (pathname.startsWith(url + "/")) {
-      // Cerca una voce più specifica in TUTTA la nav (cross-area), non solo in
-      // questa area: altrimenti un URL-genitore in un'area (es. Personale & HR
-      // /azienda/personale) si accende su una route figlia che appartiene a una
-      // voce di un'altra area (es. Portale /azienda/personale/portale).
-      const hasMoreSpecific = ALL_NAV_URLS.some(
-        otherUrl => otherUrl !== url && otherUrl.startsWith(url + "/") &&
-          (pathname === otherUrl || pathname.startsWith(otherUrl + "/"))
-      );
-      return !hasMoreSpecific;
-    }
-    return false;
-  };
+  const isActive = (url: string) => voceSidebarAttiva(url, pathname, searchCorrente, ALL_NAV_URLS);
 
   const hasActiveChild = visibleItems.some(item => isActive(item.url));
   const AreaIcon = area.icon;
@@ -618,6 +592,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                       <div key={group.label ?? `g${gi}`}>
                         {group.label ? (
                           <SidebarSubcategory
+                            compatto
                             label={group.label}
                             badge={group.items.length}
                             isOpen={isGroupOpen(group.label)}
@@ -711,6 +686,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                   <div key={group.label ?? `g${gi}`}>
                     {group.label ? (
                       <SidebarSubcategory
+                        compatto
                         label={group.label}
                         isOpen={isGroupOpen(group.label)}
                         onToggle={() => toggleGroup(group.label!)}

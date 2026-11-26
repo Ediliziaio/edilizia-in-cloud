@@ -27,7 +27,9 @@ describe("i dettagli dell'elenco commesse", () => {
   it("riusa le commesse già lette e carica l'anno precedente solo col confronto aperto", () => {
     const pagina = leggi("src/pages/azienda/OrdersList.tsx");
     expect(pagina).toContain('lazy(() => import("@/components/orders/OrdersMonthlyChart")');
-    expect(pagina).toContain("const monthlyOrders = scopeOrders;");
+    // Il riepilogo economico sostituisce scopeOrders: il grafico riusa queste
+    // righe già lette, senza avviare una seconda lettura dell'anno corrente.
+    expect(pagina).toContain("for (const order of globalStats?.economicRows ?? [])");
     expect(pagina).toMatch(/queryKey: \["orders-monthly-sales-chart", "comparison-v1".*\n\s+enabled: [^\n]*analisiAperta[^\n]*comparisonEnabled,/);
   });
 });

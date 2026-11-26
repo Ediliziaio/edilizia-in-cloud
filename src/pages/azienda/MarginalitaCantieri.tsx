@@ -981,7 +981,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
         </div>
         {error && <p role="alert" className="mb-3 rounded-lg bg-red-400/10 px-3 py-2 text-sm text-red-100">{t("Dati non caricati: premi Aggiorna dati per riprovare.")}</p>}
         {anomaliesError && <p role="alert" className="mb-2 text-xs text-amber-100">{t("Anomalie non caricate: premi Aggiorna dati per riprovare.")}</p>}
-        <div className="grid gap-1.5 min-[420px]:grid-cols-2 xl:min-w-0 xl:flex-1 xl:grid-cols-4">
+        <div className="grid gap-1.5 min-[420px]:grid-cols-2 xl:min-w-0 xl:flex-1 xl:grid-cols-4 [&_[data-riquadro]]:flex [&_[data-riquadro]]:flex-wrap [&_[data-riquadro]]:items-center [&_[data-riquadro]]:gap-x-2 [&_[data-riquadro]]:border-0 [&_[data-riquadro]]:bg-transparent [&_[data-riquadro]]:px-1 [&_[data-riquadro]_h3]:text-[13px] [&_[data-riquadro]_h3]:font-normal [&_[data-riquadro]_h3]:normal-case [&_[data-riquadro]_h3]:tracking-normal [&_[data-riquadro]_button]:text-base">
           <OrdersSummaryCard compatto id="margine-diretto" title={t("Margine diretto")} icon={BarChart3}
             value={error || kpi.reliableCount === 0 ? "—" : formatCurrency(kpi.totMargine)} loading={isLoading}
             note={t("{n} commesse calcolabili", { n: String(kpi.reliableCount ?? "") })}

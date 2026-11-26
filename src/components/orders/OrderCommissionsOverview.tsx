@@ -1276,7 +1276,7 @@ export function OrderCommissionsOverview() {
         {t("Non è stato possibile caricare tutti i compensi. Gli importi potrebbero essere incompleti.")}
         <Button variant="outline" size="sm" className="ml-3" onClick={() => { queryClient.invalidateQueries({ queryKey: ["orders-commissions-overview"] }); queryClient.invalidateQueries({ queryKey: ["orders-variable-compensations"] }); queryClient.invalidateQueries({ queryKey: ["orders-commissions-overview-ledger"] }); }}>{t("Riprova")}</Button>
       </div>}
-      <OperationalSummary compatto label={t("Riepilogo provvigioni")} title={t("Compensi e pagamenti")} icon={WalletCards} columns={3} error={!!legacyError || !!genericError || !!ledgerError} note={t("Importi riferiti ai filtri attivi.")}>
+      <OperationalSummary compatto fascia label={t("Riepilogo provvigioni")} title={t("Compensi e pagamenti")} icon={WalletCards} columns={3} error={!!legacyError || !!genericError || !!ledgerError} note={t("Importi riferiti ai filtri attivi.")}>
         <OperationalSummaryMetric label={t("Da pagare ora")} isLoading={isLoading} value={formatCurrency(totals.payable)} icon={WalletCards} tone="green" />
         <OperationalSummaryMetric label={t("In attesa")} isLoading={isLoading} value={formatCurrency(totals.held)} icon={Clock3} tone="orange" />
         <OperationalSummaryMetric label={t("Già pagato")} isLoading={isLoading} value={formatCurrency(totals.paid)} icon={CheckCircle2} tone="blue" />

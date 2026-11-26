@@ -10,6 +10,8 @@ import type { ImportiFinanziari } from "@/lib/orders/importiFinanziari";
 export interface OrdersReaderFilters {
   companyId: string | undefined;
   periodIds?: string[] | null;
+  /** Le commesse assegnate alle altre pipeline non appartengono alla principale. */
+  excludeOrderIds?: string[];
   supportOrderIds?: string[];
   focusIds: string[] | null;
   paymentIds: string[] | null;
@@ -69,6 +71,15 @@ export async function readOrdersPage(
       if (focusIds !== null) intersect(focusIds);
       if (statusFilter === "__assistenza__" && filters.supportOrderIds) intersect(filters.supportOrderIds);
       if (paymentIds !== null) intersect(paymentIds);
+      if (filters.excludeOrderIds?.length) {
+        const esclusi = new Set(filters.excludeOrderIds);
+        if (allowedOrderIds === null) {
+          const ids = await readAllOrderRows((start, end) => supabase.from("orders").select("id")
+            .eq("company_id", companyId).is("deleted_at", null).order("id").range(start, end));
+          allowedOrderIds = ids.map(row => row.id);
+        }
+        allowedOrderIds = allowedOrderIds.filter(id => !esclusi.has(id));
+      }
 
       if (salespersonFilter !== "all") {
         const spOrders = await readAllOrderRows((start, end) => supabase

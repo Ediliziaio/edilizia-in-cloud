@@ -5,11 +5,13 @@ import { useDashboardBillingKPI } from "@/hooks/billing/useDashboardBillingKPI";
 import { leggiModalitaCommesse } from "@/lib/finanziamenti/leggiModalitaCommesse";
 import {OrdersCarryoverSummary} from "@/components/orders/OrdersAnnualScope";
 import { OrdersTrashDialog } from '@/components/orders/OrdersTrashDialog';
+import { OrderTrashConfirmDialog } from "@/components/orders/OrderTrashConfirmDialog";
 import {AlertDialog,AlertDialogAction,AlertDialogCancel,AlertDialogContent,AlertDialogDescription,AlertDialogFooter,AlertDialogHeader,AlertDialogTitle} from '@/components/ui/alert-dialog';
 import {currentManagementScope, orderEconomicsRow, summarizeOrderEconomics, orderYear, previousOrderReasons, orderScopeGroupIds, type OrderScopeGroup} from "@/lib/orders/annualScope";
 import {TICKET_STATI_CHIUSI} from "@/types/tickets";
 import {readOrdersPage, soloQuesteCommesse, type OrdersReaderFilters} from "@/lib/orders/listQuery";
 import { parseOrderAdvancedFilters } from "@/lib/orders/advancedFilters";
+import { ordiniNelleFasi } from "@/lib/orders/filtriPipeline";
 import { useState, useMemo, useCallback, useEffect, Suspense, type ReactNode } from "react";
 import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { matchesOrderPayment } from "@/lib/orders/listPayments";
@@ -68,13 +70,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePipelineLocali } from "@/lib/orders/pipelineLocali";
-import { mostraPipelinePrincipale, pipelineOperativa } from "@/lib/orders/pipelinePrincipale";
+import { mostraPipelinePrincipale, pipelineOperativa, PIPELINE_PRINCIPALE, SENZA_PIPELINE } from "@/lib/orders/pipelinePrincipale";
+import { UniformSelect } from "@/components/ui/uniform-select";
+import { useColonneTabella, type TraduciPreferenza } from "@/hooks/useColonneTabella";
+import { ElencoColonne, TestaSceltaColonne } from "@/components/tabelle/SceltaColonne";
+import type { ColonnaTabella } from "@/lib/tabelle/colonneTabella";
 import { PipelineCommesseBoard } from "@/components/orders/PipelineCommesseBoard";
-import { FiltriCommesseCompatti, OrdersFilters, OrderSearch } from "@/components/orders/OrdersFilters";
+import { FiltriCommesseCompatti, OrdersFilters } from "@/components/orders/OrdersFilters";
 import { OrdersTable } from "@/components/orders/OrdersTable";
 import { CSVImportDialog } from "@/components/shared/CSVImportDialog";
 import { commessaDaRiga } from "@/lib/orders/importaCommesse";
@@ -101,6 +106,41 @@ import {
 
 /** Commessa cliente spenta e, da telefono, nessuna generale creabile. */
 const NIENTE_DA_CREARE = "Da telefono una commessa generale si legge soltanto: creala dal computer";
+const COLONNE_COMMESSE: ColonnaTabella[] = [
+  { chiave: "order_code", etichetta: "Codice", fissa: true },
+  { chiave: "date", etichetta: "Data commessa" },
+  { chiave: "description", etichetta: "Descrizione", fissa: true },
+  { chiave: "customer", etichetta: "Cliente" },
+  { chiave: "totalIvato", etichetta: "Totale IVA inclusa" },
+  { chiave: "imponibile", etichetta: "Imponibile" },
+  { chiave: "collected", etichetta: "Incassato" },
+  { chiave: "due", etichetta: "Da incassare" },
+  { chiave: "variableCosts", etichetta: "Costi variabili" },
+  { chiave: "margin", etichetta: "Margine", spentaDiSerie: true },
+  { chiave: "deposit", etichetta: "Acconti", spentaDiSerie: true },
+  { chiave: "balance", etichetta: "Saldo", spentaDiSerie: true },
+  { chiave: "salesperson", etichetta: "Venditore", spentaDiSerie: true },
+  { chiave: "labor", etichetta: "Manodopera", spentaDiSerie: true },
+  { chiave: "supplier", etichetta: "Fornitore", spentaDiSerie: true },
+  { chiave: "expected_date", etichetta: "Data posa", spentaDiSerie: true },
+  { chiave: "warehouse_date", etichetta: "Arrivo merce", spentaDiSerie: true },
+  { chiave: "work_start", etichetta: "Inizio lavori", spentaDiSerie: true },
+  { chiave: "work_end", etichetta: "Fine lavori", spentaDiSerie: true },
+  { chiave: "payment_type", etichetta: "Tipo pagamento", spentaDiSerie: true },
+  { chiave: "payments", etichetta: "Pagamenti" },
+  { chiave: "pipeline", etichetta: "Pipeline" },
+  { chiave: "status", etichetta: "Stato", fissa: true },
+];
+const VECCHIE_COLONNE_COMMESSE = ["orders-visible-columns-v3", "orders-visible-columns-v2"] as const;
+const traduciColonneCommesse: TraduciPreferenza = (valore, chiave) => {
+  if (!Array.isArray(valore) || !valore.every(v => typeof v === "string")) return null;
+  const visibili = new Set<string>(valore);
+  if (chiave.endsWith("-v2")) visibili.add("pipeline");
+  return {
+    ordine: COLONNE_COMMESSE.filter(c => c.fissa || visibili.has(c.chiave)).map(c => c.chiave),
+    nascoste: COLONNE_COMMESSE.filter(c => !c.fissa && !visibili.has(c.chiave)).map(c => c.chiave),
+  };
+};
 
 function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNode }) {
   const t = useT();
@@ -109,7 +149,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
   const { isNative } = useBillingMode();
   const { toast } = useToast();
   const { remainingOrders, currentPlan } = useSubscriptionLimits();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const isCommercialistaMode = searchParams.get("commercialistaMode") === "1";
   const appaltatoreEnabled = useAppaltatoreModuleEnabled();
   const [showOrderTypeDialog, setShowOrderTypeDialog] = useState(false);
@@ -151,7 +191,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
   // ritorno dal menu, che va all'indirizzo nudo (26/11/2026). La vista non si ripristina:
   // tabella o schede è una scelta che sta già nel localStorage suo.
   useOperationalViewMemory("commesse", [
-    "q", "status", "payment", "generali", "cliente", "anno", "mese", "venditore",
+    "q", "status", "pipeline", "payment", "generali", "cliente", "anno", "mese", "venditore",
     "manodopera", "fornitore", "focus", "gruppo", "avanzati",
     "contratto_dal", "contratto_al", "merce_dal", "merce_al", "posa_dal", "posa_al",
     "nascondi_completati",
@@ -161,7 +201,10 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
   const debouncedSearch = useDebounce(searchQuery, 400);
   const setSearchQuery = useCallback((v: string) => setURLParam("searchQuery", v), [setURLParam]);
   const statusFilter = urlFilters.statusFilter;
-  const setStatusFilter = useCallback((v: string) => setURLParam("statusFilter", v), [setURLParam]);
+  const setStatusFilter = useCallback((v: string) => {
+    if (v === "all") setURLParam("statusFilter", v);
+    else setURLParams({ statusFilter: v, hideCompleted: false });
+  }, [setURLParam, setURLParams]);
   const paymentFilter = urlFilters.paymentFilter as "all" | "pending" | "paid" | "overdue";
   const setPaymentFilter = useCallback((v: "all" | "pending" | "paid" | "overdue") => setURLParam("paymentFilter", v), [setURLParam]);
   const generaliFilter = urlFilters.generaliFilter as "all" | "solo" | "senza";
@@ -190,6 +233,8 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
     return Object.entries(archivioTabella.fasiPerCommessa)
       .filter(([, fase]) => fasi.has(fase)).map(([id]) => id).sort();
   }, [pipelineSelezionata, archivioTabella.fasiPerCommessa]);
+  const esclusiPipeline = useMemo(() => pipelineSelezionata ? [] : Object.keys(archivioTabella.fasiPerCommessa).sort(), [pipelineSelezionata, archivioTabella.fasiPerCommessa]);
+  const [daCestinarePipeline, setDaCestinarePipeline] = useState<OrderWithDetails | null>(null);
   const riferimentiPipeline = useMemo(() => {
     const fasi = new Map(archivioTabella.pipeline.flatMap(p => p.fasi.map(f => [f.id, p.nome + " · " + f.name] as const)));
     return new Map(Object.entries(archivioTabella.fasiPerCommessa).map(([ordine, fase]) => [ordine, fasi.get(fase) ?? "—"]));
@@ -413,11 +458,17 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
     && !amountMin && !amountMax && salespersonFilter === "all" && laborFilter === "all" && supplierFilter === "all"
     && focusIds === null && countActiveFilters(sidebarFilters) === 0
     && !contractDateRange.from && !contractDateRange.to && !warehouseDateRange.from && !warehouseDateRange.to
-    && !expectedDateRange.from && !expectedDateRange.to && monthFilter === "all";
+    && !expectedDateRange.from && !expectedDateRange.to && monthFilter === "all" && !pipelineSelezionata && esclusiPipeline.length === 0;
+  const fasePipeline = pipelineSelezionata?.fasi.some(f => f.id === statusFilter) ? statusFilter : null;
+  const filtraFasi = pipelineSelezionata && (fasePipeline || sidebarFilters.includeStatuses.length || sidebarFilters.excludeStatuses.length);
+  const idsFase = filtraFasi ? ordiniNelleFasi(archivioTabella.fasiPerCommessa, fasePipeline, sidebarFilters.includeStatuses, sidebarFilters.excludeStatuses) : null;
+  const focusPipeline = idsPipeline === null ? focusIds : focusIds === null ? idsPipeline : focusIds.filter(id => idsPipeline.includes(id));
+  const focusConPipeline = idsFase === null ? focusPipeline : focusPipeline === null ? idsFase : focusPipeline.filter(id => idsFase.includes(id));
+  const sidebarLettura: OrdersFilterState = pipelineSelezionata ? { ...sidebarFilters, includeStatuses: [], excludeStatuses: [] } : sidebarFilters;
   const filtriLettura: OrdersReaderFilters = {
-    soloPrimoLivello, generaliFilter, companyId:effectiveCompany?.id, periodIds:isYearCorrente ? listScopeIds : null, supportOrderIds:gestione?.supportOrderIds, focusIds, paymentIds, salespersonFilter, laborFilter, supplierFilter, sidebarFilters, customerFilter, debouncedSearch, statusFilter, supportStatusId, lastStatusId, hideCompleted, amountMin, amountMax, isYearCorrente, monthFilter, currentYear, hasSelectedYear, selectedYear, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir
+    soloPrimoLivello, generaliFilter, companyId:effectiveCompany?.id, periodIds:isYearCorrente ? listScopeIds : null, supportOrderIds:gestione?.supportOrderIds, focusIds: focusConPipeline, excludeOrderIds: esclusiPipeline, paymentIds, salespersonFilter, laborFilter, supplierFilter, sidebarFilters: sidebarLettura, customerFilter, debouncedSearch, statusFilter: fasePipeline ? "all" : statusFilter, supportStatusId, lastStatusId, hideCompleted, amountMin, amountMax, isYearCorrente, monthFilter, currentYear, hasSelectedYear, selectedYear, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir
   };
-  const fetchOrderRows = (from: number, to: number, filtroFocus = focusIds, signal?: AbortSignal) =>
+  const fetchOrderRows = (from: number, to: number, filtroFocus = focusConPipeline, signal?: AbortSignal) =>
     readOrdersPage({ ...filtriLettura, focusIds: filtroFocus }, from, to, signal);
 
   // Con ordinamento dal più recente, le commesse dell'anno corrente vengono
@@ -428,9 +479,10 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
     && !searchQuery && !debouncedSearch && !hideCompleted && !amountMin && !amountMax
     && salespersonFilter === "all" && laborFilter === "all" && supplierFilter === "all"
     && countActiveFilters(sidebarFilters) === 0 && monthFilter === "all"
+    && idsPipeline === null && esclusiPipeline.length === 0 && !archivioTabella.caricamento && !archivioTabella.errore
     && !contractDateRange.from && !contractDateRange.to && !warehouseDateRange.from && !warehouseDateRange.to
     && !expectedDateRange.from && !expectedDateRange.to;
-  const chiaveElenco = ["orders", effectiveCompany?.id, page, pageSize, soloPrimoLivello, debouncedSearch, statusFilter, paymentFilter, generaliFilter, customerFilter, yearFilter, monthFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir, sidebarFilters, focusIds, paymentIds, listScopeIds, gestione?.supportOrderIds] as const;
+  const chiaveElenco = ["orders", effectiveCompany?.id, page, pageSize, soloPrimoLivello, debouncedSearch, statusFilter, paymentFilter, generaliFilter, customerFilter, yearFilter, monthFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir, sidebarFilters, focusConPipeline, esclusiPipeline, paymentIds, listScopeIds, gestione?.supportOrderIds] as const;
   const { data: ordersResult, isLoading: isLoadingOrders, isError: isOrdersError, isFetching: isOrdersFetching, error: ordersError, refetch: refetchOrders } = useQuery({
     queryKey: chiaveElenco,
     queryFn: ({ signal }) => withAbortableClientTimeout((readSignal) => {
@@ -445,7 +497,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
       };
       return readOrdersPage(filtriLettura, (page - 1) * pageSize, page * pageSize - 1, readSignal, importiDellaPrimaLettura);
     }, "Elenco commesse", 20_000, signal),
-    enabled: !!effectiveCompany?.id && viewMode === "table" && focusReady && !isLoadingStatuses && !isStatusesError,
+    enabled: !!effectiveCompany?.id && viewMode === "table" && focusReady && !archivioTabella.caricamento && !archivioTabella.errore && !isLoadingStatuses && !isStatusesError,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
@@ -561,10 +613,10 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
 
   const {data: allOrdersForPipeline = [], isPending: pipelinePending, isLoadingError: pipelineError,
     isRefetchError: pipelineRefreshError, isFetching: pipelineFetching, refetch: retryPipeline} = useQuery({
-    queryKey: ["orders-pipeline", effectiveCompany?.id, filterReaderKey(), soloPrimoLivello, idsPipeline, sortField, sortDir],
+    queryKey: ["orders-pipeline", effectiveCompany?.id, filterReaderKey(), soloPrimoLivello, idsPipeline, esclusiPipeline, sortField, sortDir],
     enabled: !!effectiveCompany?.id && viewMode === "pipeline" && focusReady && !archivioTabella.caricamento && !archivioTabella.errore && !isLoadingStatuses && !isStatusesError,
     queryFn: ({ signal }) => withAbortableClientTimeout(async (readSignal) => {
-      const ids = idsPipeline && focusIds ? idsPipeline.filter(id => focusIds.includes(id)) : idsPipeline ?? focusIds;
+      const ids = focusConPipeline;
       if (ids?.length === 0) return [];
       return (await fetchOrderRows(0, Infinity, ids, readSignal)).orders;
     }, "Pipeline commesse", 20_000, signal),
@@ -739,62 +791,20 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
 
   const orders = rawOrders;
 
-  // Column visibility state
-  const OPTIONAL_COLUMNS = [
-    { key: "date", label: "Data Commessa" },
-    { key: "pipeline", label: "Pipeline" },
-    { key: "customer", label: "Cliente" },
-    { key: "totalIvato", label: "Tot. Ivato" },
-    { key: "imponibile", label: "Imponibile" },
-    { key: "collected", label: "Incassato" },
-    { key: "due", label: "Da Ricevere" },
-    { key: "variableCosts", label: "Costi Variabili" },
-    { key: "margin", label: "Margine" },
-    { key: "deposit", label: "Acconti" },
-    { key: "balance", label: "Saldo" },
-    { key: "payments", label: "Pagamenti" },
-    { key: "salesperson", label: "Venditore" },
-    { key: "labor", label: "Manodopera" },
-    { key: "supplier", label: "Fornitore" },
-    { key: "expected_date", label: "Data Posa" },
-    { key: "warehouse_date", label: "Arrivo Merce" },
-    { key: "work_start", label: "Inizio Lavori" },
-    { key: "work_end", label: "Fine Lavori" },
-    { key: "payment_type", label: "Tipo Pagamento" },
-  ] as const;
-
-  const DEFAULT_COLUMNS = new Set(["pipeline", "date", "customer", "totalIvato", "imponibile", "collected", "due", "variableCosts", "payments"]);
-
-  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
-    try {
-      const saved = localStorage.getItem("orders-visible-columns-v3");
-      if (!saved) {
-        const precedenti = localStorage.getItem("orders-visible-columns-v2");
-        if (precedenti) return new Set(["pipeline", ...JSON.parse(precedenti)]);
-      }
-      if (saved) return new Set(JSON.parse(saved));
-    } catch { /* storage non disponibile — silenzioso */ }
-    return new Set(DEFAULT_COLUMNS);
-  });
-
-  // ── Visibilità finanziaria: nasconde colonne/KPI monetari per chi non è
-  // autorizzato. Importi→canViewOrderAmounts, costi→canViewCosts, margine→canViewMargins.
+  // Preferenze personali per azienda, con migrazione delle colonne scelte in precedenza.
   const AMOUNT_COL_KEYS = new Set(["totalIvato", "imponibile", "collected", "due", "deposit", "balance", "payments"]);
   const COST_COL_KEYS = new Set(["variableCosts", "labor"]);
   const isColumnAllowed = (key: string) =>
     (!AMOUNT_COL_KEYS.has(key) || orderPerms.canViewOrderAmounts) &&
     (!COST_COL_KEYS.has(key) || orderPerms.canViewCosts) &&
     (key !== "margin" || orderPerms.canViewMargins);
-
-  const toggleColumn = (key: string) => {
-    setVisibleColumns(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      try { localStorage.setItem("orders-visible-columns-v3", JSON.stringify([...next])); } catch { /* Safari Private Browsing */ }
-      return next;
-    });
-  };
+  const definizioneColonne = useMemo(() => COLONNE_COMMESSE.filter(c =>
+    (!["totalIvato", "imponibile", "collected", "due", "deposit", "balance", "payments"].includes(c.chiave) || orderPerms.canViewOrderAmounts) &&
+    (!["variableCosts", "labor"].includes(c.chiave) || orderPerms.canViewCosts) &&
+    (c.chiave !== "margin" || orderPerms.canViewMargins)
+  ), [orderPerms.canViewOrderAmounts, orderPerms.canViewCosts, orderPerms.canViewMargins]);
+  const colonneCommesse = useColonneTabella("commesse", definizioneColonne, VECCHIE_COLONNE_COMMESSE, traduciColonneCommesse);
+  const visibleColumns = colonneCommesse.visibili;
 
   // Snapshot economico canonico per la pagina corrente. "marginReliable"
   // descrive la completezza minima del dato, non se il margine e' positivo.
@@ -1469,9 +1479,8 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
       operazioni_margine: { titolo: t("Margine a finire operazioni"), valore: soldi(to?.margineAFinire), icona: Percent, nota: t("stima su {n} operazioni con il piano", { n: to?.conPiano ?? 0 }) },
     };
     return valori;
-  }, [globalStats, riepilogoPeriodo, selectedMonthLabel, isYearCorrente, currentYear, lastStatusId, supportStatusId, scopeMargins, costiSostenuti, ordersPerMonth, numeriGenerali, kpiFatturazione]);
+  }, [globalStats, riepilogoPeriodo, selectedMonthLabel, isYearCorrente, currentYear, lastStatusId, supportStatusId, scopeMargins, costiSostenuti, ordersPerMonth, numeriGenerali, kpiFatturazione, t]);
 
-  const barraBacheca = viewMode === "pipeline" && focusReady && !isStatusesError && !pipelinePending && !pipelineError && !scopeError;
   const opzioniTabella = viewMode === "table" ? (
     <div role="group" aria-label={t("Opzioni tabella commesse")} className="flex shrink-0 flex-wrap items-center gap-1.5 max-lg:p-3">
       {/* 25/11/2026: ordinamento e colonne in un bottone solo. I due menu dell'ordinamento stavano nella riga
@@ -1522,35 +1531,9 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
             </Select>
             </div>
           </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium">{t("Colonne visibili")}</p>
-              <button
-                type="button"
-                onClick={() => {
-                  setVisibleColumns(new Set(DEFAULT_COLUMNS));
-                  try { localStorage.setItem("orders-visible-columns-v3", JSON.stringify([...DEFAULT_COLUMNS])); } catch { /* Storage non disponibile: ripristino comunque la vista. */ }
-                }}
-                className="text-xs text-muted-foreground hover:text-foreground underline"
-              >
-                {t("Ripristina")}
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-1 max-h-[320px] overflow-y-auto">
-              {OPTIONAL_COLUMNS.filter(col => isColumnAllowed(col.key)).map(col => (
-                <label
-                  key={col.key}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer transition-colors"
-                >
-                  <Checkbox
-                    checked={visibleColumns.has(col.key)}
-                    onCheckedChange={() => toggleColumn(col.key)}
-                    className="shrink-0"
-                  />
-                  <span className="text-xs truncate">{t(col.label)}</span>
-                </label>
-              ))}
-            </div>
+          <div className="border-t pt-3">
+            <TestaSceltaColonne colonne={colonneCommesse} />
+            <div className="max-h-[320px] overflow-y-auto"><ElencoColonne colonne={colonneCommesse} /></div>
           </div>
         </PopoverContent>
       </Popover>
@@ -1566,8 +1549,27 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
       )}
     </div>
   ) : null;
-  const filtriCommesse = (<OrdersFilters panel={barraBacheca}
-            trailingControls={opzioniTabella}
+  const cambiaPipeline = (valore: string) => {
+    const next = new URLSearchParams(searchParams);
+    const filtri: OrdersFilterState = { ...sidebarFilters, includeStatuses: [], excludeStatuses: [] };
+    next.set("pipeline", valore);
+    next.delete("status");
+    if (countActiveFilters(filtri)) next.set("avanzati", JSON.stringify(filtri)); else next.delete("avanzati");
+    setSearchParams(next);
+    setPage(1);
+  };
+  const opzioniPipeline = <>
+    {mostraPipelinePrincipale(effectiveCompany?.id) && <option value={PIPELINE_PRINCIPALE}>{t("Principale")}</option>}
+    {archivioTabella.pipeline.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+    {!mostraPipelinePrincipale(effectiveCompany?.id) && <option value={SENZA_PIPELINE}>{t("Senza pipeline")}</option>}
+  </>;
+  const filtriCommesse = (<OrdersFilters
+            trailingControls={<>
+              <Button variant="outline" size="sm" onClick={() => setSidebarOpen(true)} aria-label={t("Apri filtri avanzati")} className="h-8 gap-1 px-2 text-xs"><SlidersHorizontal className="size-3.5" />{t("Filtri")}{countActiveFilters(sidebarFilters) > 0 && <span className="rounded-full bg-primary px-1 text-primary-foreground">{countActiveFilters(sidebarFilters)}</span>}</Button>
+              <ToggleGroup type="single" value={viewMode} onValueChange={value => value && setViewMode(value as "table" | "pipeline")} className="rounded-md border">
+                <ToggleGroupItem value="table" aria-label={t("Vista tabella")} className="h-8 px-2"><LayoutList className="size-3.5" /></ToggleGroupItem>
+                <ToggleGroupItem value="pipeline" aria-label={t("Vista pipeline")} className="h-8 px-2"><Columns3 className="size-3.5" /></ToggleGroupItem>
+              </ToggleGroup>{opzioniTabella}</>}
             summary={
               <span role="status" aria-live="polite" title={t("Risultati con i filtri attuali")}>
                 <strong className="tabular-nums text-slate-900">{conteggioFiltri ?? (conteggioNonDisponibile ? "—" : "…")}</strong> {t("risultati")}
@@ -1577,7 +1579,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
             onSearchChange={setSearchQuery}
             statusFilter={statusFilter}
             onStatusFilterChange={setStatusFilter}
-            statuses={statuses}
+            statuses={pipelineSelezionata?.fasi ?? statuses}
             yearFilter={yearFilter}
             onYearFilterChange={handleYearChange}
             availableYears={availableYears}
@@ -1598,6 +1600,9 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
   return (
     // pb-20 rimosso: la bottom nav mobile non è più overlay (è sotto il main) — erano 160px di vuoto
     <div className="orders-workspace flex flex-col gap-3">
+      <OrderTrashConfirmDialog open={!!daCestinarePipeline} onOpenChange={open => { if (!open) setDaCestinarePipeline(null); }}
+        label={daCestinarePipeline?.order_code || daCestinarePipeline?.description} orderId={daCestinarePipeline?.id} companyId={effectiveCompany?.id}
+        onConfirm={scollega => daCestinarePipeline ? deleteOrderMutation.mutateAsync({ orderId: daCestinarePipeline.id, scollega }) : Promise.resolve()} />
       {orderPerms.canEditSettingsOrders && effectiveCompany?.id && <RiepilogoCommesseScelta open={sceltaRiepilogoAperta}
         onOpenChange={setSceltaRiepilogoAperta} companyId={effectiveCompany.id} scelta={sceltaRiepilogo}
         gruppi={{ appalti: modelliGenerali.includes("appalto"), operazioni: modelliGenerali.includes("sviluppo") || modelliGenerali.includes("compravendita") }} />}
@@ -1640,36 +1645,6 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
           {canDeleteOrders && <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs max-lg:hidden" onClick={() => setTrashOpen(true)}>{t("Cestino")}</Button>}
           {/* Qui c'era anche il selettore dell'anno: lo stesso della riga dei
               filtri sotto (dove ora ha anche «{anno} + precedenti da gestire»). */}
-          {/* Filtri avanzati */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setSidebarOpen(true)}
-            aria-label={t("Apri filtri avanzati")}
-            className="h-8 px-2.5 text-xs max-lg:hidden"
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5 sm:mr-1" />
-            <span className="hidden sm:inline">{t("Filtri")}</span>
-            {countActiveFilters(sidebarFilters) > 0 && (
-              <span className="ml-1 bg-primary text-primary-foreground text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
-                {countActiveFilters(sidebarFilters)}
-              </span>
-            )}
-          </Button>
-          {/* Vista tabella/pipeline — solo desktop */}
-          <ToggleGroup
-            type="single"
-            value={viewMode}
-            onValueChange={(value) => value && setViewMode(value as "table" | "pipeline")}
-            className="hidden rounded-md border lg:flex"
-          >
-            <ToggleGroupItem value="table" aria-label={t("Vista tabella")} className="h-8 px-2.5">
-              <LayoutList className="h-3.5 w-3.5" />
-            </ToggleGroupItem>
-            <ToggleGroupItem value="pipeline" aria-label={t("Vista pipeline")} className="h-8 px-2.5">
-              <Columns3 className="h-3.5 w-3.5" />
-            </ToggleGroupItem>
-          </ToggleGroup>
           {(!isMobile || !telefonoStretto || canDeleteOrders) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1782,11 +1757,12 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
         segnaposto={t("Cerca commesse")} filtriAttivi={nFiltriCompatti}
         onApriFiltri={() => setFiltriCompattiAperti(true)}
       />
+      <div className="flex items-center gap-2 lg:hidden"><label htmlFor="pipeline-commesse-mobile" className="text-xs text-muted-foreground">{t("Pipeline")}</label><UniformSelect id="pipeline-commesse-mobile" aria-label={t("Pipeline commesse")} className="h-9 w-auto max-w-[220px] text-xs" disabled={archivioTabella.caricamento || !!archivioTabella.errore} value={pipelineSelezionata?.id ?? (mostraPipelinePrincipale(effectiveCompany?.id) ? PIPELINE_PRINCIPALE : SENZA_PIPELINE)} onChange={e => cambiaPipeline(e.target.value)}>{opzioniPipeline}</UniformSelect></div>
       <PannelloFiltri aperto={filtriCompattiAperti} onAperto={setFiltriCompattiAperti}
         attivi={nFiltriCompatti + Number(!!searchQuery)} onAzzera={clearAllFilters}
         risultati={conteggioFiltri ?? undefined}>
         <FiltriCommesseCompatti
-          statusFilter={statusFilter} onStatusFilterChange={setStatusFilter} statuses={statuses}
+          statusFilter={statusFilter} onStatusFilterChange={setStatusFilter} statuses={pipelineSelezionata?.fasi ?? statuses}
           yearFilter={yearFilter} onYearFilterChange={handleYearChange} availableYears={availableYears}
           paymentFilter={paymentFilter} onPaymentFilterChange={setPaymentFilter}
           monthFilter={monthFilter} onMonthFilterChange={handleMonthChange}
@@ -1803,12 +1779,12 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
       {/* Telefono e tablet: le commesse attive e lo stato a un tocco (per il titolare, 23/11/2026). Al posto
           di «Solo aperte» + «Riepilogo»: «Attive» nasconde le completate, ogni stato filtra solo quello, il
           riepilogo resta sempre aperto. */}
-      {statuses.length > 0 && <div role="group" aria-label={t("Stato delle commesse")} className={cn(RIGA_PILLOLE, "-mx-1 px-1 lg:hidden")}>
+      {(pipelineSelezionata?.fasi ?? statuses).length > 0 && <div role="group" aria-label={t("Stato delle commesse")} className={cn(RIGA_PILLOLE, "-mx-1 px-1 lg:hidden")}>
         <button type="button" aria-pressed={statusFilter === "all" && hideCompleted} onClick={() => setURLParams({ hideCompleted: true, statusFilter: "all" })}
           className={cn(PILLOLA, statusFilter === "all" && hideCompleted ? PILLOLA_ATTIVA : PILLOLA_SPENTA)}>{t("Attive")}</button>
         <button type="button" aria-pressed={statusFilter === "all" && !hideCompleted} onClick={() => setURLParams({ hideCompleted: false, statusFilter: "all" })}
           className={cn(PILLOLA, statusFilter === "all" && !hideCompleted ? PILLOLA_ATTIVA : PILLOLA_SPENTA)}>{t("Tutte")}</button>
-        {statuses.map((st: { id: string; name: string; color?: string | null }) => (
+        {(pipelineSelezionata?.fasi ?? statuses).map((st: { id: string; name: string; color?: string | null }) => (
           <button key={st.id} type="button" aria-pressed={statusFilter === st.id}
             onClick={() => setURLParams(statusFilter === st.id ? { hideCompleted: false, statusFilter: "all" } : { hideCompleted: false, statusFilter: st.id })}
             className={cn(PILLOLA, statusFilter === st.id ? PILLOLA_ATTIVA : PILLOLA_SPENTA)}>
@@ -1902,7 +1878,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
       <OrdersFilterSidebar
         filters={sidebarFilters}
         onFiltersChange={setSidebarFilters}
-        statuses={statuses}
+        statuses={pipelineSelezionata?.fasi ?? statuses}
         ordersCount={conteggioFiltri}
         optionsError={filterOptionsError}
         onRetryOptions={() => void retryFilterOptions()}
@@ -1925,7 +1901,14 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
       />
 
       <div className="space-y-2">
-          {!barraBacheca && <div className="max-lg:hidden">{filtriCommesse}</div>}
+          <div className="flex items-center gap-2 max-lg:hidden">
+            <UniformSelect aria-label={t("Pipeline commesse")} className="h-8 w-auto max-w-[180px] shrink-0 text-xs" disabled={archivioTabella.caricamento || !!archivioTabella.errore}
+              value={pipelineSelezionata?.id ?? (mostraPipelinePrincipale(effectiveCompany?.id) ? PIPELINE_PRINCIPALE : SENZA_PIPELINE)}
+              onChange={e => cambiaPipeline(e.target.value)}>
+              {opzioniPipeline}
+            </UniformSelect>
+            <div className="min-w-0 flex-1">{filtriCommesse}</div>
+          </div>
 
           {viewMode === "pipeline" && pipelineRefreshError && !archivioTabella.errore && (
             <div role="alert" className="text-sm text-amber-800">
@@ -1943,7 +1926,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
             ? <div role="alert" className="text-sm text-amber-800">{t("Elenco completo non disponibile.")} <Button size="sm" variant="link" onClick={() => { if (scopeError) void ricaricaPerimetro(); else void refetchOrders(); }}>{t("Riprova")}</Button></div>
             : <p role="status" className="text-sm text-muted-foreground">{t("Calcolo del conteggio e del pregresso…")}</p>)}
           {/* Content */}
-          {isStatusesError ? (<div role="alert" className="rounded-xl border border-amber-200 p-4">{t("Impossibile caricare gli stati delle commesse.")} <Button onClick={() => void retryStatuses()}>{t("Riprova")}</Button></div>) : scopeError && !mostraPrimaPagina ? (
+          {archivioTabella.errore ? (<div role="alert" className="rounded-xl border border-amber-200 p-4">{archivioTabella.errore} <Button onClick={() => void archivioTabella.riprova()}>{t("Riprova")}</Button></div>) : isStatusesError ? (<div role="alert" className="rounded-xl border border-amber-200 p-4">{t("Impossibile caricare gli stati delle commesse.")} <Button onClick={() => void retryStatuses()}>{t("Riprova")}</Button></div>) : scopeError && !mostraPrimaPagina ? (
             <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4">{t("Impossibile verificare i dati necessari per questi filtri.")} <Button variant="outline" onClick={() => {if (controlFocus !== "all") void retryScopeMargins(); void ricaricaPerimetro();}}>{t("Riprova")}</Button></div>
           ) : viewMode === "table" && isOrdersError && !mostraPrimaPagina ? (
             <Card className="border-red-200 bg-red-50/70">
@@ -2019,9 +2002,8 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
               </CardContent>
             </Card>
           ) : viewMode === "pipeline" && archivioTabella.errore ? (<div role="alert">{archivioTabella.errore} <Button variant="outline" onClick={() => void archivioTabella.riprova()}>{t("Riprova")}</Button></div>) : viewMode === "pipeline" && pipelineError ? (<div role="alert" className="rounded-xl border border-amber-200 p-4">{t("Impossibile caricare la pipeline.")} <Button onClick={() => void retryPipeline()}>{t("Riprova")}</Button></div>) : viewMode === "pipeline" && pipelinePending ? (<p role="status">{t("Caricamento pipeline…")}</p>) : viewMode === "pipeline" ? (
-            <PipelineCommesseBoard azienda={effectiveCompany?.id ?? ""} key={effectiveCompany?.id}
-              filtri={vistaCompatta ? undefined : <><OrderSearch expand value={searchQuery} onChange={setSearchQuery} /><Popover><PopoverTrigger asChild><Button variant="outline" size="sm" className="h-8 gap-1.5"><SlidersHorizontal className="size-3.5" />{hasAnyFilter ? t("Filtri attivi") : t("Filtri")}</Button></PopoverTrigger>
-                <PopoverContent align="start" className="w-[min(380px,90vw)] rounded-xl p-4"><h3 className="mb-3 text-sm font-semibold">{t("Filtri commesse")}</h3>{filtriCommesse}</PopoverContent></Popover></>}
+            <PipelineCommesseBoard azienda={effectiveCompany?.id ?? ""} key={effectiveCompany?.id} mostraSelettore={false}
+              onDelete={canDeleteOrders ? setDaCestinarePipeline : undefined}
               orders={allOrdersForPipeline}
               statuses={statuses}
               showAmounts={orderPerms.canViewOrderAmounts}
@@ -2047,6 +2029,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
                 onBulkDelete={canDeleteOrders ? handleBulkDelete : undefined}
                 isBulkUpdating={isBulkUpdating}
                 visibleColumns={new Set([...visibleColumns].filter(isColumnAllowed))}
+                columnOrder={colonneCommesse.colonne.map(c => c.chiave)}
                 salespeopleMap={salespeopleMap}
                 laborMap={laborMap}
                 supplierMap={supplierMap}

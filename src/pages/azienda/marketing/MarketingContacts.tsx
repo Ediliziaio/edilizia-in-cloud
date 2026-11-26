@@ -1,3 +1,7 @@
+import { COLUMNS, DEFAULT_VISIBLE } from "@/components/marketing/colonneContatti";
+import { SceltaColonne } from "@/components/tabelle/SceltaColonne";
+import { useColonneTabella, type TraduciPreferenza } from "@/hooks/useColonneTabella";
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { filtroSoloMiei, usePipelines } from "@/hooks/useOpportunitiesData";
 import { refreshCrmContacts } from "@/lib/refreshCrmContacts";
@@ -5,7 +9,7 @@ import { useContactsLive } from "@/hooks/useContactsLive";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown, Loader2, ChevronLeft, ChevronRight, ContactRound, AlertTriangle, CheckCircle2, ShieldCheck, Sparkles, ExternalLink, Mail, Phone, Building2, CalendarClock, Copy, Radar, BookmarkPlus } from "lucide-react";
+import { Search, Upload, Plus, Download, Filter, ArrowUpDown, ChevronDown, Loader2, ChevronLeft, ChevronRight, ContactRound, AlertTriangle, CheckCircle2, ShieldCheck, Sparkles, ExternalLink, Mail, Phone, Building2, CalendarClock, Copy, Radar, BookmarkPlus } from "lucide-react";
 import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,7 +23,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ContactsTable, type MarketingContact, type SortField, type SortDirection, loadVisibleColumns, saveVisibleColumns, getStorageKey } from "@/components/marketing/ContactsTable";
+import { ContactsTable, type MarketingContact, type SortField, type SortDirection, getStorageKey } from "@/components/marketing/ContactsTable";
 import { getInitials, getAvatarColor, formatContactDate } from "@/lib/contactUtils";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { cleanPhone } from "@/lib/contactUtils";
@@ -38,7 +42,6 @@ import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/use
 import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
 import { messaggioEsportazioneNonRiuscita, registraEsportazioneCrm } from "@/lib/export/esportazioniCrm";
 import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
-import { ContactFieldsSheet } from "@/components/marketing/ContactFieldsSheet";
 import { ContactFiltersSheet, type ContactFilters, EMPTY_CONTACT_FILTERS, countActiveContactFilters } from "@/components/marketing/ContactFiltersSheet";
 import { usePermissions } from "@/hooks/usePermissions";
 import { queryKeys } from "@/lib/queryKeys";
@@ -57,6 +60,11 @@ import { cn } from "@/lib/utils";
 import { BOTTONE_NUOVO, BOTTONE_SECONDARIO } from "@/components/orders/TestataScheda";
 import { CercaConFiltri, PannelloFiltri, PilloleFiltro, RigaMobile } from "@/components/mobile/FiltriMobile";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+const traduciColonneContatti: TraduciPreferenza = valore => {
+  if (!Array.isArray(valore) || !valore.every(v => typeof v === "string")) return null;
+  const visibili = new Set<string>(valore);
+  return { ordine: [...visibili], nascoste: COLUMNS.filter(c => c.key !== "name" && !visibili.has(c.key)).map(c => c.key) };
+};
 // Map filter field keys to actual DB columns
 const CSV_FIELDS: ImportField[] = [
   { key: "first_name", label: "Nome", required: true, oppure: ["fullname"] },
@@ -586,8 +594,13 @@ export default function MarketingContacts() {
   const setSortField = useCallback((v: SortField) => setURLParam("sortField", v), [setURLParam]);
   const sortDirection = normalizedUrl.sortDirection as SortDirection;
   const setSortDirection = useCallback((v: SortDirection) => setURLParam("sortDirection", v), [setURLParam]);
-  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => loadVisibleColumns(columnsStorageKey));
-  const [fieldsSheetOpen, setFieldsSheetOpen] = useState(false);
+  const definizioneColonne = useMemo(() => [
+    ...COLUMNS.map(c => ({ chiave: c.key, etichetta: c.label, fissa: c.key === "name", spentaDiSerie: !DEFAULT_VISIBLE.includes(c.key as typeof DEFAULT_VISIBLE[number]) })),
+    ...contactCustomFields.map(c => ({ chiave: `cf_${c.id}`, etichetta: c.name, spentaDiSerie: true })),
+  ], [contactCustomFields]);
+  const vecchieColonne = useMemo(() => [columnsStorageKey, "contacts-visible-columns"], [columnsStorageKey]);
+  const colonneContatti = useColonneTabella("contatti", definizioneColonne, vecchieColonne, traduciColonneContatti);
+  const visibleColumns = colonneContatti.visibili;
   const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
   const [filters, setFilters] = useState<ContactFilters>(EMPTY_CONTACT_FILTERS);
   const [exporting, setExporting] = useState(false);
@@ -678,9 +691,6 @@ export default function MarketingContacts() {
     }
   }, [search, setURLParam, urlFilters.searchInput]);
 
-  useEffect(() => {
-    setVisibleColumns(loadVisibleColumns(columnsStorageKey));
-  }, [columnsStorageKey]);
 
   useEffect(() => {
     setSelectedIds(new Set());
@@ -1404,10 +1414,6 @@ export default function MarketingContacts() {
     setDialogOpen(true);
   };
 
-  const handleApplyColumns = (cols: Set<string>) => {
-    setVisibleColumns(cols);
-    saveVisibleColumns(cols, columnsStorageKey);
-  };
 
   const handleApplyFilters = (f: ContactFilters) => {
     setFilters(f);
@@ -1722,7 +1728,7 @@ export default function MarketingContacts() {
               {/* Una riga sola: ricerca, filtri e viste rapide. Prima le viste
                   stavano su una riga tutta loro, vuota per metà schermo, e la
                   tabella partiva più in basso. */}
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
                 {/* Desktop: la ricerca per prima, è il gesto più frequente.
                     Elastica: per andare a capo conta 180 px, poi si allarga
                     fino a 280 se c'è spazio. A larghezza fissa era lei a
@@ -1750,36 +1756,13 @@ export default function MarketingContacts() {
                   <ArrowUpDown className="h-3.5 w-3.5" />
                   {t("Ordina")}
                 </Button>
-                {/* Icona sola accanto a «Ordina»: in fondo a destra finiva da
-                    sola su una riga nuova appena le viste la riempivano. */}
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="hidden h-8 w-8 sm:inline-flex"
-                  onClick={() => setFieldsSheetOpen(true)}
-                  title={t("Gestisci campi")}
-                  aria-label={t("Gestisci campi")}
-                >
-                  <Settings2 className="h-3.5 w-3.5" />
-                </Button>
+                <span className="hidden sm:inline-flex"><SceltaColonne colonne={colonneContatti} /></span>
 
                 {/* Viste rapide: filtrano l'intero database, non la pagina. */}
-                {QUALITY_FILTERS.map((filter) => (
-                  <button
-                    key={filter.value}
-                    type="button"
-                    aria-pressed={qualityFilter === filter.value}
-                    className={`hidden h-7 shrink-0 rounded-full border px-2.5 text-xs font-medium transition-colors sm:inline-block ${
-                      qualityFilter === filter.value
-                        ? "border-orange-300 bg-orange-50 text-orange-700"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                    }`}
-                    title={t(filter.description)}
-                    onClick={() => setQualityFilter(filter.value)}
-                  >
-                    {t(filter.label)}
-                  </button>
-                ))}
+                <UniformSelect aria-label={t("Qualità contatti")} value={qualityFilter} onChange={e => setQualityFilter(e.target.value as ContactQualityFilter)} className="hidden h-8 w-auto min-w-[150px] text-xs sm:inline-flex">
+                  {QUALITY_FILTERS.map(filter => <option key={filter.value} value={filter.value}>{t(filter.label)}</option>)}
+                  {EXTRA_QUALITY_FILTERS.map(value => <option key={value} value={value}>{t(({ missing_contact: "Dati di contatto incompleti", has_email: "Con email", has_phone: "Con telefono", contactable: "Contattabili", no_contact: "Non contattabili" })[value])}</option>)}
+                </UniformSelect>
                 {qualityStats.duplicates > 0 && (
                   <span className="hidden shrink-0 items-center gap-1 text-[11px] text-amber-700 sm:inline-flex" title={t("Stessa email o stesso telefono di un altro contatto di questa pagina")}>
                     <Copy className="h-3 w-3" /> {qualityStats.duplicates} {t("possibili doppioni in questa pagina")}
@@ -1912,6 +1895,7 @@ export default function MarketingContacts() {
                 </div>
               }
               visibleColumns={visibleColumns}
+              columnOrder={colonneContatti.colonne.map(c => c.chiave)}
               customFields={contactCustomFields}
               customFieldValues={customFieldValues}
               canEdit={canEditContacts}
@@ -1923,13 +1907,6 @@ export default function MarketingContacts() {
       )}
 
       {/* Sheets */}
-      <ContactFieldsSheet
-        open={fieldsSheetOpen}
-        onOpenChange={setFieldsSheetOpen}
-        visibleColumns={visibleColumns}
-        onApply={handleApplyColumns}
-        customFields={contactCustomFields}
-      />
       <Dialog open={salvaListaOpen} onOpenChange={(o) => { setSalvaListaOpen(o); if (!o) setNomeListaDinamica(""); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>

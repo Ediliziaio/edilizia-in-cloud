@@ -4,7 +4,7 @@ import { Anchor as PopoverAnchor } from "@radix-ui/react-popover";
 import { useDraggable, useDndMonitor } from "@dnd-kit/core";
 import {
   AlertTriangle, ArrowRight, ArrowRightLeft, CalendarDays, ClipboardCheck, Eye, ListTodo, Mail, MapPin,
-  PackageCheck, Pencil, Users, Wallet, X,
+  PackageCheck, Pencil, Trash2, Users, Wallet, X,
 } from "lucide-react";
 import { Popover, PopoverContent } from "@/components/ui/popover";
 import {
@@ -34,6 +34,7 @@ interface OrdersPipelineCardProps {
   destinazioni?: PipelineTarget[];
   onPhaseChange?: (id: string, fase: string) => void;
   onMove?: (order: OrderWithDetails) => void;
+  onDelete?: (order: OrderWithDetails) => void;
 }
 
 const SIGLE_SOCIETARIE = /\b(?:S\.?R\.?L|S\.?P\.?A|S\.?A\.?S|S\.?N\.?C|A\.?P\.?S|E\.?T\.?S)\b/u;
@@ -152,7 +153,7 @@ function riepilogoConteggio(conteggio: ConteggioPipeline | null | undefined, vuo
 
 export const OrdersPipelineCard = memo(function OrdersPipelineCard({
   order, stage, isDraggable = false, canEdit = false, showAmounts = true,
-  destinazioni = [], onMove, onPhaseChange,
+  destinazioni = [], onMove, onPhaseChange, onDelete,
 }: OrdersPipelineCardProps) {
   const navigate = useNavigate();
   const t = useT();
@@ -220,10 +221,10 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
   );
 
   const dettagli = (
-    <div className="space-y-1.5 px-2.5 pb-1.5 pt-2">
+    <div className="space-y-1 px-2.5 pb-1.5 pt-2">
       <div>
         <div className="flex min-w-0 items-baseline gap-1.5">
-          <p dir="auto" className="min-w-0 truncate text-[13px] font-semibold leading-tight">{customerName}</p>
+          <p dir="auto" className="min-w-0 truncate text-xs font-semibold leading-tight">{customerName}</p>
           {codice && <span className="shrink-0 text-[10px] font-medium tabular-nums text-muted-foreground">{codice}</span>}
         </div>
         <p dir="auto" className="mt-0.5 truncate text-[11px] text-muted-foreground">{descrizione}</p>
@@ -231,7 +232,7 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
       {valore && (
         <dl className="flex items-baseline justify-between gap-2">
           <dt className="text-[11px] text-muted-foreground">{aMisura ? t("Fatturato") : t("Importo contratto")}</dt>
-          <dd className="text-right text-[13px] font-bold tabular-nums" title={t("IVA inclusa")}>{valore}</dd>
+          <dd className="text-right text-xs font-bold tabular-nums" title={t("IVA inclusa")}>{valore}</dd>
         </dl>
       )}
       {ritardo > 0 && <div className={cn("flex items-center gap-1 text-[11px]", TONO_TESTO.critico)}><AlertTriangle className="size-3 shrink-0" aria-hidden />{ritardoTesto}</div>}
@@ -260,6 +261,7 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
         {azioni.map(({ label: nome, icon: Icon }) => <span key={nome} className={ACTION_CLASS}><Icon className="size-3.5" /></span>)}
         {canEdit && <span className={ACTION_CLASS}><Pencil className="size-3.5" /></span>}
         {(onMove || (onPhaseChange && fasi.length > 0)) && <span className={ACTION_CLASS}><ArrowRightLeft className="size-3.5" /></span>}
+        {onDelete && <span className={ACTION_CLASS}><Trash2 className="size-3.5" /></span>}
       </div>
     </div>
   );
@@ -372,6 +374,7 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
             ) : onMove && (
               <button type="button" {...spostaProps} onClick={() => { chiudiAnteprima(); onMove(order); }}><ArrowRightLeft className="size-3.5" aria-hidden /></button>
             )}
+            {onDelete && <button type="button" data-no-drag className={ACTION_CLASS} title={t("Sposta nel cestino")} aria-label={t("Elimina commessa {commessa}", { commessa: label })} onClick={() => { chiudiAnteprima(); onDelete(order); }}><Trash2 className="size-3.5" aria-hidden /></button>}
           </div>
         </div>
       </PopoverAnchor>

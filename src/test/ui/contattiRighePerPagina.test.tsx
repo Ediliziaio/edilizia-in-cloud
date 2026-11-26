@@ -67,6 +67,15 @@ const scegliRighe = (valore: string) => {
 };
 
 describe("Contatti: righe per pagina", () => {
+  it("riordina intestazioni e valori delle colonne insieme", () => {
+    render(<MemoryRouter><ContactsTable contacts={[contatto(1)]} totalCount={1} selectedIds={new Set()} onToggleSelect={() => {}} onToggleAll={() => {}} onEdit={() => {}} onDelete={() => {}} page={1} pageSize={25} onPageChange={() => {}} onPageSizeChange={() => {}} sortField="created_at" sortDirection="desc" onSort={() => {}} visibleColumns={new Set(["name", "email", "phone"])} columnOrder={["email", "name", "phone"]} /></MemoryRouter>);
+    const intestazioni = screen.getAllByRole("columnheader");
+    expect(intestazioni[1]).toHaveTextContent("Email");
+    expect(intestazioni[2]).toHaveTextContent("Nome del Contatto");
+    const celle = within(screen.getByRole("row", { name: /Nome1 Cognome1/ })).getAllByRole("cell");
+    expect(celle[1]).toHaveTextContent("c1@esempio.it");
+    expect(celle[2]).toHaveTextContent("Nome1 Cognome1");
+  });
   it("nomina selezioni e modifica e rende il nome un collegamento utilizzabile da tastiera", () => {
     disegna();
     expect(screen.getByRole("checkbox", { name: "Seleziona i contatti di questa pagina" })).toBeTruthy();

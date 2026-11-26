@@ -13,6 +13,7 @@ interface SidebarSubcategoryProps {
   isOpen: boolean;
   onToggle: () => void;
   children: React.ReactNode;
+  compatto?: boolean;
 }
 
 /**
@@ -27,6 +28,7 @@ export function SidebarSubcategory({
   isOpen,
   onToggle,
   children,
+  compatto = false,
 }: SidebarSubcategoryProps) {
   // Le etichette dei gruppi arrivano in italiano dalla configurazione del menu.
   const t = useT();
@@ -38,6 +40,7 @@ export function SidebarSubcategory({
         aria-expanded={isOpen}
         className={cn(
           "flex w-full items-center gap-3 rounded-lg px-3 py-2 cursor-pointer mx-0.5",
+          compatto && "gap-2 py-1.5",
           "transition-all duration-150 group/sub",
           isOpen
             ? "text-blue-900 dark:text-sidebar-primary"
@@ -61,10 +64,12 @@ export function SidebarSubcategory({
         <span
           className={cn(
             "flex-1 text-left text-sm font-medium transition-colors",
+            compatto && "min-w-0 truncate text-[12px]",
             isOpen
               ? "font-semibold"
               : "group-hover/sub:font-medium",
           )}
+          title={t(label)}
         >
           {t(label)}
         </span>

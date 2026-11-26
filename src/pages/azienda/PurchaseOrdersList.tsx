@@ -1078,7 +1078,7 @@ export default function PurchaseOrdersList() {
       {/* Riepilogo comune a pipeline ed elenco; segue i filtri di ricerca e di emissione. */}
       {(vistaPrincipale === "elenco" ||
         ["tutte", "ordini"].includes(fonte)) && (
-        <OperationalSummary compatto label={tTesto("Riepilogo acquisti")} title={tTesto("Materiali e consegne")} icon={ShoppingCart} error={isError} note={tTesto("Segue i filtri di ricerca e di emissione degli ordini.")}>
+        <OperationalSummary compatto fascia label={tTesto("Riepilogo acquisti")} title={tTesto("Materiali e consegne")} icon={ShoppingCart} error={isError} note={tTesto("Segue i filtri di ricerca e di emissione degli ordini.")}>
           <OperationalSummaryMetric
             isLoading={isLoading}
             label={tTesto("In ritardo")}

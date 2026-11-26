@@ -11,6 +11,7 @@ import { type OrderWithDetails, type OrderStatus, getGrossOrderAmount } from "@/
 
 interface OrdersPipelineColumnProps {
   onMove?: (order: OrderWithDetails) => void;
+  onDelete?: (order: OrderWithDetails) => void;
   status: OrderStatus;
   orders: OrderWithDetails[];
   canDrop: boolean;
@@ -28,7 +29,7 @@ export function OrdersPipelineColumn({
   orders,
   canDrop, canEdit, showAmounts, destinazioni, onPhaseChange,
   collapsed = false,
-  onToggleCollapse, onMove,
+  onToggleCollapse, onMove, onDelete,
 }: OrdersPipelineColumnProps) {
   const t = useT();
   const { setNodeRef, isOver } = useDroppable({
@@ -82,14 +83,14 @@ export function OrdersPipelineColumn({
   }
 
   return (
-    <section ref={setNodeRef} aria-label={t("Colonna {fase}", { fase: status.name })} className="flex min-w-[280px] flex-1 flex-col">
+    <section ref={setNodeRef} aria-label={t("Colonna {fase}", { fase: status.name })} className="flex min-w-[260px] flex-1 flex-col">
       {/* Intestazione: riga colorata in alto, conteggio, totale e media */}
       <div
         className="shrink-0 rounded-t-lg border-b bg-muted/60 px-3 py-2.5"
         style={{ borderTopWidth: 3, borderTopColor: colore }}
       >
         <div className="flex items-center justify-between gap-1">
-          <h3 className="min-w-0 truncate text-sm font-bold leading-snug text-foreground">{status.name}</h3>
+          <h3 className="min-w-0 truncate text-[13px] font-bold leading-snug text-foreground">{status.name}</h3>
           <div className="flex shrink-0 items-center gap-1">
             <span
               className="rounded-full px-2 py-0.5 text-xs font-bold tabular-nums text-white shadow-sm"
@@ -143,7 +144,7 @@ export function OrdersPipelineColumn({
               {orders.map((order) => (
                 <OrdersPipelineCard key={order.id} order={order} stage={status.id}
                   canEdit={canEdit} showAmounts={showAmounts} destinazioni={destinazioni}
-                  isDraggable={!!onPhaseChange} onMove={onMove} onPhaseChange={onPhaseChange} />
+                  isDraggable={!!onPhaseChange} onMove={onMove} onDelete={onDelete} onPhaseChange={onPhaseChange} />
               ))}
             </div>
           </div>

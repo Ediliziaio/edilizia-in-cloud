@@ -1175,7 +1175,7 @@ export default function GlobalErrors() {
         nuovo={canEdit ? { etichetta: t("Nuova anomalia"), onClick: () => setCreating(true) } : undefined}
       />
 
-      {view === "register" && <OperationalSummary compatto inLinea label={t("Riepilogo anomalie")} title={t("I problemi da gestire")} icon={AlertTriangle} columns={3} note={t("Indicatori riferiti ai filtri attivi.")}>
+      {view === "register" && <OperationalSummary compatto fascia inLinea label={t("Riepilogo anomalie")} title={t("I problemi da gestire")} icon={AlertTriangle} columns={3} note={t("Indicatori riferiti ai filtri attivi.")}>
         <OperationalSummaryMetric isLoading={isLoading} label={t("Anomalie aperte")} value={String(openRows.length)} hint={t("Da verificare, assegnare o risolvere")} icon={AlertTriangle} tone="orange" />
         <OperationalSummaryMetric isLoading={isLoading} label={t("Interventi scaduti")} value={String(overdueRows.length)} hint={t("Scadenza correttiva superata, caso ancora aperto")} icon={Clock3} tone={overdueRows.length ? "red" : "green"} />
         <OperationalSummaryMetric isLoading={isLoading} label={t("Costo stimato problemi aperti")} value={formatCurrency(openRows.reduce((sum, e) => sum + anomalyNotes(e).estimate, 0))} hint={t("Stime dei casi aperti nei filtri attivi")} icon={TrendingDown} tone="red" />

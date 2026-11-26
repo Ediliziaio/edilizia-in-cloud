@@ -43,9 +43,17 @@ import {
   Search, ChevronRight, ChevronLeft, FileText, RectangleVertical, Sun,
   Inbox, X, Target, TrendingUp, Clock, FileCheck2, Euro,
   SlidersHorizontal, Download, Loader2, Hammer, Bath, Home, Wind, Zap, Flame, LayoutGrid, Waves,
-  Trash2, MoreHorizontal, ExternalLink, AlertTriangle, FileX2, Copy, Calculator, Hourglass } from "lucide-react";
+  Trash2, MoreHorizontal, ExternalLink, Copy, Calculator } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { BOTTONE_SECONDARIO, RICERCA_BARRA } from "@/components/orders/TestataScheda";
+import { BOTTONE_SECONDARIO } from "@/components/orders/TestataScheda";
+import { OperationalViewSwitch } from "@/components/orders/OperationalViewSwitch";
+import { SceltaColonne } from "@/components/tabelle/SceltaColonne";
+import { useColonneTabella } from "@/hooks/useColonneTabella";
+import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
+import { UniformSelect } from "@/components/ui/uniform-select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { PreventiviPipeline } from "./PreventiviPipeline";
+import { salvaSpostamentoPreventivo } from "@/lib/preventivi/salvaSpostamentoPipeline";
 import { BottoneGrafici } from "@/components/shared/BottoneGrafici";
 import { useGraficiRicordati } from "@/hooks/useGraficiRicordati";
 import { format } from "date-fns";
@@ -71,8 +79,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  appartieneAllaVista, contaPerStato, eBozzaVuota, eDaSeguire, eInScadenza, etichettaEta, etichettaScadenza, giorniAllaScadenza, giorniDa,
-  GIORNI_DA_SEGUIRE, GIORNI_IN_SCADENZA, vistaDaTesto, type VistaElenco,
+  appartieneAllaVista, contaPerStato, eBozzaVuota, eDaSeguire, eInScadenza, etichettaEta, etichettaScadenza, giorniDa,
+  vistaDaTesto, type VistaElenco,
 } from "@/lib/preventivi/elencoPreventivi";
 import { CercaConFiltri, DettaglioFiltri, GruppoFiltri, PannelloFiltri, RigaMobile, SceltaFiltro } from "@/components/mobile/FiltriMobile";
 import { eRigaDiModulo } from "@/lib/moduli/quoteBridge";
@@ -94,6 +102,8 @@ export interface UnifiedRow {
   /** Una riga di descrizione sotto il numero (il titolo del computo), quando il numero da solo non dice cosa sia. */
   titolo?: string | null;
   cliente: string;
+  email?: string | null;
+  telefono?: string | null;
   /** Per un'azienda o un ente pubblico, la persona di riferimento: non si vede in colonna ma si trova cercando. */
   referente?: string | null;
   /** Privato, azienda o ente pubblico, e i dati fiscali: si cercano e vanno nell'Excel (31/10/2026). */
@@ -139,9 +149,29 @@ export const STATO_UNIF_LABEL: Record<UnifiedStato, { label: string; className: 
 // source rispecchiata dalla vista DB v_preventivi_unificati.
 
 const PAGE_SIZE = 50;
+const COLONNE_PREVENTIVI = [
+  { chiave: "numero", etichetta: "Numero", fissa: true },
+  { chiave: "cliente", etichetta: "Cliente" },
+  { chiave: "oggetto", etichetta: "Oggetto" },
+  { chiave: "tipo", etichetta: "Tipo" },
+  { chiave: "commerciale", etichetta: "Commerciale" },
+  { chiave: "stato", etichetta: "Stato" },
+  { chiave: "situazione", etichetta: "Situazione" },
+  { chiave: "totale", etichetta: "Totale" },
+  { chiave: "scadenza", etichetta: "Scadenza" },
+  { chiave: "aggiornato", etichetta: "Aggiornato" },
+  { chiave: "referente", etichetta: "Referente", spentaDiSerie: true },
+  { chiave: "fiscale", etichetta: "Dati fiscali", spentaDiSerie: true },
+];
+
+/** Candidati, non identità certe: nomi vuoti non vanno mai raggruppati. */
+function nominativo(r: UnifiedRow): string {
+  const nome = r.cliente.trim().replace(/\s+/g, " ").toLocaleLowerCase("it");
+  return nome === "—" || nome === "-" ? "" : nome;
+}
 
 /** Format date sicuro: ritorna "—" se la stringa non è una data valida. */
-type ClienteDellaRiga = { cliente_nome: string | null; cliente_cognome: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null };
+type ClienteDellaRiga = { cliente_nome: string | null; cliente_cognome: string | null; cliente_email?: string | null; cliente_telefono?: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null };
 const eEnte = (r: ClienteDellaRiga) => (r.cliente_tipo === "azienda" || r.cliente_tipo === "pa") && !!r.cliente_ragione_sociale?.trim();
 /** In colonna Cliente: la ragione sociale di un'azienda o di un ente pubblico, altrimenti nome e cognome (31/10/2026). */
 function nomeClienteRiga(r: ClienteDellaRiga): string {
@@ -178,6 +208,12 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
   const sel = useTableSelection();
   const { moduli } = useModuliVendita();
   const [searchParams, setSearchParams] = useSearchParams();
+  const colonne = useColonneTabella("preventivi", COLONNE_PREVENTIVI);
+  const [scrollTabella, setScrollTabella] = useState<HTMLDivElement | null>(null);
+  const [visualizzazione, setVisualizzazione] = useState<"elenco" | "pipeline">(
+    () => searchParams.get("visualizzazione") === "pipeline" ? "pipeline" : "elenco",
+  );
+  const [clienteCorrelato, setClienteCorrelato] = useState<UnifiedRow | null>(null);
 
   // ─── Stato locale: filtri + UI ─────────────────────────────────────────
   const [search, setSearch] = useState(searchParams.get("q") ?? "");
@@ -200,7 +236,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
   const [ristrutturazioneDaDuplicare, setRistrutturazioneDaDuplicare] = useState<string | null>(null);
 
   /** Tipi che si sanno duplicare dall'elenco: la copia nasce in bozza, senza firme né invii, e si apre per adattarla. */
-  const sapDuplicare = (r: UnifiedRow) => r.tipo === "classico" || r.tipo === "serramenti" || r.tipo === "fotovoltaico" || (r.tipo === "ristrutturazione" && canEditPreventivi);
+  const sapDuplicare = (r: UnifiedRow) => canEditPreventivi && (r.tipo === "classico" || r.tipo === "serramenti" || r.tipo === "fotovoltaico" || r.tipo === "ristrutturazione");
   const duplica = async (r: UnifiedRow) => {
     if (inDuplicazione || !companyId) return;
     if (r.tipo === "ristrutturazione") {
@@ -251,9 +287,10 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
     if (filters.commercialeId !== "all") next.set("comm", filters.commercialeId); else next.delete("comm");
     if (filters.sort !== "recent") next.set("sort", filters.sort); else next.delete("sort");
     if (vista !== "tutte") next.set("vista", vista); else next.delete("vista");
+    if (visualizzazione === "pipeline") next.set("visualizzazione", "pipeline"); else next.delete("visualizzazione");
     setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, statoTab, filters.tipi, filters.commercialeId, filters.sort, vista]);
+  }, [search, statoTab, filters.tipi, filters.commercialeId, filters.sort, vista, visualizzazione]);
 
   const serramentiEnabled = useMemo(
     () => moduli.find((m) => m.modulo.slug === "serramenti")?.isEnabled ?? false,
@@ -303,7 +340,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quotes")
-        .select("id, quote_number, client_name, client_company, client_tipo, client_fiscal_code, client_vat_number, expires_at, viewed_at, status, total, salesperson_id, created_at, updated_at, revision_number, source")
+        .select("id, quote_number, title, description, client_name, client_company, client_email, client_phone, client_tipo, client_fiscal_code, client_vat_number, expires_at, viewed_at, status, total, salesperson_id, created_at, updated_at, revision_number, source")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
@@ -313,7 +350,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       // modulo, che l'elenco mostra già dalla sua tabella: contarle qui lo
       // faceva comparire due volte, una come «Classico» vuoto.
       return (data as Array<{
-        id: string; quote_number: string; client_name: string | null; client_company?: string | null; client_tipo?: string | null; client_fiscal_code?: string | null; client_vat_number?: string | null; expires_at?: string | null; viewed_at?: string | null;
+        id: string; quote_number: string; title?: string | null; description?: string | null; client_name: string | null; client_company?: string | null; client_email?: string | null; client_phone?: string | null; client_tipo?: string | null; client_fiscal_code?: string | null; client_vat_number?: string | null; expires_at?: string | null; viewed_at?: string | null;
         status: string; total: number | null; salesperson_id: string | null;
         created_at: string; updated_at: string | null;
         revision_number: number | null; source: string | null;
@@ -355,14 +392,14 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("sr_progetti")
-        .select("id, code, cliente_nome, cliente_cognome, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, stato, totale_min, totale_max, consulente_id, created_at, updated_at")
+        .select("id, code, intervento_titolo, cantiere_indirizzo, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, stato, totale_min, totale_max, consulente_id, created_at, updated_at")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
       return (data ?? []) as Array<{
-        id: string; code: string; cliente_nome: string | null; cliente_cognome: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null;
+        id: string; code: string; intervento_titolo?: string | null; cantiere_indirizzo?: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_email?: string | null; cliente_telefono?: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null;
         stato: string; totale_min: number | null; totale_max: number | null;
         consulente_id: string | null; created_at: string; updated_at: string | null;
       }>;
@@ -381,8 +418,8 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       const { data, error } = await (supabase as any)
         .from("fv_progetti")
         .select(`
-          id, numero, stato, prezzo_vendita_iva_inclusa, prezzo_vendita_manuale, kit_bundle_id, kit_prezzo, iva_aliquota,
-          created_by, created_at, updated_at, cliente_nome, cliente_cognome, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva,
+          id, numero, stato, indirizzo, prezzo_vendita_iva_inclusa, prezzo_vendita_manuale, kit_bundle_id, kit_prezzo, iva_aliquota,
+          created_by, created_at, updated_at, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva,
           cliente:marketing_contacts(first_name, last_name)
         `)
         .eq("company_id", companyId!)
@@ -393,16 +430,18 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       if (error) throw error;
       type ClienteJoin = { first_name: string | null; last_name: string | null } | null;
       type Row = ImportoPreventivoFvInput & {
-        id: string; numero: string; stato: string;
+        id: string; numero: string; stato: string; indirizzo?: string | null;
         prezzo_vendita_iva_inclusa: number | null;
         created_by: string | null;
         created_at: string; updated_at: string | null;
         cliente: ClienteJoin;
-        cliente_nome?: string | null; cliente_cognome?: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null;
+        cliente_nome?: string | null; cliente_cognome?: string | null; cliente_email?: string | null; cliente_telefono?: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null;
       };
       return ((data ?? []) as Row[]).map((r) => ({
         id: r.id,
         numero: r.numero,
+        indirizzo: r.indirizzo,
+        email: r.cliente_email, telefono: r.cliente_telefono,
         stato: r.stato,
         // Il totale come lo dice la pagina del preventivo: la bozza col prezzo a corpo o col kit non ha ancora il
         // totale calcolato (lo scrive solo il calcolo finanziario) e l'elenco mostrava «—».
@@ -430,14 +469,14 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("rst_progetti")
-        .select("id, code, cliente_nome, cliente_cognome, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, stato, totale, created_by, created_at, updated_at")
+        .select("id, code, tipo_intervento, cantiere_indirizzo, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
       return (data ?? []) as Array<{
-        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null;
+        id: string; code: string | null; tipo_intervento?: string | null; cantiere_indirizzo?: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_email?: string | null; cliente_telefono?: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null;
         stato: string; totale: number | null;
         created_by: string | null; created_at: string; updated_at: string | null;
       }>;
@@ -453,14 +492,14 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("bgn_progetti")
-        .select("id, code, cliente_nome, cliente_cognome, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, stato, totale, created_by, created_at, updated_at")
+        .select("id, code, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
       return (data ?? []) as Array<{
-        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null;
+        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_email?: string | null; cliente_telefono?: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null;
         stato: string; totale: number | null;
         created_by: string | null; created_at: string; updated_at: string | null;
       }>;
@@ -475,14 +514,14 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("tet_progetti")
-        .select("id, code, cliente_nome, cliente_cognome, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, stato, totale, created_by, created_at, updated_at")
+        .select("id, code, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
       return (data ?? []) as Array<{
-        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null;
+        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_email?: string | null; cliente_telefono?: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null;
         stato: string; totale: number | null;
         created_by: string | null; created_at: string; updated_at: string | null;
       }>;
@@ -497,14 +536,14 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("clm_progetti")
-        .select("id, code, cliente_nome, cliente_cognome, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, stato, totale, created_by, created_at, updated_at")
+        .select("id, code, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
       return (data ?? []) as Array<{
-        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null;
+        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_email?: string | null; cliente_telefono?: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null;
         stato: string; totale: number | null;
         created_by: string | null; created_at: string; updated_at: string | null;
       }>;
@@ -519,14 +558,14 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("ele_progetti")
-        .select("id, code, cliente_nome, cliente_cognome, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, stato, totale, created_by, created_at, updated_at")
+        .select("id, code, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
       return (data ?? []) as Array<{
-        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null;
+        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_email?: string | null; cliente_telefono?: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null;
         stato: string; totale: number | null;
         created_by: string | null; created_at: string; updated_at: string | null;
       }>;
@@ -541,14 +580,14 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("idr_progetti")
-        .select("id, code, cliente_nome, cliente_cognome, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, stato, totale, created_by, created_at, updated_at")
+        .select("id, code, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
       return (data ?? []) as Array<{
-        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null;
+        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_email?: string | null; cliente_telefono?: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null;
         stato: string; totale: number | null;
         created_by: string | null; created_at: string; updated_at: string | null;
       }>;
@@ -563,7 +602,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("pav_progetti")
-        .select("id, code, cliente_nome, cliente_cognome, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, stato, totale, created_by, created_at, updated_at")
+        .select("id, code, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
         // La colonna deleted_at c'è dal 30/08/2026 (20280248000000_pav_progetti_cestino): senza
         // il filtro un progetto pavimenti spostato nel Cestino restava in elenco e nei KPI.
@@ -572,7 +611,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
         .limit(1000);
       if (error) throw error;
       return (data ?? []) as Array<{
-        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null;
+        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_email?: string | null; cliente_telefono?: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null;
         stato: string; totale: number | null;
         created_by: string | null; created_at: string; updated_at: string | null;
       }>;
@@ -587,14 +626,14 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("pis_progetti")
-        .select("id, code, cliente_nome, cliente_cognome, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, stato, totale, created_by, created_at, updated_at")
+        .select("id, code, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
       return (data ?? []) as Array<{
-        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null;
+        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null; cliente_email?: string | null; cliente_telefono?: string | null; cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null;
         stato: string; totale: number | null;
         created_by: string | null; created_at: string; updated_at: string | null;
       }>;
@@ -646,8 +685,10 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       rows.push({
         id: q.id, tipo: "classico",
         numero: (q.quote_number ?? "—") + (q.revision_number ? ` · Rev. ${q.revision_number}` : ""),
+        titolo: q.title?.trim() || q.description?.trim() || null,
         // Un'azienda o un ente pubblico in colonna col suo nome (un preventivo di prima con l'azienda scritta conta come azienda).
         cliente: (q.client_tipo !== "privato" && q.client_company?.trim()) || q.client_name || "—",
+        email: q.client_email, telefono: q.client_phone,
         referente: q.client_tipo !== "privato" && q.client_company?.trim() ? q.client_name : null,
         scadenza: q.expires_at ?? null, apertoIl: q.viewed_at ?? null,
         ...(() => {
@@ -671,7 +712,9 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       rows.push({
         id: s.id, tipo: "serramenti",
         numero: s.code ?? "—",
+        titolo: [s.intervento_titolo, s.cantiere_indirizzo].filter(Boolean).join(" · ") || null,
         cliente: nomeClienteRiga(s), referente: referenteRiga(s), fiscale: fiscaleRiga(s), clienteTipo: tipoCliente(s.cliente_tipo),
+        email: s.cliente_email, telefono: s.cliente_telefono,
         commerciale_id: s.consulente_id,
         commerciale_nome: s.consulente_id ? commercialeNameById.get(s.consulente_id) ?? null : null,
         stato_unif: mapSerramentiStato(s.stato),
@@ -685,7 +728,9 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       rows.push({
         id: f.id, tipo: "fotovoltaico",
         numero: f.numero ?? "—",
+        titolo: f.indirizzo?.trim() || null,
         cliente: f.cliente_nome ?? "—", referente: f.referente, fiscale: f.fiscale, clienteTipo: f.clienteTipo,
+        email: f.email, telefono: f.telefono,
         commerciale_id: f.created_by,
         commerciale_nome: f.created_by ? commercialeNameById.get(f.created_by) ?? null : null,
         stato_unif: mapFotovoltaicoStato(f.stato),
@@ -699,7 +744,9 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       rows.push({
         id: r.id, tipo: "ristrutturazione",
         numero: r.code ?? "—",
+        titolo: [r.tipo_intervento, r.cantiere_indirizzo].filter(Boolean).join(" · ") || null,
         cliente: nomeClienteRiga(r), referente: referenteRiga(r), fiscale: fiscaleRiga(r), clienteTipo: tipoCliente(r.cliente_tipo),
+        email: r.cliente_email, telefono: r.cliente_telefono,
         commerciale_id: r.created_by,
         commerciale_nome: r.created_by ? commercialeNameById.get(r.created_by) ?? null : null,
         stato_unif: mapRistrutturazioneStato(r.stato),
@@ -714,6 +761,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
         id: b.id, tipo: "bagni",
         numero: b.code ?? "—",
         cliente: nomeClienteRiga(b), referente: referenteRiga(b), fiscale: fiscaleRiga(b), clienteTipo: tipoCliente(b.cliente_tipo),
+        email: b.cliente_email, telefono: b.cliente_telefono,
         commerciale_id: b.created_by,
         commerciale_nome: b.created_by ? commercialeNameById.get(b.created_by) ?? null : null,
         stato_unif: mapRistrutturazioneStato(b.stato),
@@ -728,6 +776,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
         id: t.id, tipo: "tetti",
         numero: t.code ?? "—",
         cliente: nomeClienteRiga(t), referente: referenteRiga(t), fiscale: fiscaleRiga(t), clienteTipo: tipoCliente(t.cliente_tipo),
+        email: t.cliente_email, telefono: t.cliente_telefono,
         commerciale_id: t.created_by,
         commerciale_nome: t.created_by ? commercialeNameById.get(t.created_by) ?? null : null,
         stato_unif: mapRistrutturazioneStato(t.stato),
@@ -742,6 +791,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
         id: c.id, tipo: "climatizzazione",
         numero: c.code ?? "—",
         cliente: nomeClienteRiga(c), referente: referenteRiga(c), fiscale: fiscaleRiga(c), clienteTipo: tipoCliente(c.cliente_tipo),
+        email: c.cliente_email, telefono: c.cliente_telefono,
         commerciale_id: c.created_by,
         commerciale_nome: c.created_by ? commercialeNameById.get(c.created_by) ?? null : null,
         stato_unif: mapRistrutturazioneStato(c.stato),
@@ -756,6 +806,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
         id: e.id, tipo: "elettrico",
         numero: e.code ?? "—",
         cliente: nomeClienteRiga(e), referente: referenteRiga(e), fiscale: fiscaleRiga(e), clienteTipo: tipoCliente(e.cliente_tipo),
+        email: e.cliente_email, telefono: e.cliente_telefono,
         commerciale_id: e.created_by,
         commerciale_nome: e.created_by ? commercialeNameById.get(e.created_by) ?? null : null,
         stato_unif: mapRistrutturazioneStato(e.stato),
@@ -770,6 +821,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
         id: td.id, tipo: "termoidraulico",
         numero: td.code ?? "—",
         cliente: nomeClienteRiga(td), referente: referenteRiga(td), fiscale: fiscaleRiga(td), clienteTipo: tipoCliente(td.cliente_tipo),
+        email: td.cliente_email, telefono: td.cliente_telefono,
         commerciale_id: td.created_by,
         commerciale_nome: td.created_by ? commercialeNameById.get(td.created_by) ?? null : null,
         stato_unif: mapRistrutturazioneStato(td.stato),
@@ -784,6 +836,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
         id: pv.id, tipo: "pavimenti",
         numero: pv.code ?? "—",
         cliente: nomeClienteRiga(pv), referente: referenteRiga(pv), fiscale: fiscaleRiga(pv), clienteTipo: tipoCliente(pv.cliente_tipo),
+        email: pv.cliente_email, telefono: pv.cliente_telefono,
         commerciale_id: pv.created_by,
         commerciale_nome: pv.created_by ? commercialeNameById.get(pv.created_by) ?? null : null,
         stato_unif: mapRistrutturazioneStato(pv.stato),
@@ -798,6 +851,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
         id: ps.id, tipo: "piscine",
         numero: ps.code ?? "—",
         cliente: nomeClienteRiga(ps), referente: referenteRiga(ps), fiscale: fiscaleRiga(ps), clienteTipo: tipoCliente(ps.cliente_tipo),
+        email: ps.cliente_email, telefono: ps.cliente_telefono,
         commerciale_id: ps.created_by,
         commerciale_nome: ps.created_by ? commercialeNameById.get(ps.created_by) ?? null : null,
         stato_unif: mapRistrutturazioneStato(ps.stato),
@@ -824,6 +878,18 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
     }
     return rows;
   }, [computoData, quotesData, serramentiData, fvData, ristrutturazioneData, bagniData, tettiData, climatizzazioneData, elettricoData, termoidraulicoData, pavimentiData, piscineData, commercialeNameById]);
+  const perNominativo = useMemo(() => {
+    const gruppi = new Map<string, UnifiedRow[]>();
+    for (const r of allRows) {
+      const nome = nominativo(r);
+      if (nome) {
+        const presenti = gruppi.get(nome);
+        if (presenti) presenti.push(r); else gruppi.set(nome, [r]);
+      }
+    }
+    return gruppi;
+  }, [allRows]);
+  const correlatiCliente = clienteCorrelato ? perNominativo.get(nominativo(clienteCorrelato)) ?? [] : [];
 
   // ─── KPI globali (su dataset completo) ───────────────────────────────────
   const kpi = useMemo(() => {
@@ -931,7 +997,6 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
 
   // ─── Paginazione ─────────────────────────────────────────────────────────
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const valoreFiltrati = useMemo(() => filtered.reduce((t, r) => t + (r.totale != null && r.totale > 0 ? r.totale : 0), 0), [filtered]);
   const currentPage = Math.min(page, totalPages);
   const pageRows = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
@@ -1152,72 +1217,38 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
         </GruppoFiltri>
       </PannelloFiltri>
 
-      {/* ─── Toolbar: search + Filtra + Export + counter ─── */}
-      {/* Barra su una riga (25/11/2026): senza riquadro, con gli stati e «Grafici» accanto alla ricerca.
-          Sotto i 1536px Excel e Cestino restano solo icona (col nome nel tooltip), se no «Grafici» andava a capo. */}
-      <div className="flex flex-wrap items-center gap-2 max-lg:hidden">
-          <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder={tr("Cerca per numero, cliente, P.IVA o commerciale…")}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 pl-8 text-xs"
-            />
-          </div>
-          <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} onClick={() => setFiltersOpen(true)} aria-label={tr("Filtri")}>
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{tr("Filtri")}</span>
-            {advancedFiltersCount > 0 && (
-              <Badge className="ml-1 h-5 px-1.5 bg-orange-500 hover:bg-orange-500 text-[10px]">
-                {advancedFiltersCount}
-              </Badge>
-            )}
-          </Button>
-          {/* Export Excel: nascosto su mobile (download poco pratico da telefono/app)
-              e senza «Esporta Clienti». */}
-          {!isMobile && canExportClients && (
-          <Button
-            variant="outline" size="sm" className={BOTTONE_SECONDARIO}
-            onClick={handleExportExcel}
-            disabled={exporting || filtered.length === 0}
-            aria-label={tr("Esporta Excel")}
-            title={tr("Esporta Excel")}
-          >
-            {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-            <span className="hidden 2xl:inline">Excel</span>
-          </Button>
-          )}
-          {onApriCestino && <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} onClick={onApriCestino} aria-label={tr("Cestino")} title={tr("Cestino")}>
-            <Trash2 className="h-3.5 w-3.5" />
-            <span className="hidden 2xl:inline">{tr("Cestino")}</span>
-          </Button>}
-          {hasAnyFilter && (
-            <Button variant="ghost" size="sm" onClick={reset} className={BOTTONE_SECONDARIO} aria-label={tr("Azzera filtri")}>
-              <X className="h-3.5 w-3.5" /> <span className="hidden sm:inline">{tr("Azzera")}</span>
-            </Button>
-          )}
-          {/* ─── Sub-tab stati (telefono: nel pannello dei filtri) ─── */}
-          <div className="flex items-center gap-1 overflow-x-auto pb-px">
-            <StatoTab label={tr("Tutti")} count={tabCounts.all} active={statoTab === "all"} onClick={() => setStatoTab("all")} />
-            <StatoTab label={tr("Bozze")} count={tabCounts.bozza} active={statoTab === "bozza"} onClick={() => setStatoTab("bozza")} tone="slate" />
-            <StatoTab label={tr("In corso")} count={tabCounts.in_corso} active={statoTab === "in_corso"} onClick={() => setStatoTab("in_corso")} tone="blue" />
-            <StatoTab label={tr("Vinte")} count={tabCounts.vinto} active={statoTab === "vinto"} onClick={() => setStatoTab("vinto")} tone="emerald" />
-            <StatoTab label={tr("Perse")} count={tabCounts.perso} active={statoTab === "perso"} onClick={() => setStatoTab("perso")} tone="rose" />
-            {tabCounts.altro > 0 && (
-              <StatoTab label={tr("Altre")} count={tabCounts.altro} active={statoTab === "altro"} onClick={() => setStatoTab("altro")} />
-            )}
-          </div>
-          <BottoneGrafici aperti={insightsOpen} onCambia={setInsightsOpen} />
-          {/* Senza filtri il totale lo dice già «Tutti»: sotto i 1536px il contatore lascia la riga. */}
-          <span className={cn("text-xs text-muted-foreground ml-auto tabular-nums", filtered.length === allRows.length && "max-2xl:hidden")} title={filtered.length !== allRows.length && valoreFiltrati > 0 ? tr("Valore dei {n} preventivi mostrati: {valoreFiltrati}", { n: filtered.length, valoreFiltrati: formatCurrency(valoreFiltrati) }) : undefined}>
-            {filtered.length === allRows.length
-              ? tr("{n} preventivi", { n: allRows.length })
-              : tr("{n} di {n2} preventivi", { n: filtered.length, n2: allRows.length })}
-            {/* Con un filtro acceso, quanto valgono i preventivi che si stanno guardando (31/10/2026). */}
-            {filtered.length !== allRows.length && valoreFiltrati > 0 && <> · <b className="font-semibold text-slate-700">{importoKpi(valoreFiltrati)}</b></>}
-          </span>
+      {/* Ricerca e filtri restano nello stesso posto nelle due viste. */}
+      <div className="hidden items-center gap-2 overflow-x-auto pb-1 lg:flex">
+        <div className="relative min-w-[190px] flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input aria-label={tr("Cerca preventivi")} placeholder={tr("Cerca numero, cliente o commerciale…")} value={search} onChange={e => setSearch(e.target.value)} className="h-8 pl-8 text-xs" />
+        </div>
+        <UniformSelect aria-label={tr("Stato preventivo")} value={statoTab} onChange={e => setStatoTab(e.target.value as UnifiedStato | "all")} className="h-8 w-auto min-w-[115px] text-xs">
+          <option value="all">{tr("Tutti gli stati")} · {tabCounts.all}</option>
+          {(["bozza", "in_corso", "vinto", "perso", "altro"] as UnifiedStato[]).map(stato => <option key={stato} value={stato}>{tr(STATO_UNIF_LABEL[stato].label)} · {tabCounts[stato]}</option>)}
+        </UniformSelect>
+        <UniformSelect aria-label={tr("Tipo preventivo")} value={filters.tipi.length > 1 ? "multipli" : filters.tipi[0] ?? "tutti"} onChange={e => setFilters({ ...filters, tipi: e.target.value === "tutti" ? [] : [e.target.value as PreventivoTipo] })} className="h-8 w-auto min-w-[110px] text-xs">
+          <option value="tutti">{tr("Tutti i tipi")}</option>
+          {filters.tipi.length > 1 && <option value="multipli" disabled>{tr("{n} selezionati", { n: filters.tipi.length })}</option>}
+          {Array.from(new Set([...tipiPresenti, ...filters.tipi])).map(tipo => <option key={tipo} value={tipo}>{tr(TIPO_LABEL[tipo].label)}</option>)}
+        </UniformSelect>
+        <UniformSelect aria-label={tr("Da fare")} value={vista} onChange={e => setVista(e.target.value as VistaElenco)} className="h-8 w-auto min-w-[110px] text-xs">
+          <option value="tutte">{tr("Tutti")}</option>
+          <option value="da_seguire">{tr("Da seguire")} · {conteggiVista.da_seguire}</option>
+          <option value="in_scadenza">{tr("In scadenza")} · {conteggiVista.in_scadenza}</option>
+          <option value="bozze_vuote">{tr("Bozze vuote")} · {conteggiVista.bozze_vuote}</option>
+        </UniformSelect>
+        <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} onClick={() => setFiltersOpen(true)} aria-label={tr("Filtri")}><SlidersHorizontal className="size-3.5" /> {tr("Filtri")}{advancedFiltersCount > 0 && <Badge className="h-5 px-1.5 text-[10px]">{advancedFiltersCount}</Badge>}</Button>
+        {!isMobile && canExportClients && <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} onClick={handleExportExcel} disabled={exporting || !filtered.length} aria-label={tr("Esporta Excel")} title={tr("Esporta Excel")}>{exporting ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}</Button>}
+        {onApriCestino && <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} onClick={onApriCestino} aria-label={tr("Cestino")} title={tr("Cestino")}><Trash2 className="size-3.5" /></Button>}
+        {hasAnyFilter && <Button variant="ghost" size="sm" onClick={reset} className={BOTTONE_SECONDARIO} aria-label={tr("Azzera filtri")}><X className="size-3.5" /></Button>}
+        <BottoneGrafici aperti={insightsOpen} onCambia={setInsightsOpen} />
+        <OperationalViewSwitch value={visualizzazione} onChange={setVisualizzazione} label="Vista preventivi" />
+        {visualizzazione === "elenco" && <SceltaColonne colonne={colonne} compatto />}
+        <span role="status" className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">{tr("{n} preventivi", { n: filtered.length })}</span>
       </div>
+      <div className="flex items-center justify-end lg:hidden"><OperationalViewSwitch value={visualizzazione} onChange={setVisualizzazione} label="Vista preventivi" /></div>
+      {vista === "bozze_vuote" && puoEliminare && bozzeVuoteVisibili.length > 0 && <Button variant="outline" size="sm" onClick={() => sel.toggleAll(bozzeVuoteVisibili.map(r => `${r.tipo}:${r.id}`))}>{tr(bozzeVuoteVisibili.every(r => sel.isSelected(`${r.tipo}:${r.id}`)) ? "Deseleziona le {n} bozze vuote" : "Seleziona le {n} bozze vuote", { n: bozzeVuoteVisibili.length })}</Button>}
 
       {!isMobile && insightsOpen && <section aria-label={tr("Andamento e statistiche dei preventivi")} className="space-y-4 rounded-xl border bg-card p-4 max-lg:hidden">
       {/* ─── Striscia navy avanzata: solo desktop. Su mobile è superflua — i 4 KPI
@@ -1278,67 +1309,6 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
         </div>
       )}
 
-      {/* ─── Viste rapide e tipi: un clic invece di aprire il pannello filtri ─── */}
-      <div className="flex flex-wrap items-center gap-1.5 max-lg:hidden" aria-label={tr("Viste rapide")}>
-        <VistaChip
-          attiva={vista === "da_seguire"}
-          onClick={() => setVista(vista === "da_seguire" ? "tutte" : "da_seguire")}
-          icon={<AlertTriangle className="h-3 w-3" />}
-          label={tr("Da seguire")}
-          n={conteggiVista.da_seguire}
-          titolo={tr("Preventivi in corso fermi da almeno {GIORNI_DA_SEGUIRE} giorni", { GIORNI_DA_SEGUIRE: String(GIORNI_DA_SEGUIRE ?? "") })}
-          tono="amber"
-        />
-        {(conteggiVista.in_scadenza > 0 || vista === "in_scadenza") && <VistaChip
-          attiva={vista === "in_scadenza"}
-          onClick={() => setVista(vista === "in_scadenza" ? "tutte" : "in_scadenza")}
-          icon={<Hourglass className="h-3 w-3" />}
-          label={tr("In scadenza")}
-          n={conteggiVista.in_scadenza}
-          titolo={tr("Preventivi in corso che scadono entro {GIORNI_IN_SCADENZA} giorni o sono già scaduti: da richiamare prima che decadano", { GIORNI_IN_SCADENZA: String(GIORNI_IN_SCADENZA ?? "") })}
-          tono="amber"
-        />}
-        <VistaChip
-          attiva={vista === "bozze_vuote"}
-          onClick={() => setVista(vista === "bozze_vuote" ? "tutte" : "bozze_vuote")}
-          icon={<FileX2 className="h-3 w-3" />}
-          label={tr("Bozze vuote")}
-          n={conteggiVista.bozze_vuote}
-          titolo={tr("Bozze senza importo: spesso tentativi abbandonati")}
-          tono="slate"
-        />
-        {tipiConteggio.length > 1 && <span className="mx-1 h-4 w-px bg-border" aria-hidden="true" />}
-        {tipiConteggio.length > 1 && tipiConteggio.map(({ tipo, n }) => {
-          const attivo = filters.tipi.includes(tipo);
-          const cfg = TIPO_LABEL[tipo];
-          return (
-            <button
-              key={tipo}
-              type="button"
-              aria-pressed={attivo}
-              onClick={() => setFilters({ ...filters, tipi: attivo ? filters.tipi.filter((t) => t !== tipo) : [...filters.tipi, tipo] })}
-              className={cn(
-                "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
-                attivo ? cfg.className + " ring-1 ring-current" : "bg-background text-muted-foreground hover:bg-muted",
-              )}
-            >
-              <cfg.Icon className="h-3 w-3" /> {tr(cfg.label)}
-              <span className="tabular-nums opacity-70">{n}</span>
-            </button>
-          );
-        })}
-        {vista === "bozze_vuote" && puoEliminare && bozzeVuoteVisibili.length > 0 && (
-          <Button
-            variant="outline" size="sm"
-            className="ml-auto h-7 gap-1.5 text-xs"
-            onClick={() => sel.toggleAll(bozzeVuoteVisibili.map((r) => `${r.tipo}:${r.id}`))}
-          >
-            <Trash2 className="h-3 w-3" />
-            {tr(bozzeVuoteVisibili.every((r) => sel.isSelected(`${r.tipo}:${r.id}`)) ? "Deseleziona le {n} bozze vuote" : "Seleziona le {n} bozze vuote", { n: bozzeVuoteVisibili.length })}
-          </Button>
-        )}
-      </div>
-
       {/* ─── Tabella ─── */}
       <Card>
         <CardContent className="p-0">
@@ -1378,138 +1348,76 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
                 onDone={() => { sel.clear(); void queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && String(q.queryKey[0]).startsWith('unified-prev') }); }}
                 puoModificare={canEditPreventivi}
               />
-              {/* A 1024 la tabella era larga 876px e scorreva di lato: fino a 1280
-                  senza «Commerciale» e con celle più strette. */}
-              <div className="hidden lg:block overflow-x-auto">
-                <Table className="[&_td]:px-3 [&_th]:px-3 xl:[&_td]:px-4 xl:[&_th]:px-4">
-                  <TableHeader>
-                    <TableRow className="bg-slate-50/60 hover:bg-slate-50/60">
-                      <TableHead className="w-10">
-                        <Checkbox
-                          checked={pageRows.length > 0 && pageRows.every((r) => sel.isSelected(`${r.tipo}:${r.id}`))}
-                          onCheckedChange={() => sel.toggleAll(pageRows.map((r) => `${r.tipo}:${r.id}`))}
-                          aria-label={tr("Seleziona pagina")}
-                        />
-                      </TableHead>
-                      <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600" aria-sort={ordinaAria("code_asc","code_desc")}>
-                        <button type="button" className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-slate-900" onClick={() => ordinaPer("code_asc", "code_desc")}>{tr("Numero")}{freccia("code_asc","code_desc")}</button>
-                      </TableHead>
-                      <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600" aria-sort={ordinaAria("client_asc","client_desc")}>
-                        <button type="button" className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-slate-900" onClick={() => ordinaPer("client_asc", "client_desc")}>{tr("Cliente")}{freccia("client_asc","client_desc")}</button>
-                      </TableHead>
-                      <TableHead className="hidden text-[11px] uppercase tracking-wider font-semibold text-slate-600 xl:table-cell">{tr("Tipo")}</TableHead>
-                      <TableHead className="hidden text-[11px] uppercase tracking-wider font-semibold text-slate-600 xl:table-cell">{tr("Commerciale")}</TableHead>
-                      <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">{tr("Stato")}</TableHead>
-                      <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600 text-right" aria-sort={ordinaAria("value_desc","value_asc")}>
-                        <button type="button" className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-slate-900" onClick={() => ordinaPer("value_desc", "value_asc")}>{tr("Totale")}{freccia("value_desc","value_asc")}</button>
-                      </TableHead>
-                      <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600" aria-sort={ordinaAria("recent","oldest")}>
-                        <button type="button" className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-slate-900" onClick={() => ordinaPer("recent", "oldest")}>{tr("Aggiornato")}{freccia("recent","oldest")}</button>
-                      </TableHead>
-                      <TableHead className="w-10"><span className="sr-only">{tr("Azioni")}</span></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pageRows.map((r) => {
-                      const tipoCfg = TIPO_LABEL[r.tipo];
-                      const statoCfg = STATO_UNIF_LABEL[r.stato_unif];
-                      const TipoIcon = tipoCfg.Icon;
-                      return (
-                        <TableRow
-                          key={`${r.tipo}-${r.id}`}
-                          className="cursor-pointer hover:bg-orange-50/40 transition-colors"
-                          onClick={() => navigate(r.href)}
-                        >
-                          <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
-                            <Checkbox
-                              checked={sel.isSelected(`${r.tipo}:${r.id}`)}
-                              onCheckedChange={() => sel.toggle(`${r.tipo}:${r.id}`)}
-                              aria-label={tr("Seleziona riga")}
-                            />
-                          </TableCell>
-                          <TableCell className="max-w-[220px]">
-                            {/* Sotto i 1280 px la colonna Tipo non c'è (la tabella usciva di lato): il tipo è l'icona accanto al numero. */}
-                            <span className={cn("mr-1.5 inline-flex rounded border p-0.5 align-[-3px] xl:hidden", tipoCfg.className)} title={tr(tipoCfg.label)} aria-label={tr(tipoCfg.label)}>
-                              <TipoIcon className="h-3 w-3" />
-                            </span>
-                            <span className="font-mono text-xs font-semibold text-orange-600">{r.numero}</span>
-                            {r.titolo && <p className="truncate text-[11px] text-slate-500" title={r.titolo}>{r.titolo}</p>}
-                          </TableCell>
-                          <TableCell className="text-xs font-medium text-slate-900 max-w-[180px] truncate 2xl:max-w-[260px]" title={r.cliente}>{r.cliente}</TableCell>
-                          <TableCell className="hidden xl:table-cell">
-                            <Badge variant="outline" className={cn("text-[10px] font-medium gap-1", tipoCfg.className)}>
-                              <TipoIcon className="h-3 w-3" /> {tr(tipoCfg.label)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="hidden text-xs text-slate-600 max-w-[140px] truncate xl:table-cell">
-                            {r.commerciale_nome ?? <span className="text-muted-foreground">—</span>}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={cn("text-[10px] font-medium", statoCfg.className)}>
-                              {tr(statoCfg.label)}
-                            </Badge>
-                            {eDaSeguire(r, adessoElenco) && (
-                              <p className="mt-0.5 whitespace-nowrap text-[10px] font-medium text-amber-700">{tr("Fermo da {n} giorni", { n: giorniDa(r.data, adessoElenco) ?? "" })}</p>
-                            )}
-                            {eBozzaVuota(r) && <p className="mt-0.5 whitespace-nowrap text-[10px] text-muted-foreground">{tr("Da completare")}</p>}
-                            {r.stato_unif === "in_corso" && etichettaScadenza(r, adessoElenco) && (
-                              <p className={cn("mt-0.5 whitespace-nowrap text-[10px] font-medium",
-                                (giorniAllaScadenza(r, adessoElenco) ?? 99) < 0 ? "text-rose-700" : eInScadenza(r, adessoElenco) ? "text-amber-700" : "text-muted-foreground")}
-                                title={r.scadenza ? tr("Offerta valida fino al {scadenza}", { scadenza: formatDateSafe(r.scadenza) }) : undefined}>
-                                {etichettaScadenza(r, adessoElenco)}
-                              </p>
-                            )}
-                            {r.stato_unif === "in_corso" && r.tipo === "classico" && (
-                              <p className="mt-0.5 whitespace-nowrap text-[10px] text-muted-foreground" title={r.apertoIl ? tr("Aperto dal cliente il {apertoIl}", { apertoIl: formatDateSafe(r.apertoIl) }) : undefined}>
-                                {r.apertoIl ? tr("aperto {apertoIl}", { apertoIl: String(etichettaEta(r.apertoIl, adessoElenco) ?? "") }) : tr("non ancora aperto")}
-                              </p>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-xs text-right tabular-nums font-medium">
-                            {r.totale != null && r.totale > 0 ? formatCurrency(r.totale) : <span className="text-muted-foreground">—</span>}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap text-[11px] text-muted-foreground" title={formatDateSafe(r.data)}>
-                            {etichettaEta(r.data, adessoElenco) ?? formatDateSafe(r.data)}
-                          </TableCell>
-                          <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={tr("Azioni per {nome}", { nome: String(r.numero ?? "") })}>
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => navigate(r.href)}>
-                                  <ChevronRight className="mr-2 h-3.5 w-3.5" /> {tr("Apri")}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => window.open(r.href, "_blank", "noopener,noreferrer")}>
-                                  <ExternalLink className="mr-2 h-3.5 w-3.5" /> {tr("Apri in una nuova scheda")}
-                                </DropdownMenuItem>
-                                {sapDuplicare(r) && (
-                                  <DropdownMenuItem disabled={inDuplicazione === r.id} onClick={() => void duplica(r)}>
-                                    <Copy className="mr-2 h-3.5 w-3.5" /> {inDuplicazione === r.id ? tr("Duplico…") : tr("Duplica")}
-                                  </DropdownMenuItem>
-                                )}
-                                {puoEliminare && <DropdownMenuSeparator />}
-                                {puoEliminare && (
-                                  <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDaCestinare(r)}>
-                                    <Trash2 className="mr-2 h-3.5 w-3.5" /> {r.tipo === "computo" ? tr("Elimina") : tr("Sposta nel cestino")}
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      );
+              {visualizzazione === "pipeline" ? (
+                <PreventiviPipeline righe={filtered} selezionata={sel.isSelected} alterna={sel.toggle} correlati={setClienteCorrelato}
+                  puoModificare={canEditPreventivi} puoEliminare={puoEliminare} puoDuplicare={sapDuplicare} inDuplicazione={inDuplicazione}
+                  duplica={r => void duplica(r)} cestina={setDaCestinare} sposta={async (riga, destinazione) => {
+                    if (!companyId || !canEditPreventivi) throw new Error(tr("Spostamento non disponibile"));
+                    try { await salvaSpostamentoPreventivo(companyId, riga, destinazione); }
+                    catch (error) {
+                      toast.error(tr("Spostamento non riuscito"), { description: error instanceof Error ? tr(error.message) : tr("Lo stato è cambiato o non hai i permessi. Aggiorna l’elenco.") });
+                      void queryClient.invalidateQueries({ predicate: q => String(q.queryKey[0]).startsWith("unified-prev") });
+                      throw error;
+                    }
+                    await queryClient.invalidateQueries({ predicate: q => String(q.queryKey[0]).startsWith("unified-prev") });
+                    toast.success(tr("Preventivo spostato in {fase}", { fase: tr(STATO_UNIF_LABEL[destinazione].label) }));
+                  }} />
+              ) : (
+              <div className="hidden lg:block">
+                <BarraScorrimentoOrizzontale contenitore={scrollTabella} className="mx-3 my-2" />
+                <Table wrapperRef={setScrollTabella} className="min-w-max text-xs [&_td]:px-3 [&_th]:px-3 [&_td]:py-2">
+                  <TableHeader><TableRow className="bg-slate-50/60">
+                    <TableHead className="w-10"><Checkbox checked={pageRows.length > 0 && pageRows.every(r => sel.isSelected(`${r.tipo}:${r.id}`))} onCheckedChange={() => sel.toggleAll(pageRows.map(r => `${r.tipo}:${r.id}`))} aria-label={tr("Seleziona pagina")} /></TableHead>
+                    {colonne.colonne.map(col => {
+                      const ordinamenti: Record<string, [UnifiedFilters["sort"], UnifiedFilters["sort"]]> = { numero: ["code_asc", "code_desc"], cliente: ["client_asc", "client_desc"], totale: ["value_desc", "value_asc"], aggiornato: ["recent", "oldest"] };
+                      const ordine = ordinamenti[col.chiave];
+                      return <TableHead key={col.chiave} className={cn("whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider text-slate-600", col.chiave === "totale" && "text-right")} aria-sort={ordine ? ordinaAria(...ordine) : undefined}>
+                        {ordine ? <button type="button" onClick={() => ordinaPer(...ordine)}>{tr(col.etichetta)}{freccia(...ordine)}</button> : tr(col.etichetta)}
+                      </TableHead>;
                     })}
-                  </TableBody>
+                    <TableHead className="w-10"><span className="sr-only">{tr("Azioni")}</span></TableHead>
+                  </TableRow></TableHeader>
+                  <TableBody>{pageRows.map(r => {
+                    const tipo = TIPO_LABEL[r.tipo];
+                    const stato = STATO_UNIF_LABEL[r.stato_unif];
+                    const nCorrelati = perNominativo.get(nominativo(r))?.length ?? 0;
+                    const situazione = eDaSeguire(r, adessoElenco) ? tr("Fermo da {n} giorni", { n: giorniDa(r.data, adessoElenco) ?? "" }) : eBozzaVuota(r) ? tr("Da completare") : etichettaScadenza(r, adessoElenco) || (r.stato_unif === "in_corso" && r.tipo === "classico" ? (r.apertoIl ? tr("Aperto dal cliente") : tr("Non ancora aperto")) : "—");
+                    return <TableRow key={`${r.tipo}:${r.id}`} className="cursor-pointer hover:bg-orange-50/40" onClick={() => navigate(r.href)}>
+                      <TableCell onClick={e => e.stopPropagation()}><Checkbox checked={sel.isSelected(`${r.tipo}:${r.id}`)} onCheckedChange={() => sel.toggle(`${r.tipo}:${r.id}`)} aria-label={tr("Seleziona {nome}", { nome: r.numero })} /></TableCell>
+                      {colonne.colonne.map(col => {
+                        const values: Record<string, React.ReactNode> = {
+                          numero: <span className="font-mono font-semibold text-orange-600">{r.numero}</span>,
+                          cliente: <div className="flex max-w-[240px] items-center gap-2"><span className="truncate" title={r.cliente}>{r.cliente}</span>{nCorrelati > 1 && <button type="button" className="shrink-0 rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 hover:underline" onClick={e => { e.stopPropagation(); setClienteCorrelato(r); }} aria-label={tr("{n} preventivi con il nome {nome}", { n: nCorrelati, nome: r.cliente })}>{nCorrelati}</button>}</div>,
+                          oggetto: <span className="block max-w-[260px] truncate" title={r.titolo ?? undefined}>{r.titolo || "—"}</span>,
+                          tipo: <Badge variant="outline" className={cn("whitespace-nowrap font-medium", tipo.className)}>{tr(tipo.label)}</Badge>,
+                          commerciale: r.commerciale_nome ?? "—",
+                          stato: <Badge variant="outline" className={cn("whitespace-nowrap font-medium", stato.className)}>{tr(stato.label)}</Badge>,
+                          situazione: <span className="block max-w-[180px] truncate" title={situazione}>{situazione}</span>,
+                          totale: r.totale != null ? formatCurrency(r.totale) : "—",
+                          scadenza: formatDateSafe(r.scadenza),
+                          aggiornato: etichettaEta(r.data, adessoElenco) ?? formatDateSafe(r.data),
+                          referente: r.referente ?? "—",
+                          fiscale: r.fiscale ?? "—",
+                        };
+                        return <TableCell key={col.chiave} className={cn("whitespace-nowrap", col.chiave === "totale" && "text-right font-medium tabular-nums")} title={col.chiave === "aggiornato" ? formatDateSafe(r.data) : undefined}>{values[col.chiave]}</TableCell>;
+                      })}
+                      <TableCell onClick={e => e.stopPropagation()}><DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-7" aria-label={tr("Azioni per {nome}", { nome: r.numero })}><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => navigate(r.href)}><ChevronRight className="mr-2 size-3.5" />{tr("Apri")}</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => window.open(r.href, "_blank", "noopener,noreferrer")}><ExternalLink className="mr-2 size-3.5" />{tr("Apri in una nuova scheda")}</DropdownMenuItem>
+                        {nCorrelati > 1 && <DropdownMenuItem onClick={() => setClienteCorrelato(r)}>{tr("Altri preventivi con questo nome")}</DropdownMenuItem>}
+                        {sapDuplicare(r) && <DropdownMenuItem disabled={inDuplicazione === r.id} onClick={() => void duplica(r)}><Copy className="mr-2 size-3.5" />{tr("Duplica")}</DropdownMenuItem>}
+                        {puoEliminare && <><DropdownMenuSeparator /><DropdownMenuItem className="text-destructive" onClick={() => setDaCestinare(r)}><Trash2 className="mr-2 size-3.5" />{r.tipo === "computo" ? tr("Elimina") : tr("Sposta nel cestino")}</DropdownMenuItem></>}
+                      </DropdownMenuContent></DropdownMenu></TableCell>
+                    </TableRow>;
+                  })}</TableBody>
                 </Table>
               </div>
+              )}
 
               {/* Telefono: una riga per preventivo (cliente; numero, tipo e data;
                   importo e stato a destra). Erano schede da tre righe con due
                   etichette colorate e l'icona del commerciale: quattro a schermo. */}
-              <div className="lg:hidden divide-y divide-border">
+              <div className={cn("lg:hidden divide-y divide-border", visualizzazione === "pipeline" && "hidden")}>
                 {pageRows.map((r) => {
                   const tipoCfg = TIPO_LABEL[r.tipo];
                   const statoCfg = STATO_UNIF_LABEL[r.stato_unif];
@@ -1559,7 +1467,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
                 })}
               </div>
 
-              {totalPages > 1 && (
+              {visualizzazione === "elenco" && totalPages > 1 && (
                 <div className="flex items-center justify-between gap-2 p-3 border-t bg-slate-50/40">
                   <span className="text-xs text-muted-foreground">{tr("{da}–{a} di {totale}", { da: (currentPage - 1) * PAGE_SIZE + 1, a: Math.min(currentPage * PAGE_SIZE, filtered.length), totale: filtered.length })}</span>
                   <div className="flex items-center gap-1">
@@ -1581,6 +1489,21 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!clienteCorrelato} onOpenChange={open => { if (!open) setClienteCorrelato(null); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>{tr("Preventivi per {nome}", { nome: clienteCorrelato?.cliente ?? "" })}</DialogTitle>
+            <DialogDescription>{tr("Documenti con lo stesso nominativo. Verifica il cliente: nomi uguali possono riferirsi a persone diverse. Ogni preventivo resta indipendente.")}</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[55vh] divide-y overflow-y-auto">
+            {correlatiCliente.map(r => <button key={`${r.tipo}:${r.id}`} type="button" onClick={() => navigate(r.href)} className="flex w-full items-center gap-3 py-3 text-left hover:bg-muted/40">
+              <span className="min-w-0 flex-1"><span className="block font-medium">{r.numero} · {tr(TIPO_LABEL[r.tipo].label)}</span><span className="block truncate text-xs text-muted-foreground">{r.titolo || tr("Oggetto non indicato")} · {formatDateSafe(r.data)}</span></span>
+              <Badge variant="outline" className={STATO_UNIF_LABEL[r.stato_unif].className}>{tr(STATO_UNIF_LABEL[r.stato_unif].label)}</Badge>
+              <span className="whitespace-nowrap text-sm font-medium">{r.totale != null ? formatCurrency(r.totale) : "—"}</span><ChevronRight className="size-4 shrink-0" />
+            </button>)}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!daCestinare} onOpenChange={(o) => { if (!o) setDaCestinare(null); }}>
         <AlertDialogContent>
@@ -1697,50 +1620,6 @@ function AdvKpi({
         {hint && <p className="text-[10px] text-slate-300 truncate">{hint}</p>}
       </div>
     </div>
-  );
-}
-
-function StatoTab({
-  label, count, active, onClick, tone,
-}: { label: string; count: number; active: boolean; onClick: () => void; tone?: "slate" | "blue" | "emerald" | "rose" }) {
-  const toneClass = tone === "blue" ? "bg-blue-100 text-blue-700"
-    : tone === "emerald" ? "bg-emerald-100 text-emerald-700"
-    : tone === "rose" ? "bg-rose-100 text-rose-700"
-    : tone === "slate" ? "bg-slate-200 text-slate-700"
-    : "bg-orange-100 text-orange-700";
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "px-3 h-8 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 shrink-0",
-        active ? "bg-orange-50 text-orange-700 ring-1 ring-orange-200" : "text-muted-foreground hover:bg-slate-50",
-      )}
-    >
-      {label}
-      <span className={cn("text-[10px] px-1.5 py-0.5 rounded tabular-nums", toneClass)}>{count}</span>
-    </button>
-  );
-}
-
-function VistaChip({
-  attiva, onClick, icon, label, n, titolo, tono,
-}: { attiva: boolean; onClick: () => void; icon: React.ReactNode; label: string; n: number; titolo: string; tono: "amber" | "slate" }) {
-  const attivo = tono === "amber" ? "border-amber-300 bg-amber-100 text-amber-800" : "border-slate-300 bg-slate-200 text-slate-800";
-  return (
-    <button
-      type="button"
-      title={titolo}
-      aria-pressed={attiva}
-      onClick={onClick}
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
-        attiva ? attivo : "bg-background text-muted-foreground hover:bg-muted",
-      )}
-    >
-      {icon} {label}
-      <span className="tabular-nums opacity-70">{n}</span>
-    </button>
   );
 }
 

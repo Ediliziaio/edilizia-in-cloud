@@ -557,7 +557,7 @@ export default function FirmaElettronicaHub() {
         label: t(label), valore: String(valore), attivo: statusFilter === filtro, onClick: () => selezionaIndicatore(filtro),
       }))} />
       <div className="max-sm:hidden">
-        <OperationalSummary compatto label={t("Riepilogo firme")} title={t("Dal documento alla firma")} icon={FileStack}
+        <OperationalSummary compatto fascia label={t("Riepilogo firme")} title={t("Dal documento alla firma")} icon={FileStack}
           note={t("Conteggi sulle richieste recenti. Seleziona un indicatore per filtrare l’archivio.")}>
           {indicatori.map(([filtro, label, valore]) =>
             <OperationalSummaryMetric key={filtro} label={t(label)} value={String(valore)}
