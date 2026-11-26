@@ -37,6 +37,7 @@ export type EsitoVicini = {
 
 const messaggi: Record<string, string> = {
   quota: "Quota del servizio raggiunta. Riprovare più tardi.",
+  giorno: "Percorsi stradali finiti per oggi: distanze stimate in linea d'aria fino a mezzanotte.",
   non_configurato: "Servizio cartografico da configurare.",
   non_disponibile: "Servizio cartografico temporaneamente non disponibile.",
 };

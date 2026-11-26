@@ -7,7 +7,7 @@ import {
 } from "../../../shared/mappa-operativa/calcoli";
 import type { CalendarOrder } from "@/types/calendar";
 import { erroreFasciaVicini, fasciaInizialeVicini } from "@/components/calendar/mappa/fasce";
-import { cercaIndirizzo, matriceOsrm, percorsoOsrm } from "../../../supabase/functions/mappa-operativa/provider";
+import { cercaIndirizzo, decodeFlexiblePolyline, matriceHere, matriceOsrm, percorsoHere, percorsoOsrm } from "../../../supabase/functions/mappa-operativa/provider";
 
 const milano = { lat: 45.4642, lng: 9.1900 };
 const altro = { lat: 45.4842, lng: 9.2200 };
@@ -233,5 +233,26 @@ describe("Mappa operativa", () => {
       { civico: "4", cap: "20121" }, { civico: null, cap: null },
     ]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("HERE: polyline decodificata (esempio ufficiale) e richieste senza traffico", async () => {
+    expect(decodeFlexiblePolyline("BFoz5xJ67i1B1B7PzIhaxL7Y")).toEqual([
+      { lat: 50.10228, lng: 8.69821 }, { lat: 50.10201, lng: 8.69567 },
+      { lat: 50.10063, lng: 8.6915 }, { lat: 50.09878, lng: 8.68752 },
+    ]);
+    const chiamate: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      chiamate.push(String(url) + (init?.body ? ` ${init.body}` : ""));
+      if (String(url).includes("matrix")) {
+        return new Response(JSON.stringify({ matrix: { numDestinations: 1, travelTimes: [600], distances: [9000] } }));
+      }
+      return new Response(JSON.stringify({ routes: [{ sections: [{ summary: { length: 54505, duration: 2462 }, polyline: "BFoz5xJ67i1B1B7PzIhaxL7Y" }] }] }));
+    }));
+    const esito = await percorsoHere("k", "auto", [{ lat: 50.10228, lng: 8.69821 }, { lat: 50.09878, lng: 8.68752 }]);
+    expect(esito.tratte).toEqual([{ metri: 54505, secondi: 2462 }]);
+    expect(esito.geometrieTratte?.[0]).toHaveLength(4);
+    expect(new URL(chiamate[0]).searchParams.get("departureTime")).toBe("any");
+    await matriceHere("k", "auto", [{ lat: 50.1, lng: 8.69 }], { lat: 50.09, lng: 8.68 });
+    expect(JSON.parse(chiamate[1].slice(chiamate[1].indexOf(" ") + 1)).departureTime).toBe("any");
   });
 });

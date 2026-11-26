@@ -14,7 +14,7 @@ const envInt = (chiave: string, normale: number, massimo: number) => {
 };
 
 class Servizio extends Error {
-  constructor(readonly codice: "quota" | "non_configurato" | "non_disponibile") { super(codice); }
+  constructor(readonly codice: "quota" | "giorno" | "non_configurato" | "non_disponibile") { super(codice); }
 }
 
 async function hash(dati: unknown) {
@@ -57,10 +57,26 @@ Deno.serve(async req => {
 
     async function conta(provider: string, voce: string, unita: number, perMinuto: number, perMese: number) {
       const chiave = voce.toUpperCase();
+      const minuto = envInt(`MAPPA_OPERATIVA_${chiave}_MINUTO`, perMinuto, 10000);
+      const mese = envInt(`MAPPA_OPERATIVA_${chiave}_MESE`, perMese, 10000000);
+      // HERE ha un tetto giornaliero per tutta la piattaforma (26/11/2026): oltre,
+      // fino a mezzanotte, la pagina usa la stima in linea d'aria. Default 950,
+      // sotto le 1.000 gratuite; MAPPA_OPERATIVA_HERE_GIORNO lo cambia (0 = spento).
+      if (provider === "here" && (voce === "percorsi" || voce === "elementi_matrice")) {
+        const { data, error } = await admin.rpc("mappa_here_conta", {
+          p_company: company, p_voce: voce, p_unita: unita, p_minuto: minuto, p_mese: mese,
+          p_tetto: envInt("MAPPA_OPERATIVA_HERE_GIORNO", 950, 1000000),
+        });
+        if (!error) {
+          if (data === "giorno") throw new Servizio("giorno");
+          if (data !== "ok") throw new Servizio("quota");
+          return;
+        }
+        // Funzione non ancora nel database: si conta come prima, senza tetto del giorno.
+        if (error.code !== "PGRST202") throw new Servizio("non_disponibile");
+      }
       const { data, error } = await admin.rpc("mappa_conta", {
-        p_company: company, p_provider: provider, p_voce: voce, p_unita: unita,
-        p_minuto: envInt(`MAPPA_OPERATIVA_${chiave}_MINUTO`, perMinuto, 10000),
-        p_mese: envInt(`MAPPA_OPERATIVA_${chiave}_MESE`, perMese, 10000000),
+        p_company: company, p_provider: provider, p_voce: voce, p_unita: unita, p_minuto: minuto, p_mese: mese,
       });
       if (error) throw new Servizio("non_disponibile");
       if (!data) throw new Servizio("quota");
@@ -121,7 +137,9 @@ Deno.serve(async req => {
         ? body.punti.map((p: Coordinate | null) => coordinate(p?.lat, p?.lng)) : [];
       if (!punti.every(Boolean) || punti.length < 2 || punti.length > 25) return rispondi({ error: "Percorso non valido" }, 400);
       if (!router && !hereRouting) throw new Servizio("non_configurato");
-      return rispondi(await unica(["percorso", "geojson_tratte_copertura_v2", router ?? "here", profilo, punti, body.revisione], 300, async () => {
+      // Senza traffico la strada fra gli stessi punti non cambia: in cache per un
+      // giorno (prima 5 minuti), così riaprire la mappa non consuma HERE.
+      return rispondi(await unica(["percorso", "geojson_tratte_copertura_v2", router ?? "here", profilo, punti, body.revisione], 86400, async () => {
         await conta(router ? "osrm_privato" : "here", "percorsi", 1, 15, 3000);
         return router
           ? percorsoOsrm(router, "driving", punti as Coordinate[], tokenRouting)
