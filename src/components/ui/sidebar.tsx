@@ -18,7 +18,11 @@ import { useT } from "@/lib/campo/lingua/LinguaCampo";
 const SIDEBAR_COOKIE_NAME = "sidebar:state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 const SIDEBAR_WIDTH = "13.5rem"; // 25/11/2026: era 15rem; testo a 11,5px, 24px in più alla pagina
-const SIDEBAR_WIDTH_MOBILE = "18rem";
+// Pannello a scomparsa. Sotto i 640px il foglio è a tutta larghezza (vedi sheet.tsx);
+// da lì in su vale questa misura, un po' più larga della barra fissa perché si tocca
+// col dito. 26/11/2026: era 18rem, ma non contava niente — il foglio restava a
+// `sm:w-3/4 sm:max-w-sm`, cioè 384px, quasi metà schermo su una finestra da 856px.
+const SIDEBAR_WIDTH_MOBILE = "16rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
 
@@ -164,7 +168,9 @@ const Sidebar = React.forwardRef<
         <SheetContent
           data-sidebar="sidebar"
           data-mobile="true"
-          className="w-[--sidebar-width] bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+          // `sm:` davanti alla larghezza: senza, da 640px in su vincevano le misure di serie
+          // del foglio (`sm:w-3/4 sm:max-w-sm`) e `--sidebar-width` non serviva a niente.
+          className="w-[--sidebar-width] bg-sidebar p-0 text-sidebar-foreground sm:w-[--sidebar-width] sm:max-w-[--sidebar-width] [&>button]:hidden"
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,

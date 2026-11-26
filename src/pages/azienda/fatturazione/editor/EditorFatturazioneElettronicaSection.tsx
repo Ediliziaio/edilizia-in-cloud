@@ -8,6 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ESIGIBILITA_IVA, METODI_PAGAMENTO_SDI } from "@/types/fatturazione";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
+import { SceltaContoIncasso } from "@/components/fatturazione/SceltaContoIncasso";
 import type { EditorState } from "./useEditorState";
 import { splitPredefinito } from "@/lib/fatturazione/fatturaPa";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
@@ -192,39 +193,17 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
                 </div>
               </div>
 
+              {/* 26/11/2026: qui c'erano tre campi liberi, e l'unico modo di incassare su un'altra
+                  banca era ribattere l'IBAN a mano. I conti dell'azienda si scelgono. */}
               {isBonifico && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <Label className="text-[10px] text-muted-foreground">{t("Nome istituto di credito")}</Label>
-                    <Input
-                      value={state.nome_banca ?? ""}
-                      onChange={(e) => dispatch({ type: "SET_PAGAMENTO", fields: { nome_banca: e.target.value } })}
-                      className="h-7 text-xs"
-                      placeholder={t("Banca Esempio")}
-                      disabled={disabled}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-[10px] text-muted-foreground">IBAN</Label>
-                    <Input
-                      value={state.iban_pagamento ?? ""}
-                      onChange={(e) => dispatch({ type: "SET_PAGAMENTO", fields: { iban_pagamento: e.target.value.toUpperCase() } })}
-                      className="h-7 text-xs font-mono"
-                      placeholder={t("IT60X0542811101...")}
-                      disabled={disabled}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-[10px] text-muted-foreground">{t("Intestatario conto")}</Label>
-                    <Input
-                      value={state.intestatario_conto ?? ""}
-                      onChange={(e) => dispatch({ type: "SET_PAGAMENTO", fields: { intestatario_conto: e.target.value } })}
-                      className="h-7 text-xs"
-                      placeholder={azienda?.ragione_sociale ?? ""}
-                      disabled={disabled}
-                    />
-                  </div>
-                </div>
+                <SceltaContoIncasso
+                  azienda={azienda}
+                  iban={state.iban_pagamento}
+                  nomeBanca={state.nome_banca}
+                  intestatario={state.intestatario_conto}
+                  onCambia={(fields) => dispatch({ type: "SET_PAGAMENTO", fields })}
+                  disabled={disabled}
+                />
               )}
             </div>
 

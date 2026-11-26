@@ -3192,6 +3192,20 @@ export async function onRequest({ request, next, env, waitUntil }) {
     return newResponse;
   }
 
+  // URL pubblico rimosso: anche il browser deve ricevere 404. Il fallback
+  // SPA mostrava "Pagina non trovata" con HTTP 200, mentre i bot avevano 404.
+  // La regola esatta lascia inalterati app, login e tutte le route esistenti.
+  if (pathname === "/supporto") {
+    return new Response(buildNotFoundHtml(pathname), {
+      status: 404,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=300, s-maxage=300",
+        "X-Robots-Tag": "noindex, follow",
+      },
+    });
+  }
+
   // ── Public site (www / root): serve SEO content to bots ────────────────
   // Real users always get the normal SPA shell (dist/index.html) served by
   // Cloudflare's static file match → JS loads immediately → React hydrates

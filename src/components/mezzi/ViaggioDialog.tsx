@@ -387,7 +387,7 @@ function ViaggioForm({
     }
     setRouting(t.id);
     try {
-      const result = await getRoute([from, to]);
+      const result = await getRoute([from, to], { strada: true });
       if (!result) throw new Error("Percorso non disponibile");
       row(t.id, {
         km: (Math.round(result.distanceMeters / 10) / 100).toString(),

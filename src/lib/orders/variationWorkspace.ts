@@ -37,7 +37,8 @@ export function validateVariationWorkspace(raw: unknown, rawContext: unknown) {
   content.lines = source.lines.map(line => {
     if (!line || typeof line !== "object" || !isVariationUuid(line.id) || typeof line.description !== "string" || line.description.length > 1000 || typeof line.quantity !== "string" || line.quantity.length > 30 || typeof line.price !== "string" || line.price.length > 30) throw new Error("Voce della variante non valida.");
     if (line.unit !== undefined && (typeof line.unit !== "string" || line.unit.length > 20)) throw new Error("Unità di misura della voce non valida.");
-    return { id: line.id, description: line.description, quantity: line.quantity, price: line.price, ...(line.unit ? { unit: line.unit } : {}) };
+    if (line.cost !== undefined && (typeof line.cost !== "string" || line.cost.length > 30)) throw new Error("Costo della voce non valido.");
+    return { id: line.id, description: line.description, quantity: line.quantity, price: line.price, ...(line.unit ? { unit: line.unit } : {}), ...(line.cost ? { cost: line.cost } : {}) };
   });
   if (source.destinazione !== undefined) {
     if (!["nuova", "fase"].includes(String(source.destinazione))) throw new Error("Destinazione del lavoro non valida.");

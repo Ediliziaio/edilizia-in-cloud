@@ -27,6 +27,7 @@ import { AzioniAlVolo } from "@/components/campo/AzioniAlVolo";
 import { FineGiornataCaposquadra } from "@/components/campo/FineGiornataCaposquadra";
 import { useCampoMagazzinoConfig } from "@/hooks/campo/useCampoPrelievo";
 import { InterventiCampo } from "@/components/campo/InterventiCampo";
+import { MioProgramma } from "@/components/campo/MioProgramma";
 import { useMiaGiornata } from "@/hooks/campo/useCampoGiornata";
 import { CampoTimbroCard } from "@/components/campo/CampoTimbroCard";
 import { useTimbraDallApp } from "@/hooks/campo/useTimbraDallApp";
@@ -202,6 +203,8 @@ export default function CampoHome() {
       <div className="space-y-3 md:space-y-6">
         {isOperaio && !sera && <RapportiniDaCompilareOggi />}
         {isOperaio && <RapportiniSospesi />}
+        {/* La giornata pubblicata dall'ufficio in Commesse → Programmazione (26/11/2026). */}
+        {isOperaio && <MioProgramma />}
         {(isOperaio || isSubappaltatore) && <InterventiCampo />}
         {isOperaio && <MioMezzoCampoCard />}
         {isSubappaltatore && <CantieriSub />}

@@ -5,6 +5,7 @@ import { useDashboardBillingKPI } from "@/hooks/billing/useDashboardBillingKPI";
 import { leggiModalitaCommesse } from "@/lib/finanziamenti/leggiModalitaCommesse";
 import {OrdersCarryoverSummary} from "@/components/orders/OrdersAnnualScope";
 import { OrdersTrashDialog } from '@/components/orders/OrdersTrashDialog';
+import {AlertDialog,AlertDialogAction,AlertDialogCancel,AlertDialogContent,AlertDialogDescription,AlertDialogFooter,AlertDialogHeader,AlertDialogTitle} from '@/components/ui/alert-dialog';
 import {currentManagementScope, orderEconomicsRow, summarizeOrderEconomics, orderYear, previousOrderReasons, orderScopeGroupIds, type OrderScopeGroup} from "@/lib/orders/annualScope";
 import {TICKET_STATI_CHIUSI} from "@/types/tickets";
 import {readOrdersPage, soloQuesteCommesse, type OrdersReaderFilters} from "@/lib/orders/listQuery";
@@ -30,7 +31,7 @@ import { useRiepilogoCommesse } from "@/hooks/useRiepilogoCommesse";
 import { RiepilogoCommesseScelta } from "@/components/orders/RiepilogoCommesseScelta";
 import { CATALOGO_RIQUADRI, commesseInRitardo, margineDelPeriodo, riquadriVisibili, serieVisibili, usaGenerali, type RiquadroRiepilogo } from "@/lib/orders/riepilogoCommesse";
 import { useCruscottoGenerali } from "@/hooks/useCruscottoGenerali";
-import { Plus, Package, LayoutList, Columns3, Upload, MoreHorizontal, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, ArrowUpDown, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Settings2, Clock, Wrench, CheckCircle2, FolderOpen, Coins, Percent, Wallet, History, Receipt, Landmark, Hammer, Building2, Map as MapIcon, FileQuestion, NotebookPen } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Upload, MoreHorizontal, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, ArrowUpDown, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Settings2, Clock, Wrench, CheckCircle2, FolderOpen, Coins, Percent, Wallet, History, Receipt, Landmark, Hammer, Building2, Map as MapIcon, FileQuestion, NotebookPen, CalendarRange } from "lucide-react";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
@@ -38,6 +39,7 @@ import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 const SopralluoghiList = lazy(() => import("@/pages/azienda/sopralluoghi/SopralluoghiList"));
 const RapportiniCommesse = lazy(() => import("@/pages/azienda/RapportiniCommesse"));
 // Chi va dove domani: persone, squadre e mezzi trascinati sugli interventi (26/11/2026).
+const ProgrammazioneGiornata = lazy(() => import("@/components/programmazione/ProgrammazioneGiornata"));
 const OrderCommissionsOverview = lazy(() =>
   import("@/components/orders/OrderCommissionsOverview").then((module) => ({
     default: module.OrderCommissionsOverview,
@@ -79,7 +81,7 @@ import { commessaDaRiga } from "@/lib/orders/importaCommesse";
 import { messaggioErrore } from "@/lib/orders/sottofasi";
 import { CustomerSheetsExportDialog } from "@/components/orders/CustomerSheetsExportDialog";
 import { useToast } from "@/hooks/use-toast";
-import { type OrderWithDetails, getAmountDue, getAmountCollected, getPendingPayments, deleteOrderCascading, getGrossOrderAmount, contrattoPattuito } from "@/lib/orderUtils";
+import { type OrderWithDetails, getAmountDue, getAmountCollected, getPendingPayments, deleteOrderCascading, commessaTrattenutaDaiDocumenti, getGrossOrderAmount, contrattoPattuito } from "@/lib/orderUtils";
 import { PlanLimitWarning } from "@/components/billing/PlanLimitWarning";
 import { ScopriProgressBanner } from "@/components/subscription/UpgradeScopriBanner";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
@@ -848,11 +850,11 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
   const createOrdersBlockedTitle = orderPerms.solaLettura ? t("Sei in sola lettura") : t("Non hai il permesso di modifica");
 
   const deleteOrderMutation = useMutation({
-    mutationFn: async (orderId: string) => {
+    mutationFn: async ({ orderId, scollega }: { orderId: string; scollega?: boolean }) => {
       const companyId = effectiveCompany?.id;
       if (!companyId) throw new Error(t("Nessuna azienda selezionata."));
       if (!canDeleteOrders) throw new Error(t("Non hai il permesso di eliminare le commesse (chiedi all'amministratore)."));
-      return deleteOrderCascading(orderId, companyId);
+      return deleteOrderCascading(orderId, companyId, scollega);
     },
     onSuccess: () => {
       refreshOrderScope();
@@ -860,6 +862,8 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
       toast({ title: t("Commessa nel cestino"), description: t("Puoi ripristinarla dal cestino dell’elenco commesse") });
     },
     onError: (error) => {
+      // Il rifiuto «ci sono documenti collegati» apre la seconda conferma nel dialog: niente toast rosso.
+      if (commessaTrattenutaDaiDocumenti(error)) return;
       toast({
         title: t("Errore"),
         description: error instanceof Error ? error.message : t("Impossibile eliminare la commessa"),
@@ -911,6 +915,43 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
     }
   };
 
+  // Seconda conferma di gruppo: le commesse che il database ha trattenuto perché hanno documenti collegati.
+  const [bloccateDaDocumenti, setBloccateDaDocumenti] = useState<string[]>([]);
+
+  const spostaNelCestino = async (orderIds: string[], scollega: boolean) => {
+    const companyId = effectiveCompany?.id;
+    if (!companyId) {
+      toast({ title: t("Errore"), description: t("Nessuna azienda selezionata."), variant: "destructive" });
+      return;
+    }
+    const results = await Promise.allSettled(
+      orderIds.map((orderId) => deleteOrderCascading(orderId, companyId, scollega))
+    );
+    const trattenute = scollega ? [] : orderIds.filter((_, i) => {
+      const r = results[i];
+      return r.status === "rejected" && commessaTrattenutaDaiDocumenti(r.reason);
+    });
+    const failed = results.filter((r) => r.status === "rejected").length - trattenute.length;
+    const ok = results.length - failed - trattenute.length;
+    refreshOrderScope();
+    queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
+    setBloccateDaDocumenti(trattenute);
+    const primoErrore = (results.find((r) => r.status === "rejected" && !commessaTrattenutaDaiDocumenti(r.reason)) as PromiseRejectedResult | undefined)?.reason?.message;
+    if (ok > 0) {
+      toast({
+        title: t("Commesse nel cestino"),
+        description: t(ok === 1 ? "{n} commessa spostata nel cestino" : "{n} commesse spostate nel cestino", { n: ok }),
+      });
+    }
+    if (failed > 0) {
+      toast({
+        title: ok === 0 ? t("Eliminazione fallita") : t("Eliminazione parziale"),
+        description: t("{falliti} non spostate: {motivo}", { falliti: failed, motivo: primoErrore ?? t("verifica permessi o riprova.") }),
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleBulkDelete = async (orderIds: string[]) => {
     if (!canDeleteOrders) {
       toast({ title: t("Permesso mancante"), description: t("Non hai il permesso di eliminare le commesse (chiedi all'amministratore)."), variant: "destructive" });
@@ -918,36 +959,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
     }
     setIsBulkUpdating(true);
     try {
-      const companyId = effectiveCompany?.id;
-      if (!companyId) {
-        toast({ title: t("Errore"), description: t("Nessuna azienda selezionata."), variant: "destructive" });
-        return;
-      }
-      const results = await Promise.allSettled(
-        orderIds.map((orderId) => deleteOrderCascading(orderId, companyId))
-      );
-      const failed = results.filter((r) => r.status === "rejected").length;
-      const ok = results.length - failed;
-      refreshOrderScope();
-      queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
-      if (failed === 0) {
-        toast({
-          title: t("Commesse nel cestino"),
-          description: t(ok === 1 ? "{n} commessa spostata nel cestino" : "{n} commesse spostate nel cestino", { n: ok }),
-        });
-      } else if (ok === 0) {
-        toast({
-          title: t("Eliminazione fallita"),
-          description: t("Nessuna commessa spostata nel cestino. {motivo}", { motivo: (results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined)?.reason?.message ?? t("Verifica permessi o riprova.") }),
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: t("Eliminazione parziale"),
-          description: t("{ok} nel cestino · {falliti} non spostati (es. {motivo}). Le righe non spostate sono ancora presenti.", { ok, falliti: failed, motivo: (results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined)?.reason?.message ?? t("permessi") }),
-          variant: "destructive",
-        });
-      }
+      await spostaNelCestino(orderIds, false);
     } finally {
       setIsBulkUpdating(false);
     }
@@ -1590,6 +1602,30 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
         onOpenChange={setSceltaRiepilogoAperta} companyId={effectiveCompany.id} scelta={sceltaRiepilogo}
         gruppi={{ appalti: modelliGenerali.includes("appalto"), operazioni: modelliGenerali.includes("sviluppo") || modelliGenerali.includes("compravendita") }} />}
       {canDeleteOrders && effectiveCompany?.id && <OrdersTrashDialog open={trashOpen} onOpenChange={setTrashOpen} companyId={effectiveCompany.id} onChanged={refreshOrderScope} />}
+      <AlertDialog open={bloccateDaDocumenti.length > 0} onOpenChange={v => { if (!v) setBloccateDaDocumenti([]); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t(bloccateDaDocumenti.length === 1 ? "{n} commessa ha documenti collegati" : "{n} commesse hanno documenti collegati", { n: bloccateDaDocumenti.length })}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("Fatture, DDT, costi, acquisti e movimenti non vengono eliminati: perdono solo il collegamento a queste commesse e restano nei loro elenchi, dove potrai assegnarli a un’altra commessa. Quello che è parte della commessa — rate, articoli, SAL, rapportini, ore e provvigioni — la segue nel cestino e torna solo ripristinandola. Lo scollegamento invece non si annulla.")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkUpdating}>{t("Lasciale così")}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isBulkUpdating}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async e => {
+                e.preventDefault();
+                const ids = bloccateDaDocumenti;
+                setBloccateDaDocumenti([]);
+                setIsBulkUpdating(true);
+                try { await spostaNelCestino(ids, true); } finally { setIsBulkUpdating(false); }
+              }}
+            >{t("Scollega e sposta nel cestino")}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm max-lg:rounded-none max-lg:border-0 max-lg:bg-none max-lg:p-0 max-lg:shadow-none flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 max-lg:gap-2 max-lg:rounded-none max-lg:border-0 max-lg:bg-none max-lg:p-0 max-lg:shadow-none">
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
           {navigazioneCompatta}
@@ -2001,7 +2037,8 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
                 canDelete={canDeleteOrders}
                 previousReasons={isYearCorrente ? globalStats?.previousReasons : undefined}
                 orders={visibleOrders}
-                onDelete={(id) => deleteOrderMutation.mutateAsync(id)}
+                onDelete={(id, scollega) => deleteOrderMutation.mutateAsync({ orderId: id, scollega })}
+                companyId={effectiveCompany?.id}
                 isDeleting={deleteOrderMutation.isPending}
                 orderCosts={orderCostsMap}
                 costsState={scopeMarginsError || errorePerimetro ? "error" : scopeMarginsPending ? "loading" : "ready"}
@@ -2110,6 +2147,7 @@ export default function OrdersList() {
 
   const tabs = [
     { id: "ordini", label: tr("Commesse"), icon: ClipboardList, show: !soloAcquisti },
+    { id: "programmazione", label: tr("Programmazione"), icon: CalendarRange, show: permissions.canViewOrders },
     // Giorno per giorno cosa si è lavorato: l'elenco di tutti i cantieri, con le statistiche del mese.
     { id: "rapportini", label: tr("Rapportini"), icon: NotebookPen, show: permissions.canViewOrders },
     { id: "sopralluoghi", label: tr("Sopralluoghi"), icon: MapIcon, show: surveysEnabled },
@@ -2195,6 +2233,14 @@ export default function OrdersList() {
       {activeTab === "ordini" && (
         <ErrorBoundary title={tr("Errore nella lista commesse")}>
           <OrdersListInner navigazioneCompatta={navigazioneCompatta} />
+        </ErrorBoundary>
+      )}
+
+      {activeTab === "programmazione" && (
+        <ErrorBoundary title={tr("Errore in Programmazione")}>
+          <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">{tr("Caricamento programmazione…")}</div>}>
+            <ProgrammazioneGiornata />
+          </Suspense>
         </ErrorBoundary>
       )}
 

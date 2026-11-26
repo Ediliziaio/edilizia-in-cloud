@@ -165,7 +165,7 @@ export default function StimaCostiPanel({
         : sedeScelta?.lat != null && sedeScelta.lng != null ? { lat: sedeScelta.lat, lng: sedeScelta.lng }
           : sedeScelta?.indirizzo ? await forwardGeocode([sedeScelta.indirizzo, sedeScelta.cap, sedeScelta.citta, sedeScelta.provincia].filter(Boolean).join(", ")) : null;
       const cantiere = partenza && await forwardGeocode(contesto.indirizzo);
-      const tragitto = partenza && cantiere && await getRoute([partenza, cantiere]);
+      const tragitto = partenza && cantiere && await getRoute([partenza, cantiere], { strada: true });
       if (!tragitto) {
         setPercorso({ attesa: false, messaggio: t("Percorso non trovato. Inserisci i chilometri dal tuo itinerario.") });
         return;

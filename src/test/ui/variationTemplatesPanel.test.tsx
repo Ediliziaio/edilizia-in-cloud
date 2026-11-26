@@ -40,7 +40,8 @@ describe("Libreria varianti", () => {
   });
   it("scegliere il modello non modifica nulla prima di applicarlo", async () => {
     const apply = vi.fn(); render(<QueryClientProvider client={new QueryClient()}><VariationTemplatePicker companyId="company" draft={{ ...emptyVariationDraft(), amount: "123" }} context={{ orderCode: "ORD-1" }} disabled={false} onApply={apply} /></QueryClientProvider>);
-    await scegliNelMenu("Modello di variante", "Lavori extra standard"); expect(apply).not.toHaveBeenCalled();
+    // 26/11/2026: l'etichetta del menu è «Parti da un modello» (prima ce n'erano tre per la stessa cosa).
+    await scegliNelMenu("Parti da un modello", "Lavori extra standard"); expect(apply).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Usa questo modello" })); await waitFor(() => expect(apply).toHaveBeenCalledOnce()); expect(apply.mock.calls[0][0].amount).toBe("123");
   });
 });

@@ -23,6 +23,8 @@ export interface ImpiantoStato {
   modello: string | null;
   garanzia_scadenza: string | null;
   data_installazione: string | null;
+  /** Codice della manutenzione (MAN-0014); null solo per le righe più vecchie. */
+  codice: string | null;
   customer: { first_name: string | null; last_name: string | null } | null;
   stato: StatoManutenzione;
   prossimaScadenza: string | null;
@@ -49,6 +51,7 @@ function Card({ im, onOpen, onPianifica, onCompleta, busy, solaLettura }: {
   return (
     <div className="rounded-xl border border-border bg-background p-3">
       <button type="button" className="w-full text-left" onClick={() => onOpen(im.id)}>
+        {im.codice && <p className="font-mono text-[10px] font-semibold text-muted-foreground">{im.codice}</p>}
         <p className="text-sm font-semibold capitalize leading-snug line-clamp-2">
           {im.tipo_impianto.replace("_", " ")}
           {im.marca && <span className="ml-1 font-normal text-muted-foreground">{im.marca}{im.modello ? ` ${im.modello}` : ""}</span>}

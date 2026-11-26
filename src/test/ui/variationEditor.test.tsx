@@ -76,7 +76,7 @@ describe("Composizione della variante",()=>{
 describe("Dettaglio voci e riservatezza",()=>{
   function Editor(){const [draft,setDraft]=useState(emptyVariationDraft);return <VariationEditor draft={draft} setDraft={setDraft} phases={[]} context={{}} busy={false} review={false} onBack={()=>{}}/>;}
   it("prezzo a corpo resta semplice e voci sono disponibili solo su richiesta",async()=>{
-    render(<Editor/>);expect(screen.queryByLabelText("Quantità")).not.toBeInTheDocument();await scegliNelMenu("Come definisci il prezzo","Dettaglio delle voci");fireEvent.click(screen.getByRole("button",{name:"Aggiungi voce"}));expect(screen.getByLabelText("Quantità")).toHaveValue("1");fireEvent.click(screen.getByRole("button",{name:"Rimuovi voce 1"}));expect(screen.queryByLabelText("Quantità")).not.toBeInTheDocument();
+    render(<Editor/>);expect(screen.queryByLabelText("Quantità")).not.toBeInTheDocument();fireEvent.click(screen.getByRole("radio",{name:"Voce per voce, come un computo"}));expect(screen.getByLabelText("Quantità")).toHaveValue("1");fireEvent.click(screen.getByRole("button",{name:"Rimuovi voce 1"}));expect(screen.queryByLabelText("Quantità")).not.toBeInTheDocument();
   });
   it("il PDF disponibile segue il contenuto attuale, escludendo costo e note interne",async()=>{
     function Preview(){const [draft,setDraft]=useState({...emptyVariationDraft(),title:"Extra TEST",description:"Contenuto cliente",amount:"25",internalNotes:"SEGRETO_NON_ESPORTARE",estimatedCost:"123,45"});const [review,setReview]=useState(true);return <><VariationEditor draft={draft} setDraft={setDraft} phases={[]} context={{vatRate:10}} busy={false} review={review} onBack={()=>setReview(false)}/>{!review&&<button onClick={()=>setReview(true)}>Rivedi</button>}</>;}
@@ -175,8 +175,8 @@ describe("Le voci della variante, riordinate (09/11/2026)", () => {
   }
   const conUnaVoce = async () => {
     render(<Editor />);
-    await scegliNelMenu("Come definisci il prezzo", "Dettaglio delle voci");
-    fireEvent.click(screen.getByRole("button", { name: "Aggiungi voce" }));
+    // Dal 26/11/2026 scegliere «voce per voce» crea già la prima riga: non serve aggiungerla.
+    fireEvent.click(screen.getByRole("radio", { name: "Voce per voce, come un computo" }));
   };
 
   it("l'unità si sceglie da un menu, non si scrive", async () => {

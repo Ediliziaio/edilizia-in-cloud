@@ -106,9 +106,17 @@ const HERE_ROUTER = "https://router.hereapi.com/v8/routes";
 const HERE_MATRIX = "https://matrix.router.hereapi.com/v8/matrix";
 const modoHere = (profilo: string) => (profilo === "furgone" ? "truck" : "car");
 
+const ALFABETO_POLYLINE = (() => {
+  const t = new Array<number>(128 - 45).fill(-1);
+  [..."ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"].forEach((c, v) => { t[c.charCodeAt(0) - 45] = v; });
+  return t;
+})();
+
 /** Decodifica la "flexible polyline" di HERE (solo lat/lng, scarta l'eventuale 3ª dim). */
-function decodeFlexiblePolyline(encoded: string): Coordinate[] {
-  const T = [62,-1,-1,63,52,53,54,55,56,57,58,59,60,61,-1,-1,-1,-1,-1,-1,-1,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,-1,-1,-1,-1,-1,-1,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51];
+export function decodeFlexiblePolyline(encoded: string): Coordinate[] {
+  // Tabella dall'alfabeto ufficiale (charCode - 45 → valore). Quella scritta a mano
+  // era sfasata: ogni polyline falliva e la mappa restava senza strada (26/11/2026).
+  const T = ALFABETO_POLYLINE;
   let i = 0;
   const unsigned = (): bigint => {
     let r = 0n, shift = 0n;
@@ -154,6 +162,9 @@ export async function percorsoHere(apiKey: string, profilo: string, punti: Coord
     origin: `${punti[0].lat},${punti[0].lng}`,
     destination: `${punti[punti.length - 1].lat},${punti[punti.length - 1].lng}`,
     return: "polyline,summary", apikey: apiKey,
+    // Senza traffico (26/11/2026): «any» = tempi medi, non legati all'ora. Costa meno e
+    // basta per programmare la giornata.
+    departureTime: "any",
   });
   for (const v of punti.slice(1, -1)) p.append("via", `${v.lat},${v.lng}`);
   const risposta = await fetch(`${HERE_ROUTER}?${p.toString()}`, { signal: AbortSignal.timeout(8000), redirect: "error" });
@@ -187,7 +198,7 @@ export async function matriceHere(apiKey: string, profilo: string, altri: Coordi
   const risposta = await fetch(`${HERE_MATRIX}?async=false&apikey=${apiKey}`, {
     method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(9000), redirect: "error",
     body: JSON.stringify({ origins, destinations, regionDefinition: { type: "autoCircle" },
-      transportMode: modoHere(profilo), matrixAttributes: ["travelTimes", "distances"] }),
+      transportMode: modoHere(profilo), departureTime: "any", matrixAttributes: ["travelTimes", "distances"] }),
   });
   if (!risposta.ok) throw new Error("Provider cartografico non disponibile");
   const data = await risposta.json() as { matrix?: { numDestinations?: number; travelTimes?: number[]; distances?: number[]; errorCodes?: number[] } };

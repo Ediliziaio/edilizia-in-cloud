@@ -67,7 +67,7 @@ import { SilvioCommessa } from "@/components/orders/SilvioCommessa";
 import { SilvioAcquisti } from "@/components/orders/SilvioAcquisti";
 import { FasiUfficio, RiepilogoFasiUfficio } from "@/components/orders/FasiUfficio";
 import { LinkedAppointments } from "@/components/appointments/LinkedAppointments";
-import { type OrderStatus, type Installment, deleteOrderCascading, buildInstallmentsFromLegacy } from "@/lib/orderUtils";
+import { type OrderStatus, type Installment, deleteOrderCascading, commessaTrattenutaDaiDocumenti, buildInstallmentsFromLegacy } from "@/lib/orderUtils";
 import { dataAttesaRata } from "@/lib/orders/rateEventi";
 import { useFattureByOrdine } from "@/hooks/billing/useFatturaOrdineLink";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
@@ -831,13 +831,13 @@ function OrderDetailInner() {
 
   // Delete order mutation — richiede il permesso "Elimina Ordini" (can_delete_orders)
   const deleteOrderMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: (scollega: boolean = false) => {
       const companyId = effectiveCompany?.id;
       if (!companyId) throw new Error(t("Nessuna azienda selezionata."));
       if (!permissions.isAdmin && !permissions.canDeleteOrders) {
         throw new Error(t("Non hai il permesso di eliminare le commesse (chiedi all'amministratore)."));
       }
-      return deleteOrderCascading(id!, companyId);
+      return deleteOrderCascading(id!, companyId, scollega);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
@@ -851,6 +851,9 @@ function OrderDetailInner() {
       navigate("/azienda/ordini");
     },
     onError: (error) => {
+      // Il rifiuto «ci sono documenti collegati» lo gestisce la seconda conferma del dialog: qui
+      // un toast rosso in più direbbe solo che il primo passo è andato come previsto.
+      if (commessaTrattenutaDaiDocumenti(error)) return;
       toast.error(t("Errore nell'eliminazione della commessa."), {
         description: error instanceof Error ? error.message : undefined,
       });
@@ -2371,7 +2374,7 @@ function OrderDetailInner() {
       {/* Editor del playbook commessa (per-azienda, per mestiere) */}
 
       {/* Delete confirm (triggered by OrdineDetailHeader) */}
-      <OrderTrashConfirmDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen} label={order.order_code} onConfirm={()=>deleteOrderMutation.mutateAsync()} />
+      <OrderTrashConfirmDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen} label={order.order_code} orderId={id} companyId={effectiveCompany?.id} onConfirm={(scollega)=>deleteOrderMutation.mutateAsync(scollega)} />
 
       {/* Status Change Dialog */}
       <Dialog

@@ -410,7 +410,7 @@ export default function StoricoImpianto() {
     return (
       <div className="p-6 text-center py-20">
         <AlertCircle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-        <p className="text-gray-500">{tr("Impianto non trovato")}</p>
+        <p className="text-gray-500">{tr("Manutenzione non trovata")}</p>
         <Button variant="outline" className="mt-4" onClick={() => navigate(-1)}>
           {tr("Torna indietro")}
         </Button>
@@ -439,7 +439,7 @@ export default function StoricoImpianto() {
         <div className="flex-1">
           <h1 className="text-xl font-bold text-gray-900">{tr("Storico Interventi")}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {[impianto.marca, impianto.modello].filter(Boolean).join(" ") || impianto.tipo_impianto || tr("Impianto")}
+            {[impianto.marca, impianto.modello].filter(Boolean).join(" ") || impianto.tipo_impianto || tr("Manutenzione")}
           </p>
         </div>
         <Button
@@ -515,7 +515,7 @@ export default function StoricoImpianto() {
               <Wrench className="h-10 w-10 text-gray-200 mx-auto mb-3" />
               <p className="font-medium text-gray-600">{tr("Nessun intervento registrato")}</p>
               <p className="text-sm text-gray-400 mt-1">
-                {tr("Crea il primo intervento per questo impianto")}
+                {tr("Crea il primo intervento")}
               </p>
               <Button
                 className="mt-4 gap-2 bg-eic-navy hover:bg-[#162d4a]"

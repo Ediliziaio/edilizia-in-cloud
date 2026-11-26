@@ -3,6 +3,7 @@ import es from "./es";
 
 /** Spagnolo argentino (voseo): lo spagnolo, con le frasi che qui si dicono diverse. Da far rivedere a un madrelingua. */
 const dizionario: Dizionario = {
+  "Dal programma: {fase}": "Del programa: {fase}",
   ...es,
   "{azione}: senza rete, la mando appena torna": "{azione}: sin señal, lo mando cuando vuelva",
   "Non sono riuscito a registrare la timbratura. Riprova.": "No pude registrar el fichaje. Probá de nuevo.",
@@ -13287,5 +13288,30 @@ const dizionario: Dizionario = {
   "Aggiungi un’attività con responsabile e scadenza: qui finiscono tutte quelle legate alla commessa, d’ufficio e non. Salvare un modello aziendale non lo applica a questa commessa.": "Agregá una actividad con responsable y plazo: acá terminan todas las que van ligadas al proyecto, de oficina y no. Guardar una plantilla de empresa no la aplica a este proyecto.",
   "Margine a oggi, con gli impegni": "Margen a hoy, con los compromisos",
   "I cantieri aperti hanno pagato {importo} più di quanto hanno incassato: li stai finanziando tu. Quei soldi sono già usciti dal conto, non vanno tolti un’altra volta.": "Las obras abiertas pagaron {importo} más de lo que cobraron: las estás financiando vos. Esa plata ya salió de la cuenta, no hay que quitarla otra vez.",
+  "verifica permessi o riprova.": "revisá los permisos o probá de nuevo.",
+  "Fatture, DDT, costi, acquisti e movimenti non vengono eliminati: perdono solo il collegamento a queste commesse e restano nei loro elenchi, dove potrai assegnarli a un’altra commessa. Quello che è parte della commessa — rate, articoli, SAL, rapportini, ore e provvigioni — la segue nel cestino e torna solo ripristinandola. Lo scollegamento invece non si annulla.": "Las facturas, los DDT, los costos, las compras y los movimientos no se eliminan: solo pierden el vínculo con estos proyectos y siguen en sus listas, donde vas a poder asignarlos a otro proyecto. Lo que forma parte del proyecto —cuotas, artículos, SAL, partes de trabajo, horas y comisiones— lo sigue a la papelera y solo vuelve al restaurarlo. La desconexión, en cambio, no se puede anular.",
+  "Lasciale così": "Dejalas como están",
+  "Spostarla comunque nel cestino, scollegando i documenti?": "¿Moverlo igual a la papelera, desconectando los documentos?",
+  "I documenti non vengono eliminati: perdono solo il collegamento a questa commessa e restano nei loro elenchi, dove potrai assegnarli a un’altra commessa. Quello che è parte della commessa — rate, articoli, SAL, rapportini, ore e provvigioni — la segue nel cestino e torna solo ripristinandola. Lo scollegamento invece non si annulla.": "Los documentos no se eliminan: solo pierden el vínculo con este encargo y siguen en sus listas, donde vas a poder asignarlos a otro encargo. Lo que forma parte del encargo —cuotas, artículos, SAL, partes de trabajo, horas y comisiones— lo sigue a la papelera y solo vuelve al restaurarlo. La desconexión, en cambio, no se puede anular.",
+  "Il residuo della fattura è stato ricalcolato.": "El pendiente de la factura se recalculó.",
+  "Il pagamento del {data} non risulterà più versato: la fattura torna da pagare per quella quota, e tornano indietro anche le rate e le scadenze che si erano chiuse. Resta nello storico della contabilità.": "El pago del {data} ya no va a figurar como pagado: la factura vuelve a estar por pagar por esa parte, y también vuelven atrás las cuotas y los vencimientos que se habían cerrado. Queda en el histórico de la contabilidad.",
+  "Sul foglio si vedevano {viste} righe di merce, qui ce ne sono {lette}: controlla che non ne manchi una.": "En la hoja se veían {viste} líneas de mercadería, acá hay {lette}: revisá que no falte ninguna.",
+  "Disegnata dall’XML: il fornitore non ha allegato un PDF.": "Dibujada a partir del XML: el proveedor no adjuntó un PDF.",
+  "Il conto non è stato salvato": "La cuenta no se guardó",
+  "Il tuo accesso non permette di cambiare la scheda dell'azienda: chiedi a chi gestisce le impostazioni di aggiungerlo in Impostazioni → Fatturazione.": "Tu acceso no permite cambiar los datos de la empresa: pedile a quien gestiona los ajustes que lo agregue en Ajustes → Facturación.",
+  "Dalla prossima fattura lo scegli dalla tendina, senza riscriverlo.": "Desde la próxima factura lo elegís en el desplegable, sin volver a escribirlo.",
+  "Incassi su più banche? Scrivile una volta sola e poi le scegli da qui.": "¿Cobrás en varios bancos? Escribilos una sola vez y después los elegís acá.",
+  "Un pagamento riaperto: la rata è tornata fra quelle da pagare": "Un pago reabierto: la cuota volvió entre las que están por pagar",
+  "{n} pagamenti riaperti: le rate sono tornate fra quelle da pagare": "{n} pagos reabiertos: las cuotas volvieron entre las que están por pagar",
+  "Non sono riuscito a riaprirli": "No pude reabrirlos",
+  "Una fattura risulta pagata, ma il pagamento non è registrato": "Una factura figura como pagada, pero el pago no está registrado",
+  "{n} fatture risultano pagate, ma il pagamento non è registrato": "{n} facturas figuran como pagadas, pero el pago no está registrado",
+  "Finché restano così non si possono riconciliare con il movimento della banca. Riaprendole tornano fra quelle da pagare: poi le abbini al pagamento, oppure usi «Segna pagata» dalla fattura, che registra la scrittura.": "Mientras sigan así no se pueden conciliar con el movimiento del banco. Al reabrirlas vuelven entre las que están por pagar: después las vinculás al pago, o usás «Marcar pagada» desde la factura, que registra el asiento.",
+  "Riaprire {n} pagamenti?": "¿Reabrir {n} pagos?",
+  "Le rate tornano fra quelle da pagare, per {importo} in tutto. Non si cancella niente: le fatture restano dove sono, e chi ha pagato davvero può risegnarle pagate in un clic. Si toccano solo quelle dove il pagamento non risulta registrato.": "Las cuotas vuelven entre las que están por pagar, por {importo} en total. No se borra nada: las facturas se quedan donde están, y quien pagó de verdad puede volver a marcarlas pagadas en un clic. Solo se tocan aquellas en las que el pago no figura registrado.",
+  "Aggiungi una manutenzione": "Agregar un mantenimiento",
+  "Interventi che nessuno paga: ore, trasferte e materiale a nostro carico.": "Intervenciones que nadie paga: horas, traslados y material a nuestro cargo.",
+  "La manutenzione è già stata registrata. Riprova per completare quello che manca senza rifare quello che è già salvato. Chiudendo, lasci il completamento a metà.": "El mantenimiento ya está registrado. Probá de nuevo para completar lo que falta sin repetir lo que ya está guardado. Si cerrás, el mantenimiento se queda a medias.",
+  "Non riesco a leggere la manutenzione. Riprova.": "No puedo leer el mantenimiento. Probá de nuevo.",
 };
 export default dizionario;

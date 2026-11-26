@@ -16,6 +16,7 @@ import { UniformSelect } from "@/components/ui/uniform-select";
 import { COLONNE_RAPPORTINO } from "@/lib/campo/colonneRapportino";
 import { useCallback, useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useMioProgramma } from "@/components/campo/MioProgramma";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
@@ -604,6 +605,9 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
   // Solo le fasi non completate sono dichiarabili
   const fasiDichiarabili = fasiCommessa.filter(f => f.status !== "completata");
   const [cercaFase, setCercaFase] = useState("");
+  // La lavorazione che l'ufficio ha programmato per oggi (Commesse → Programmazione): si segna con un tocco.
+  const programmaOggi = useMioProgramma(workDay);
+  const faseProgrammata = (programmaOggi.data ?? []).map(u => (u.orderId === orderId ? u.faseId : null)).find((id): id is string => !!id && fasiDichiarabili.some(f => f.id === id) && !(id in fasiDichiarate));
   // Spazio sotto il modulo = altezza vera della barra in basso (24/11/2026): con un valore fisso restava una fascia
   // bianca vuota sopra «Avanti», o la barra copriva l'ultima riga quando va su due righe.
   const [altezzaBarra, setAltezzaBarra] = useState(0);
@@ -1386,6 +1390,15 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
             {fasiDichiarabili.length > 0 && (
               <div className="rounded-2xl border bg-background p-4 shadow-sm">
                 <p className="text-sm font-semibold text-foreground">{t(workDay === today ? "Su cosa hai lavorato oggi?" : "Su cosa hai lavorato in questa giornata?")}</p>
+                {faseProgrammata && (
+                  <div className="my-2 flex items-center justify-between gap-2 rounded-xl bg-orange-50 px-3 py-2 text-xs text-orange-900 ring-1 ring-orange-200">
+                    <span>{t("Dal programma: {fase}", { fase: fasiDichiarabili.find(f => f.id === faseProgrammata)?.name ?? "" })}</span>
+                    <button type="button" className="rounded-full bg-orange-500 px-3 py-1 font-semibold text-white"
+                      onClick={() => setFasiDichiarate(p => ({ ...p, [faseProgrammata]: fasiDichiarabili.find(f => f.id === faseProgrammata)!.percentuale }))}>
+                      {t("Segna")}
+                    </button>
+                  </div>
+                )}
                 <p className="mb-3 text-xs text-muted-foreground">
                   {t(!ruoloCampo
                     ? "Ruolo Campo non ancora verificato. Puoi indicare le fasi lavorate; la modifica delle percentuali resta disabilitata."

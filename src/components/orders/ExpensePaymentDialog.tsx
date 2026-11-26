@@ -1,4 +1,5 @@
 import { ExpenseBankLink, ExpenseSalLinks } from "./ExpensePaymentLinks";
+import { TogliPagamentoCosto } from "./TogliPagamentoCosto";
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useExpensePaymentDetail, usePagamentiBancaProposti } from '@/hooks/useExpensePaymentDetail';
@@ -43,6 +44,8 @@ export function ExpensePaymentDialog({ costId, onClose, importoProposto, apriInR
   const [contoScelto, setConto] = useState('');
   const detail = useExpensePaymentDetail(costId);
   const dati = detail.data;
+  // Togliere un pagamento è un'operazione sui costi come registrarlo: stesso accesso.
+  const puoTogliere = permissions.canViewCosts && !permissions.solaLettura;
   const puoRegistrare = !!dati && !dati.da_verificare && dati.residuo > 0 && permissions.canViewCosts && !permissions.solaLettura;
   const editing = editingScelto || (apriInRegistrazione && !formChiuso && puoRegistrare && !compensazione);
   const proposta = dati ? Math.round(Math.min(importoProposto != null && importoProposto > 0 ? importoProposto : dati.residuo, dati.residuo) * 100) / 100 : 0;
@@ -105,9 +108,15 @@ export function ExpensePaymentDialog({ costId, onClose, importoProposto, apriInR
           </ul>
         </section>}
         <ExpenseSalLinks costId={costId}/>
-        <div className="overflow-x-auto rounded-lg border"><table className="w-full text-sm"><caption className="sr-only">{t("Pagamenti già registrati")}</caption><thead className="bg-muted/40"><tr><th className="p-3 text-left">{t("Data")}</th><th className="p-3 text-left">{t("Operazione")}</th><th className="p-3 text-right">{t("Importo")}</th><th className="p-3 text-left">{t("Conto e banca")}</th></tr></thead><tbody>
-          {d.movimenti.map(m => <tr key={m.id} className="border-t"><td className="p-3 whitespace-nowrap">{m.data.split('-').reverse().join('/')}</td><td className="p-3">{m.fonte === 'prova' ? t("Pagamento confermato dalla banca") : m.fonte === 'banca' ? t("Pagamento in banca") : m.storno_di ? t("Storno del pagamento") : d.movimenti.some(r => r.storno_di === m.id) ? t("Pagamento annullato") : m.direzione === 'entrata' ? t("Rimborso") : t("Pagamento")}{m.metodo && <p className="text-xs text-muted-foreground">{m.metodo}</p>}{m.riferimento && <p className="text-xs text-muted-foreground">{m.riferimento}</p>}</td><td className="p-3 text-right tabular-nums">{m.direzione === 'entrata' ? '− ' : ''}{formatCurrency(m.importo)}</td><td className="p-3 text-xs"><span className="font-medium">{m.conto && !['banca','cassa'].includes(m.conto) ? m.conto : m.conto === 'cassa' ? t("Cassa") : t("Conto non indicato")}</span><p className="text-muted-foreground">{m.banca ? t("Riconciliato con la banca") : m.storno_di ? '—' : t("Non riconciliato")}</p>{!m.banca && !m.storno_di && m.direzione==='uscita' && !['contanti','cash','mp01'].includes((m.metodo??'').toLowerCase()) && !(!m.bank_account_id && /^cassa/i.test(m.conto??'')) && !d.movimenti.some(r=>r.storno_di===m.id) && !permissions.solaLettura && (permissions.canViewTesoreria || permissions.canManagePayments || permissions.isAdmin) && <ExpenseBankLink costId={costId} paymentId={m.id} date={m.data}/>}</td></tr>)}
-          {!d.movimenti.length && <tr><td colSpan={4} className="p-3 text-center text-muted-foreground">{t("Nessun pagamento registrato.")}</td></tr>}
+        <div className="overflow-x-auto rounded-lg border"><table className="w-full text-sm"><caption className="sr-only">{t("Pagamenti già registrati")}</caption><thead className="bg-muted/40"><tr><th className="p-3 text-left">{t("Data")}</th><th className="p-3 text-left">{t("Operazione")}</th><th className="p-3 text-right">{t("Importo")}</th><th className="p-3 text-left">{t("Conto e banca")}</th><th className="p-3 text-right"><span className="sr-only">{t("Togli il pagamento")}</span></th></tr></thead><tbody>
+          {d.movimenti.map(m => <tr key={m.id} className="border-t"><td className="p-3 whitespace-nowrap">{m.data.split('-').reverse().join('/')}</td><td className="p-3">{m.fonte === 'prova' ? t("Pagamento confermato dalla banca") : m.fonte === 'banca' ? t("Pagamento in banca") : m.storno_di ? t("Storno del pagamento") : d.movimenti.some(r => r.storno_di === m.id) ? t("Pagamento annullato") : m.direzione === 'entrata' ? t("Rimborso") : t("Pagamento")}{m.metodo && <p className="text-xs text-muted-foreground">{m.metodo}</p>}{m.riferimento && <p className="text-xs text-muted-foreground">{m.riferimento}</p>}</td><td className="p-3 text-right tabular-nums">{m.direzione === 'entrata' ? '− ' : ''}{formatCurrency(m.importo)}</td><td className="p-3 text-xs"><span className="font-medium">{m.conto && !['banca','cassa'].includes(m.conto) ? m.conto : m.conto === 'cassa' ? t("Cassa") : t("Conto non indicato")}</span><p className="text-muted-foreground">{m.banca ? t("Riconciliato con la banca") : m.storno_di ? '—' : t("Non riconciliato")}</p>{!m.banca && !m.storno_di && m.direzione==='uscita' && !['contanti','cash','mp01'].includes((m.metodo??'').toLowerCase()) && !(!m.bank_account_id && /^cassa/i.test(m.conto??'')) && !d.movimenti.some(r=>r.storno_di===m.id) && !permissions.solaLettura && (permissions.canViewTesoreria || permissions.canManagePayments || permissions.isAdmin) && <ExpenseBankLink costId={costId} paymentId={m.id} date={m.data}/>}</td>
+            {/* 26/11/2026: il comando che mancava. La strada (storno del saldo rapido o
+                eliminazione del pagamento) la sceglie il database; qui si mostra solo quando c'è,
+                e il motivo quando non c'è. */}
+            <td className="p-3 text-right align-top">{puoTogliere && !m.non_annullabile && m.versione
+              ? <TogliPagamentoCosto pagamentoId={m.id} versione={m.versione} importo={Number(m.importo)} data={m.data}/>
+              : <span className="text-xs text-muted-foreground" title={m.non_annullabile ?? undefined}>—</span>}</td></tr>)}
+          {!d.movimenti.length && <tr><td colSpan={5} className="p-3 text-center text-muted-foreground">{t("Nessun pagamento registrato.")}</td></tr>}
         </tbody></table></div>
         {compensazione && <AnticipoFornitoreForm costId={costId} residuo={Number(d.residuo)} onClose={() => setCompensazione(false)} />}
         {editing && <div className="commessa-payment-form space-y-3 rounded-lg border bg-muted/20 p-4"><p className="text-sm font-medium">{t("Registra un pagamento già eseguito")}</p><p className="text-xs text-muted-foreground">{t("Indica solo questa quota. Puoi aggiungerne altre, anche in contanti o da un’altra banca.")}</p>

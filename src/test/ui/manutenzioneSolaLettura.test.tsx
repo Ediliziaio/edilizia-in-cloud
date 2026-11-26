@@ -26,23 +26,27 @@ beforeEach(() => {
 afterEach(cleanup);
 it("la sola lettura disabilita la creazione dalla lista senza bloccare i filtri", () => {
   render(<MemoryRouter><ManutenzioneList /></MemoryRouter>);
-  expect(screen.getByRole("button", { name: /^Nuovo/ })).toBeDisabled();
+  expect(screen.getByRole("button", { name: /^Nuov/ })).toBeDisabled();
   expect(screen.getByRole("button", { name: /^Tutti/ })).toBeEnabled();
 });
 it("chi può scrivere mantiene il comando nuovo impianto", () => {
   state.readOnly = false;
   render(<MemoryRouter><ManutenzioneList /></MemoryRouter>);
-  expect(screen.getByRole("button", { name: /^Nuovo/ })).toBeEnabled();
+  expect(screen.getByRole("button", { name: /^Nuov/ })).toBeEnabled();
 });
-it("in scheda blocca modifica, archiviazione, fatturazione e registrazioni", () => {
+it("in scheda blocca modifica, archiviazione, fatturazione e visite", () => {
   render(<MemoryRouter initialEntries={["/azienda/manutenzione/impianto/impianto-test"]}><Routes><Route path="/azienda/manutenzione/impianto/:id" element={<ImpiantoDetail />} /></Routes></MemoryRouter>);
-  for (const name of ["Modifica impianto", "Archivia impianto", "Fattura canone", "Registra esecuzione", "Esegui", "Nuovo intervento"]) {
+  // Panoramica (la scheda che si apre per prima)
+  for (const name of ["Modifica manutenzione", "Archivia manutenzione", "Fattura canone", "Segna la visita fatta", "Esegui"]) {
     expect(screen.getByRole("button", { name })).toBeDisabled();
   }
-  expect(screen.getByRole("button", { name: "Torna agli impianti" })).toBeEnabled();
+  // Lavoro: i comandi degli interventi stanno nella loro scheda
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Lavoro" }), { button: 0, ctrlKey: false });
+  expect(screen.getByRole("button", { name: "Nuovo intervento" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Torna alle manutenzioni" })).toBeEnabled();
 });
 it("il Kanban in sola lettura conserva l’apertura ma blocca Pianifica e Completa", () => {
-  const item: ImpiantoStato = { id: "i1", tipo_impianto: "infissi", marca: null, modello: null, garanzia_scadenza: null, data_installazione: null, customer: null, stato: "in_regola", prossimaScadenza: "2030-01-01", prossimoPianoId: "p1", contrattoNome: null, tecnicoId: null, tecnicoNome: null, priorita: "bassa" };
+  const item: ImpiantoStato = { id: "i1", tipo_impianto: "infissi", marca: null, modello: null, garanzia_scadenza: null, data_installazione: null, customer: null, stato: "in_regola", codice: "MAN-0001", prossimaScadenza: "2030-01-01", prossimoPianoId: "p1", contrattoNome: null, tecnicoId: null, tecnicoNome: null, priorita: "bassa" };
   const open = vi.fn();
   render(<ManutenzionePipeline impianti={[item]} onOpen={open} onPianifica={vi.fn()} onCompleta={vi.fn()} solaLettura />);
   expect(screen.getByRole("button", { name: "Pianifica" })).toBeDisabled();
@@ -51,10 +55,12 @@ it("il Kanban in sola lettura conserva l’apertura ma blocca Pianifica e Comple
   expect(open).toHaveBeenCalledExactlyOnceWith("i1");
 });
 
-it("fuori dalla sola lettura mantiene i comandi della scheda impianto", () => {
+it("fuori dalla sola lettura mantiene i comandi della scheda manutenzione", () => {
   state.readOnly = false;
   render(<MemoryRouter initialEntries={["/azienda/manutenzione/impianto/impianto-test"]}><Routes><Route path="/azienda/manutenzione/impianto/:id" element={<ImpiantoDetail />} /></Routes></MemoryRouter>);
-  for (const name of ["Modifica impianto", "Archivia impianto", "Fattura canone", "Registra esecuzione", "Esegui", "Nuovo intervento"]) {
+  for (const name of ["Modifica manutenzione", "Archivia manutenzione", "Fattura canone", "Segna la visita fatta", "Esegui"]) {
     expect(screen.getByRole("button", { name })).toBeEnabled();
   }
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Lavoro" }), { button: 0, ctrlKey: false });
+  expect(screen.getByRole("button", { name: "Nuovo intervento" })).toBeEnabled();
 });

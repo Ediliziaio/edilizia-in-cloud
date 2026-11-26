@@ -25,7 +25,7 @@ import { useFiltriUrl } from "@/hooks/useFiltriUrl";
 import { documentoEliminabile, emessaMaiUscita } from "@/lib/fatturazione/correggibile";
 import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
-import { BottoneMesi, MonthlyTimeline, useStrisciaMesi } from "@/components/fatturazione/MonthlyTimeline";
+import { MonthlyTimeline } from "@/components/fatturazione/MonthlyTimeline";
 import { RiepilogoFatture } from "@/components/fatturazione/RiepilogoFatture";
 import { CompletezzaFatture } from "@/components/fatturazione/CompletezzaFatture";
 import { StatoBadge } from "@/components/fatturazione/StatoBadge";
@@ -276,7 +276,11 @@ function DocumentiFiscaliListInner({ sezioni }: { sezioni?: React.ReactNode } = 
   const filtriUrl = useFiltriUrl("emesse", {
     sdi: "all", incasso: "all", cliente: "", commessa: "", dal: "", al: "",
     note: "0", allegati: "0", mese: "", ordina: "progressivo",
-  }, ["cerca", "stato", "pagina", "tab", "tipo"]);
+  // Il cestino si ricorda ma non si ripristina (26/11/2026): chi apre i documenti eliminati ci
+  // resta dentro, e da lì in poi l'elenco si riapriva sempre sul Cestino — anche dopo essere
+  // usciti e rientrati, perché la memoria è della scheda del browser. Impresa Vulcano ha
+  // segnalato «le fatture non ancora inviate a SDI non ci sono più»: erano tutte al loro posto.
+  }, ["cerca", "stato", "pagina", "tab", "tipo"], { tipo: ["annullate"] });
   const filtriEmesse: FiltriEmesse = useMemo(() => ({
     sdi: filtriUrl.valori.sdi, incasso: filtriUrl.valori.incasso,
     cliente: filtriUrl.valori.cliente, commessa: filtriUrl.valori.commessa,
@@ -468,7 +472,6 @@ function DocumentiFiscaliListInner({ sezioni }: { sezioni?: React.ReactNode } = 
   // vuoti: prima aspettavano i numeri e comparivano a mezzo secondo dalla
   // pagina, spingendo giù l'elenco (23/11/2026).
   const mesiStriscia = useMemo(() => timelineMonths ?? mesiVuoti(timelineYear), [timelineMonths, timelineYear]);
-  const striscia = useStrisciaMesi("emesse", selectedMonth);
   const strisciaVisibile = !isTrash && !soloBozzeFatture;
   // L'anno prima serve solo alla variazione dei numeri veloci, e solo da tablet in su.
   const { data: timelineMonthsPrima } = useMonthlyTimeline(currentTab.tipos, timelineYear - 1, {
@@ -890,17 +893,14 @@ function DocumentiFiscaliListInner({ sezioni }: { sezioni?: React.ReactNode } = 
             </button>
           );
         })}
-        {strisciaVisibile && (
-          <BottoneMesi className="ml-auto max-md:hidden" idStriscia="striscia-mesi-emesse" aperta={striscia.aperta} onClick={striscia.cambia} months={mesiStriscia} selectedMonth={selectedMonth} />
-        )}
       </div>
 
       {/* ── Monthly Timeline ───────────────────────────── */}
       {/* Strip 12 mesi a scorrimento: filtro secondario ingombrante su mobile.
           Solo da tablet in su; su telefono si resta su "tutti i mesi".
-          25/11/2026: sta sotto le linguette dei tipi e si apre col bottone «Mesi» (piegata di
-          serie quando si guardano tutti i mesi): 142px in meno prima dell'elenco. */}
-      {strisciaVisibile && striscia.aperta && (
+          26/11/2026: sempre in vista, su una riga sola (prima dietro il bottone «Mesi»: la
+          somma del mese non si vedeva più). */}
+      {strisciaVisibile && (
         <div id="striscia-mesi-emesse" className="hidden md:block">
           <MonthlyTimeline
             months={mesiStriscia}
@@ -955,7 +955,8 @@ function DocumentiFiscaliListInner({ sezioni }: { sezioni?: React.ReactNode } = 
           </Select>
         )}
 
-        <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
+        {/* 26/11/2026: 240px sotto i 1536, così «Colonne» resta sulla riga dei filtri. */}
+        <div className={cn(RICERCA_BARRA, "max-sm:w-full max-2xl:w-60")}>
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder={tr("Cliente, numero, importo, data o note…")}

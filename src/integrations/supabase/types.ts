@@ -27432,6 +27432,7 @@ export type Database = {
           operational_lng: number | null
           operational_postal_code: string | null
           operational_province: string | null
+          manutenzione_code_prefix: string
           order_code_prefix: string
           parent_company_id: string | null
           password_expiry_days: number
@@ -27609,6 +27610,7 @@ export type Database = {
           operational_lng?: number | null
           operational_postal_code?: string | null
           operational_province?: string | null
+          manutenzione_code_prefix?: string
           order_code_prefix?: string
           parent_company_id?: string | null
           password_expiry_days?: number
@@ -27786,6 +27788,7 @@ export type Database = {
           operational_lng?: number | null
           operational_postal_code?: string | null
           operational_province?: string | null
+          manutenzione_code_prefix?: string
           order_code_prefix?: string
           parent_company_id?: string | null
           password_expiry_days?: number
@@ -63765,6 +63768,7 @@ export type Database = {
       impianti_cliente: {
         Row: {
           attivo: boolean | null
+          codice: string | null
           company_id: string
           created_at: string | null
           customer_id: string
@@ -63781,6 +63785,7 @@ export type Database = {
         }
         Insert: {
           attivo?: boolean | null
+          codice?: string | null
           company_id: string
           created_at?: string | null
           customer_id: string
@@ -63797,6 +63802,7 @@ export type Database = {
         }
         Update: {
           attivo?: boolean | null
+          codice?: string | null
           company_id?: string
           created_at?: string | null
           customer_id?: string

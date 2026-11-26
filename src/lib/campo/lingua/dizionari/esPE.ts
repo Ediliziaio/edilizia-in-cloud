@@ -3,6 +3,7 @@ import es from "./es";
 
 /** Spagnolo peruviano: lo spagnolo, con le frasi che qui si dicono diverse. Da far rivedere a un madrelingua. */
 const dizionario: Dizionario = {
+  "Dal programma: {fase}": "Del programa: {fase}",
   ...es,
   "Bolla": "Guía",
   "I dati sono conservati sul telefono.": "Los datos se guardan en el celular.",
@@ -3912,5 +3913,11 @@ const dizionario: Dizionario = {
   "Margine a oggi, con gli impegni": "Margen a hoy, con los compromisos",
   "Scenario con tutti i materiali pagati prima dei prossimi incassi, importi IVA inclusa: contano solo incassi e materiali. Manodopera, ditte e altre spese escluse; i movimenti veri sono qui sopra.": "Escenario con todos los materiales pagados antes de los próximos cobros, montos IVA incluida: solo cuentan cobros y materiales. Mano de obra, empresas y otros gastos quedan fuera; los movimientos reales están aquí arriba.",
   "I cantieri aperti hanno pagato {importo} più di quanto hanno incassato: li stai finanziando tu. Quei soldi sono già usciti dal conto, non vanno tolti un’altra volta.": "Las obras abiertas han pagado {importo} más de lo que han cobrado: las estás financiando tú. Esa plata ya salió de la cuenta, no hay que quitarla otra vez.",
+  "Fatture, DDT, costi, acquisti e movimenti non vengono eliminati: perdono solo il collegamento a queste commesse e restano nei loro elenchi, dove potrai assegnarli a un’altra commessa. Quello che è parte della commessa — rate, articoli, SAL, rapportini, ore e provvigioni — la segue nel cestino e torna solo ripristinandola. Lo scollegamento invece non si annulla.": "Las facturas, los DDT, los costos, las compras y los movimientos no se eliminan: solo pierden el vínculo con estos encargos y siguen en sus listas, donde podrás asignarlos a otro encargo. Lo que forma parte del encargo —cuotas, artículos, SAL, partes de trabajo, horas y comisiones— lo sigue a la papelera y solo vuelve al restaurarlo. La desconexión, en cambio, no se puede anular.",
+  "Sul foglio si vedevano {viste} righe di merce, qui ce ne sono {lette}: controlla che non ne manchi una.": "En la hoja se veían {viste} líneas de mercadería, aquí hay {lette}: revisa que no falte ninguna.",
+  "Il tuo accesso non permette di cambiare la scheda dell'azienda: chiedi a chi gestisce le impostazioni di aggiungerlo in Impostazioni → Fatturazione.": "Tu acceso no permite cambiar los datos de la empresa: pide a quien gestiona los ajustes que lo agregue en Ajustes → Facturación.",
+  "Incassi su più banche? Scrivile una volta sola e poi le scegli da qui.": "¿Cobras en varios bancos? Agrégalos una sola vez y luego los eliges aquí.",
+  "Aggiungi una manutenzione": "Agregar un mantenimiento",
+  "Interventi che nessuno paga: ore, trasferte e materiale a nostro carico.": "Intervenciones que nadie paga: horas, traslados y material a nuestro cargo.",
 };
 export default dizionario;

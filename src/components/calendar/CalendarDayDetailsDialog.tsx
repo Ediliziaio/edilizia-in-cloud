@@ -1,3 +1,4 @@
+import { ProgrammaDelGiorno } from "@/components/programmazione/ProgrammazioneNelCalendario";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { format, parseISO } from "date-fns";
@@ -342,6 +343,10 @@ function DayDetails({
                 {forecast.maxTemp}°
               </p>
             )}
+          </div>
+          {/* La Programmazione del giorno (26/11/2026): chi va dove, a che ora. */}
+          <div className="mt-3 max-h-48 overflow-y-auto">
+            <ProgrammaDelGiorno giorno={date} onNaviga={() => onOpenChange(false)} />
           </div>
         </header>
         {isLoading ? (

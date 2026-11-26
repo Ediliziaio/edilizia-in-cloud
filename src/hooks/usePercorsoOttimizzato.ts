@@ -152,7 +152,7 @@ export function usePercorsoOttimizzato(): PercorsoOttimizzatoState & PercorsoOtt
       ...ordered.map((i) => ({ lat: i.lat, lng: i.lng })),
     ];
 
-    const routeResult = await getRoute(waypoints);
+    const routeResult = await getRoute(waypoints, { strada: true });
 
     // Stima tempi di arrivo: usa le durate per-tratta reali (HERE) quando
     // disponibili; altrimenti fallback alla divisione uniforme (OSRM non

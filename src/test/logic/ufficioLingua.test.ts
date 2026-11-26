@@ -1,14 +1,27 @@
 /**
- * Lingua nell'app dell'ufficio (/azienda), tradotta a blocchi (23/11/2026): prima rumeno e albanese, poi le altre.
- * Ogni file elencato in BLOCCHI_UFFICIO deve avere tutte le sue frasi t("…") nelle lingue già fatte per l'ufficio.
- * Quando un blocco arriva anche nelle altre lingue, si aggiunge la lingua a LINGUE_UFFICIO.
+ * Lingua nell'app dell'ufficio (/azienda). Ogni file elencato in BLOCCHI_UFFICIO deve avere tutte le sue frasi
+ * t("…") in TUTTE le lingue, non solo in quelle con cui l'ufficio è partito.
+ *
+ * Fino al 26/11/2026 qui c'erano solo rumeno e albanese, perché l'ufficio si traduceva a blocchi partendo da
+ * quelle due. Intanto le altre otto sono arrivate in pari, ma il controllo è rimasto stretto: due volte in un
+ * giorno sono entrate su main frasi nuove tradotte solo in rumeno e albanese (124 la prima volta, 55 la seconda)
+ * con la prova verde, e l'utente tedesco o marocchino leggeva italiano. Da qui in avanti le lingue sono tutte.
+ *
+ * esAR ed esPE non si elencano: partono da `es` con le sole voci che cambiano, quindi una frase che manca in
+ * spagnolo manca anche a loro ed è `es` a segnalarla.
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import ro from "@/lib/campo/lingua/dizionari/ro?dizionario";
 import sq from "@/lib/campo/lingua/dizionari/sq?dizionario";
+import arMA from "@/lib/campo/lingua/dizionari/arMA?dizionario";
+import arEG from "@/lib/campo/lingua/dizionari/arEG?dizionario";
+import de from "@/lib/campo/lingua/dizionari/de?dizionario";
+import fr from "@/lib/campo/lingua/dizionari/fr?dizionario";
+import en from "@/lib/campo/lingua/dizionari/en?dizionario";
+import es from "@/lib/campo/lingua/dizionari/es?dizionario";
 
-const LINGUE_UFFICIO = { ro, sq };
+const LINGUE_UFFICIO = { ro, sq, arMA, arEG, de, fr, en, es };
 
 /** I file dell'ufficio già tradotti, blocco per blocco. */
 export const BLOCCHI_UFFICIO: Record<string, string[]> = {
@@ -1245,6 +1258,7 @@ export const BLOCCHI_UFFICIO: Record<string, string[]> = {
     "src/components/orders/TempiFase.tsx",
     "src/components/orders/TimelineCantiere.tsx",
     "src/components/orders/TotaliCampiCommessa.tsx",
+    "src/components/orders/TogliPagamentoCosto.tsx",
     "src/components/orders/VarianteDaDocumento.tsx",
     "src/components/orders/VarianteVociDialog.tsx",
     "src/components/orders/VariantiCard.tsx",
@@ -1811,6 +1825,7 @@ export const BLOCCHI_UFFICIO: Record<string, string[]> = {
     "src/components/fatturazione/NoteInterneFattura.tsx",
     "src/components/fatturazione/OriginaliConfronto.tsx",
     "src/components/fatturazione/PaDaConfermare.tsx",
+    "src/components/fatturazione/PagamentiSegnatiDaSistemare.tsx",
     "src/components/fatturazione/PagamentoRicevuta.tsx",
     "src/components/fatturazione/PartnerReconciliationPanel.tsx",
     "src/components/fatturazione/PdfRigaConfronto.tsx",
@@ -1827,6 +1842,7 @@ export const BLOCCHI_UFFICIO: Record<string, string[]> = {
     "src/components/fatturazione/RiportaDaIncassare.tsx",
     "src/components/fatturazione/RitenuteBonificiPanel.tsx",
     "src/components/fatturazione/RitenuteSubiteFatture.tsx",
+    "src/components/fatturazione/SceltaContoIncasso.tsx",
     "src/components/fatturazione/ScegliMezzoFattura.tsx",
     "src/components/fatturazione/SdiStatoBanner.tsx",
     "src/components/fatturazione/SegnaPagataDialog.tsx",

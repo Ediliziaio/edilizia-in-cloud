@@ -31,6 +31,7 @@ type ProfileSummary = { first_name: string | null; last_name: string | null };
 
 type ImpiantoCliente = {
   id: string;
+  codice: string | null;
   tipo_impianto: string;
   marca: string | null;
   modello: string | null;
@@ -100,8 +101,8 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
       let query = supabase
         .from("impianti_cliente")
         .select(soloMie
-          ? "id, tipo_impianto, marca, modello, garanzia_scadenza, data_installazione, customer:profiles!impianti_cliente_customer_id_fkey(first_name, last_name), piani:piani_manutenzione!piani_manutenzione_impianto_company_fkey!inner(tecnico_preferito)"
-          : "id, tipo_impianto, marca, modello, garanzia_scadenza, data_installazione, customer:profiles!impianti_cliente_customer_id_fkey(first_name, last_name)")
+          ? "id, codice, tipo_impianto, marca, modello, garanzia_scadenza, data_installazione, customer:profiles!impianti_cliente_customer_id_fkey(first_name, last_name), piani:piani_manutenzione!piani_manutenzione_impianto_company_fkey!inner(tecnico_preferito)"
+          : "id, codice, tipo_impianto, marca, modello, garanzia_scadenza, data_installazione, customer:profiles!impianti_cliente_customer_id_fkey(first_name, last_name)")
         .eq("company_id", effectiveCompany.id)
         .eq("attivo", true)
         .order("created_at", { ascending: false });
@@ -189,7 +190,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
     mutationFn: async (piano: PianoAttivo) => {
       if (permissions.solaLettura) throw new Error(t("Modalità di sola lettura"));
       const customerId = piano.impianto?.customer_id;
-      if (!piano.impianto_id || !customerId || !effectiveCompany?.id) throw new Error(t("Dati dell’impianto mancanti"));
+      if (!piano.impianto_id || !customerId || !effectiveCompany?.id) throw new Error(t("Dati della manutenzione mancanti"));
       const giorni = piano.frequenza_giorni ?? FREQ_GIORNI[piano.frequenza_tipo] ?? 365;
       const prossima = format(addDays(new Date(), giorni), "yyyy-MM-dd");
       const { error: ticketErr } = await supabase.from("tickets").insert({
@@ -219,7 +220,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
   const completaMutation = useMutation({
     mutationFn: async (piano: PianoAttivo) => {
       if (permissions.solaLettura) throw new Error(t("Modalità di sola lettura"));
-      if (!piano.impianto_id || !effectiveCompany?.id) throw new Error(t("Impianto non disponibile"));
+      if (!piano.impianto_id || !effectiveCompany?.id) throw new Error(t("Manutenzione non disponibile"));
       const todayIso = format(new Date(), "yyyy-MM-dd");
       const chiave = JSON.stringify([piano.id, todayIso, piano.ultima_esecuzione, piano.prossima_scadenza]);
       const operazione = operazioniCompletamento.current.get(chiave) ?? crypto.randomUUID();
@@ -259,6 +260,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
     const tecnicoId = piano?.tecnico_preferito ?? null;
     return {
       id: im.id,
+      codice: im.codice,
       tipo_impianto: im.tipo_impianto,
       marca: im.marca,
       modello: im.modello,
@@ -280,7 +282,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
     if (pill === "in_regola" && im.stato !== "in_regola") return false;
     if (pill === "senza_piano" && im.stato !== "senza_piano") return false;
     if (!q) return true;
-    return `${im.tipo_impianto} ${im.marca ?? ""} ${im.modello ?? ""} ${nomeCliente(im.customer)}`.toLowerCase().includes(q);
+    return `${im.codice ?? ""} ${im.tipo_impianto} ${im.marca ?? ""} ${im.modello ?? ""} ${nomeCliente(im.customer)}`.toLowerCase().includes(q);
   }), [impiantiConStato, pill, q]);
 
   const contrattiFiltrati = useMemo(() => contratti.filter((c) => {
@@ -337,6 +339,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
       <div className="hidden sm:contents">
         <ExportButton
           getData={() => impiantiDaEsportare.map((im) => ({
+            codice: im.codice || "",
             tipo: im.tipo_impianto?.replace("_", " ") || "",
             marca: im.marca || "",
             modello: im.modello || "",
@@ -361,10 +364,10 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
         disabled={permissions.solaLettura}
         onClick={() => { if (!permissions.solaLettura) setWizardOpen(true); }}
         className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:w-9 max-sm:rounded-full max-sm:p-0"
-        aria-label={t("Nuovo Impianto")}
+        aria-label={t("Nuova manutenzione")}
       >
         <Plus className="mr-2 h-4 w-4 max-sm:mr-0" />
-        <span className="hidden sm:inline">{t("Nuovo Impianto")}</span>
+        <span className="hidden sm:inline">{t("Nuova manutenzione")}</span>
       </Button>
     </>
   );
@@ -384,7 +387,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
                 </div>
                 <div className="min-w-0">
                   <h1 className="text-2xl font-bold tracking-tight">{t("Manutenzione")}</h1>
-                  <p className="text-sm text-muted-foreground">{t("Impianti, contratti e piani di manutenzione dei clienti.")}</p>
+                  <p className="text-sm text-muted-foreground">{t("Le manutenzioni dei tuoi clienti: contratti, scadenze e interventi.")}</p>
                 </div>
               </div>
             )}
@@ -400,7 +403,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
           { value: "all", label: t("Tutti"), icon: ClipboardList, n: impianti.length },
           { value: "urgenti", label: t("Scadenza imminente"), icon: AlertTriangle, n: nScaduteInScadenza },
           { value: "in_regola", label: t("In regola"), icon: CheckCircle2, n: contaStato.in_regola },
-          { value: "senza_piano", label: t("Senza piano"), icon: CircleDashed, n: contaStato.senza_piano },
+          { value: "senza_piano", label: t("Senza ricorrenza"), icon: CircleDashed, n: contaStato.senza_piano },
           { value: "__contratti__", label: t("Contratti"), icon: FileText, n: contratti.length },
         ].map((tab) => {
           const Icon = tab.icon;
@@ -426,11 +429,11 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
       {/* Riepilogo condiviso; i contratti e i canoni restano disponibili sotto. Fino a 1024 non c'è:
           ripeteva le stesse quattro scelte delle pillole qui sopra (stessi numeri, stesso filtro). */}
       <div className="max-lg:hidden">
-      <OperationalSummary compatto label={t("Riepilogo manutenzioni")} title={t("Impianti e scadenze")} icon={ClipboardList} error={impiantiError || contrattiError || pianiError} note={t("Impianti e piani accessibili al tuo utente.")}>
-        <OperationalSummaryMetric label={t("Impianti")} value={impianti.length} isLoading={loadingImpianti || loadingPiani} onClick={() => setPill("all")} active={pill === "all"} />
+      <OperationalSummary compatto label={t("Riepilogo manutenzioni")} title={t("Manutenzioni e scadenze")} icon={ClipboardList} error={impiantiError || contrattiError || pianiError} note={t("Manutenzioni e ricorrenze accessibili al tuo utente.")}>
+        <OperationalSummaryMetric label={t("Manutenzioni")} value={impianti.length} isLoading={loadingImpianti || loadingPiani} onClick={() => setPill("all")} active={pill === "all"} />
         <OperationalSummaryMetric label={t("Scadenza imminente")} value={nScaduteInScadenza} tone={nScaduteInScadenza > 0 ? "amber" : undefined} isLoading={loadingImpianti || loadingContratti || loadingPiani} onClick={() => setPill("urgenti")} active={pill === "urgenti"} hint={t("Scadute o in scadenza")} />
         <OperationalSummaryMetric label={t("In regola")} value={contaStato.in_regola} isLoading={loadingImpianti || loadingPiani} onClick={() => setPill("in_regola")} active={pill === "in_regola"} />
-        <OperationalSummaryMetric label={t("Senza piano")} value={contaStato.senza_piano} isLoading={loadingImpianti || loadingPiani} onClick={() => setPill("senza_piano")} active={pill === "senza_piano"} />
+        <OperationalSummaryMetric label={t("Senza ricorrenza")} value={contaStato.senza_piano} isLoading={loadingImpianti || loadingPiani} onClick={() => setPill("senza_piano")} active={pill === "senza_piano"} />
       </OperationalSummary>
       </div>
       {!(impiantiError || contrattiError || pianiError) && <details className="rounded-xl border bg-background p-3 text-sm"><summary className="cursor-pointer font-medium">{t("Contratti e canoni")}</summary><div className="mt-3 grid grid-cols-2 gap-3"><div><p className="text-muted-foreground">{t("Contratti attivi")}</p><p className="font-semibold">{loadingContratti ? t("Caricamento…") : contratti.filter(c => c.stato === "attivo").length}</p></div><div><p className="text-muted-foreground">{t("Canoni al mese")}</p><p className="font-semibold">{loadingContratti ? t("Caricamento…") : `${mrr.toLocaleString(intlCampo(), { maximumFractionDigits: 0, useGrouping: true })} €`}</p></div></div></details>}
@@ -447,8 +450,8 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
         <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
-            aria-label={mostraContratti ? t("Cerca contratti di manutenzione") : t("Cerca impianti per cliente o tipo")}
-            placeholder={mostraContratti ? t("Cerca un contratto…") : t("Cerca per cliente o impianto…")}
+            aria-label={mostraContratti ? t("Cerca contratti di manutenzione") : t("Cerca manutenzioni per cliente, tipo o codice")}
+            placeholder={mostraContratti ? t("Cerca un contratto…") : t("Cerca per cliente, tipo o codice…")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-8 bg-white pl-8 text-xs"
@@ -467,7 +470,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
       {/* Barra selezione (desktop): l'Esporta in alto segue la selezione. */}
       {selezionati.size > 0 && !mostraContratti && (
         <div className="hidden items-center justify-between gap-2 rounded-xl border border-orange-200 bg-orange-50/60 px-4 py-2 text-sm sm:flex">
-          <span className="font-medium text-orange-800">{t("{size} impianti selezionati · l'Esporta scarica solo questi", { size: String(selezionati.size ?? "") })}</span>
+          <span className="font-medium text-orange-800">{t("{size} manutenzioni selezionate · l'Esporta scarica solo queste", { size: String(selezionati.size ?? "") })}</span>
           <Button variant="ghost" size="sm" className="h-8" onClick={() => setSelezionati(new Set())}>{t("Deseleziona")}</Button>
         </div>
       )}
@@ -507,10 +510,10 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
         <div className="space-y-3">{[1, 2, 3].map((n) => <Skeleton key={n} className="h-16 rounded-lg" />)}</div>
       ) : impiantiFiltrati.length === 0 ? (
         <div className="rounded-2xl border border-dashed py-12 text-center text-sm text-muted-foreground">
-          {q || pill !== "all" ? t("Nessun impianto con questi filtri") : (
+          {q || pill !== "all" ? t("Nessuna manutenzione con questi filtri") : (
             <div className="space-y-3">
-              <p>{t("Nessun impianto registrato")}</p>
-              <Button size="sm" className="gap-2" onClick={() => setWizardOpen(true)}><Plus className="h-4 w-4" /> {t("Aggiungi impianto")}</Button>
+              <p>{t("Nessuna manutenzione registrata")}</p>
+              <Button size="sm" className="gap-2" onClick={() => setWizardOpen(true)}><Plus className="h-4 w-4" /> {t("Aggiungi una manutenzione")}</Button>
             </div>
           )}
         </div>

@@ -49,7 +49,7 @@ import { RiepilogoFatturaRicevuta } from "@/components/fatturazione/RiepilogoFat
 import { CellaProtocolloRicevuta, NumeraProtocolliRicevute, useProtocolliRicevute } from "@/components/fatturazione/ProtocolloRicevuta";
 import { CellaProtocolloCommessa, NumeraProtocolliCommesse, useProtocolliCommessa } from "@/components/fatturazione/ProtocolloCommessa";
 import { RiepilogoFatture, TESTI_RICEVUTE } from "@/components/fatturazione/RiepilogoFatture";
-import { BottoneMesi, MonthlyTimeline, useStrisciaMesi } from "@/components/fatturazione/MonthlyTimeline";
+import { MonthlyTimeline } from "@/components/fatturazione/MonthlyTimeline";
 import { mesiRicevute } from "@/lib/fatturazione/mesiRicevute";
 import { etichettaTipoFornitore } from "@/lib/fornitori/tipiFornitore";
 import type { QuotaOrdine } from "@/lib/fatturazione/quoteOrdini";
@@ -456,7 +456,6 @@ export default function FattureRicevutePage() {
   const meseScelto = filtriUrl.valori.mese || null;
   const setMeseScelto = (v: string | null) => filtriUrl.imposta("mese", v ?? "");
   // La striscia dei mesi si apre col bottone «Mesi» (25/11/2026), come nelle emesse.
-  const striscia = useStrisciaMesi("ricevute", meseScelto);
   // Il perché dell'avviso «Le fatture dei fornitori non stanno arrivando»: si apre a richiesta.
   const [perchePermesso, setPerchePermesso] = useState(false);
   const setAnnoFilter = (anno: string) => {
@@ -1339,10 +1338,6 @@ export default function FattureRicevutePage() {
               <SelectItem value="all">{tr("Tutti gli anni")}</SelectItem>
             </SelectContent>
           </Select>
-          {/* La striscia dei mesi è di un anno: con «tutti gli anni» non c'è. */}
-          {strisciaVisibile && mesi && (
-            <BottoneMesi idStriscia="striscia-mesi-ricevute" aperta={striscia.aperta} onClick={striscia.cambia} months={mesi} selectedMonth={meseScelto} />
-          )}
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO}>
@@ -1435,7 +1430,8 @@ export default function FattureRicevutePage() {
             </PopoverContent>
           </Popover>
         </div>
-        {strisciaVisibile && mesi && striscia.aperta && (
+        {/* La striscia dei mesi è di un anno: con «tutti gli anni» non c'è. */}
+        {strisciaVisibile && mesi && (
           <div id="striscia-mesi-ricevute">
             <MonthlyTimeline
               months={mesi}

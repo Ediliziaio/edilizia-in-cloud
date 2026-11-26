@@ -35,8 +35,8 @@ export interface RouteResult {
   durationLabel: string;
   /** Durate per singola tratta (solo HERE) — per ETA precisi */
   legs?: RouteLeg[];
-  /** Provider effettivamente usato */
-  provider: "here" | "osrm";
+  /** Provider effettivamente usato («stima» = linea d'aria, nessun servizio esterno) */
+  provider: "here" | "osrm" | "stima";
 }
 
 // ── Polyline decoder (Google Encoded Polyline Algorithm) ──────────────────────
@@ -199,19 +199,55 @@ async function getHereRoute(
   }
 }
 
+// ── Stima senza servizi esterni ───────────────────────────────────────────────
+/** Strada ≈ linea d'aria × 1,3, a 45 km/h: le stesse regole della Programmazione. */
+const FATTORE_STRADA = 1.3;
+const KMH_MEDI = 45;
+
+function metriInLinea(a: RouteWaypoint, b: RouteWaypoint): number {
+  const rad = Math.PI / 180;
+  const h = Math.sin((b.lat - a.lat) * rad / 2) ** 2 +
+    Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin((b.lng - a.lng) * rad / 2) ** 2;
+  return 12_742_000 * Math.asin(Math.sqrt(Math.min(1, h)));
+}
+
+/** Il percorso stimato: tratte in linea d'aria × 1,3 a 45 km/h, gratis e immediato. */
+export function stimaPercorso(waypoints: RouteWaypoint[]): RouteResult | null {
+  if (waypoints.length < 2) return null;
+  const legs: RouteLeg[] = waypoints.slice(1).map((b, i) => {
+    const distanceMeters = Math.round(metriInLinea(waypoints[i], b) * FATTORE_STRADA);
+    return { distanceMeters, durationSec: Math.round((distanceMeters / 1000 / KMH_MEDI) * 3600) };
+  });
+  const durationSec = legs.reduce((s, l) => s + l.durationSec, 0);
+  return {
+    coordinates: waypoints.map((w): [number, number] => [w.lat, w.lng]),
+    durationSec,
+    distanceMeters: legs.reduce((s, l) => s + l.distanceMeters, 0),
+    durationLabel: formatDuration(durationSec),
+    legs,
+    provider: "stima",
+  };
+}
+
 /**
- * Routing multi-waypoint con fallback automatico:
- * 1. HERE (traffico reale, ETA per tratta)
- * 2. OSRM demo (gratuito, no traffico)
+ * Il percorso fra i waypoint.
  *
- * Usare questa funzione nei nuovi sviluppi al posto di getOsrmRoute.
+ * Dal 26/11/2026 (Florin: «HERE si attiva solo quando si apre la mappa, non
+ * voglio che chi non usa le mappe mi prenda crediti») di base è una STIMA
+ * (linea d'aria × 1,3 a 45 km/h), senza chiamare nessuno: schede cliente,
+ * calendario, mezzi e logistica la mostravano da sole, a ogni apertura.
+ * La strada vera (HERE, poi OSRM) solo con `{ strada: true }`, cioè quando
+ * l'utente la chiede con un pulsante («Calcola km», «Ottimizza percorso»).
+ * Le mappe usano la edge mappa-operativa, che ha il suo tetto giornaliero.
  */
 export async function getRoute(
-  waypoints: RouteWaypoint[]
+  waypoints: RouteWaypoint[],
+  { strada = false }: { strada?: boolean } = {},
 ): Promise<RouteResult | null> {
+  if (!strada) return stimaPercorso(waypoints);
   const hereResult = await getHereRoute(waypoints);
   if (hereResult) return hereResult;
-  return getOsrmRoute(waypoints);
+  return (await getOsrmRoute(waypoints)) ?? stimaPercorso(waypoints);
 }
 
 /**

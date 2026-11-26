@@ -62,7 +62,9 @@ interface OrdersTableProps {
   canDelete?: boolean;
   orders: OrderWithDetails[];
   previousReasons?: Record<string,string[]>;
-  onDelete: (orderId: string) => void | Promise<unknown>;
+  onDelete: (orderId: string, scollega?: boolean) => void | Promise<unknown>;
+  /** Serve solo alla seconda conferma del cestino: elenca cosa verrebbe scollegato. */
+  companyId?: string | null;
   isDeleting: boolean;
   orderCosts: Map<string, OrderCosts>;
   costsState?: "ready" | "loading" | "error";
@@ -128,6 +130,7 @@ export const OrdersTable = React.memo(function OrdersTable({
   orders,
   previousReasons = {},
   onDelete,
+  companyId,
   isDeleting,
   orderCosts,
   costsState = "ready",
@@ -749,7 +752,7 @@ export const OrdersTable = React.memo(function OrdersTable({
       </div>{/* end hidden sm:block */}
 
       {/* Conferma eliminazione unica, pilotata dal menu ⋮ delle righe. */}
-      <OrderTrashConfirmDialog open={!!confirmDelete} onOpenChange={v=>!v&&setConfirmDelete(null)} label={confirmDelete?.order_code||confirmDelete?.description} onConfirm={()=>{if(confirmDelete)return onDelete(confirmDelete.id);}} />
+      <OrderTrashConfirmDialog open={!!confirmDelete} onOpenChange={v=>!v&&setConfirmDelete(null)} label={confirmDelete?.order_code||confirmDelete?.description} orderId={confirmDelete?.id} companyId={companyId} onConfirm={scollega=>{if(confirmDelete)return onDelete(confirmDelete.id,scollega);}} />
     </Card>
   );
 });
