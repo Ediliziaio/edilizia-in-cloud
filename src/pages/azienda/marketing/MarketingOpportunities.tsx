@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useURLFilters } from "@/hooks/useURLFilters";
+import { useOperationalViewMemory } from "@/hooks/useOperationalViewMemory";
 import { Plus, Loader2, Target, Search, Filter, ArrowUpDown, LayoutGrid, List, Upload, MoreHorizontal, Settings2, Trash2, Pencil, Download, Check, X, Minimize2, Maximize2, AlertTriangle, RefreshCw } from "lucide-react";
 import { CardCustomizeSheet } from "@/components/opportunities/CardCustomizeSheet";
 import { useCardFieldPreferences, CardFieldPreferencesProvider } from "@/hooks/useCardFieldPreferences";
@@ -128,6 +129,9 @@ function MarketingOpportunitiesContent() {
     sortField: { key: "ordina", defaultValue: "created_at" },
     sortDir: { key: "dir", defaultValue: "desc" },
   });
+  // I filtri erano già nell'indirizzo: mancava il ritorno dal menu, che va all'indirizzo
+  // nudo (26/11/2026). La vista (kanban o elenco) non si ripristina: è una scelta a parte.
+  useOperationalViewMemory("opportunita", ["pipeline", "q", "ordina", "dir"], { restoreView: false });
 
   const normalizedUrlState = useMemo(() => normalizeOpportunityUrlState({
     viewMode: urlFilters.viewMode,
