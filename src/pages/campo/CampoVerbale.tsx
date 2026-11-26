@@ -58,6 +58,7 @@ export default function CampoVerbale() {
   const [sulTelefono, setSulTelefono] = useState<VerbaleSulTelefono | null>(() => leggiVerbaleSulTelefono(user?.id, orderId));
   const [attesaRete, setAttesaRete] = useState(false);
   // L'utente arriva dopo il primo disegno: si rilegge quando c'è.
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- rilettura dalla memoria del telefono quando arriva l'utente
   useEffect(() => { setSulTelefono(leggiVerbaleSulTelefono(user?.id, orderId)); }, [user?.id, orderId]);
   const modelliQuery = useModelliCapo(orderId);
   const modelli = modelliQuery.data ?? [];
@@ -156,6 +157,7 @@ export default function CampoVerbale() {
   // Torna il segnale: la bozza rimasta in attesa si salva da sola.
   useEffect(() => {
     if (!online || !attesaRete || !content || !modificato || occupato) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- il salvataggio parte al ritorno della rete, dentro una chiamata asincrona
     void conErrore(async () => { await salvaBozza(); toast.success(t("Tornata la rete: bozza del verbale salvata.")); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [online, attesaRete]);

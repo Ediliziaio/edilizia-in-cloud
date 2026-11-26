@@ -295,6 +295,7 @@ export default function CampoAvanzamento() {
       try {
         const compressed = await compressImage(file).catch((): null => null);
         const payload: Blob = compressed ?? file;
+        // eslint-disable-next-line react-hooks/purity -- Nome del file calcolato dentro il caricamento asincrono, mai durante il render.
         const path = `${companyId}/${fase.order_id}/fasi/${fase.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
         const { data: up, error: upErr } = await supabase.storage
           .from(PHOTO_BUCKET)

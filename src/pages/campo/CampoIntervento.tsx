@@ -71,7 +71,8 @@ function Dettaglio({ intervento: i, tutti, userId, aggiorna }: { intervento: Int
   const prossimo = prossimoIntervento(tutti, i.id);
 
   // Le anteprime locali si liberano solo uscendo dalla pagina (non a ogni foto aggiunta).
-  const fotoRef = useRef(foto); fotoRef.current = foto;
+  const fotoRef = useRef(foto);
+  useEffect(() => { fotoRef.current = foto; }, [foto]);
   useEffect(() => () => fotoRef.current.forEach(f => URL.revokeObjectURL(f.anteprima)), []);
   const cartella = `${userId}/interventi/${i.id}/`;
 
