@@ -31,6 +31,7 @@ import { leggiMovimentiMagazzino } from "@/lib/magazzino/registroMovimenti";
 import { queryKeys } from "@/lib/queryKeys";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { BOTTONE_SECONDARIO, RICERCA_BARRA } from "@/components/orders/TestataScheda";
+import { ArticoloMagazzinoDialog } from "./ArticoloMagazzinoDialog";
 
 interface Props {
   companyId: string;
@@ -50,7 +51,9 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
   const t = useT();
   const permissions = usePermissions();
   const canViewCosts = !permissions.isLoading && permissions.canViewCosts;
-  const [period, setPeriod] = useState<PeriodKey>("30");
+  // 26/11/2026: si parte dagli ultimi 90 giorni (a 30 la pagina era spesso vuota).
+  const [period, setPeriod] = useState<PeriodKey>("90");
+  const [articoloAperto, setArticoloAperto] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<"all" | "carico" | "scarico">("all");
   const [query, setQuery] = useState("");
   // a schermo a blocchi: diciottomila righe in una tabella bloccano il browser
@@ -196,6 +199,11 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {t("I carichi (arrivi merce) e gli scarichi (uscite verso cantiere) compariranno qui.")}
               </p>
+              {period !== "all" && (
+                <Button variant="outline" size="sm" className="mt-2 h-8 px-2.5 text-xs" onClick={() => setPeriod("all")}>
+                  {t("Tutto lo storico")}
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -218,7 +226,9 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
                 </TableHeader>
                 <TableBody>
                   {filtered.slice(0, mostrate).map((m) => (
-                    <TableRow key={m.id} className="sm:[&>td]:py-1.5">
+                    // 26/11/2026: un movimento per riga (da 640px niente va a capo) e il clic apre l'articolo.
+                    <TableRow key={m.id} className="cursor-pointer sm:[&>td]:whitespace-nowrap sm:[&>td]:py-1.5"
+                      onClick={(e) => { if (!(e.target as HTMLElement).closest("a, button")) setArticoloAperto(m.stock_item_id); }}>
                       <TableCell className="text-sm text-muted-foreground max-sm:px-2 sm:whitespace-nowrap">
                         <time dateTime={m.created_at} className="max-sm:text-xs">{format(new Date(m.created_at), "dd/MM/yy HH:mm")}</time>
                       </TableCell>
@@ -227,7 +237,7 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
                           variant={m.movement_type === "carico" ? "default" : "destructive"}
                           className={m.movement_type === "carico"
                             ? "gap-1 bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-400 max-sm:px-1"
-                            : "gap-1 max-sm:px-1"}
+                            : "gap-1 border-transparent bg-red-50 text-red-700 hover:bg-red-50 max-sm:px-1"}
                         >
                           {m.movement_type === "carico"
                             ? <ArrowDownToLine aria-hidden className="hidden h-3 w-3 sm:block" />
@@ -235,8 +245,8 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
                           {m.rientro_commessa ? t("Reso da cantiere") : m.movement_type === "carico" ? t("Carico") : t("Scarico")}
                         </Badge>
                       </TableCell>
-                      <TableCell className="max-w-[180px] text-sm font-medium max-sm:px-2">
-                        <div className="break-words lg:truncate" title={m.itemName}>{m.itemName}</div>
+                      <TableCell className="max-w-[260px] text-sm font-medium max-sm:px-2">
+                        <div className="break-words sm:truncate" title={m.itemName}>{m.itemName}</div>
                         <div className="space-y-0.5 text-xs font-normal text-muted-foreground lg:hidden">
                           {m.order_id && m.orderCode && (
                             <Link to={`/azienda/ordini/${m.order_id}`} className="block break-words font-medium text-primary hover:underline">{m.orderCode}</Link>
@@ -245,7 +255,7 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
                         </div>
                       </TableCell>
                       <TableCell className={`text-right text-sm font-semibold tabular-nums max-sm:px-2 sm:text-center ${m.movement_type === "carico" ? "text-emerald-600" : "text-red-600"}`}>
-                        {m.movement_type === "carico" ? "+" : "−"}{formattaQuantitaMovimento(Number(m.quantity))} {m.unit ?? t("unità non indicata")}
+                        {m.movement_type === "carico" ? "+" : "−"}{formattaQuantitaMovimento(Number(m.quantity))}{m.unit ? ` ${m.unit}` : ""}
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{m.lot_number || "—"}</TableCell>
                       <TableCell className="hidden lg:table-cell text-sm">
@@ -254,7 +264,7 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
                         ) : "—"}
                       </TableCell>
                       <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">{m.performerName || "—"}</TableCell>
-                      <TableCell className="hidden sm:table-cell max-w-[200px] truncate text-sm text-muted-foreground">{m.notes || "—"}</TableCell>
+                      <TableCell className="hidden sm:table-cell max-w-[240px] truncate text-sm text-muted-foreground" title={m.notes || undefined}>{m.notes || "—"}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -268,6 +278,7 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
           </CardContent>
         </Card>
       )}
+      {articoloAperto && <ArticoloMagazzinoDialog stockItemId={articoloAperto} onClose={() => setArticoloAperto(null)} />}
     </div>
   );
 }

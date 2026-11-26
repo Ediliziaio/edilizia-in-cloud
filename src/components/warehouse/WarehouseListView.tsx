@@ -9,6 +9,7 @@ import {
   Calendar,
   ChevronDown,
   ExternalLink,
+  ShoppingCart,
   Package,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -300,6 +301,16 @@ function WarehouseListView({
                           disabled={isUpdating || (isSupplierGroup && group.items.filter(i => i.status === "da_ordinare").length === 0)}
                         >
                           {isSupplierGroup ? t("Segna tutti come Ordinati") : t("Segna tutti installati")}
+                        </Button>
+                      )}
+                      {/* 26/11/2026: se ci sono articoli da ordinare, si va dritti al pannello «Ordina per fornitore»
+                          della commessa, che li raggruppa per fornitore e crea l'ordine con un clic. */}
+                      {!isSupplierGroup && !readOnly && indicators.toOrder > 0 && (
+                        <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs max-sm:hidden" asChild onClick={(e) => e.stopPropagation()}>
+                          <Link to={`/azienda/ordini/${group.orderId}?tab=articoli`} title={t("Ordina")}>
+                            <ShoppingCart className="h-3.5 w-3.5" />
+                            {t("Ordina")}
+                          </Link>
                         </Button>
                       )}
                       {/* «Vai all'ordine» in testata (26/11/2026): prima aveva una riga sua sotto gli articoli. */}
