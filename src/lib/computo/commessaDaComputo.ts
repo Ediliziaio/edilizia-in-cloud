@@ -164,8 +164,12 @@ export async function preparaCommessaDaComputo(d: DatiCommessaComputo): Promise<
   const testata: Record<string, Json | undefined> = {
     ...datiModulo, ...prezzoConcordato, quote_number: quoteNumber, payment_phases: fasiDaRate(d.rate),
     ritenuta_garanzia: ritenutaPerCommessa(d.bozza.pianoPagamenti?.ritenuta),
-    contact_id: d.bozza.clienteId, customer_id: d.bozza.clienteAnagraficaId,
-    opportunity_id: d.bozza.opportunitaId, client_address: d.bozza.indirizzo.trim() || undefined,
+    // I tre collegamenti sono uuid nel database ma stringhe vuote nella bozza finché nessuno li sceglie,
+    // e almeno due lo sono sempre (il cliente viene o dal CRM o dall'anagrafica). Una stringa vuota dentro
+    // la testata fa fallire tutta la RPC con 22P02 «invalid input syntax for type uuid: ""»: la chiave va
+    // omessa, e la funzione tiene quella già salvata (coalesce). Regressione del 23/11/2026, vista il 26/11.
+    contact_id: d.bozza.clienteId || undefined, customer_id: d.bozza.clienteAnagraficaId || undefined,
+    opportunity_id: d.bozza.opportunitaId || undefined, client_address: d.bozza.indirizzo.trim() || undefined,
   };
   const cf = d.bozza.clienteCodiceFiscale?.replace(/\s+/g, "").toUpperCase();
   const piva = d.bozza.clientePartitaIva?.replace(/\s+/g, "").toUpperCase().replace(/^IT/, "");
