@@ -10,6 +10,7 @@ import { apriDocumentoDopoAttesa } from "@/lib/campo/apriDocumento";
 import type { DocumentoSchedaCantiere } from "@/lib/campo/schedaCantiere";
 import { TIPI_DOCUMENTO_CANTIERE } from "@/lib/commesse/documentiCantiere";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { createPdfPreviewUrl, revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
 
 const TIPI_ANTEPRIMA = {
   pdf: "application/pdf",
@@ -55,10 +56,10 @@ export function DocumentiSchedaCantiere({ documenti }: { documenti: DocumentoSch
         const { data, error } = await supabase.storage.from(ATTACHMENTS_BUCKET).download(doc.percorso);
         if (error || !data) return null;
         // Il tipo dell’anteprima è ristretto a PDF e formati immagine passivi.
-        const url = URL.createObjectURL(new Blob([data], { type: mime }));
-        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        const url = createPdfPreviewUrl(new Blob([data], { type: mime }));
+        window.setTimeout(() => revokePdfPreviewUrl(url), 60_000);
         return url;
-      });
+      }, doc.nome);
       if (!esito) toast.error(t("Documento non disponibile. Riprova."));
     } catch {
       toast.error(t("Documento non disponibile. Riprova."));

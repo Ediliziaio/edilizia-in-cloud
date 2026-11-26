@@ -10,6 +10,9 @@ import { Download, ExternalLink, FileText, QrCode } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TIPI_DOCUMENTO_CANTIERE, type TipoDocumentoCantiere } from "@/lib/commesse/documentiCantiere";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { Capacitor } from "@capacitor/core";
+import { apriDocumentoNativo } from "@/lib/mobile/documenti";
+import { condividiFile } from "@/lib/mobile/condividiFile";
 
 interface DocumentoQr { id: string; nome: string; tipo: TipoDocumentoCantiere; byte: number; anteprima: boolean }
 interface ElencoQr { token: string; documenti: DocumentoQr[] }
@@ -53,8 +56,9 @@ export function DocumentiQrCampo({ orderId }: { orderId: string }) {
 
   async function apri(doc: DocumentoQr, azione: "apri" | "scarica") {
     if (bloccato.current || !dati) return;
-    const scheda = azione === "apri" ? window.open("about:blank", "_blank") : null;
-    if (azione === "apri" && !scheda) { setErrore(t("Consenti l’apertura della scheda o scegli Scarica.")); return; }
+    const nativo = Capacitor.isNativePlatform();
+    const scheda = azione === "apri" && !nativo ? window.open("about:blank", "_blank") : null;
+    if (azione === "apri" && !nativo && !scheda) { setErrore(t("Consenti l’apertura della scheda o scegli Scarica.")); return; }
     if (scheda) scheda.opener = null;
     bloccato.current = true;
     setInCorso(doc.id);
@@ -63,7 +67,14 @@ export function DocumentiQrCampo({ orderId }: { orderId: string }) {
       const { url } = await chiediDocumenti<{ url: string }>({ token: dati.token, id: doc.id, azione });
       const destinazione = new URL(url);
       if (destinazione.origin !== new URL(import.meta.env.VITE_SUPABASE_URL).origin) throw new Error("Indirizzo non valido");
-      if (scheda) scheda.location.replace(destinazione.href);
+      if (nativo) {
+        if (azione === "apri") await apriDocumentoNativo(destinazione.href, doc.nome);
+        else {
+          const risposta = await fetch(destinazione.href, { referrerPolicy: "no-referrer" });
+          if (!risposta.ok) throw new Error("Documento non disponibile");
+          await condividiFile(await risposta.blob(), doc.nome, doc.nome);
+        }
+      } else if (scheda) scheda.location.replace(destinazione.href);
       else {
         const link = document.createElement("a");
         link.href = destinazione.href;

@@ -6,9 +6,12 @@ export function percorsoNotifica(valore: unknown, origine: string, appNativa = f
   if (!valore.startsWith("/") && !/^https?:\/\//i.test(valore)) return null;
   if (valore.startsWith("//")) return null;
   try {
+    const origineApp = new URL(origine);
     const link = new URL(valore, origine);
     if (link.username || link.password || link.pathname.startsWith("//")) return null;
-    if (link.origin !== origine && !(appNativa && ORIGINI_APP.has(link.origin))) return null;
+    // URL.origin è "null" per capacitor://: confrontare schema e host mantiene i link interni su iOS.
+    const interna = link.protocol === origineApp.protocol && link.host === origineApp.host;
+    if (!interna && !(appNativa && ORIGINI_APP.has(link.origin))) return null;
     return link.pathname + link.search + link.hash;
   } catch {
     return null;

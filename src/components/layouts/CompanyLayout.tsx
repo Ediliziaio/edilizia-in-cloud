@@ -2,6 +2,7 @@ import { useLoadingTimeout } from "@/hooks/useLoadingTimeout";
 import { useSidebarOpenArea } from "@/hooks/useSidebarOpenArea";
 import { Link, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { CompanyPageOutlet } from "./CompanyPageOutlet";
+import { RichiestaPushNativa } from "@/components/notifications/RichiestaPushNativa";
 import { DelegatedCompanyContent } from "@/components/accountant/DelegatedCompanyContent";
 import { SoftphoneProvider } from "@/components/telephony/SoftphoneProvider";
 import { navigateToSubdomain } from "@/utils/subdomainNav";
@@ -1860,6 +1861,7 @@ export function CompanyLayout() {
           {/* pb mobile ≈ altezza pillola flottante + safe-area: l'ultimo
               elemento resta raggiungibile sopra il vetro della bottom-nav. */}
           <main className={`flex-1 ${altezzaBloccata ? "min-h-0" : ""} overflow-y-auto overflow-x-hidden ${altezzaBloccata ? "" : "md:overflow-x-clip md:overflow-y-visible"} ${paddingMain} bg-muted/30`} id="main-content" aria-label={t("Contenuto principale")}>
+            <RichiestaPushNativa />
             <ErrorBoundary title={t("Errore nel caricamento della pagina")} resetKey={location.pathname}>
               {/* Skeleton (non spinner) al cambio pagina: percezione di velocità sul primo paint mobile */}
               <Suspense fallback={

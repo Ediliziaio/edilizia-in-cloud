@@ -31,6 +31,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { ViaggiMezzoWorkspace } from "@/components/mezzi/ViaggiMezzoWorkspace";
+import { apriDocumentoDaRichiesta } from "@/lib/campo/apriDocumento";
+import { DocumentFileLink } from "@/components/shared/DocumentFileLink";
 
 const ORDINE_STATO: Record<string, number> = { scaduto: 0, in_scadenza: 1, valido: 2, senza_scadenza: 3 };
 
@@ -169,15 +171,10 @@ function SchedaMezzo({ mezzo, link, attrezzi }: { mezzo: MezzoInCarico; link: Ma
   // Riserva se il link preparato manca (scaduto o non arrivato): si apre
   // prima la scheda, poi ci si mette il documento, così il telefono non la blocca.
   const apri = async (path: string) => {
-    const scheda = window.open("", "_blank");
     setAprendo(path);
     try {
-      const url = await linkFileMezzo(path);
-      if (!url) throw new Error("link non disponibile");
-      if (scheda) scheda.location.replace(url);
-      else window.location.assign(url);
+      await apriDocumentoDaRichiesta(() => linkFileMezzo(path), path.split("/").pop());
     } catch {
-      scheda?.close();
       toast.error(t("Non riesco ad aprire il documento. Riprova tra poco."));
     } finally {
       setAprendo(null);
@@ -268,14 +265,14 @@ function SchedaMezzo({ mezzo, link, attrezzi }: { mezzo: MezzoInCarico; link: Ma
                     {d.data_scadenza && badge && <Badge variant="outline" className={`shrink-0 text-[10px] ${badge.cls}`}>{t(badge.label)}</Badge>}
                     {d.file_path && link?.get(d.file_path) ? (
                       <Button asChild size="sm" variant="ghost" className="h-11 shrink-0 px-3">
-                        <a
+                        <DocumentFileLink
                           href={link.get(d.file_path)}
                           target="_blank"
                           rel="noopener noreferrer"
                           aria-label={t("Apri {nome}", { nome: d.titolo || t(categoriaDocumentoLabel(d.categoria)) })}
                         >
                           <ExternalLink className="h-4 w-4" />
-                        </a>
+                        </DocumentFileLink>
                       </Button>
                     ) : d.file_path ? (
                       <Button

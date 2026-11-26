@@ -60,6 +60,7 @@ import { linkChiediCorrezione } from "@/lib/campo/chiediCorrezione";
 import { chiaveFasiCommessa, leggiFasiCommessa } from "@/lib/campo/fasiCommessa";
 import { giorniRitardoCantiere } from "@/lib/campo/ritardoCantiere";
 import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
+import { DocumentFileLink } from "@/components/shared/DocumentFileLink";
 import { faseInRitardo, testoRitardo } from "@/components/campo/PianoSchedaCantiere";
 import { useNetworkStatus } from "@/hooks/campo/useNetworkStatus";
 import { campoReportUrl, isClientReport } from "@/lib/campo/reportKind";
@@ -1986,7 +1987,7 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
                 {/* Azioni */}
                 {f.status === "signed" && f.certificato_url && (
                   <div className="mt-3 pt-3 border-t border-border">
-                    <a
+                    <DocumentFileLink
                       href={f.certificato_url}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -1994,7 +1995,7 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
                     >
                       <Download className="w-4 h-4" />
                       {tr("Scarica certificato firmato")}
-                    </a>
+                    </DocumentFileLink>
                   </div>
                 )}
               </div>

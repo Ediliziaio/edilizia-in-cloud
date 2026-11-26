@@ -11,9 +11,9 @@ const config: CapacitorConfig = {
   appName: "Edilizia in Cloud",
   webDir: "dist",
   server: {
-    // Use https + localhost so BrowserRouter works correctly on iOS/Android
+    // Android usa HTTPS; iOS richiede uno schema locale che WebKit non gestisca già.
     androidScheme: "https",
-    iosScheme: "https",
+    iosScheme: "capacitor",
     hostname: "localhost",
   },
   plugins: {
@@ -28,8 +28,8 @@ const config: CapacitorConfig = {
       splashImmersive: true,
     },
     PushNotifications: {
-      // Con l'app aperta gli avvisi visibili arrivano dalla campanella realtime.
-      presentationOptions: [],
+      // Gli avvisi devono comparire anche mentre l'app è aperta.
+      presentationOptions: ["badge", "sound", "banner", "list"],
     },
     Keyboard: {
       resize: "body",

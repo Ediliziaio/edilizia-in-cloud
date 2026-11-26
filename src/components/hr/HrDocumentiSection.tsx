@@ -28,6 +28,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissions } from "@/hooks/usePermissions";
 import { HrQueryError } from "@/components/hr/HrQueryError";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { apriDocumentoDopoAttesa } from "@/lib/campo/apriDocumento";
+import { ACCEPT_DOCUMENTO_PERSONALE } from "@/lib/documenti/filePersonale";
 
 function fmt(d: string | null): string {
   if (!d) return "—";
@@ -52,6 +54,7 @@ export function HrDocumentiSection({ profiloId, companyId }: Props) {
   const [form, setForm] = useState<Partial<HrDocumento>>(EMPTY);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [documentoInApertura, setDocumentoInApertura] = useState<string | null>(null);
 
   const openNew = () => { setForm(EMPTY); setFile(null); setOpen(true); };
   const openEdit = (d: HrDocumento) => { setForm(d); setFile(null); setOpen(true); };
@@ -80,10 +83,12 @@ export function HrDocumentiSection({ profiloId, companyId }: Props) {
   };
 
   const download = async (d: HrDocumento) => {
-    if (!d.file_path) return;
-    const url = await getHrFileUrl(d.file_path);
-    if (url) window.open(url, "_blank");
-    else toast.error(t("File non disponibile"));
+    if (!d.file_path || documentoInApertura) return;
+    setDocumentoInApertura(d.id);
+    try {
+      const aperto = await apriDocumentoDopoAttesa(() => getHrFileUrl(d.file_path!), d.file_name ?? undefined);
+      if (!aperto) toast.error(t("File non disponibile. Riprova."));
+    } finally { setDocumentoInApertura(null); }
   };
 
   return (
@@ -105,7 +110,7 @@ export function HrDocumentiSection({ profiloId, companyId }: Props) {
         </div>
       ) : (
         // Mobile: righe da ~52px (documento, scadenza, stato a destra); si tocca
-        // la riga per modificarlo, scarica ed elimina restano al computer.
+        // la riga per modificarlo; il file si apre anche in sola lettura, senza entrare in modifica.
         <div className="space-y-2 max-sm:space-y-0 max-sm:divide-y max-sm:divide-border max-sm:overflow-hidden max-sm:rounded-lg max-sm:border">
           {docs.map((d) => {
             const stato = calcStato(d.data_scadenza, d.alert_giorni_prima);
@@ -137,18 +142,20 @@ export function HrDocumentiSection({ profiloId, companyId }: Props) {
                 {stato !== "senza_scadenza" && (
                   <span className={`shrink-0 text-[11px] font-medium sm:hidden ${sb.cls.split(" ").filter((c) => c.startsWith("text-")).join(" ")}`}>{t(sb.label)}</span>
                 )}
-                <div className="flex items-center gap-1 shrink-0 max-sm:hidden">
+                <div className="flex items-center gap-1 shrink-0">
                   {d.file_path && (
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => download(d)} title={t("Scarica")}>
-                      <Download className="h-4 w-4" />
+                    <Button size="icon" variant="ghost" className="h-8 w-8 max-sm:h-11 max-sm:w-11" disabled={documentoInApertura !== null}
+                      onClick={(event) => { event.stopPropagation(); void download(d); }} title={t("Apri documento")}
+                      aria-label={t("Apri {nome}", { nome: d.file_name || d.titolo || t(categoriaLabel(d.categoria)) })}>
+                      {documentoInApertura === d.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                     </Button>
                   )}
-                  <Button disabled={!canEdit} size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(d)} title={t("Modifica")}>
+                  <Button disabled={!canEdit} size="icon" variant="ghost" className="h-8 w-8 max-sm:hidden" onClick={() => openEdit(d)} title={t("Modifica")}>
                     <Pencil className="h-4 w-4" />
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button disabled={!canEdit} size="icon" variant="ghost" className="h-8 w-8 text-destructive" title={t("Elimina")}>
+                      <Button disabled={!canEdit} size="icon" variant="ghost" className="h-8 w-8 text-destructive max-sm:hidden" title={t("Elimina")}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </AlertDialogTrigger>
@@ -212,8 +219,9 @@ export function HrDocumentiSection({ profiloId, companyId }: Props) {
               <Label>{t("File")} {form.file_name && <span className="text-xs text-muted-foreground">{t("(attuale: {file_name})", { file_name: String(form.file_name ?? "") })}</span>}</Label>
               <div className="flex items-center gap-2">
                 <Paperclip className="h-4 w-4 text-muted-foreground shrink-0" />
-                <Input type="file" accept=".pdf,.jpg,.jpeg,.png,.heic" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+                <Input type="file" accept={ACCEPT_DOCUMENTO_PERSONALE} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
               </div>
+              <p className="mt-1 text-xs text-muted-foreground">{t("PDF o foto, massimo 15 MB.")}</p>
             </div>
             <div className="max-sm:hidden">
               <Label>{t("Note")}</Label>

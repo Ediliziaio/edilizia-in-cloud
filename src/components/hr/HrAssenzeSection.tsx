@@ -20,6 +20,7 @@ import {
 import { HeartPulse, Plus, Download, Pencil, Trash2, Loader2, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { apriDocumentoDopoAttesa } from "@/lib/campo/apriDocumento";
 
 function fmt(d: string | null): string {
   if (!d) return "—";
@@ -71,8 +72,8 @@ export function HrAssenzeSection({ profiloId, companyId }: Props) {
 
   const download = async (a: HrAssenza) => {
     if (!a.certificato_path) return;
-    const url = await getHrFileUrl(a.certificato_path);
-    if (url) window.open(url, "_blank"); else toast.error(tr("Certificato non disponibile"));
+    const aperto = await apriDocumentoDopoAttesa(() => getHrFileUrl(a.certificato_path!), a.certificato_path.split('/').pop());
+    if (!aperto) toast.error(tr("Certificato non disponibile"));
   };
 
   return (

@@ -14,6 +14,12 @@ describe("Apertura degli avvisi", () => {
     expect(percorsoPushNativa({ user_id: "u2", url: pagamento }, "https://localhost", "u1")).toBeNull();
   });
 
+  it("apre i percorsi interni anche con lo schema locale di iOS, senza accettare altre origini", () => {
+    expect(percorsoPushNativa({ user_id: "u1", url: pagamento }, "capacitor://localhost", "u1")).toBe(pagamento);
+    expect(percorsoNotifica("/campo/documenti", "capacitor://localhost", true)).toBe("/campo/documenti");
+    expect(percorsoPushNativa({ user_id: "u1", url: "https://altro.example/documenti" }, "capacitor://localhost", "u1")).toBeNull();
+  });
+
   it.each(["//host.test/avviso", "https://host.test/avviso", origine + "//host.test/avviso", "/\\host.test", "javascript:alert(1)"])(
     "scarta una destinazione fuori applicazione (%s)", url => {
       expect(percorsoNotifica(url, origine)).toBeNull();

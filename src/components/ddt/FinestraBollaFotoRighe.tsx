@@ -32,6 +32,9 @@ import {
   type TestataBolla,
 } from "@/lib/ddt/righeBolla";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { apriDocumentoDopoAttesa } from "@/lib/campo/apriDocumento";
+import { createPdfPreviewUrl, revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
+import { toast } from "sonner";
 
 // ─── L'originale ─────────────────────────────────────────────────────────
 
@@ -97,9 +100,11 @@ export function VisoreBolla({ files, compatto = false }: { files: ReadonlyArray<
   const apriOriginale = () => {
     const f = files.find((x) => x.name === pagina?.nome) ?? files[0];
     if (!f) return;
-    const u = URL.createObjectURL(f);
-    window.open(u, "_blank", "noopener");
-    window.setTimeout(() => URL.revokeObjectURL(u), 60_000);
+    const u = createPdfPreviewUrl(f);
+    void apriDocumentoDopoAttesa(async () => u, f.name).then(aperto => {
+      if (!aperto) toast.error(tr("Documento non disponibile. Riprova."));
+    });
+    window.setTimeout(() => revokePdfPreviewUrl(u), 60_000);
   };
 
   const comandi = (

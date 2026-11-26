@@ -14,6 +14,9 @@ import {
 import { condividiFile } from "@/lib/mobile/condividiFile";
 import { downloadQuotePdf } from "@/lib/preventivi/quotePdfDownload";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { Capacitor } from "@capacitor/core";
+import { apriDocumentoDaRichiesta } from "@/lib/campo/apriDocumento";
+import { createPdfPreviewUrl, revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
 
 interface Props {
   onIndietro: () => void;
@@ -47,7 +50,7 @@ export function BarraInvioMobile({ onIndietro, titolo, generaPdf, pdfBloccato, c
     try {
       const blob = await preparaPdf();
       if (azione === "scarica") {
-        downloadQuotePdf(blob, nomeFile);
+        await downloadQuotePdf(blob, nomeFile);
         return;
       }
       if (azione === "manda") {
@@ -60,8 +63,12 @@ export function BarraInvioMobile({ onIndietro, titolo, generaPdf, pdfBloccato, c
         }
         if (esito !== "non-supportato") return;
       }
-      const url = URL.createObjectURL(blob);
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      const url = createPdfPreviewUrl(blob);
+      window.setTimeout(() => revokePdfPreviewUrl(url), 60_000);
+      if (Capacitor.isNativePlatform()) {
+        await apriDocumentoDaRichiesta(async () => url, nomeFile);
+        return;
+      }
       if (!window.open(url, "_blank")) {
         toast.success(t("PDF pronto"), {
           action: { label: t("Apri"), onClick: () => window.open(url, "_blank") },

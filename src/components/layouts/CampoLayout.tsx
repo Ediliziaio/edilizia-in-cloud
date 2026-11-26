@@ -6,6 +6,7 @@
 import { useTimbraDallApp } from "@/hooks/campo/useTimbraDallApp";
 import { useEffect } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { RichiestaPushNativa } from "@/components/notifications/RichiestaPushNativa";
 import { destinazioneIndietro } from "@/lib/campo/tornaIndietro";
 import { isNative } from "@/lib/mobile";
 import {
@@ -361,6 +362,7 @@ export default function CampoLayout() {
               className="mx-auto mb-3 max-w-3xl md:hidden" />}
             <PreviewSessionContext.Provider value={previewSession}>
               <ErrorBoundary title={t("Errore nel caricamento della pagina")} resetKey={location.pathname}>
+                <RichiestaPushNativa />
                 <Outlet />
               </ErrorBoundary>
             </PreviewSessionContext.Provider>

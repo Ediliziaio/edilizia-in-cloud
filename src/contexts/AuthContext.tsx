@@ -1207,6 +1207,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const nextIdentity = session?.user?.id ?? null;
       if (event === "SIGNED_OUT" || (nextIdentity && nextIdentity !== queryIdentityRef.current)) {
         const previousIdentity = queryIdentityRef.current;
+        if (isNative && previousIdentity) {
+          void import("@/lib/mobile/fileCache").then(({ svuotaCacheDocumenti }) => svuotaCacheDocumenti()).catch(() => {});
+        }
         queryClient.clear();
         bindQueryCacheIdentity(nextIdentity);
         queryIdentityRef.current = nextIdentity;

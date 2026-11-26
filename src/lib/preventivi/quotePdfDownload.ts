@@ -1,3 +1,5 @@
+import { salvaDocumento } from "@/lib/mobile/salvaDocumento";
+
 /** Never turn an expired signed URL or an HTML error page into a .pdf download. */
 export async function fetchQuotePdf(signedUrl: unknown): Promise<Blob> {
   if (typeof signedUrl !== "string" || !signedUrl.trim()) {
@@ -11,18 +13,7 @@ export async function fetchQuotePdf(signedUrl: unknown): Promise<Blob> {
   return new Blob([blob], { type: "application/pdf" });
 }
 
-export function downloadQuotePdf(blob: Blob, path?: unknown): void {
+export async function downloadQuotePdf(blob: Blob, path?: unknown): Promise<boolean> {
   const filename = typeof path === "string" ? path.split("/").pop() : undefined;
-  const blobUrl = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  try {
-    anchor.href = blobUrl;
-    anchor.download = filename?.toLowerCase().endsWith(".pdf") ? filename : "preventivo.pdf";
-    document.body.appendChild(anchor);
-    anchor.click();
-  } finally {
-    anchor.remove();
-    // Give the browser time to start consuming the object URL before revoking it.
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 30_000);
-  }
+  return salvaDocumento(blob, filename?.toLowerCase().endsWith(".pdf") ? filename : "preventivo.pdf");
 }

@@ -6,6 +6,7 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { withSurveyDoorProducts } from "@/lib/surveys/doorSurvey";
+import { normalizzaMimeFile } from "@/lib/documenti/filePersonale";
 import { schemaPerTipo } from "@/lib/surveys/sezioniPerTipo";
 import { withEnergySurveyProducts, shouldEnrichEnergySurvey } from "@/lib/surveys/energySurvey";
 import type {
@@ -521,7 +522,10 @@ export const SURVEY_MEDIA_MAX_BYTES = 25 * 1024 * 1024;
 
 /** Valida un file foto prima dell'upload. Ritorna un messaggio d'errore o null se ok. */
 export function validateSurveyPhoto(file: File): string | null {
-  if (!file.type.startsWith("image/")) return `"${file.name}" non è un'immagine.`;
+  const tipo = normalizzaMimeFile(file).type;
+  if (!tipo.startsWith("image/")) return `"${file.name}" non è un'immagine.`;
+  if (!["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"].includes(tipo)) return "Scegli una foto JPG, PNG, WEBP, HEIC o HEIF.";
+  if (!file.size) return `"${file.name}" è vuoto. Scegli un'altra foto.`;
   if (file.size > SURVEY_MEDIA_MAX_BYTES) {
     return `"${file.name}" supera i 25MB (${(file.size / 1024 / 1024).toFixed(1)}MB).`;
   }
@@ -542,6 +546,17 @@ export interface UploadMediaOpts {
 }
 
 export async function uploadMedia(surveyId: string, file: File, opts: UploadMediaOpts): Promise<SurveyMediaRow> {
+  if (["photo", "annotated_photo", "sketch"].includes(opts.type)) {
+    const errore = validateSurveyPhoto(file);
+    if (errore) throw new Error(errore);
+    file = normalizzaMimeFile(file);
+    if (["image/heic", "image/heif"].includes(file.type)) {
+      const { convertiHeic } = await import("@/lib/files/convertiHeic");
+      file = await convertiHeic(file);
+      const erroreConvertita = validateSurveyPhoto(file);
+      if (erroreConvertita) throw new Error(erroreConvertita);
+    }
+  }
   // 1) Carica nello storage
   const { data: profile } = await supabase
     .from("profiles" as never)

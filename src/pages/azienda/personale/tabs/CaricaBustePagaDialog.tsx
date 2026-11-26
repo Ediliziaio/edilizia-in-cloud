@@ -22,6 +22,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { abbinaProfilo, NOMI_MESI, periodoPrevalente, TIPI_DOCUMENTO, type ProfiloPerAbbinamento, type TipoDocumentoPaghe } from "@/lib/paghe/lettoreBustePaga";
 import { espandiFile, leggiFile, ritagliaPdf, type DocumentoDaFile } from "@/lib/paghe/pdfBustePaga";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { apriDocumentoDaRichiesta } from "@/lib/campo/apriDocumento";
+import { createPdfPreviewUrl, revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
 
 interface RigaAnteprima extends DocumentoDaFile {
   profiloId: string | null;
@@ -128,10 +130,16 @@ export function CaricaBustePagaDialog({ companyId, open, onOpenChange }: { compa
   }, [righe, profiliPerId]);
 
   const anteprima = async (r: RigaAnteprima) => {
-    const byte = await ritagliaPdf(r.file, r.pagine);
-    const url = URL.createObjectURL(new Blob([byte as BlobPart], { type: "application/pdf" }));
-    window.open(url, "_blank");
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    try {
+      await apriDocumentoDaRichiesta(async () => {
+        const byte = await ritagliaPdf(r.file, r.pagine);
+        const url = createPdfPreviewUrl(new Blob([byte as BlobPart], { type: "application/pdf" }));
+        setTimeout(() => revokePdfPreviewUrl(url), 60_000);
+        return url;
+      }, "Anteprima busta paga.pdf");
+    } catch {
+      toast.error(tTesto("Non riesco ad aprire il documento. Riprova tra poco."));
+    }
   };
 
   const salva = async (pubblica: boolean) => {

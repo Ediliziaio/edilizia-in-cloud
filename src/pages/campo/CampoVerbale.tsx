@@ -22,6 +22,8 @@ import { FirmaVerbaleDialog, type FirmaVerbale } from "@/components/orders/Firma
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { useNetworkStatus } from "@/hooks/campo/useNetworkStatus";
+import { apriDocumentoDaRichiesta } from "@/lib/campo/apriDocumento";
+import { DocumentFileLink } from "@/components/shared/DocumentFileLink";
 import {
   cancellaVerbaleSulTelefono, erroreDiRete, leggiVerbaleSulTelefono, scriviVerbaleSulTelefono, type VerbaleSulTelefono,
 } from "@/lib/campo/verbaleSulTelefono";
@@ -125,14 +127,14 @@ export default function CampoVerbale() {
     const problemi = validateAcceptance(content, true);
     if (problemi.length) { setErrori(problemi); return; }
     if (!online) { toast.error(t("Per mostrare il PDF al cliente serve la rete. Il verbale intanto resta sul telefono.")); return; }
-    void conErrore(async () => {
+    void conErrore(() => apriDocumentoDaRichiesta(async () => {
       const r = modificato || !report ? await salvaBozza() : report;
       const { report: aggiornato, url } = await chiama<{ report: Verbale; url: string }>({ action: "preview", order_id: orderId, id: r.id, version: r.version });
       setReport(aggiornato);
       setAnteprima(url);
       void qc.invalidateQueries({ queryKey: ["verbali-capo", orderId] });
-      window.open(url, "_blank");
-    });
+      return url;
+    }, "Verbale.pdf"));
   };
   const fattaFirma = (f: FirmaVerbale) => conErrore(async () => {
     if (!report) return;
@@ -144,10 +146,10 @@ export default function CampoVerbale() {
     toast.success(avvisato ? t("Verbale firmato. L’ufficio è stato avvisato.") : t("Verbale firmato. Avvisa tu l’ufficio: l’avviso non è partito."));
     void qc.invalidateQueries({ queryKey: ["verbali-capo", orderId] });
   });
-  const apriChiuso = (r: Verbale): void => void conErrore(async () => {
+  const apriChiuso = (r: Verbale): void => void conErrore(() => apriDocumentoDaRichiesta(async () => {
     const { url } = await chiama<{ url: string }>({ action: "open", order_id: orderId, id: r.id });
-    window.open(url, "_blank");
-  });
+    return url;
+  }, "Verbale.pdf"));
   // Ogni modifica finisce anche sul telefono: se la rete cade o l'app si chiude, il lavoro non si perde.
   useEffect(() => {
     if (!content || !modificato || firmato) return;
@@ -328,7 +330,7 @@ export default function CampoVerbale() {
 
           {anteprima && (
             <div className="space-y-2 rounded-2xl border bg-background p-3">
-              <a href={anteprima} target="_blank" rel="noreferrer" className="flex min-h-10 items-center gap-1.5 text-sm font-semibold text-primary"><FileText className="h-4 w-4" />{t("Apri il PDF")}</a>
+              <DocumentFileLink href={anteprima} target="_blank" rel="noreferrer" className="flex min-h-11 items-center gap-1.5 text-sm font-semibold text-primary"><FileText className="h-4 w-4" />{t("Apri il PDF")}</DocumentFileLink>
               <label className="flex min-h-10 items-center gap-2 text-sm">
                 <input type="checkbox" checked={visto} onChange={e => setVisto(e.target.checked)} />{t("Il cliente ha visto il documento")}
               </label>

@@ -85,7 +85,7 @@ describe("Lettura documenti macchina", () => {
   it("l’apertura richiede un URL temporaneo risolto dal servizio, senza path dal documento", async () => {
     const finestra = {
       opener: undefined as undefined,
-      location: { href: "" },
+      location: { replace: vi.fn() },
       close: vi.fn(),
     };
     vi.spyOn(window, "open").mockReturnValue(finestra as unknown as Window);
@@ -101,7 +101,7 @@ describe("Lettura documenti macchina", () => {
       impronta: "a".repeat(64),
     });
     expect(finestra.opener).toBeNull();
-    expect(finestra.location.href).toBe(url);
+    expect(finestra.location.replace).toHaveBeenCalledWith(url);
   });
   it.each([
     "https://estraneo.example/test.pdf",
@@ -110,7 +110,7 @@ describe("Lettura documenti macchina", () => {
   ])("rifiuta un URL estraneo e chiude la scheda: %s", async (url) => {
     const finestra = {
       opener: undefined as undefined,
-      location: { href: "" },
+      location: { replace: vi.fn() },
       close: vi.fn(),
     };
     vi.spyOn(window, "open").mockReturnValue(finestra as unknown as Window);
@@ -119,7 +119,7 @@ describe("Lettura documenti macchina", () => {
       apriDocumentoMezzoPos("azienda", "ordine", documentoMezzoProva()),
     ).rejects.toThrow();
     expect(finestra.close).toHaveBeenCalledOnce();
-    expect(finestra.location.href).toBe("");
+    expect(finestra.location.replace).not.toHaveBeenCalled();
   });
   it("non richiede il link quando il browser blocca la scheda", async () => {
     vi.spyOn(window, "open").mockReturnValue(null);

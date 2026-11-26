@@ -368,7 +368,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
         const { generaVerbaleSalScaricabile } = await import("@/lib/orders/scaricaVerbaleSal");
         const pdf = await generaVerbaleSalScaricabile(data.html, formato);
         const versione = formato === "periodo" ? "solo-periodo" : "cumulativo";
-        downloadQuotePdf(new Blob([new Uint8Array(pdf)], { type: "application/pdf" }), `SAL-${sal.numero_sal}-${versione}.pdf`);
+        await downloadQuotePdf(new Blob([new Uint8Array(pdf)], { type: "application/pdf" }), `SAL-${sal.numero_sal}-${versione}.pdf`);
         return;
       }
       setPrintTitle(`SAL n. ${sal.numero_sal} · ${FORMATI_VERBALE_SAL[formato].titolo}`);

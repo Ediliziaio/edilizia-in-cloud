@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "./usePermissions";
 import { chiamaServerPos } from "./usePos";
+import { apriDocumentoDaRichiesta } from "@/lib/campo/apriDocumento";
 import {
   CATEGORIE_DOCUMENTO_MEZZO_POS,
   normalizzaDocumentoMezzo,
@@ -84,11 +85,7 @@ export async function apriDocumentoMezzoPos(
   orderId: string,
   d: DocumentoMezzoPos,
 ) {
-  const finestra = window.open("about:blank", "_blank");
-  if (!finestra)
-    throw new Error("Consenti l’apertura di una nuova scheda e riprova.");
-  finestra.opener = null;
-  try {
+  await apriDocumentoDaRichiesta(async () => {
     const result = await chiamaServerPos<{ url: string }>({
       azione: "apri_documento_mezzo",
       company_id: companyId,
@@ -105,9 +102,6 @@ export async function apriDocumentoMezzoPos(
       )
     )
       throw new Error("Indirizzo del documento non valido.");
-    finestra.location.href = url.href;
-  } catch (e) {
-    finestra.close();
-    throw e;
-  }
+    return url.href;
+  }, undefined, { richiediScheda: true });
 }

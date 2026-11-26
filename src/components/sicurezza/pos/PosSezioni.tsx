@@ -51,6 +51,7 @@ import { FunzioniAvanzatePos } from "./FunzioniAvanzatePos";
 import { RischiLavorazionePos } from "./RischiLavorazionePos";
 import { invalidaProdottiLavorazione } from "../../../../supabase/functions/_shared/posProdotti";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { apriDocumentoDopoAttesa } from "@/lib/campo/apriDocumento";
 export type Modifica = (fn: (d: PosContenuto) => void) => void;
 
 interface BaseProps {
@@ -959,13 +960,8 @@ export function SezioneAllegati({ d, modifica, ro, mancanti, companyId, posId }:
   };
 
   const apri = async (path: string) => {
-    const scheda = window.open("", "_blank");
-    const url = await linkAllegatoPos(path);
-    if (url && scheda) scheda.location.replace(url);
-    else {
-      scheda?.close();
-      toast.error(t("Non riesco ad aprire l'allegato"));
-    }
+    const aperto = await apriDocumentoDopoAttesa(() => linkAllegatoPos(path), path.split('/').pop());
+    if (!aperto) toast.error(t("Non riesco ad aprire l'allegato"));
   };
 
   return (

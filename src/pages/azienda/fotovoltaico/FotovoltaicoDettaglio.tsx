@@ -197,7 +197,7 @@ export default function FotovoltaicoDettaglio() {
       if (progetto.stato === "firmato" && tipo === "vendita") {
         const file = await pdfFirmatoPreventivo({ companyId: progetto.company_id, progettoId: progetto.id, tipo: "fv" });
         if (!file) throw new Error("La copia firmata non è disponibile. Riprova senza rigenerare il documento.");
-        scaricaCopiaPdf(file);
+        await scaricaCopiaPdf(file);
         return;
       }
       const { data, error } = await supabase.storage
@@ -241,7 +241,7 @@ export default function FotovoltaicoDettaglio() {
       if (progetto.stato === "firmato") {
         const file = await pdfFirmatoPreventivo({ companyId: progetto.company_id, progettoId: progetto.id, tipo: "fv" });
         if (!file) throw new Error("La copia firmata non è disponibile. Riprova senza rigenerare il documento.");
-        scaricaCopiaPdf(file);
+        if (!await scaricaCopiaPdf(file)) { toast.dismiss(tid); return; }
         toast.success(t("Copia firmata scaricata"), { id: tid });
         return;
       }

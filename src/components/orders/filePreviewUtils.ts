@@ -12,6 +12,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { apriDocumentoDopoAttesa } from "@/lib/campo/apriDocumento";
+import { salvaDocumento } from "@/lib/mobile/salvaDocumento";
+import { createPdfPreviewUrl, revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
 
 export const ATTACHMENTS_BUCKET = "order-attachments";
 const MARKER = `/${ATTACHMENTS_BUCKET}/`;
@@ -40,12 +43,16 @@ export function toStoragePath(fileUrl: string): string {
 }
 
 /** Read with the current JWT. No reusable server-signed download capability. */
-export async function openAttachmentInTab(fileUrl: string, bucket: string = ATTACHMENTS_BUCKET) {
+export async function openAttachmentInTab(fileUrl: string, bucket: string = ATTACHMENTS_BUCKET, nome?: string) {
   const target = attachmentStorage(fileUrl, bucket);
-  const {data,error}=await supabase.storage.from(target.bucket).download(target.path);
-  if(error||!data){toast.error("Impossibile aprire il file");return;}
-  const url=URL.createObjectURL(data);window.open(url,"_blank","noopener");
-  window.setTimeout(()=>URL.revokeObjectURL(url),60000);
+  const aperto = await apriDocumentoDopoAttesa(async () => {
+    const { data, error } = await supabase.storage.from(target.bucket).download(target.path);
+    if (error || !data) return null;
+    const url = createPdfPreviewUrl(data);
+    window.setTimeout(() => revokePdfPreviewUrl(url), 60_000);
+    return url;
+  }, nome ?? target.path.split("/").pop());
+  if (!aperto) toast.error("Impossibile aprire il file");
 }
 
 /** Il tipo si decide dal MIME quando c'e', altrimenti dall'estensione del nome. */
@@ -129,7 +136,6 @@ export async function scaricaAllegato(fileUrl: string, nome: string, bucket: str
   const target=attachmentStorage(fileUrl,bucket);
   const {data,error}=await supabase.storage.from(target.bucket).download(target.path);
   if(error||!data){toast.error("Impossibile scaricare il file");return;}
-  const url=URL.createObjectURL(data);const a=document.createElement("a");
-  a.href=url;a.download=nome;a.rel="noopener";document.body.appendChild(a);a.click();a.remove();
-  window.setTimeout(()=>URL.revokeObjectURL(url),60000);
+  try { await salvaDocumento(data, nome); }
+  catch { toast.error("Impossibile salvare il file. Riprova."); }
 }

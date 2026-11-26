@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { uploadMedia } from "@/lib/api/surveys";
+import { uploadMedia, validateSurveyPhoto } from "@/lib/api/surveys";
 const m = vi.hoisted(() => ({
   from: vi.fn(),
   upload: vi.fn(),
@@ -17,7 +17,9 @@ const m = vi.hoisted(() => ({
     area_id: string;
   } | null,
   surveyError: null as Error | null,
+  converti: vi.fn(),
 }));
+vi.mock("@/lib/files/convertiHeic", () => ({ convertiHeic: m.converti }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     auth: { getUser: async () => ({ data: { user: { id: "user1" } } }) },
@@ -28,6 +30,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   m.company = "company1";
+  m.converti.mockImplementation(async () => new File(["jpg"], "telefono.jpg", { type: "image/jpeg" }));
   m.survey = {
     id: "survey1",
     status: "in_progress",
@@ -70,6 +73,31 @@ const opts = {
   expectedCompanyId: "company1",
 };
 describe("Caricamento foto dalla scheda: verifiche prima dello storage", () => {
+  it("carica una foto Android anche senza MIME e registra il tipo corretto", async () => {
+    const foto = new File(["foto"], "telefono.jpg");
+    expect(validateSurveyPhoto(foto)).toBeNull();
+    await uploadMedia("survey1", foto, opts);
+    expect(m.upload.mock.calls[0][1].type).toBe("image/jpeg");
+    expect(m.insert).toHaveBeenCalledWith(expect.objectContaining({ mime_type: "image/jpeg" }));
+  });
+  it("converte HEIC e HEIF in JPG prima di salvare, così la foto si vede anche su Android e computer", async () => {
+    await uploadMedia("survey1", new File(["heif"], "telefono.heif", { type: "application/octet-stream" }), opts);
+    expect(m.converti).toHaveBeenCalledOnce();
+    expect(m.upload.mock.calls[0][0]).toMatch(/\.jpg$/);
+    expect(m.upload.mock.calls[0][1].type).toBe("image/jpeg");
+  });
+  it("se la conversione fallisce non crea una riga o un file vuoto", async () => {
+    m.converti.mockRejectedValueOnce(new Error("Conversione non riuscita"));
+    await expect(uploadMedia("survey1", new File(["heic"], "telefono.heic", { type: "image/heic" }), opts)).rejects.toThrow("Conversione");
+    expect(m.upload).not.toHaveBeenCalled();
+    expect(m.insert).not.toHaveBeenCalled();
+  });
+  it("rifiuta foto vuote e formati non accettati dal bucket senza abbassare il limite di 25 MB", () => {
+    expect(validateSurveyPhoto(new File([], "vuota.jpg", { type: "image/jpeg" }))).toContain("vuoto");
+    expect(validateSurveyPhoto(new File(["svg"], "disegno.svg", { type: "image/svg+xml" }))).toContain("JPG");
+    const grande = file(); Object.defineProperty(grande, "size", { value: 20 * 1024 * 1024 });
+    expect(validateSurveyPhoto(grande)).toBeNull();
+  });
   it("registra la copia annotata e la provenienza senza modificare l’originale", async () => {
     await uploadMedia("survey1", file(), { ...opts, type: "annotated_photo", annotations: { kind: "equipment-placement", sourceMediaId: "original", notToScale: true } });
     expect(m.insert).toHaveBeenCalledWith(expect.objectContaining({ type: "annotated_photo", annotations: { kind: "equipment-placement", sourceMediaId: "original", notToScale: true } }));

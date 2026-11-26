@@ -13,6 +13,7 @@ import {usePermissions} from "@/hooks/usePermissions";
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { apriDocumentoDaRichiesta } from "@/lib/campo/apriDocumento";
 import { LIMITE_PSC_BYTES } from "../../supabase/functions/_shared/posPsc";
 import {
   tipoDaSubappaltatore, tipoPerSubappaltatore,
@@ -221,16 +222,13 @@ export function useEliminaDocumentoSicurezza() {
   });
 }
 
-/** Apre il file in una nuova scheda (link firmato di 2 minuti). */
+/** Apre il file nel visualizzatore dell'app o in una scheda web (link di 2 minuti). */
 export async function apriDocumentoSicurezza(doc: Pick<DocumentoSicurezza, "file_path" | "bucket">): Promise<void> {
-  // Vecchi documenti dei subappaltatori salvati con un indirizzo completo.
-  if (/^https?:\/\//.test(doc.file_path)) { window.open(doc.file_path, "_blank", "noopener,noreferrer"); return; }
-  const scheda = window.open("", "_blank");
-  const { data, error } = await supabase.storage.from(doc.bucket ?? BUCKET_SICUREZZA).createSignedUrl(doc.file_path, 120);
-  if (error || !data?.signedUrl) {
-    scheda?.close();
-    throw new Error("Non riesco ad aprire il documento. Riprova tra poco.");
-  }
-  if (scheda) scheda.location.href = data.signedUrl;
-  else window.location.href = data.signedUrl;
+  await apriDocumentoDaRichiesta(async () => {
+    // Vecchi documenti dei subappaltatori salvati con un indirizzo completo.
+    if (/^https?:\/\//.test(doc.file_path)) return doc.file_path;
+    const { data, error } = await supabase.storage.from(doc.bucket ?? BUCKET_SICUREZZA).createSignedUrl(doc.file_path, 120);
+    if (error || !data?.signedUrl) throw new Error("Non riesco ad aprire il documento. Riprova tra poco.");
+    return data.signedUrl;
+  }, doc.file_path.split("/").pop());
 }

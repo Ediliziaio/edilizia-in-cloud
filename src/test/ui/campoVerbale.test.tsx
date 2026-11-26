@@ -34,7 +34,8 @@ const compila = () => {
   changeFormControl(screen.getByLabelText("Esito"), { target: { value: "positive" } });
   changeFormControl(screen.getByLabelText("Documenti consegnati"), { target: { value: "Istruzioni" } });
 };
-beforeEach(() => { stato.haVerbali = false; stato.modelli = [modello("a", "Serramenti")]; stato.erroreModelli = null; stato.invocazioni = []; stato.righe = []; vi.clearAllMocks(); vi.spyOn(window, "open").mockReturnValue(null); });
+const schedaPdf = { opener: null as unknown, closed: false, location: { replace: vi.fn() }, close: vi.fn() };
+beforeEach(() => { stato.haVerbali = false; stato.modelli = [modello("a", "Serramenti")]; stato.erroreModelli = null; stato.invocazioni = []; stato.righe = []; vi.clearAllMocks(); vi.spyOn(window, "open").mockReturnValue(schedaPdf as unknown as Window); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("Pulsante Collaudo", () => {
@@ -100,7 +101,8 @@ describe("Verbale dal telefono", () => {
     expect(screen.queryByRole("button", { name: "Fai firmare al cliente" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Mostra il PDF" }));
     await waitFor(() => expect(azioni()).toEqual(expect.arrayContaining(["list", "save", "preview"])));
-    await waitFor(() => expect(window.open).toHaveBeenCalledWith("https://x/a.pdf", "_blank"));
+    await waitFor(() => expect(window.open).toHaveBeenCalledWith("", "_blank"));
+    await waitFor(() => expect(schedaPdf.location.replace).toHaveBeenCalledWith("https://x/a.pdf"));
     fireEvent.click(await screen.findByRole("checkbox", { name: "Il cliente ha visto il documento" }));
     fireEvent.click(screen.getByRole("button", { name: "Fai firmare al cliente" }));
     fireEvent.click(screen.getByRole("button", { name: /Traccia/ }));
