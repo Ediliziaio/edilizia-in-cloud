@@ -69173,5 +69173,10 @@ const dizionario: Dizionario = {
   "in bozza": "مسودة",
   "approvato": "مقبول",
   "da rifare": "خاصو يتعاود",
+  "Le tue attività qui": "الخدمات ديالك هنا",
+  "Segna fatta: {titolo}": "دير بلي سالات: {titolo}",
+  "1 ordine dall'impresa da chiudere": "أمر واحد من الشركة خاصو يتسالا",
+  "{n} ordini dall'impresa da chiudere": "{n} أوامر من الشركة خاصهم يتسالاو",
+  "Tutte le mie attività": "كاع الخدمات ديالي",
 };
 export default dizionario;

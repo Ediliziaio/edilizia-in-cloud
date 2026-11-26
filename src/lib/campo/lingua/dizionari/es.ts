@@ -69173,5 +69173,10 @@ const dizionario: Dizionario = {
   "in bozza": "borrador",
   "approvato": "aprobado",
   "da rifare": "por rehacer",
+  "Le tue attività qui": "Tus tareas aquí",
+  "Segna fatta: {titolo}": "Marcar como hecha: {titolo}",
+  "1 ordine dall'impresa da chiudere": "1 orden de la empresa por cerrar",
+  "{n} ordini dall'impresa da chiudere": "{n} órdenes de la empresa por cerrar",
+  "Tutte le mie attività": "Todas mis tareas",
 };
 export default dizionario;

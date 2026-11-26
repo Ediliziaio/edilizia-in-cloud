@@ -69210,5 +69210,10 @@ const dizionario: Dizionario = {
   "in bozza": "ciornă",
   "approvato": "aprobat",
   "da rifare": "de refăcut",
+  "Le tue attività qui": "Sarcinile tale aici",
+  "Segna fatta: {titolo}": "Marchează ca făcut: {titolo}",
+  "1 ordine dall'impresa da chiudere": "1 ordin de la firmă de închis",
+  "{n} ordini dall'impresa da chiudere": "{n} ordine de la firmă de închis",
+  "Tutte le mie attività": "Toate sarcinile mele",
 };
 export default dizionario;

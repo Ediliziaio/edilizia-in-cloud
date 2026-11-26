@@ -1,4 +1,5 @@
 import { COLONNE_RAPPORTINO, COLONNE_RAPPORTINO_CON_AUTORE } from "@/lib/campo/colonneRapportino";
+import { AttivitaCantiereCampo } from "@/components/campo/AttivitaCantiereCampo";
 import { OggiQuiCampo } from "@/components/campo/OggiQuiCampo";
 import { useTimbraDallApp } from "@/hooks/campo/useTimbraDallApp";
 import { RuoloCantiereCampo } from "@/components/campo/RuoloCantiereCampo";
@@ -972,6 +973,8 @@ export default function CampoLavoroDetail() {
       <div className="space-y-3 py-3 md:space-y-4 md:px-4 md:py-4">
         {/* Le istruzioni dell'ufficio vengono prima di tutto: si leggono entrando. */}
         {orderId && <NoteCantiereCampo orderId={orderId} />}
+        {/* Le cose da fare qui: attività assegnate a me e, per la ditta, gli ordini dell'impresa (26/11/2026). */}
+        {orderId && <AttivitaCantiereCampo orderId={orderId} oggi={today} />}
         {/* La giornata (timbra → rapportino → uscita) ha UN solo bottone: la barra in
             basso, che dice sempre il passo successivo. Niente scheda che la ripete. */}
 

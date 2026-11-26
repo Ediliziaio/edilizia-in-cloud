@@ -69210,5 +69210,10 @@ const dizionario: Dizionario = {
   "in bozza": "draft",
   "approvato": "miratuar",
   "da rifare": "për t'u ribërë",
+  "Le tue attività qui": "Detyrat e tua këtu",
+  "Segna fatta: {titolo}": "Shëno si të bërë: {titolo}",
+  "1 ordine dall'impresa da chiudere": "1 urdhër nga firma për t'u mbyllur",
+  "{n} ordini dall'impresa da chiudere": "{n} urdhra nga firma për t'u mbyllur",
+  "Tutte le mie attività": "Të gjitha detyrat e mia",
 };
 export default dizionario;

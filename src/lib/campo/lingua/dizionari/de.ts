@@ -69173,5 +69173,10 @@ const dizionario: Dizionario = {
   "in bozza": "Entwurf",
   "approvato": "genehmigt",
   "da rifare": "neu zu machen",
+  "Le tue attività qui": "Deine Aufgaben hier",
+  "Segna fatta: {titolo}": "Als erledigt markieren: {titolo}",
+  "1 ordine dall'impresa da chiudere": "1 Auftrag der Firma zu erledigen",
+  "{n} ordini dall'impresa da chiudere": "{n} Aufträge der Firma zu erledigen",
+  "Tutte le mie attività": "Alle meine Aufgaben",
 };
 export default dizionario;
