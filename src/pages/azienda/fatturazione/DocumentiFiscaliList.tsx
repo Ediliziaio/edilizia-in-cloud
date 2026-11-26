@@ -161,15 +161,16 @@ function BillingHubTabs({
   return (
     <>
       <SelettoreSezione nome={t("Sezioni documenti")} valore={activeTab} sezioni={sezioni} onScegli={onChange} className="max-sm:-order-1 lg:hidden" />
-      <LinguetteSezioni activeTab={activeTab} onChange={onChange} schede={schede} className={senzaLinguette ? "2xl:hidden" : undefined} />
+      <LinguetteSezioni activeTab={activeTab} onChange={onChange} className={senzaLinguette ? "2xl:hidden" : undefined} />
     </>
   );
 }
 
-// `schede` arriva da chi conosce il contesto (con la contabilità generale la Fiscalità
-// cambia descrizione): senza, le linguette sono quelle di sempre.
-function LinguetteSezioni({ activeTab, onChange, schede = HUB_TABS, className }: { activeTab: BillingHubTab; onChange: (tab: BillingHubTab) => void; schede?: typeof HUB_TABS; className?: string }) {
+function LinguetteSezioni({ activeTab, onChange, className }: { activeTab: BillingHubTab; onChange: (tab: BillingHubTab) => void; className?: string }) {
   const t = useT();
+  // Con la contabilità generale l'IVA sta là (24/11/2026): qui Fiscalità tiene ritenute di garanzia e archivio.
+  const { attiva: generale } = useContabilitaGeneraleAttiva();
+  const schede = generale ? HUB_TABS.map((h) => (h.id === "fiscalita" ? { ...h, description: "Ritenute di garanzia e archivio" } : h)) : HUB_TABS;
   return (
     <>
       {/* Da computer (25/11/2026): cinque linguette da 32px su una riga, non cinque schede da 53px.
