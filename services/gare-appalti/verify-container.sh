@@ -3,9 +3,13 @@ set -euo pipefail
 
 cd "$(dirname "$0")/../.."
 image="edilizia-gare:collaudo"
+limits=()
+if [[ "${GARE_TEST_SMALL_INSTANCE:-}" == 1 ]]; then
+  limits=(--memory=512m --memory-swap=512m --cpus=0.1)
+fi
 
 docker build -f services/gare-appalti/Dockerfile -t "$image" .
-docker run --rm --network none --read-only --cap-drop ALL \
+docker run --rm "${limits[@]}" --network none --read-only --cap-drop ALL \
   --security-opt no-new-privileges:true \
   --tmpfs /tmp:rw,nosuid,nodev,noexec,size=1073741824,mode=1777 \
   -e GARE_DOC_SMOKE=1 \

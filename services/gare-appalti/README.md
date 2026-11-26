@@ -4,6 +4,18 @@ Il frontend usa la sessione aziendale. Cloudflare Pages inoltra le richieste al 
 
 Il pilota parte spento. L’UUID ammesso appartiene a **Demo Azienda 2 S.r.l.** Possono entrare gli amministratori dell’azienda e gli addetti con permesso Ufficio acquisti. Il worker e la funzione AI verificano sessione, azienda e ruolo a ogni richiesta. Il database limita i documenti a bozza e revisione interna e impedisce i pacchetti finali, gli stati definitivi e la registrazione degli invii.
 
+## Servizio cloud per il pilota
+
+Il Blueprint `services/gare-appalti/render.yaml` prepara un singolo Web Service Docker sul piano Free di Render, a Francoforte. I dati e i file restano su Supabase. Il servizio usa il filesystem temporaneo solo durante le elaborazioni. OpenRouter viene chiamato dalla funzione Supabase con il profilo e i crediti configurati sul backend.
+
+La configurazione resta da collaudare sull'host prima dell'attivazione. Render Free offre 512 MB e 0,1 CPU, si sospende dopo 15 minuti di inattività e può richiedere circa un minuto per riavviarsi. Le quote del workspace e il traffico in uscita limitano l'uso gratuito. Il collaudo CI con `GARE_TEST_SMALL_INSTANCE=1` verifica gli stessi limiti con una scansione, un Word e due DGUE sintetici. I disciplinari lunghi e i file aziendali di dimensioni realistiche richiedono una prova ulteriore sull'host.
+
+Per creare il servizio occorre un account Render. Nel pannello Blueprint seleziona il riferimento di rilascio e il percorso `services/gare-appalti/render.yaml`. Il piano è fissato a `free`. Configura le variabili contrassegnate `sync: false` come segreti. Genera `GARE_PROXY_SECRET` e `GARE_AI_BRIDGE_SECRET` come due valori esadecimali distinti di 64 caratteri. I segreti vanno inseriti nei rispettivi gestori di configurazione.
+
+Render usa il controllo TCP predefinito sulla porta 10000. `/health` rimane protetto dal segreto del proxy. Dopo il collaudo, Cloudflare Pages deve ricevere l'origine HTTPS del servizio come `GARE_WORKER_ORIGIN` e il corrispondente `GARE_PROXY_SECRET`. Verifica il risveglio dopo una sospensione e il recupero delle elaborazioni interrotte prima di abilitare il pilota.
+
+Riferimenti verificati il 26 novembre 2026: [limiti Free](https://render.com/docs/free), [Blueprint](https://render.com/docs/blueprint-spec), [controlli di salute](https://render.com/docs/health-checks).
+
 ## Collaudo gratuito su questa macchina
 
 Il servizio documentale può girare direttamente con Node 24 e Python. Installa le dipendenze Python fissate in `services/gare-appalti/requirements.txt` in un ambiente virtuale e imposta `GARE_PYTHON` sul suo interprete. Il Mac usa Apple Vision tramite `swiftc`. Linux usa Tesseract con le lingue italiana e inglese. Poppler, LibreOffice, Unzip, OpenSSL e `certutil` supportano lettura, conversione, anteprime e controlli dei file. Per il solo worker Docker è facoltativo.
