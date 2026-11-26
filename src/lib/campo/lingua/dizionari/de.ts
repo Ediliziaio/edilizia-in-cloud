@@ -29958,6 +29958,7 @@ const dizionario: Dizionario = {
   "Impossibile verificare i lotti.": "Chargen konnten nicht geprüft werden.",
   "Riprova lotti": "Chargen erneut laden",
   "Lotti": "Chargen",
+  "Nessun ordine al fornitore collegato.": "Keine Lieferantenbestellung verknüpft.",
   "Riepilogo movimenti": "Bewegungsübersicht",
   "Ultimo carico": "Letzter Wareneingang",
   "Ultimo prelievo": "Letzte Entnahme",

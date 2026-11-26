@@ -287,6 +287,21 @@ function WarehouseListView({
                         </Badge>
                       </div>
                       <span className="text-xs text-muted-foreground">{t("{n} art.", { n: group.items.length })}</span>
+                      {isExpanded && !readOnly && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs max-sm:hidden"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isSupplierGroup) onBatchStatusChange(group.items.filter(i => i.status === "da_ordinare").map(i => i.id), "ordinato");
+                            else onMarkAllInstalled(group.items);
+                          }}
+                          disabled={isUpdating || (isSupplierGroup && group.items.filter(i => i.status === "da_ordinare").length === 0)}
+                        >
+                          {isSupplierGroup ? t("Segna tutti come Ordinati") : t("Segna tutti installati")}
+                        </Button>
+                      )}
                       {/* «Vai all'ordine» in testata (26/11/2026): prima aveva una riga sua sotto gli articoli. */}
                       {!isSupplierGroup && (
                         <Button variant="ghost" size="icon" className="h-7 w-7 max-sm:hidden" asChild onClick={(e) => e.stopPropagation()}>
@@ -322,8 +337,8 @@ function WarehouseListView({
                         />
                       ))}
 
-                      {/* Group actions */}
-                      <div className="flex items-center justify-between pt-1">
+                      {/* Group actions: da 640px stanno in testata (26/11/2026), qui solo da telefono. */}
+                      <div className="flex items-center justify-between pt-1 sm:hidden">
                         {!readOnly && isSupplierGroup ? (
                           <Button
                             variant="ghost"

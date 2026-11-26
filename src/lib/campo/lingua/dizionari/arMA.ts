@@ -29958,6 +29958,7 @@ const dizionario: Dizionario = {
   "Impossibile verificare i lotti.": "ما يمكنش نتحققو من اللوطات.",
   "Riprova lotti": "عاود جرب اللوطات",
   "Lotti": "اللوطات",
+  "Nessun ordine al fornitore collegato.": "حتى طلب للمورّد ما مربوط.",
   "Riepilogo movimenti": "ملخص الحركات",
   "Ultimo carico": "آخر دخول",
   "Ultimo prelievo": "آخر سحب",

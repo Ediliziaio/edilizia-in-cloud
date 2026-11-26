@@ -16,12 +16,13 @@ import {
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
-  Hash,
-  Euro,
   Building2,
   FileText,
   Pencil,
+  ShoppingCart,
+  ArrowUpFromLine,
 } from "lucide-react";
+import { BOTTONE_NUOVO } from "@/components/orders/TestataScheda";
 import { ReceiveGoodsModal } from "@/components/warehouse/ReceiveGoodsModal";
 import { InstallationPhotoCaptureModal } from "@/components/warehouse/InstallationPhotoCaptureModal";
 import { supabase } from "@/integrations/supabase/client";
@@ -198,6 +199,49 @@ export default function WarehouseItemDetailDialog({
     },
   });
 
+  // 26/11/2026: dove sta l'articolo oltre al magazzino — l'ordine al fornitore che lo porta e le uscite
+  // verso il cantiere. Ogni lettura che non riesce nasconde solo la sua riga.
+  type RigaOda = { id: string; quantity: number | null; quantity_received: number | null; purchase_order: { id: string; oda_number: string | null; status: string | null; expected_delivery_date?: string | null } | null };
+  const { data: ordiniFornitore = [] } = useQuery<RigaOda[]>({
+    queryKey: ["warehouse-item-oda", item?.id],
+    enabled: open && !!item?.id,
+    staleTime: 60_000,
+    queryFn: async () => {
+      try {
+        // Righe senza prezzi (chi non vede i costi le legge lo stesso), poi gli ordini a parte.
+        const { data, error } = await supabase
+          .from("purchase_order_items_senza_prezzi" as "purchase_order_items")
+          .select("id, quantity, quantity_received, purchase_order_id")
+          .eq("order_item_id", item!.id);
+        if (error || !data?.length) return [];
+        const righe = data as unknown as Array<{ id: string; quantity: number | null; quantity_received: number | null; purchase_order_id: string }>;
+        const { data: ordini } = await supabase
+          .from("purchase_orders")
+          .select("id, oda_number, status, expected_delivery_date")
+          .in("id", [...new Set(righe.map((r) => r.purchase_order_id))]);
+        const perId = new Map(((ordini ?? []) as RigaOda["purchase_order"][]).map((o) => [o!.id, o]));
+        return righe.map((r) => ({ ...r, purchase_order: perId.get(r.purchase_order_id) ?? null }));
+      } catch { return []; }
+    },
+  });
+  type Uscita = { id: string; quantity: number; created_at: string; movement_type: string; rientro_commessa: boolean | null };
+  const { data: uscite = [] } = useQuery<Uscita[]>({
+    queryKey: ["warehouse-item-uscite", item?.id],
+    enabled: open && !!item?.id,
+    staleTime: 60_000,
+    queryFn: async () => {
+      try {
+        const { data, error } = await supabase
+          .from("warehouse_movements")
+          .select("id, quantity, created_at, movement_type, rientro_commessa")
+          .eq("order_item_id", item!.id)
+          .order("created_at", { ascending: false });
+        if (error) return [];
+        return (data ?? []) as unknown as Uscita[];
+      } catch { return []; }
+    },
+  });
+
   if (!item) return null;
 
   const supplierName = getSupplierName(item.supplier_id);
@@ -209,6 +253,12 @@ export default function WarehouseItemDetailDialog({
   const currentPhase = resolveWorkflowPhase(item);
   const totalPrice = (item.purchase_price ?? 0) * (item.quantity ?? 1);
   const hasPrice = item.purchase_price != null;
+  const um = item.unita_misura || "";
+  const ricevuti = receipts.reduce((tot, r) => tot + Number(r.quantity_received ?? 0), 0);
+  const usciti = uscite.filter((m) => m.movement_type !== "carico").reduce((tot, m) => tot + Number(m.quantity), 0)
+    - uscite.filter((m) => m.movement_type === "carico" && m.rientro_commessa).reduce((tot, m) => tot + Number(m.quantity), 0);
+  const cliente = `${item.order.customer?.first_name ?? ""} ${item.order.customer?.last_name ?? ""}`.trim();
+  const giorno = (iso: string) => format(new Date(iso), "dd MMM yyyy", { locale: dateFnsCampo() });
 
   const canReceive = currentPhase === "not_started" && item.status !== "in_magazzino" && item.status !== "prenotato";
   const isReceived = currentPhase === "received";
@@ -252,10 +302,10 @@ export default function WarehouseItemDetailDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-lg max-h-[92vh] flex flex-col gap-0 p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-2xl max-h-[92vh] flex flex-col gap-0 p-0 overflow-hidden">
           {/* Header sticky */}
-          <DialogHeader className="px-6 pt-6 pb-4 space-y-3 shrink-0 border-b bg-background">
-            <div className="flex items-start justify-between gap-3">
+          <DialogHeader className="px-5 pt-5 pb-3 space-y-2 shrink-0 border-b bg-background">
+            <div className="flex items-start justify-between gap-3 pr-6">
               <div className="flex-1 min-w-0 space-y-1">
                 <DialogTitle className="text-lg font-semibold leading-tight break-words pr-2">
                   {item.name}
@@ -265,6 +315,21 @@ export default function WarehouseItemDetailDialog({
                     {item.description}
                   </p>
                 )}
+                {/* La commessa in testata (26/11/2026): prima stava in fondo, sotto DDT e quantità. */}
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-0.5 text-xs text-muted-foreground">
+                  <Link to={`/azienda/ordini/${item.order.id}`} className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
+                    <FileText className="h-3.5 w-3.5" />
+                    {item.order.order_code || t("Commessa")}{cliente ? ` · ${cliente}` : ""}
+                    <ExternalLink className="h-3 w-3" />
+                  </Link>
+                  {expectedDate && <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{t("Data lavori prevista")}: {giorno(expectedDate)}</span>}
+                  {daysUntil !== null && (
+                    <Badge variant="outline" className={cn("h-5 px-1.5 text-[11px] font-semibold",
+                      overdue ? "border-red-200 bg-red-50 text-red-700" : critical ? "border-red-200 bg-red-50 text-red-700" : urgent ? "border-amber-200 bg-amber-50 text-amber-700" : "border-slate-200 bg-slate-50 text-slate-600")}>
+                      {overdue ? t("{valore}g in ritardo", { valore: Math.abs(daysUntil) }) : daysUntil <= 7 ? getUrgencyLabel(daysUntil) : `${daysUntil}g`}
+                    </Badge>
+                  )}
+                </div>
               </div>
               {readOnly ? (
                 <Badge
@@ -321,10 +386,10 @@ export default function WarehouseItemDetailDialog({
           </DialogHeader>
 
           {/* Scrollable body */}
-          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3">
             {/* Workflow stepper */}
-            <div className="rounded-lg border bg-muted/30 p-3">
-              <div className="flex items-center justify-between mb-3">
+            <div className="rounded-lg border bg-muted/30 px-3 py-2">
+              <div className="flex items-center justify-between mb-1.5">
                 <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   {t("Workflow tracciabilità")}
                 </span>
@@ -337,87 +402,63 @@ export default function WarehouseItemDetailDialog({
               <WorkflowStepper currentPhase={currentPhase} />
             </div>
 
-            {/* Info grid: Quantity / Unit Price / Total */}
-            {hasPrice ? (
-              <div className="grid grid-cols-3 gap-2.5">
-                <div className="rounded-md border bg-card p-2.5">
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <Hash className="h-3 w-3" />
-                    <span className="text-[10px] uppercase tracking-wide font-semibold">{t("Qty")}</span>
-                  </div>
-                  <p className="text-base font-semibold mt-0.5 tabular-nums">
-                    {item.quantity ?? 1}
-                  </p>
+            {/* Numeri su una riga: quantità della commessa, prezzo, ricevuti e usciti verso il cantiere. */}
+            <dl className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {[
+                { label: "Quantità", value: `${item.quantity ?? 1}${um ? ` ${um}` : ""}` },
+                { label: "Prezzo unitario", value: hasPrice && Number(item.purchase_price) > 0 ? formatCurrency(item.purchase_price!) : t("Da definire") },
+                { label: "Totale", value: hasPrice && Number(item.purchase_price) > 0 ? formatCurrency(totalPrice) : "—" },
+                { label: "Ricevuti", value: `${ricevuti}${um ? ` ${um}` : ""}` },
+                { label: "Usciti", value: `${Math.max(0, usciti)}${um ? ` ${um}` : ""}` },
+              ].map((n) => (
+                <div key={n.label} className="min-w-0 rounded-md border bg-card px-2.5 py-1.5 last:max-sm:col-span-2">
+                  <dt className="truncate text-[11px] text-muted-foreground">{t(n.label)}</dt>
+                  <dd className="truncate text-sm font-semibold tabular-nums">{n.value}</dd>
                 </div>
-                <div className="rounded-md border bg-card p-2.5">
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <Euro className="h-3 w-3" />
-                    <span className="text-[10px] uppercase tracking-wide font-semibold">{t("Unit")}</span>
-                  </div>
-                  <p className="text-base font-semibold mt-0.5 tabular-nums">
-                    {formatCurrency(item.purchase_price!)}
-                  </p>
-                </div>
-                <div className="rounded-md border border-primary/20 bg-primary/5 p-2.5">
-                  <div className="flex items-center gap-1.5 text-primary">
-                    <Euro className="h-3 w-3" />
-                    <span className="text-[10px] uppercase tracking-wide font-semibold">{t("Totale")}</span>
-                  </div>
-                  <p className="text-base font-bold mt-0.5 tabular-nums text-primary">
-                    {formatCurrency(totalPrice)}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-md border bg-card p-2.5 flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-md bg-muted flex items-center justify-center shrink-0">
-                  <Hash className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">
-                    {t("Quantità")}
-                  </p>
-                  <p className="text-base font-semibold tabular-nums">{item.quantity ?? 1}</p>
-                </div>
-              </div>
-            )}
+              ))}
+            </dl>
 
-            {/* Supplier + Stock match */}
-            {(supplierName || stockMatch) && (
-              <div className="space-y-2">
-                {supplierName && (
-                  <div className="flex items-center gap-2.5 p-2.5 rounded-md bg-muted/40 border">
-                    <div className="h-8 w-8 rounded-md bg-background flex items-center justify-center border shrink-0">
-                      <Building2 className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground leading-none">
-                        {t("Fornitore")}
-                      </p>
-                      <p className="text-sm font-medium truncate mt-0.5">{supplierName}</p>
-                    </div>
-                  </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {/* Ordine al fornitore */}
+              <section className="rounded-md border bg-card px-3 py-2" aria-label={t("Ordine al fornitore")}>
+                <h3 className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><ShoppingCart className="h-3.5 w-3.5" />{t("Ordine al fornitore")}</h3>
+                {supplierName && <p className="truncate text-sm"><Building2 className="mr-1 inline h-3.5 w-3.5 text-muted-foreground" />{supplierName}</p>}
+                {ordiniFornitore.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">{t("Nessun ordine al fornitore collegato.")}</p>
+                ) : (
+                  <ul className="space-y-0.5 text-sm">
+                    {ordiniFornitore.map((r) => r.purchase_order && (
+                      <li key={r.id} className="flex items-baseline justify-between gap-2">
+                        <Link to={`/azienda/ordini-acquisto/${r.purchase_order.id}`} className="truncate font-medium text-primary hover:underline">{r.purchase_order.oda_number || t("Ordine")}</Link>
+                        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                          {Number(r.quantity_received ?? 0)}/{Number(r.quantity ?? 0)} {um}
+                          {r.purchase_order.expected_delivery_date ? ` · ${giorno(r.purchase_order.expected_delivery_date)}` : ""}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                 )}
-
-                {stockMatch && (
-                  <div className="flex items-center gap-2.5 p-2.5 rounded-md bg-success/10 border border-success/30">
-                    <div className="h-8 w-8 rounded-md bg-success/20 flex items-center justify-center shrink-0">
-                      <PackageCheck className="h-4 w-4 text-success" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[10px] uppercase tracking-wide font-semibold text-success leading-none">
-                        {t("Già disponibile in giacenza")}
-                      </p>
-                      <p className="text-sm font-semibold mt-0.5 truncate">{t("{quantity} pz — {name}", { quantity: String(stockMatch.quantity ?? ""), name: String(stockMatch.name ?? "") })}</p>
-                    </div>
-                  </div>
+              </section>
+              {/* Articolo di magazzino */}
+              <section className={cn("rounded-md border px-3 py-2", stockMatch ? "border-emerald-200 bg-emerald-50/60" : "bg-card")} aria-label={t("Articolo di magazzino")}>
+                <h3 className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><PackageCheck className="h-3.5 w-3.5" />{t("Articolo di magazzino")}</h3>
+                {stockMatch ? (
+                  <>
+                    <p className="truncate text-sm font-medium" title={stockMatch.name}>{stockMatch.name}</p>
+                    <p className="text-xs text-emerald-700">{t("{n} in giacenza", { n: String(stockMatch.quantity ?? 0) })}</p>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">{t("Associa un articolo per verificare prenotazioni e prelievi")}</p>
                 )}
-              </div>
-            )}
+                {uscite.filter((m) => m.movement_type !== "carico").slice(0, 3).map((m) => (
+                  <p key={m.id} className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground"><ArrowUpFromLine className="h-3 w-3" />{giorno(m.created_at)} · −{Number(m.quantity)} {um}</p>
+                ))}
+              </section>
+            </div>
 
-            <div className="rounded-md border bg-card p-3">
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <span className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground flex items-center gap-1.5">
+            <div className="rounded-md border bg-card px-3 py-2">
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
                   <FileText className="h-3.5 w-3.5" />
                   {t("DDT e ricezioni merce")}
                 </span>
@@ -446,24 +487,10 @@ export default function WarehouseItemDetailDialog({
               {receiptsLoading ? (
                 <p className="text-sm text-muted-foreground">{t("Caricamento ricezioni...")}</p>
               ) : receipts.length === 0 ? (
-                <div className="rounded-md border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground space-y-3">
-                  <p>
-                    {t("Nessun DDT collegato a questo articolo. Carica qui il DDT di arrivo merce, collega il documento all'ordine e registra quantità, magazzino e allegati.")}
-                  </p>
-                  {!readOnly && (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="w-full sm:w-auto"
-                      onClick={() => setReceiveOpen(true)}
-                      disabled={isUpdating}
-                    >
-                      <FileText className="h-4 w-4 mr-2" />
-                      {t("Carica DDT ricezione")}
-                    </Button>
-                  )}
-                </div>
+                // Una riga: «Carica DDT» sta già in testata della sezione (prima c'era anche un secondo bottone).
+                <p className="text-xs text-muted-foreground">
+                  {t("Nessun DDT collegato a questo articolo. Carica qui il DDT di arrivo merce, collega il documento all'ordine e registra quantità, magazzino e allegati.")}
+                </p>
               ) : (
                 <div className="space-y-2">
                   {receipts.map((receipt) => {
@@ -513,73 +540,10 @@ export default function WarehouseItemDetailDialog({
               )}
             </div>
 
-            {/* Order + Date */}
-            <div className="rounded-md border divide-y overflow-hidden">
-              <div className="flex items-center justify-between p-2.5 gap-2">
-                <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                  <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground leading-none">
-                      {t("Ordine")}
-                    </p>
-                    <p className="text-sm font-medium truncate mt-0.5">
-                      {item.order.order_code || t("Ordine")} — {item.order.customer?.first_name ?? ""}{" "}
-                      {item.order.customer?.last_name ?? ""}
-                    </p>
-                  </div>
-                </div>
-                <Button variant="ghost" size="sm" asChild className="h-7 px-2 shrink-0">
-                  <Link to={`/azienda/ordini/${item.order.id}`}>
-                    <ExternalLink className="h-3.5 w-3.5 mr-1" />
-                    {t("Vai")}
-                  </Link>
-                </Button>
-              </div>
-
-              {expectedDate && (
-                <div className="flex items-center gap-2.5 p-2.5">
-                  <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground leading-none">
-                      {t("Data lavori prevista")}
-                    </p>
-                    <p className="text-sm font-medium mt-0.5">
-                      {format(new Date(expectedDate), "dd MMMM yyyy", { locale: dateFnsCampo() })}
-                    </p>
-                  </div>
-                  {daysUntil !== null && (
-                    <Badge
-                      className={cn(
-                        "text-xs font-semibold shrink-0 border",
-                        overdue &&
-                          "bg-destructive text-destructive-foreground border-destructive hover:bg-destructive",
-                        !overdue &&
-                          critical &&
-                          "bg-destructive/15 text-destructive border-destructive/40 hover:bg-destructive/15",
-                        !overdue &&
-                          !critical &&
-                          urgent &&
-                          "bg-warning/15 text-warning border-warning/40 hover:bg-warning/15",
-                        !overdue &&
-                          !urgent &&
-                          "bg-muted text-muted-foreground border-border hover:bg-muted"
-                      )}
-                    >
-                      {overdue
-                        ? t("{valore}g in ritardo", { valore: Math.abs(daysUntil) })
-                        : daysUntil <= 7
-                          ? getUrgencyLabel(daysUntil)
-                          : `${daysUntil}g`}
-                    </Badge>
-                  )}
-                </div>
-              )}
-            </div>
-
             {/* Notes */}
-            <div className="rounded-md border bg-card p-3">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground flex items-center gap-1.5">
+            <div className="rounded-md border bg-card px-3 py-2">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
                   <StickyNote className="h-3.5 w-3.5" />
                   {t("Note")}
                 </span>
@@ -632,15 +596,15 @@ export default function WarehouseItemDetailDialog({
           </div>
 
           {/* Sticky footer CTA */}
-          <div className="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70 px-6 py-3 shrink-0">
+          <div className="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70 px-5 py-2.5 shrink-0">
             {readOnly ? (
-              <div className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-sm font-medium">
+              <div className="flex items-center justify-center gap-2 py-2 px-3 rounded-md bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium">
                 <FileText className="h-4 w-4 shrink-0" />
                 <span className="text-center">{t("Vista consulente: dati consultabili senza azioni operative.")}</span>
               </div>
             ) : canReceive && (
               <Button
-                className="w-full gap-2 h-10"
+                className={cn(BOTTONE_NUOVO, "h-9 w-full gap-2 text-sm")}
                 onClick={() => setReceiveOpen(true)}
                 disabled={isUpdating}
               >

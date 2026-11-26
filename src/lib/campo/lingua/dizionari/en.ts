@@ -29958,6 +29958,7 @@ const dizionario: Dizionario = {
   "Impossibile verificare i lotti.": "Unable to check the batches.",
   "Riprova lotti": "Retry batches",
   "Lotti": "Batches",
+  "Nessun ordine al fornitore collegato.": "No supplier order linked.",
   "Riepilogo movimenti": "Movement summary",
   "Ultimo carico": "Last receipt",
   "Ultimo prelievo": "Last withdrawal",

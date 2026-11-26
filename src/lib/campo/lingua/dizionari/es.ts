@@ -29958,6 +29958,7 @@ const dizionario: Dizionario = {
   "Impossibile verificare i lotti.": "No se pudieron comprobar los lotes.",
   "Riprova lotti": "Reintentar lotes",
   "Lotti": "Lotes",
+  "Nessun ordine al fornitore collegato.": "Ningún pedido a proveedor vinculado.",
   "Riepilogo movimenti": "Resumen de movimientos",
   "Ultimo carico": "Última entrada",
   "Ultimo prelievo": "Última retirada",

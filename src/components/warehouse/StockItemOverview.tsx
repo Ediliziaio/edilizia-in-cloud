@@ -56,16 +56,16 @@ export function StockItemOverview({ item, supplierName, sectionName, warehouseNa
 
   return <section aria-label={t("Situazione articolo")} className="space-y-3 rounded-xl border bg-slate-50 p-3">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <span className="text-sm text-muted-foreground">{item.internal_code || item.barcode || t("Codice non indicato")}</span>
+      <span className="font-mono text-xs text-muted-foreground">{item.internal_code || item.barcode || ""}</span>
       <Badge variant={sottoScorta ? "destructive" : "secondary"}>{sottoScorta ? t("Sotto scorta") : disponibile > 0 ? t("Disponibile") : t("Non disponibile")}</Badge>
     </div>
     <dl className="grid grid-cols-3 gap-2 md:grid-cols-6">
-      {numeri.map((n) => <div key={n.label} className="min-w-0 rounded-lg border bg-white px-2.5 py-2">
+      {numeri.map((n) => <div key={n.label} className="min-w-0 rounded-lg border bg-white px-2.5 py-1.5">
         <dt className="truncate text-[11px] text-muted-foreground">{t(n.label)}</dt>
         <dd className={cn("mt-0.5 truncate text-base font-semibold tabular-nums", n.tono)}>{n.value}{n.unita && um ? <span className="ml-1 text-xs font-normal text-muted-foreground">{um}</span> : null}</dd>
       </div>)}
     </dl>
-    <dl className="grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+    <dl className="grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2 lg:grid-cols-3">
       {voci.map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-muted-foreground">{t(label)}</dt><dd className="truncate" title={value}>{value}</dd></div>)}
     </dl>
     {item.description && <p className="text-sm text-muted-foreground">{item.description}</p>}

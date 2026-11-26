@@ -30044,6 +30044,7 @@ const dizionario: Dizionario = {
   "Impossibile verificare i lotti.": "Lotet nuk mund të verifikohen.",
   "Riprova lotti": "Provo sërish lotet",
   "Lotti": "Lotet",
+  "Nessun ordine al fornitore collegato.": "Asnjë porosi te furnitori e lidhur.",
   "Riepilogo movimenti": "Përmbledhja e lëvizjeve",
   "Ultimo carico": "Hyrja e fundit",
   "Ultimo prelievo": "Tërheqja e fundit",

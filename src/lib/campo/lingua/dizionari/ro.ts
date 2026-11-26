@@ -30044,6 +30044,7 @@ const dizionario: Dizionario = {
   "Impossibile verificare i lotti.": "Loturile nu pot fi verificate.",
   "Riprova lotti": "Reîncarcă loturile",
   "Lotti": "Loturi",
+  "Nessun ordine al fornitore collegato.": "Nicio comandă la furnizor asociată.",
   "Riepilogo movimenti": "Rezumatul mișcărilor",
   "Ultimo carico": "Ultima intrare",
   "Ultimo prelievo": "Ultima ridicare",
