@@ -76,6 +76,8 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { validaRigheUscita } from "@/lib/magazzino/validaRigheUscita";
 import { MovementReviewDialog } from "./MovementReviewDialog";
 import { ManualArticleAdder } from "./ManualArticleAdder";
+import { BOTTONE_NUOVO } from "@/components/orders/TestataScheda";
+import { cn } from "@/lib/utils";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface CaricoRapidoSheetProps {
@@ -822,52 +824,56 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
           </DialogDescription>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          <div className="grid grid-cols-4 gap-1.5">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3 space-y-3">
+          {/* 26/11/2026: i passi come pillole su una riga (erano quattro riquadri alti 80px). */}
+          <div className="flex flex-wrap gap-1.5">
             {progressItems.map((item) => (
-              <div
+              <span
                 key={item.label}
-                className={`flex flex-col items-center gap-1 rounded-lg border px-1.5 py-2 text-center text-[11px] font-medium transition-colors ${
+                className={`inline-flex h-6 items-center gap-1 rounded-full border px-2 text-[11px] font-medium ${
                   item.done
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
                     : "border-border bg-muted/30 text-muted-foreground"
                 }`}
               >
                 {item.done ? (
-                  <CheckCircle2 className="h-4 w-4" />
+                  <CheckCircle2 className="h-3.5 w-3.5" />
                 ) : (
-                  <span className="h-3.5 w-3.5 rounded-full border-2 border-current opacity-40" />
+                  <span className="h-3 w-3 rounded-full border-2 border-current opacity-40" />
                 )}
-                <span className="block w-full truncate leading-tight">{item.label}</span>
-              </div>
+                {item.label}
+              </span>
             ))}
           </div>
 
           {/* Modalità — scelta principale: bottoni grandi e tap-friendly (icona+
               testo impilati su mobile, inline su desktop). */}
           <div className="space-y-2">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs font-medium text-muted-foreground">
               {t("Come registri l'arrivo?")}
             </p>
-            <div className="grid grid-cols-3 gap-2">
-              <Button type="button" variant={receiveMode === "manual" ? "default" : "outline"} className="h-12" onClick={() => { setReceiveMode("manual"); setManualSectionOpen(true); }}>{t("Da elenco")}</Button>
+            {/* Scelta in arancio tenue come i filtri del resto dell'app (era blu pieno), bottoni da 36px. */}
+            <div className="grid grid-cols-3 gap-2 [&>button]:font-medium [&>button[aria-pressed=true]]:border-orange-300 [&>button[aria-pressed=true]]:bg-orange-50 [&>button[aria-pressed=true]]:text-orange-700">
+              <Button type="button" variant="outline" aria-pressed={receiveMode === "manual"} className="h-auto min-h-[3.25rem] flex-col gap-1 py-2.5 sm:h-9 sm:min-h-0 sm:flex-row sm:gap-2 sm:py-0" onClick={() => { setReceiveMode("manual"); setManualSectionOpen(true); }}><PackagePlus className="h-5 w-5 sm:h-4 sm:w-4" /><span className="text-sm">{t("Da elenco")}</span></Button>
               <Button
                 type="button"
-                variant={receiveMode === "scan" ? "default" : "outline"}
+                variant="outline"
+                aria-pressed={receiveMode === "scan"}
                 onClick={() => setReceiveMode("scan")}
-                className="h-auto min-h-[3.25rem] flex-col gap-1 py-2.5 sm:h-12 sm:min-h-0 sm:flex-row sm:gap-2 sm:py-0"
+                className="h-auto min-h-[3.25rem] flex-col gap-1 py-2.5 sm:h-9 sm:min-h-0 sm:flex-row sm:gap-2 sm:py-0"
               >
                 <ClipboardList className="h-5 w-5 sm:h-4 sm:w-4" />
-                <span className="text-sm font-medium">{t("Scannerizza")}</span>
+                <span className="text-sm">{t("Scannerizza")}</span>
               </Button>
               <Button
                 type="button"
-                variant={receiveMode === "ddt" ? "default" : "outline"}
+                variant="outline"
+                aria-pressed={receiveMode === "ddt"}
                 onClick={() => { setReceiveMode("ddt"); setDdtSectionOpen(true); }}
-                className="h-auto min-h-[3.25rem] flex-col gap-1 py-2.5 sm:h-12 sm:min-h-0 sm:flex-row sm:gap-2 sm:py-0"
+                className="h-auto min-h-[3.25rem] flex-col gap-1 py-2.5 sm:h-9 sm:min-h-0 sm:flex-row sm:gap-2 sm:py-0"
               >
                 <FileText className="h-5 w-5 sm:h-4 sm:w-4" />
-                <span className="text-sm font-medium">{t("Carica DDT")}</span>
+                <span className="text-sm">{t("Carica DDT")}</span>
               </Button>
             </div>
             {receiveMode === "scan" && (
@@ -889,6 +895,11 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
             <p className="text-[11px] text-muted-foreground">{t("Inserimento {insertedAt} · {insertedBy}", { insertedAt: insertedAt.toLocaleString(intlCampo()), insertedBy: String(insertedBy ?? "") })}</p>
           </div>
 
+          {warehousesError && <Alert variant="destructive"><AlertDescription>{t("Magazzini non disponibili.")} <Button variant="link" onClick={() => void refetchWarehouses()}>{t("Riprova magazzini")}</Button></AlertDescription></Alert>}
+          {entries.length > 0 && <p className="text-xs text-muted-foreground">{t("Il magazzino resta fissato alle righe inserite. Rimuovi le righe prima di cambiarlo.")}</p>}
+
+          {/* Fornitore e magazzino affiancati da 640px (26/11/2026). */}
+          <div className="grid gap-3 sm:grid-cols-2">
           {/* Fornitore */}
           <div className="space-y-2">
             <Label htmlFor="cr-supplier">{t("Fornitore (facoltativo)")}</Label>
@@ -899,7 +910,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
               </div>
             ) : (
               <Select value={supplierId} onValueChange={setSupplierId}>
-                <SelectTrigger id="cr-supplier" className="h-11 sm:h-10">
+                <SelectTrigger id="cr-supplier" className="h-11 sm:h-9">
                   <SelectValue placeholder={t("Scegli un fornitore...")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -929,9 +940,6 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
             )}
           </div>
 
-          {warehousesError && <Alert variant="destructive"><AlertDescription>{t("Magazzini non disponibili.")} <Button variant="link" onClick={() => void refetchWarehouses()}>{t("Riprova magazzini")}</Button></AlertDescription></Alert>}
-          {entries.length > 0 && <p className="text-xs text-muted-foreground">{t("Il magazzino resta fissato alle righe inserite. Rimuovi le righe prima di cambiarlo.")}</p>}
-
           {/* Magazzino */}
           <div className="space-y-2">
             <Label htmlFor="cr-warehouse">{t("Magazzino destinazione *")}</Label>
@@ -948,7 +956,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                   setSectionId(undefined); // sezioni dipendono dal magazzino
                 }}
               >
-                <SelectTrigger id="cr-warehouse" className="h-11 sm:h-10">
+                <SelectTrigger id="cr-warehouse" className="h-11 sm:h-9">
                   <SelectValue placeholder={t("Scegli un magazzino...")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -967,6 +975,8 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
                 </SelectContent>
               </Select>
             )}
+          </div>
+
           </div>
 
           {/* B1 — Aggiungi a mano dal listino (senza scansione) */}
@@ -1415,7 +1425,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
-            className="h-12 flex-1 sm:h-10"
+            className="h-12 flex-1 sm:h-9"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             {t("Annulla")}
@@ -1423,7 +1433,7 @@ function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialSt
           <Button
             onClick={() => setStep(entries.length > 0 ? "review" : "scan")}
             disabled={!canContinueReceipt || (receiveMode === "manual" && entries.length === 0) || (entries.length > 0 && !!validaRigheUscita(entries))}
-            className="h-12 min-w-0 flex-[2] whitespace-normal text-[15px] leading-tight font-semibold sm:h-10 sm:text-sm"
+            className={cn(BOTTONE_NUOVO, "h-12 min-w-0 flex-[2] whitespace-normal text-[15px] leading-tight sm:h-9 sm:text-sm")}
           >
             {entries.length > 0 ? t("Controlla carico") : receiveMode === "manual" ? t("Aggiungi articoli") : continueLabel}
             <ArrowRight className="ml-2 h-4 w-4" />
