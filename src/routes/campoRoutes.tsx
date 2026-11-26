@@ -47,6 +47,7 @@ const CampoFerie          = lazy(() => import("@/pages/campo/CampoFerie"));
 const CampoSpese          = lazy(() => import("@/pages/campo/CampoSpese"));
 const CampoCedolini       = lazy(() => import("@/pages/campo/CampoCedolini"));
 const CampoAvanzamento    = lazy(() => import("@/pages/campo/CampoAvanzamento"));
+const CampoIntervento     = lazy(() => import("@/pages/campo/CampoIntervento"));
 const SubContratti        = lazy(() => import("@/pages/campo/subappaltatore/SubContratti"));
 const SubOrdiniServizio   = lazy(() => import("@/pages/campo/subappaltatore/SubOrdiniServizio"));
 const SubOperai           = lazy(() => import("@/pages/campo/subappaltatore/SubOperai"));
@@ -90,6 +91,8 @@ export default function CampoRoutesContainer() {
         <Route path="impostazioni/notifiche" element={<PreferenzeNotifiche soloPersonali />} />
         <Route element={<ProtectedRoute allowedRoles={CAMPO_ROLES}><Outlet /></ProtectedRoute>}>
           <Route path="calendario" element={<CampoCalendario />} />
+          {/* Interventi brevi (manutenzioni, assistenze) assegnati al tecnico (26/11/2026). */}
+          <Route path="intervento/:ticketId" element={<CampoIntervento />} />
           <Route path="lavoro/:orderId/*">
             <Route index element={<CampoLavoroDetail />} />
             <Route path="rapportino" element={<CampoRapportino />} />

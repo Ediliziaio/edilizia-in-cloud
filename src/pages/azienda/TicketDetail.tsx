@@ -8,6 +8,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { TicketPagamentoCard } from "@/components/tickets/TicketPagamentoCard";
+import { EsitoInterventoCampo } from "@/components/tickets/EsitoInterventoCampo";
 import { TicketMerceCard } from "@/components/tickets/TicketMerceCard";
 import { TicketRichiamiCard } from "@/components/tickets/TicketRichiamiCard";
 import { TicketCostiCard } from "@/components/tickets/TicketCostiCard";
@@ -926,6 +927,8 @@ function SchedaTicket({ id }: { id: string | undefined }) {
         {/* Chat: on mobile first, on desktop second */}
         <div className="order-1 md:order-2 min-h-0 space-y-4">
           {ticket.descrizione && <Card><CardContent className="p-4"><h2 className="mb-3 text-sm font-semibold">{tr("Richiesta del cliente")}</h2><p className="whitespace-pre-wrap break-words text-sm leading-6">{ticket.descrizione}</p></CardContent></Card>}
+          {/* Quello che il tecnico ha fatto sul posto, dall'app di cantiere (26/11/2026). */}
+          <EsitoInterventoCampo ticketId={ticket.id} />
           {effectiveCompany?.id && <TicketAIConversation companyId={effectiveCompany.id} ticketId={ticket.id}/>}
           {effectiveCompany?.id && <TicketAIActivity companyId={effectiveCompany.id} ticketId={ticket.id}/>}
           <TicketChat

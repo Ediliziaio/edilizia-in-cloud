@@ -3,6 +3,8 @@
  * Timbratura integrata, cantieri assegnati, attività e accesso rapido.
  * Condizionale per operaio vs subappaltatore.
  */
+import { InterventiDelGiorno } from "@/components/campo/InterventiDelGiorno";
+import { giornoRoma } from "@/lib/campo/interventi";
 import { useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -182,6 +184,9 @@ export default function CampoHome() {
       {/* La sera il caposquadra vede la fine giornata guidata (24/11): rapportino, materiale, uscita. */}
       {isOperaio && sera && (isCaposquadra || isCapocantiere) && <FineGiornataCaposquadra timbra={timbraApp.timbra} />}
       {isOperaio && sera && <RapportiniDaCompilareOggi />}
+
+      {/* Gli interventi brevi di oggi (manutenzioni, assistenze), in ordine di orario: prima dei cantieri lunghi. */}
+      {isOperaio && <InterventiDelGiorno giorno={giornoRoma(new Date().toISOString())} />}
 
       {/* Oggi: dove vai, cosa fai, con chi e chi chiamare — le TUE date */}
       {(isOperaio || isSubappaltatore) && <CampoOggi memoria={azienda && user?.id ? `${azienda}:${user.id}` : undefined}
