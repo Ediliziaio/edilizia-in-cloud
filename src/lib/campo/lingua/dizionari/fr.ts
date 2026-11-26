@@ -29958,6 +29958,7 @@ const dizionario: Dizionario = {
   "Impossibile verificare i lotti.": "Impossible de vérifier les lots.",
   "Riprova lotti": "Réessayer les lots",
   "Lotti": "Lots",
+  "Ritiri dal cantiere": "Retraits du chantier",
   "Registri l'uscita e la giacenza scende subito. Subito dopo ti proponiamo il DDT; se non serve ora, lo crei più tardi da Arrivi e uscite → Uscite.": "Tu enregistres la sortie et le stock baisse tout de suite. Juste après, nous te proposons le bon de livraison ; s'il n'est pas utile maintenant, crée-le plus tard dans Entrées et sorties → Sorties.",
   "Più tardi: Magazzino → Arrivi e uscite → Uscite, filtro «Senza DDT».": "Plus tard : Entrepôt → Entrées et sorties → Sorties, filtre « Sans bon de livraison ».",
   "DDT emessi": "Bons de livraison émis",

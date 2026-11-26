@@ -849,8 +849,6 @@ function WarehousePage() {
       {/* Prelievi dal cantiere: impostazione (libero/conferma) + coda da confermare. */}
       <div className="space-y-3 print:hidden">
         {!isReadOnly && <PrelieviCampoCard />}
-        {/* Chi ha ritirato cosa, per quale cantiere, dall'app degli operai (24/11). */}
-        <RitiriDalCantiere />
         <AcquistiCampoCard />
         <div className="max-md:hidden"><RigheDaAbbinareCard /></div>
       </div>
@@ -1359,6 +1357,8 @@ function WarehousePage() {
         <WarehouseLottiTab readOnly={isReadOnly} />
       ) : viewMode === "valuation" ? (
         <WarehouseValorizzazionePanel warehouseId={warehouseFilter ?? null} />
+      ) : viewMode === "ritiri" ? (
+        <RitiriDalCantiere />
       ) : viewMode === "movements" ? (
         <WarehouseMovementsTab companyId={effectiveCompany.id} warehouseFilter={warehouseFilter} />
       ) : viewMode === "stock" ? (

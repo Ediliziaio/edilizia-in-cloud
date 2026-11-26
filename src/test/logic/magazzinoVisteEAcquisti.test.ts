@@ -12,7 +12,7 @@ describe("Viste del magazzino in quattro gruppi", () => {
   it("le undici viste di prima hanno ancora una casa, tranne Scadenze che apre le giacenze", () => {
     const viste = GRUPPI_MAGAZZINO.flatMap((g) => g.viste.map((v) => v.key));
     expect(viste.sort()).toEqual(
-      ["list", "kanban", "calendar", "purchase_list", "stock", "lotti", "valuation", "ddt", "uscite", "movements"].sort(),
+      ["list", "kanban", "calendar", "purchase_list", "stock", "lotti", "valuation", "ddt", "uscite", "movements", "ritiri"].sort(),
     );
     expect(GRUPPI_MAGAZZINO).toHaveLength(4);
     expect(gruppoDi("scadenze")).toBe("giacenze");

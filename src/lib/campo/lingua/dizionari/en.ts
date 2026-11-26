@@ -29958,6 +29958,7 @@ const dizionario: Dizionario = {
   "Impossibile verificare i lotti.": "Unable to check the batches.",
   "Riprova lotti": "Retry batches",
   "Lotti": "Batches",
+  "Ritiri dal cantiere": "Job site pickups",
   "Registri l'uscita e la giacenza scende subito. Subito dopo ti proponiamo il DDT; se non serve ora, lo crei più tardi da Arrivi e uscite → Uscite.": "You record the exit and stock drops right away. Right after, we suggest the delivery note; if you don't need it now, create it later from Arrivals and exits → Exits.",
   "Più tardi: Magazzino → Arrivi e uscite → Uscite, filtro «Senza DDT».": "Later: Warehouse → Arrivals and exits → Exits, filter «Without delivery note».",
   "DDT emessi": "Issued delivery notes",

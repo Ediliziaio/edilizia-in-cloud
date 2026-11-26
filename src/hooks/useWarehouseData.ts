@@ -15,7 +15,7 @@ import { useWarehouses } from "@/hooks/useWarehouses";
  * order_items). Prima il magazzino diceva «Stato aggiornato» anche quando non scriveva niente. */
 const ARTICOLI_NEGATI = "Gli articoli delle commesse li aggiorna chi ha il permesso «Modifica commesse». Chiedi al titolare dell'azienda di darti l'accesso.";
 
-export type ViewMode = "list" | "purchase_list" | "kanban" | "calendar" | "stock" | "lotti" | "ddt" | "uscite" | "valuation" | "scadenze" | "movements";
+export type ViewMode = "list" | "purchase_list" | "kanban" | "calendar" | "stock" | "lotti" | "ddt" | "uscite" | "valuation" | "scadenze" | "movements" | "ritiri";
 export type GroupBy = "order" | "date" | "status" | "supplier";
 export type QuickFilter = "all" | "active" | "urgent" | "overdue" | "thisWeek" | "nextWeek";
 

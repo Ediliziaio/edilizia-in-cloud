@@ -2,14 +2,15 @@
  * Chi ha ritirato cosa, per quale cantiere (24/11/2026, richiesta del founder).
  *
  * I prelievi fatti dagli operai dall'app (`prelievi_campo`), di ogni stato: un elenco con chi, quando, per quale
- * cantiere e cosa, e i totali per materiale. Filtri per cantiere, persona e periodo. Si apre a richiesta: la
- * pagina del magazzino resta com'era finché non serve.
+ * cantiere e cosa, e i totali per materiale. Filtri per cantiere, persona e periodo. È la vista «Ritiri dal
+ * cantiere» di Magazzino → Movimenti (prima un riquadro da aprire in cima a ogni pagina del magazzino).
  */
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, subDays } from "date-fns";
 import { it } from "date-fns/locale";
-import { ChevronDown, History, Loader2 } from "lucide-react";
+import { History, Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,9 +19,9 @@ import { Button } from "@/components/ui/button";
 import { totaliRitiri, type RitiroCampo } from "@/lib/magazzino/ritiriCantiere";
 
 const STATI: Record<string, { label: string; className: string }> = {
-  consegnato: { label: "Consegnato", className: "bg-emerald-100 text-emerald-800" },
-  richiesto: { label: "Da approvare", className: "bg-amber-100 text-amber-900" },
-  rifiutato: { label: "Rifiutato", className: "bg-red-100 text-red-800" },
+  consegnato: { label: "Consegnato", className: "bg-emerald-50 text-emerald-700" },
+  richiesto: { label: "Da approvare", className: "bg-amber-50 text-amber-800" },
+  rifiutato: { label: "Rifiutato", className: "bg-red-50 text-red-700" },
 };
 const PERIODI = [{ giorni: 7, label: "7 giorni" }, { giorni: 30, label: "30 giorni" }, { giorni: 90, label: "90 giorni" }] as const;
 
@@ -29,7 +30,6 @@ const nf = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 });
 export function RitiriDalCantiere() {
   const { effectiveCompany, profile } = useAuth();
   const companyId = effectiveCompany?.id ?? profile?.company_id ?? null;
-  const [aperto, setAperto] = useState(false);
   const [giorni, setGiorni] = useState<number>(30);
   const [cantiere, setCantiere] = useState("");
   const [persona, setPersona] = useState("");
@@ -37,7 +37,7 @@ export function RitiriDalCantiere() {
 
   const dati = useQuery({
     queryKey: ["ritiri-dal-cantiere", companyId, giorni],
-    enabled: aperto && !!companyId,
+    enabled: !!companyId,
     staleTime: 30_000,
     queryFn: async () => {
       const dal = subDays(new Date(), giorni).toISOString();
@@ -66,104 +66,107 @@ export function RitiriDalCantiere() {
   const nomeCantiere = (id: string | null) => id ? dati.data?.cantieri.get(id) ?? "Commessa" : "Senza cantiere";
   const nomePersona = (id: string | null) => id ? dati.data?.nomi.get(id) ?? "Operaio" : "—";
 
+  // 26/11/2026: non più un riquadro da aprire in cima a ogni pagina del magazzino, ma una vista di
+  // «Movimenti» (Registro · Ritiri dal cantiere). Barra come le altre schede, un ritiro per riga.
+  const scelta = "border-orange-200 bg-orange-50 text-orange-700";
   return (
-    <Card>
-      <CardContent className="p-0">
-        <button type="button" aria-expanded={aperto} onClick={() => setAperto(v => !v)}
-          className="flex min-h-12 w-full items-center gap-2 px-4 py-3 text-left sm:min-h-10 sm:px-3 sm:py-2">
-          <History className="size-4 text-primary" aria-hidden="true" />
-          {/* Da tablet titolo e frase sulla stessa riga (25/11/2026): la riga chiusa era alta 66px. */}
-          <span className="min-w-0 flex-1 sm:flex sm:items-baseline sm:gap-2">
-            <span className="block font-semibold sm:shrink-0 sm:text-sm">Ritiri dal cantiere</span>
-            <span className="block text-xs text-muted-foreground sm:truncate">Chi ha preso cosa, per quale cantiere, dall’app degli operai</span>
-          </span>
-          <ChevronDown className={`size-4 text-muted-foreground ${aperto ? "rotate-180" : ""}`} aria-hidden="true" />
-        </button>
-        {aperto && (
-          <div className="space-y-3 border-t px-4 pb-4 pt-3">
-            <div className="flex flex-wrap gap-2">
-              <select aria-label="Cantiere" value={cantiere} onChange={e => setCantiere(e.target.value)}
-                className="h-10 min-w-0 max-w-full rounded-md border bg-background px-2 text-sm">
-                <option value="">Tutti i cantieri</option>
-                {[...(dati.data?.cantieri ?? new Map()).entries()].map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
-              </select>
-              <select aria-label="Persona" value={persona} onChange={e => setPersona(e.target.value)}
-                className="h-10 min-w-0 rounded-md border bg-background px-2 text-sm">
-                <option value="">Tutte le persone</option>
-                {[...(dati.data?.nomi ?? new Map()).entries()].map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
-              </select>
-              <select aria-label="Periodo" value={giorni} onChange={e => setGiorni(Number(e.target.value))}
-                className="h-10 rounded-md border bg-background px-2 text-sm">
-                {PERIODI.map(p => <option key={p.giorni} value={p.giorni}>Ultimi {p.label}</option>)}
-              </select>
-              <div className="ms-auto flex gap-1 rounded-md bg-muted p-0.5" role="radiogroup" aria-label="Vista">
-                {(["elenco", "totali"] as const).map(v => (
-                  <Button key={v} type="button" size="sm" role="radio" aria-checked={vista === v}
-                    variant={vista === v ? "secondary" : "ghost"} onClick={() => setVista(v)}>
-                    {v === "elenco" ? "Elenco" : "Totali per materiale"}
-                  </Button>
-                ))}
-              </div>
-            </div>
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={cantiere || "tutti"} onValueChange={(v) => setCantiere(v === "tutti" ? "" : v)}>
+          <SelectTrigger aria-label="Cantiere" className="h-8 w-[220px] text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="tutti">Tutti i cantieri</SelectItem>
+            {[...(dati.data?.cantieri ?? new Map<string, string>()).entries()].map(([id, nome]) => <SelectItem key={id} value={id}>{nome}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={persona || "tutte"} onValueChange={(v) => setPersona(v === "tutte" ? "" : v)}>
+          <SelectTrigger aria-label="Persona" className="h-8 w-[180px] text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="tutte">Tutte le persone</SelectItem>
+            {[...(dati.data?.nomi ?? new Map<string, string>()).entries()].map(([id, nome]) => <SelectItem key={id} value={id}>{nome}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={String(giorni)} onValueChange={(v) => setGiorni(Number(v))}>
+          <SelectTrigger aria-label="Periodo" className="h-8 w-[150px] text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {PERIODI.map(p => <SelectItem key={p.giorni} value={String(p.giorni)}>Ultimi {p.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <div className="flex gap-1" role="radiogroup" aria-label="Vista">
+          {(["elenco", "totali"] as const).map(v => (
+            <Button key={v} type="button" size="sm" variant="outline" role="radio" aria-checked={vista === v}
+              className={`h-8 px-2.5 text-xs ${vista === v ? scelta : ""}`} onClick={() => setVista(v)}>
+              {v === "elenco" ? "Elenco" : "Totali per materiale"}
+            </Button>
+          ))}
+        </div>
+        <span className="ms-auto text-xs text-muted-foreground tabular-nums">
+          {dati.isSuccess ? `${ritiri.length} ${ritiri.length === 1 ? "ritiro" : "ritiri"}` : ""}
+        </span>
+      </div>
 
-            {dati.isLoading && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />Carico i ritiri…</p>}
-            {dati.isError && <p role="alert" className="text-sm text-destructive">Non riesco a caricare i ritiri. <Button variant="link" className="h-auto p-0" onClick={() => void dati.refetch()}>Riprova</Button></p>}
-            {dati.isSuccess && ritiri.length === 0 && <p className="text-sm text-muted-foreground">Nessun ritiro nel periodo.</p>}
+      {dati.isLoading && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />Carico i ritiri…</p>}
+      {dati.isError && <p role="alert" className="text-sm text-destructive">Non riesco a caricare i ritiri. <Button variant="link" className="h-auto p-0" onClick={() => void dati.refetch()}>Riprova</Button></p>}
+      {dati.isSuccess && ritiri.length === 0 && (
+        <Card><CardContent className="flex flex-col items-center gap-1 py-8 text-center">
+          <History className="size-8 text-muted-foreground/40" aria-hidden="true" />
+          <p className="text-sm font-medium">Nessun ritiro nel periodo</p>
+          <p className="text-xs text-muted-foreground">Qui compare chi ha preso cosa, per quale cantiere, dall’app degli operai.</p>
+        </CardContent></Card>
+      )}
 
-            {ritiri.length > 0 && vista === "elenco" && (
-              <ul className="divide-y rounded-lg border">
-                {ritiri.map(r => {
-                  const stato = STATI[r.stato] ?? STATI.richiesto;
-                  return (
-                    <li key={r.id} className="space-y-1 p-3 text-sm">
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="font-semibold">{nomePersona(r.operaio_id)}</span>
-                        <span className="text-muted-foreground">per</span>
-                        <span className="font-medium">{nomeCantiere(r.order_id)}</span>
-                        <Badge variant="secondary" className={`ms-auto ${stato.className}`}>{stato.label}</Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {format(new Date(r.data), "d MMM yyyy, HH:mm", { locale: it })}
-                        {r.documento_numero ? ` · DDT ${r.documento_numero}` : ""}
-                        {r.note ? ` · ${r.note}` : ""}
-                      </p>
-                      <ul className="text-sm">
-                        {(Array.isArray(r.righe) ? r.righe : []).map((riga, i) => (
-                          <li key={`${riga.stock_item_id}-${i}`} className="flex justify-between gap-2">
-                            <span className="min-w-0 break-words">{riga.name}</span>
-                            <span className="shrink-0 font-medium tabular-nums">{nf.format(Number(riga.quantita))} {riga.unita ?? ""}</span>
-                          </li>
-                        ))}
-                      </ul>
-                      {r.motivo_rifiuto && <p className="text-xs text-red-700">Rifiutato: {r.motivo_rifiuto}</p>}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+      {ritiri.length > 0 && vista === "elenco" && (
+        <div className="overflow-x-auto rounded-lg border bg-card">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-xs text-muted-foreground">
+              <tr className="[&>th]:whitespace-nowrap [&>th]:px-3 [&>th]:py-2 [&>th]:text-left [&>th]:font-medium">
+                <th>Quando</th><th>Chi</th><th>Cantiere</th><th>Materiale</th><th>DDT</th><th>Stato</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {ritiri.map(r => {
+                const stato = STATI[r.stato] ?? STATI.richiesto;
+                const righe = Array.isArray(r.righe) ? r.righe : [];
+                const elenco = righe.map(riga => `${riga.name} ${nf.format(Number(riga.quantita))} ${riga.unita ?? ""}`.trim()).join(" · ");
+                return (
+                  <tr key={r.id} className="align-top [&>td]:px-3 [&>td]:py-1.5">
+                    <td className="whitespace-nowrap text-xs text-muted-foreground">{format(new Date(r.data), "d MMM, HH:mm", { locale: it })}</td>
+                    <td className="whitespace-nowrap font-medium">{nomePersona(r.operaio_id)}</td>
+                    <td className="max-w-[220px] truncate" title={nomeCantiere(r.order_id)}>{nomeCantiere(r.order_id)}</td>
+                    <td className="max-w-[360px]" title={elenco}>
+                      <span className="line-clamp-1">{elenco || "—"}</span>
+                      {r.note && <span className="line-clamp-1 text-xs text-muted-foreground">{r.note}</span>}
+                      {r.motivo_rifiuto && <span className="block text-xs text-red-700">Rifiutato: {r.motivo_rifiuto}</span>}
+                    </td>
+                    <td className="whitespace-nowrap text-xs text-muted-foreground">{r.documento_numero || "—"}</td>
+                    <td><Badge variant="outline" className={`whitespace-nowrap border-transparent px-1.5 py-0 text-[11px] font-medium ${stato.className}`}>{stato.label}</Badge></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-            {ritiri.length > 0 && vista === "totali" && (
-              <div className="overflow-x-auto rounded-lg border">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50 text-xs text-muted-foreground">
-                    <tr><th className="px-3 py-2 text-left">Materiale</th><th className="px-3 py-2 text-right">Consegnato</th><th className="px-3 py-2 text-right">Da approvare</th><th className="px-3 py-2 text-left">Chi</th></tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {totali.map(t => (
-                      <tr key={t.chiave}>
-                        <td className="px-3 py-2">{t.nome}</td>
-                        <td className="px-3 py-2 text-right font-semibold tabular-nums">{nf.format(t.consegnato)} {t.unita ?? ""}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{t.daApprovare ? `${nf.format(t.daApprovare)} ${t.unita ?? ""}` : "—"}</td>
-                        <td className="px-3 py-2 text-xs text-muted-foreground">{t.persone.map(nomePersona).join(", ")}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      {ritiri.length > 0 && vista === "totali" && (
+        <div className="overflow-x-auto rounded-lg border bg-card">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-xs text-muted-foreground">
+              <tr><th className="px-3 py-2 text-left font-medium">Materiale</th><th className="px-3 py-2 text-right font-medium">Consegnato</th><th className="px-3 py-2 text-right font-medium">Da approvare</th><th className="px-3 py-2 text-left font-medium">Chi</th></tr>
+            </thead>
+            <tbody className="divide-y">
+              {totali.map(t => (
+                <tr key={t.chiave} className="[&>td]:px-3 [&>td]:py-1.5">
+                  <td>{t.nome}</td>
+                  <td className="text-right font-semibold tabular-nums">{nf.format(t.consegnato)} {t.unita ?? ""}</td>
+                  <td className="text-right tabular-nums text-muted-foreground">{t.daApprovare ? `${nf.format(t.daApprovare)} ${t.unita ?? ""}` : "—"}</td>
+                  <td className="text-xs text-muted-foreground">{t.persone.map(nomePersona).join(", ")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }

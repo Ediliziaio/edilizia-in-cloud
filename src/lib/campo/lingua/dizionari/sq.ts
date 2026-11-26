@@ -30044,6 +30044,7 @@ const dizionario: Dizionario = {
   "Impossibile verificare i lotti.": "Lotet nuk mund të verifikohen.",
   "Riprova lotti": "Provo sërish lotet",
   "Lotti": "Lotet",
+  "Ritiri dal cantiere": "Tërheqjet nga kantieri",
   "Registri l'uscita e la giacenza scende subito. Subito dopo ti proponiamo il DDT; se non serve ora, lo crei più tardi da Arrivi e uscite → Uscite.": "Regjistron daljen dhe gjendja ulet menjëherë. Menjëherë pas, të propozojmë fletëdërgesën; nëse nuk duhet tani, e krijon më vonë te Hyrjet dhe daljet → Daljet.",
   "Più tardi: Magazzino → Arrivi e uscite → Uscite, filtro «Senza DDT».": "Më vonë: Magazina → Hyrjet dhe daljet → Daljet, filtri «Pa fletëdërgesë».",
   "DDT emessi": "Fletëdërgesat e lëshuara",

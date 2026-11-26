@@ -14,7 +14,8 @@ describe("Scelta della vista del magazzino", () => {
   });
 
   it("un gruppo con una vista sola non mostra la seconda riga", () => {
-    render(<MagazzinoVisteSwitch gruppi={gruppiVisibili(false)} gruppoAttivo="movimenti" vista="movements" onGruppo={vi.fn()} onVista={vi.fn()} />);
+    // Da telefono «Movimenti» ha solo il registro (dal 26/11/2026 da computer c'è anche «Ritiri dal cantiere»).
+    render(<MagazzinoVisteSwitch gruppi={gruppiVisibili(true)} gruppoAttivo="movimenti" vista="movements" onGruppo={vi.fn()} onVista={vi.fn()} />);
     expect(screen.queryByRole("group", { name: "Vista" })).toBeNull();
   });
 });

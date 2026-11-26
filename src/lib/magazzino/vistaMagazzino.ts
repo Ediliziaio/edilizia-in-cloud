@@ -6,7 +6,7 @@
  *                  (gli articoli delle commesse, in tre forme, e cosa comprare)
  *   Giacenze       Inventario · Lotti · Valore
  *   Arrivi e uscite  Bolle in arrivo · Uscite
- *   Movimenti      il registro di carichi e scarichi
+ *   Movimenti      Registro · Ritiri dal cantiere (prelievi dall'app degli operai)
  *
  * «Scadenze» non è più una scheda: nessun lotto ha una data di scadenza
  * (29/10/2026, tutte le aziende). Diventa l'avviso dentro Giacenze, che
@@ -53,7 +53,15 @@ export const GRUPPI_MAGAZZINO: Gruppo[] = [
       { key: "uscite", label: "Uscite" },
     ],
   },
-  { key: "movimenti", label: "Movimenti", viste: [{ key: "movements", label: "Registro" }] },
+  {
+    key: "movimenti",
+    label: "Movimenti",
+    viste: [
+      { key: "movements", label: "Registro" },
+      // 26/11/2026: era un riquadro da aprire in cima a ogni pagina del magazzino.
+      { key: "ritiri", label: "Ritiri dal cantiere" },
+    ],
+  },
 ];
 
 /** Sul telefono: lista, da comprare, inventario e registro dei movimenti. */
