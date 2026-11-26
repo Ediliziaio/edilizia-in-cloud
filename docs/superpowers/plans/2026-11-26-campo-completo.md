@@ -192,18 +192,18 @@ matrice di collaudo e le correzioni in giornata.
 | 1.3 Le mie ore | **Fatto** | `campo_mie_ore`, `OreApprovateMese` |
 | 1.4 Documenti del cantiere | **Già c'è** | l'operaio vede la selezione del cartello QR (`DocumentiQrCampo`) |
 | 1.5 Emergenza | **Fatto** | `DoveSiamo` in `CampoSegnalaSicurezza` |
-| 1.6 Mie scadenze | **Fatto, non pubblicato sul server** | `hr-check-scadenze`: il deploy delle funzioni è fermo (vedi sotto) |
-| 1.7 Senza rete | **Fatto** per spese e segnalazioni | restano sicurezza (con foto), mezzi e verbale |
+| 1.6 Mie scadenze | **Fatto** | `hr-check-scadenze` pubblicata dal CI alle 11:43 |
+| 1.7 Senza rete | **Fatto** per spese, segnalazioni, sicurezza (con foto) e mezzi | resta il verbale (firma del cliente + PDF sul server) |
 | 2.1 Lavori extra | **Fatto** (bozza dal cantiere → ufficio prezza e manda in firma) | `campo_lavoro_extra_crea` |
 | 2.2 Domani della squadra | **Fatto** come segnalazione «serve entro domani» | `CampoSquadra` |
 | 2.3 Materiale chiesto | **Fatto** | trigger `campo_materiale_avvisa_richiedente` |
 | 2.4 Ingressi | **Fatto** | `campo_ingresso_verifica`, `CampoIngressi` |
-| 2.5 Sicurezza del mattino | **Fatto** | `campo_briefing_registra`, `CampoBriefingSicurezza`; manca la vista ufficio |
+| 2.5 Sicurezza del mattino | **Fatto** | `campo_briefing_registra`; ufficio in Sicurezza cantiere › Infortuni |
 | 2.6 Fermo maltempo | **Fatto** | `campo_fermo_registra`, CSV in Personale › Richieste |
 | 2.7 Mezzi | **Già c'è** | litri in `mezzi_giornate` dal rapportino |
 | 2.8 Fine giornata | **Fatto** («No, tutto a posto») | |
 | 3.1 Ingresso della ditta | **Fatto** (cosa manca) | `statoDocumentiDitta` |
-| 3.2 Operai del sub con accesso | **Da fare** | serve creare accessi per gli operai della ditta: pezzo a sé |
+| 3.2 Operai del sub | **Fatto in parte** | elenco dall'app della ditta + ingresso senza tesserino; login personali da fare (ruolo nuovo) |
 | 3.3 Soldi del sub | **Fatto** | `campo_sub_contratti`, interruttore in regole |
 | 3.4 Ordini di servizio | **Fatto** | `ordini_servizio_ditte` |
 | 4.1 Da approvare | **Fatto** | `ufficio_altre_approvazioni` (spese, ferie, ritiri, extra) |
