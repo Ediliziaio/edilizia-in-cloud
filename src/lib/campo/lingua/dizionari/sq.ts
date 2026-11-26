@@ -69148,5 +69148,10 @@ const dizionario: Dizionario = {
   "Lavoratore in forza, con formazione sulla sicurezza e idoneità sanitaria in corso di validità.": "Punëtor në punë, me trajnim sigurie dhe aftësi shëndetësore të vlefshme.",
   "Lavoratore in forza, ma manca o è scaduto qualcosa: chiedi all'impresa prima di farlo lavorare.": "Punëtor në punë, por mungon ose ka skaduar diçka: pyet firmën para se ta vësh në punë.",
   "Questa persona non risulta in forza presso l'impresa. Non farla entrare e avvisa l'impresa.": "Ky person nuk rezulton në punë te firma. Mos e lër të hyjë dhe njofto firmën.",
+  "Domani servono rinforzi: ": "Nesër duhen përforcime: ",
+  "Domani servono rinforzi": "Nesër duhen përforcime",
+  "Domani serve un mezzo: ": "Nesër duhet një mjet: ",
+  "Domani serve un mezzo": "Nesër duhet një mjet",
+  "Sei senza rete: la segnalazione parte da sola appena torna il segnale.": "Je pa rrjet: sinjalizimi niset vetë sapo kthehet sinjali.",
 };
 export default dizionario;

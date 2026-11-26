@@ -22,6 +22,17 @@ describe("Sincronizzazione con API simulate", () => {
     expect(state.upload).toHaveBeenCalledWith(spesa.foto.path, spesa.foto.blob, expect.objectContaining({ upsert: false }));
     expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ id, importo: 55.5, foto_path: spesa.foto.path }));
   });
+  it("segnalazione in coda: ticket e foto, e il ripetersi non raddoppia", async () => {
+    const segnalazione = { company_id: "c", user_id: "u", riga: { id, company_id: "c", created_by: "u", subject: "Manca la colla", fonte: "campo" },
+      foto: [{ path: `${id}/f.jpg`, blob: new BlobNode(["f"]) as unknown as Blob, contentType: "image/jpeg", nome: "f.jpg" }] };
+    await expect(processCampoOffline(item({ type: "segnalazione", payload: segnalazione }))).resolves.toBeUndefined();
+    expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ id, subject: "Manca la colla" }));
+    expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ ticket_id: id, attachment_url: `${id}/f.jpg` }));
+    vi.clearAllMocks(); state.upload.mockResolvedValue({ error: null });
+    state.existing = { id: "messaggio" };
+    await expect(processCampoOffline(item({ type: "segnalazione", payload: segnalazione }))).resolves.toBeUndefined();
+    expect(state.insert).toHaveBeenCalledTimes(1);
+  });
   it("spesa in coda: risposta persa, la riga c'è già e non si raddoppia", async () => {
     state.upload.mockResolvedValue({ error: { statusCode: "409", message: "already exists" } });
     state.error = { code: "23505", message: "duplicato" }; state.existing = { id };

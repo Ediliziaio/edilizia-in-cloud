@@ -93,6 +93,15 @@ function FineGiornata({ orderId, companyId, squadra, soloDaControllare, onFiltra
     <Button type="button" className="min-h-11 w-full gap-2" onClick={() => navigate(campoReportUrl(orderId, "daily"))}>
       <FileText className="size-4" aria-hidden="true" /> {t("Apri rapportino della giornata")}
     </Button>
+    {/* Domani: rinforzi o un mezzo, chiesti all'ufficio come segnalazione con «serve entro domani» (piano 2.2). */}
+    <div className="grid grid-cols-2 gap-2">
+      <Button type="button" variant="outline" className="min-h-11 whitespace-normal text-xs" onClick={() => navigate(`/campo/ticket/nuovo/${encodeURIComponent(orderId)}?entro=domani&testo=${encodeURIComponent(t("Domani servono rinforzi: "))}`)}>
+        {t("Domani servono rinforzi")}
+      </Button>
+      <Button type="button" variant="outline" className="min-h-11 whitespace-normal text-xs" onClick={() => navigate(`/campo/ticket/nuovo/${encodeURIComponent(orderId)}?entro=domani&testo=${encodeURIComponent(t("Domani serve un mezzo: "))}`)}>
+        {t("Domani serve un mezzo")}
+      </Button>
+    </div>
     {/* Chi entra in cantiere: QR del tesserino (piano campo completo 2.4). */}
     <Button type="button" variant="outline" className="min-h-11 w-full" onClick={() => navigate(`/campo/lavoro/${encodeURIComponent(orderId)}/ingressi`)}>
       {t("Controllo ingressi")}

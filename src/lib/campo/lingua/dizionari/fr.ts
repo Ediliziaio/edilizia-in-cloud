@@ -69111,5 +69111,10 @@ const dizionario: Dizionario = {
   "Lavoratore in forza, con formazione sulla sicurezza e idoneità sanitaria in corso di validità.": "Travailleur en poste, avec formation sécurité et aptitude médicale valides.",
   "Lavoratore in forza, ma manca o è scaduto qualcosa: chiedi all'impresa prima di farlo lavorare.": "Travailleur en poste, mais il manque quelque chose ou c’est expiré : demande à l’entreprise avant de le faire travailler.",
   "Questa persona non risulta in forza presso l'impresa. Non farla entrare e avvisa l'impresa.": "Cette personne n’est pas employée par l’entreprise. Ne la laisse pas entrer et préviens l’entreprise.",
+  "Domani servono rinforzi: ": "Demain il faut du renfort : ",
+  "Domani servono rinforzi": "Demain il faut du renfort",
+  "Domani serve un mezzo: ": "Demain il faut un engin : ",
+  "Domani serve un mezzo": "Demain il faut un engin",
+  "Sei senza rete: la segnalazione parte da sola appena torna il segnale.": "Pas de réseau : le signalement partira tout seul dès que le signal revient.",
 };
 export default dizionario;

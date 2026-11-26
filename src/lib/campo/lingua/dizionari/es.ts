@@ -69111,5 +69111,10 @@ const dizionario: Dizionario = {
   "Lavoratore in forza, con formazione sulla sicurezza e idoneità sanitaria in corso di validità.": "Trabajador en plantilla, con formación en seguridad y aptitud médica vigentes.",
   "Lavoratore in forza, ma manca o è scaduto qualcosa: chiedi all'impresa prima di farlo lavorare.": "Trabajador en plantilla, pero falta o ha caducado algo: pregunta a la empresa antes de ponerle a trabajar.",
   "Questa persona non risulta in forza presso l'impresa. Non farla entrare e avvisa l'impresa.": "Esta persona no figura en plantilla de la empresa. No la dejes entrar y avisa a la empresa.",
+  "Domani servono rinforzi: ": "Mañana hacen falta refuerzos: ",
+  "Domani servono rinforzi": "Mañana hacen falta refuerzos",
+  "Domani serve un mezzo: ": "Mañana hace falta una máquina: ",
+  "Domani serve un mezzo": "Mañana hace falta una máquina",
+  "Sei senza rete: la segnalazione parte da sola appena torna il segnale.": "Sin cobertura: el aviso sale solo en cuanto vuelva la señal.",
 };
 export default dizionario;

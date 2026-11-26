@@ -69111,5 +69111,10 @@ const dizionario: Dizionario = {
   "Lavoratore in forza, con formazione sulla sicurezza e idoneità sanitaria in corso di validità.": "Employed worker, with valid safety training and fitness for work.",
   "Lavoratore in forza, ma manca o è scaduto qualcosa: chiedi all'impresa prima di farlo lavorare.": "Employed worker, but something is missing or expired: ask the company before letting them work.",
   "Questa persona non risulta in forza presso l'impresa. Non farla entrare e avvisa l'impresa.": "This person is not employed by the company. Don't let them in and tell the company.",
+  "Domani servono rinforzi: ": "Tomorrow we need more people: ",
+  "Domani servono rinforzi": "Tomorrow we need more people",
+  "Domani serve un mezzo: ": "Tomorrow we need a vehicle: ",
+  "Domani serve un mezzo": "Tomorrow we need a vehicle",
+  "Sei senza rete: la segnalazione parte da sola appena torna il segnale.": "No network: the report will go out by itself as soon as the signal is back.",
 };
 export default dizionario;

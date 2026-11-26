@@ -4,7 +4,7 @@ import { salvaChecklistSicurezza, type ChecklistDaSalvare } from "./salvaCheckli
 import { inviaPrelievoInCoda, type PrelievoInCoda } from "./prelievoInCoda";
 import { inviaRapportoInCoda, type RapportoInCoda } from "./rapportoInCoda";
 import { inviaTecnicaInCoda } from "./tecnicaInCoda";
-import type { SpesaInCoda } from "./spese";
+import type { SegnalazioneInCoda, SpesaInCoda } from "./spese";
 import type { DatiBozzaTecnica } from "./bozzaTecnica";
 import {
   SyncDeferredError,
@@ -104,6 +104,23 @@ export async function processCampoOffline(item: SyncItem) {
     throw new SyncPermanentError(
       "Operazione non supportata: contatta l’assistenza. I dati locali sono conservati.",
     );
+  if (item.type === "segnalazione") {
+    // Segnalazione fatta senza rete (piano campo completo 1.7): prima il ticket con l'id nato sul telefono,
+    // poi le foto. Ogni passo si può ripetere: ticket già c'è, foto già caricata, messaggio già scritto.
+    const s = payload as unknown as SegnalazioneInCoda;
+    const { error } = await supabase.from("tickets").insert(s.riga as never);
+    if (error && error.code !== "23505") throw databaseError(error);
+    for (const f of s.foto) {
+      const { error: up } = await supabase.storage.from("ticket-attachments").upload(f.path, f.blob, { contentType: f.contentType, upsert: false });
+      const esiste = up && ((up as { statusCode?: string }).statusCode === "409" || up.message.toLowerCase().includes("already exists"));
+      if (up && !esiste) throw new Error(up.message);
+      const { data: gia } = await supabase.from("ticket_messages").select("id").eq("ticket_id", s.riga.id).eq("attachment_url", f.path).maybeSingle();
+      if (gia) continue;
+      const { error: msg } = await supabase.from("ticket_messages").insert({ ticket_id: s.riga.id, sender_id: s.user_id, message: `📎 ${f.nome}`, attachment_url: f.path } as never);
+      if (msg) throw databaseError(msg);
+    }
+    return;
+  }
   if (item.type === "spesa") {
     // Spesa fatta senza rete (26/11/2026, piano campo completo 1.7): prima la foto dello scontrino, poi la riga,
     // con l'id nato sul telefono. Se la risposta si era persa, la riga c'è già: va bene così.

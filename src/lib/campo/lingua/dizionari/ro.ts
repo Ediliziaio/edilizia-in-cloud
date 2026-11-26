@@ -69148,5 +69148,10 @@ const dizionario: Dizionario = {
   "Lavoratore in forza, con formazione sulla sicurezza e idoneità sanitaria in corso di validità.": "Lucrător angajat, cu instruire de siguranță și aptitudine medicală valabile.",
   "Lavoratore in forza, ma manca o è scaduto qualcosa: chiedi all'impresa prima di farlo lavorare.": "Lucrător angajat, dar lipsește sau a expirat ceva: întreabă firma înainte să-l pui la lucru.",
   "Questa persona non risulta in forza presso l'impresa. Non farla entrare e avvisa l'impresa.": "Această persoană nu figurează ca angajat al firmei. Nu o lăsa să intre și anunță firma.",
+  "Domani servono rinforzi: ": "Mâine avem nevoie de întăriri: ",
+  "Domani servono rinforzi": "Mâine avem nevoie de întăriri",
+  "Domani serve un mezzo: ": "Mâine avem nevoie de un utilaj: ",
+  "Domani serve un mezzo": "Mâine avem nevoie de un utilaj",
+  "Sei senza rete: la segnalazione parte da sola appena torna il segnale.": "Nu ai semnal: semnalarea pleacă singură când revine semnalul.",
 };
 export default dizionario;

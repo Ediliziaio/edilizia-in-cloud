@@ -69111,5 +69111,10 @@ const dizionario: Dizionario = {
   "Lavoratore in forza, con formazione sulla sicurezza e idoneità sanitaria in corso di validità.": "خدام ف الشركة، عندو التكوين ديال السلامة والأهلية الصحية صالحين.",
   "Lavoratore in forza, ma manca o è scaduto qualcosa: chiedi all'impresa prima di farlo lavorare.": "خدام ف الشركة، ولكن شي حاجة ناقصة ولا سالات: سول الشركة قبل ما يخدم.",
   "Questa persona non risulta in forza presso l'impresa. Non farla entrare e avvisa l'impresa.": "هاد الشخص ما خدامش ف الشركة. ما تخليهش يدخل وعلم الشركة.",
+  "Domani servono rinforzi: ": "غدا خاصنا ناس زايدين: ",
+  "Domani servono rinforzi": "غدا خاصنا ناس زايدين",
+  "Domani serve un mezzo: ": "غدا خاصنا ماكينة: ",
+  "Domani serve un mezzo": "غدا خاصنا ماكينة",
+  "Sei senza rete: la segnalazione parte da sola appena torna il segnale.": "ما كاينش الريزو: التبليغ غادي يمشي بوحدو ملي يرجع الريزو.",
 };
 export default dizionario;
