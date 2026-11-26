@@ -59,6 +59,34 @@ export function useDaApprovareCantieri(enabled = true) {
   });
 }
 
+/** Spese, ferie e permessi, ritiri dal magazzino in attesa: si approvano nelle loro pagine, ma si vedono qui,
+ * ognuno solo da chi può approvarlo (piano campo completo 4.1, 26/11/2026). */
+export function useAltreApprovazioni(enabled = true) {
+  const { effectiveCompany } = useAuth();
+  const q = useQuery({
+    queryKey: ["ufficio-altre-approvazioni", effectiveCompany?.id],
+    enabled: enabled && !!effectiveCompany?.id,
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+    queryFn: async (): Promise<{ spese: number; ferie: number; ritiri: number; extra: number; extraOrdine: string | null }> => {
+      const { data, error } = await db.rpc("ufficio_altre_approvazioni");
+      if (error) throw error;
+      const d = (data ?? {}) as Record<string, unknown>;
+      return { spese: Number(d.spese ?? 0), ferie: Number(d.ferie ?? 0), ritiri: Number(d.ritiri ?? 0),
+        extra: Number(d.extra ?? 0), extraOrdine: typeof d.extra_ordine === "string" ? d.extra_ordine : null };
+    },
+  });
+  const voci = [
+    { chiave: "spese", n: q.data?.spese ?? 0, uno: "{n} spesa dal cantiere", tanti: "{n} spese dal cantiere", to: "/azienda/personale?tab=richieste" },
+    { chiave: "ferie", n: q.data?.ferie ?? 0, uno: "{n} richiesta di ferie o permesso", tanti: "{n} richieste di ferie o permesso", to: "/azienda/personale?tab=richieste" },
+    { chiave: "ritiri", n: q.data?.ritiri ?? 0, uno: "{n} ritiro dal magazzino", tanti: "{n} ritiri dal magazzino", to: "/azienda/magazzino" },
+    // Lavori extra segnalati dal cantiere (piano 2.1): bozze di variante da prezzare e mandare in firma.
+    { chiave: "extra", n: q.data?.extra ?? 0, uno: "{n} lavoro extra dal cantiere da prezzare", tanti: "{n} lavori extra dal cantiere da prezzare",
+      to: q.data?.extraOrdine ? `/azienda/ordini/${q.data.extraOrdine}` : "/azienda/ordini" },
+  ].filter(v => v.n > 0);
+  return { voci, totale: voci.reduce((somma, v) => somma + v.n, 0) };
+}
+
 export function totaleDaApprovare(a: DaApprovare | undefined) {
   return (a?.rapportini.length ?? 0) + (a?.correzioni.length ?? 0) + (a?.bolle.length ?? 0);
 }
@@ -71,6 +99,7 @@ export function DaApprovareCantieri() {
   const { effectiveCompany } = useAuth();
   const qc = useQueryClient();
   const approvare = useDaApprovareCantieri(puoApprovare);
+  const { voci: altreVoci, totale: altreTotale } = useAltreApprovazioni(puoApprovare);
   // Commessa aperta nel popup «Apri e approva»: si approva lì senza lasciare Attività.
   const [commessaPopup, setCommessaPopup] = useState<{ id: string; titolo: string } | null>(null);
   const chiudiPopup = () => {
@@ -160,8 +189,8 @@ export function DaApprovareCantieri() {
   // Azienda non ancora pronta o richiesta non partita: niente da mostrare.
   if (!approvare.data && !approvare.isLoading && !approvare.isError) return null;
   const a = approvare.data;
-  const tot = totaleDaApprovare(a);
-  const righe = gruppi.commesse.length + gruppi.correzioniSenza.length + gruppi.bolleSenza.length;
+  const tot = totaleDaApprovare(a) + altreTotale;
+  const righe = gruppi.commesse.length + gruppi.correzioniSenza.length + gruppi.bolleSenza.length + altreVoci.length;
   // Niente in attesa: il riquadro non occupa posto in Attività.
   if (approvare.isSuccess && tot === 0) return null;
 
@@ -221,6 +250,12 @@ export function DaApprovareCantieri() {
                 <Link to="/azienda/magazzino" className="font-medium text-primary underline underline-offset-4">{t("Verifica")}</Link>
               </li>
             ))}
+            {altreVoci.map((v) => (
+              <li key={`a-${v.chiave}`} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm max-sm:px-3.5">
+                <strong>{t(v.n === 1 ? v.uno : v.tanti, { n: v.n })}</strong>
+                <Link to={v.to} className="font-medium text-primary underline underline-offset-4">{t("Apri")}</Link>
+              </li>
+            ))}
           </ul>
         )}
       {/* Da tablet in su i primi 5: con 15 aperti la lista delle attività finiva sotto la piega
@@ -262,7 +297,8 @@ export function DaApprovareChip({ aperto, onToggle }: { aperto: boolean; onToggl
   const t = useT();
   const puoApprovare = usePuoApprovareCantiere();
   const approvare = useDaApprovareCantieri(puoApprovare);
-  const tot = totaleDaApprovare(approvare.data);
+  const altre = useAltreApprovazioni(puoApprovare);
+  const tot = totaleDaApprovare(approvare.data) + altre.totale;
   if (!puoApprovare || tot === 0) return null;
   return (
     <button

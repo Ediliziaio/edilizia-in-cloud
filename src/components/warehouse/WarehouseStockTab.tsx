@@ -1,6 +1,6 @@
 import { RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { formattaQuantitaMovimento } from "@/lib/magazzino/quantitaMovimento";
-import { useEffect, useRef, useState, useMemo, useCallback, memo, lazy, Suspense, type ReactNode } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback, memo, lazy, Suspense, type ReactNode, type MouseEvent as ReactMouseEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragStartEvent, type DragEndEvent } from "@dnd-kit/core";
 import { useDraggable } from "@dnd-kit/core";
@@ -85,14 +85,18 @@ const ReserveStockDialog = lazy(() => import("./ReserveStockDialog").then((m) =>
 const EMPTY_STOCK: StockItem[] = [];
 const OPTIONAL_COLUMNS = [
   { key: "code", label: "Codice" },
+  { key: "unit", label: "Unità" },
   { key: "zone", label: "Zona" },
+  { key: "incoming", label: "In arrivo" },
   { key: "unit_cost", label: "Costo unitario", costs: true },
   { key: "total_value", label: "Valore totale", costs: true },
   { key: "supplier", label: "Fornitore" },
   { key: "threshold", label: "Scorta minima" },
 ] as const;
 type OptionalColumn = typeof OPTIONAL_COLUMNS[number]["key"];
-const DEFAULT_COLUMNS: OptionalColumn[] = [];
+/** 26/11/2026: una riga per articolo con i riferimenti in colonna (prima nome, unità e descrizione
+ *  andavano a capo nella stessa cella e le colonne utili partivano spente). */
+const DEFAULT_COLUMNS: OptionalColumn[] = ["code", "zone", "incoming", "total_value", "supplier"];
 const decodeColumns = (raw: string): OptionalColumn[] => {
   const parsed: unknown = JSON.parse(raw);
   return Array.isArray(parsed) ? parsed.filter((key): key is OptionalColumn => OPTIONAL_COLUMNS.some((c) => c.key === key)) : [];
@@ -178,7 +182,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
   const [importOpen, setImportOpen] = useState(false);
   const toolsTriggerRef = useRef<HTMLButtonElement>(null);
   const [optionalColumns, setOptionalColumns] = useScopedStorage<OptionalColumn[]>(
-    companyId ? `warehouse-columns:v1:${companyId}:${user?.id ?? "current"}` : null,
+    companyId ? `warehouse-columns:v3:${companyId}:${user?.id ?? "current"}` : null,
     DEFAULT_COLUMNS,
     decodeColumns,
   );
@@ -373,6 +377,8 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
   const hasLotti = lotti.length > 0;
 
   const { sections } = useWarehouseSections();
+  // La colonna del magazzino serve solo se se ne guardano più d'uno insieme.
+  const mostraMagazzino = !warehouseFilter && knownWarehouses.length > 1;
   const hasVisibleOptionalColumns = OPTIONAL_COLUMNS.some((c) => optionalColumns.includes(c.key) && (!("costs" in c) || canViewCosts) && (c.key !== "zone" || sections.length > 0));
   // O(1) lookup map sezioni (stesso motivo di supplierNameById). Restituisce
   // l'intero oggetto sezione come prima (consumato per name + color).
@@ -802,7 +808,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div className="space-y-4">
+      <div className="space-y-3">
         {arriviError && <Alert><AlertTriangle className="h-4 w-4" /><AlertTitle>{t("Arrivi non disponibili")}</AlertTitle><AlertDescription>{t("Le giacenze sono separate dagli ordini in arrivo, che non è stato possibile verificare.")} <Button variant="outline" size="sm" onClick={() => void refetchArrivi()}>{t("Riprova arrivi")}</Button></AlertDescription></Alert>}
         <Dialog open={!readOnly && zonesDialogOpen} onOpenChange={setZonesDialogOpen}>
           <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto p-0">
@@ -830,7 +836,8 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
           </DialogContent>
         </Dialog>
 
-        <div className="rounded-xl border bg-white p-2.5 shadow-sm" aria-label={t("Strumenti giacenze")} role="region">
+        {/* Barra senza riquadro attorno (25/11/2026): 32px invece di 54, come le schede di Commesse. */}
+        <div aria-label={t("Strumenti giacenze")} role="region">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:flex-wrap">
             <div className={cn(RICERCA_BARRA, "col-span-2 max-sm:w-full")}>
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
@@ -839,17 +846,19 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
             {warehouseSelect && <div className="min-w-0 sm:w-auto">{warehouseSelect}</div>}
             <Button variant="outline" className="h-8 gap-1.5 px-2.5 text-xs max-sm:h-11 [&_svg]:h-3.5 [&_svg]:w-3.5" onClick={() => setFiltersOpen(true)} aria-label={activeFilterCount ? t(activeFilterCount === 1 ? "Filtri giacenze ({n} attivo)" : "Filtri giacenze ({n} attivi)", { n: activeFilterCount }) : t("Filtri giacenze")}><Filter className="h-4 w-4" />{t("Filtri")}{activeFilterCount > 0 && <Badge variant="secondary" className="px-1.5">{activeFilterCount}</Badge>}</Button>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild><Button variant="outline" className="hidden h-8 gap-1.5 px-2.5 text-xs md:inline-flex"><Columns3 className="h-3.5 w-3.5" />{t("Colonne")}</Button></DropdownMenuTrigger>
+              <DropdownMenuTrigger asChild><Button variant="outline" className="hidden h-8 gap-1.5 px-2.5 text-xs md:inline-flex" title={t("Colonne")}><Columns3 className="h-3.5 w-3.5" /><span className="max-2xl:sr-only">{t("Colonne")}</span></Button></DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>{t("Colonne aggiuntive")}</DropdownMenuLabel>
                 {OPTIONAL_COLUMNS.filter((c) => (!("costs" in c) || canViewCosts) && (c.key !== "zone" || sections.length > 0)).map((c) => <DropdownMenuCheckboxItem key={c.key} checked={optionalColumns.includes(c.key)} onSelect={(e) => e.preventDefault()} onCheckedChange={(checked) => setOptionalColumns((current) => checked ? [...current.filter((key) => key !== c.key), c.key] : current.filter((key) => key !== c.key))}>{t(c.label)}</DropdownMenuCheckboxItem>)}
                 <DropdownMenuSeparator /><DropdownMenuItem onClick={() => setOptionalColumns([])}>{t("Ripristina colonne essenziali")}</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            {/* Il conteggio sta nella barra (26/11/2026): prima aveva una riga tutta sua. */}
+            <p className="col-span-2 whitespace-nowrap text-xs text-muted-foreground tabular-nums sm:col-span-1" aria-live="polite">{isLoading ? t("Caricamento articoli…") : isError ? t("Elenco non disponibile") : `${filtered.length} ${filtered.length === 1 ? "articolo" : "articoli"}${searchQuery || activeFilterCount ? " trovati" : ""}`}</p>
             <div className="col-span-2 grid grid-cols-3 gap-2 sm:ml-auto sm:flex sm:flex-wrap sm:items-center">
               {primaryActions}
-              {/* Telefono: «Prenota» sta in «Altro», le azioni restano su una riga. */}
-              {!readOnly && permissions.canEditOrders && <Button variant="outline" className="h-8 gap-1.5 px-2.5 text-xs max-sm:hidden" onClick={() => setReservation({})}>{t("Prenota")}</Button>}
+              {/* «Prenota» sta in «Altro» sotto i 1536px: le azioni restano su una riga con la ricerca. */}
+              {!readOnly && permissions.canEditOrders && <Button variant="outline" className="h-8 gap-1.5 px-2.5 text-xs max-2xl:hidden" onClick={() => setReservation({})}>{t("Prenota")}</Button>}
               {!primaryActions && !readOnly && showMovementActions && <>
                 <Button className="h-8 px-3 text-xs" onClick={() => { if (onRegisterArrival) onRegisterArrival(); else { setCaricoItem(undefined); setCaricoOpen(true); } }}>{t("Carica")}</Button>
                 <Button className="h-8 px-2.5 text-xs" variant="outline" onClick={() => setUscitaOpen(true)}>{t("Preleva")}</Button>
@@ -857,7 +866,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
               <DropdownMenu>
                 <DropdownMenuTrigger asChild><Button ref={toolsTriggerRef} variant="outline" className="h-8 gap-1.5 px-2.5 text-xs max-sm:h-11 [&_svg]:h-3.5 [&_svg]:w-3.5" aria-label={t("Altre azioni del magazzino")}><MoreVertical className="h-4 w-4" />{t("Altro")}</Button></DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="max-h-[75vh] w-64 overflow-y-auto">
-                  {!readOnly && permissions.canEditOrders && <DropdownMenuItem className="sm:hidden" onClick={() => setReservation({})}><CalendarClock className="mr-2 h-4 w-4" />{t("Prenota per una commessa")}</DropdownMenuItem>}
+                  {!readOnly && permissions.canEditOrders && <DropdownMenuItem className="2xl:hidden" onClick={() => setReservation({})}><CalendarClock className="mr-2 h-4 w-4" />{t("Prenota per una commessa")}</DropdownMenuItem>}
                   <DropdownMenuLabel>{t("Articoli e inventario")}</DropdownMenuLabel>
                   {!readOnly && <DropdownMenuItem onClick={() => { setEditingItem(null); setDialogOpen(true); }}><Plus className="mr-2 h-4 w-4" />{t("Aggiungi articolo")}</DropdownMenuItem>}
                   <DropdownMenuItem onClick={() => setQuickScanOpen(true)}><ScanLine className="mr-2 h-4 w-4" />{t("Cerca con QR / barcode")}</DropdownMenuItem>
@@ -886,8 +895,8 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
           </SheetContent>
         </Sheet>
         {importOpen && <Suspense fallback={<p role="status">{t("Apertura importazione…")}</p>}><ArticoliCSVImportDialog warehouseId={warehouseFilter} open={importOpen} onOpenChange={setImportOpen} onCloseAutoFocus={(event) => { event.preventDefault(); toolsTriggerRef.current?.focus(); }} hideTrigger /></Suspense>}
-        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-          <p className="text-sm text-muted-foreground" aria-live="polite">{isLoading ? t("Caricamento articoli…") : isError ? t("Elenco non disponibile") : `${filtered.length} ${filtered.length === 1 ? "articolo" : "articoli"}${searchQuery || activeFilterCount ? " trovati" : " in elenco"}`}</p>
+        {/* Resta solo per «Mostra anche quelli a zero» e «Riordina»: senza bottoni non occupa spazio. */}
+        <div className="flex flex-wrap items-center justify-end gap-2 px-1 empty:hidden">
           {aZeroNascosti > 0 ? (
             <Button size="sm" variant="ghost" className="h-8 px-2 text-sm" onClick={() => cambiaMostraAZero(true)}>{t("Mostra anche {aZeroNascosti} a zero", { aZeroNascosti: String(aZeroNascosti ?? "") })}</Button>
           ) : mostraAZero && !searchQuery && metricFilter === "all" && lottoFilter === "all" && tuttiFiltrati.some((i) => eArticoloAZero(i, inArrivo)) ? (
@@ -966,10 +975,10 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
             <Card className="hidden md:block">
               <CardContent className="p-0">
                 <BarraScorrimentoOrizzontale contenitore={tableContainer} className="mx-4 mt-3" />
-                <Table wrapperRef={setTableContainer} className={hasVisibleOptionalColumns ? "min-w-[1100px]" : "min-w-[860px]"} wrapperClassName="max-h-[65vh]">
+                <Table wrapperRef={setTableContainer} className="min-w-[860px]" wrapperClassName="max-h-[65vh]">
                   <TableHeader className="sticky top-0 z-10 bg-slate-50">
-                    <TableRow>
-                      <TableHead className="w-10">
+                    <TableRow className="[&>th]:h-9 [&>th]:whitespace-nowrap [&>th]:px-2 [&>th]:text-xs">
+                      <TableHead className="sticky left-0 z-20 w-8 bg-slate-50">
                         <Checkbox
                           checked={allSelected ? true : visibleSelectedIds.length > 0 ? "indeterminate" : false}
                           onCheckedChange={toggleSelectAll}
@@ -977,19 +986,21 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
                           disabled={readOnly}
                         />
                       </TableHead>
-                      <TableHead>{t("Articolo")}</TableHead>
-                      <TableHead>{t("Magazzino")}</TableHead>
+                      <TableHead className="sticky left-8 z-20 bg-slate-50 shadow-[1px_0_0_hsl(var(--border))]">{t("Articolo")}</TableHead>
                       {optionalColumns.includes("code") && <TableHead>{t("Codice")}</TableHead>}
+                      {optionalColumns.includes("unit") && <TableHead>{t("Unità")}</TableHead>}
+                      {mostraMagazzino && <TableHead>{t("Magazzino")}</TableHead>}
                       {sections.length > 0 && optionalColumns.includes("zone") && <TableHead>{t("Zona")}</TableHead>}
-                      <TableHead className="text-center">{t("Giacenza")}</TableHead>
-                      <TableHead className="text-center">{t("Impegnato")}</TableHead>
-                      <TableHead className="text-center">{t("Disponibile")}</TableHead>
-                      <TableHead>{t("Stato")}</TableHead>
+                      <TableHead className="text-right">{t("Giacenza")}</TableHead>
+                      <TableHead className="text-right">{t("Impegnato")}</TableHead>
+                      <TableHead className="text-right">{t("Disponibile")}</TableHead>
+                      {optionalColumns.includes("incoming") && <TableHead className="text-right">{t("In arrivo")}</TableHead>}
+                      {optionalColumns.includes("threshold") && <TableHead className="text-right">{t("Scorta minima")}</TableHead>}
                       {canViewCosts && optionalColumns.includes("unit_cost") && <TableHead className="text-right">{t("Costo unitario")}</TableHead>}
                       {canViewCosts && optionalColumns.includes("total_value") && <TableHead className="text-right">{t("Valore totale")}</TableHead>}
                       {optionalColumns.includes("supplier") && <TableHead>{t("Fornitore")}</TableHead>}
-                      {optionalColumns.includes("threshold") && <TableHead className="text-center">{t("Scorta minima")}</TableHead>}
-                      <TableHead className="text-right">{t("Azioni")}</TableHead>
+                      <TableHead>{t("Stato")}</TableHead>
+                      <TableHead className="w-10"><span className="sr-only">{t("Azioni")}</span></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -998,6 +1009,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
                         key={item.id}
                         item={item}
                         warehouseName={knownWarehouses.find(w => w.id === item.warehouse_id)?.name ?? t("Non indicato")}
+                        showWarehouse={mostraMagazzino}
                         isLow={isSottoScorta(item)}
                         inArrivo={arriviError || arriviLoading ? undefined : inArrivo?.get(item.id)}
                         section={getSectionName(item.section_id)}
@@ -1133,6 +1145,13 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
           item={historyItem}
           supplierName={historyItem ? getSupplierName(historyItem.supplier_id) : undefined}
           sectionName={historyItem ? getSectionName(historyItem.section_id)?.name : undefined}
+          warehouseName={historyItem ? knownWarehouses.find((w) => w.id === historyItem.warehouse_id)?.name : undefined}
+          azioni={historyItem && !readOnly ? <>
+            {<Button size="sm" variant="outline" className="h-8 gap-1.5 px-2.5 text-xs" onClick={() => { const it = historyItem; setHistoryItem(null); if (onRegisterArrival) onRegisterArrival(it); else { setCaricoItem(it); setCaricoOpen(true); } }}><ArrowUpCircle className="h-3.5 w-3.5" />{t("Carica articolo")}</Button>}
+            {<Button size="sm" variant="outline" className="h-8 gap-1.5 px-2.5 text-xs" disabled={Number(historyItem.quantity) <= 0} onClick={() => { const it = historyItem; setHistoryItem(null); setUscitaItem(it); setUscitaOpen(true); }}><ArrowDownCircle className="h-3.5 w-3.5" />{t("Preleva articolo")}</Button>}
+            {permissions.canEditOrders && <Button size="sm" variant="outline" className="h-8 gap-1.5 px-2.5 text-xs" onClick={() => { const it = historyItem; setHistoryItem(null); setReservation({ item: it }); }}><Package className="h-3.5 w-3.5" />{t("Prenota per commessa")}</Button>}
+            <Button size="sm" variant="outline" className="h-8 gap-1.5 px-2.5 text-xs" onClick={() => { const it = historyItem; setHistoryItem(null); setEditingItem(it); setDialogOpen(true); }}><Pencil className="h-3.5 w-3.5" />{t("Modifica articolo")}</Button>
+          </> : undefined}
           inArrivo={historyItem && !arriviError ? inArrivo?.get(historyItem.id) : undefined}
           arriviUnavailable={arriviError || arriviLoading}
         />
@@ -1303,6 +1322,7 @@ interface DraggableStockRowProps {
   onDelete: () => void;
   readOnly?: boolean;
   canViewCosts?: boolean;
+  showWarehouse?: boolean;
 }
 
 /** «+12 in arrivo» con il link all'ordine fornitore: chi riordina vede che è già ordinato. */
@@ -1324,7 +1344,7 @@ function InArrivoNota({ inArrivo }: { inArrivo?: InArrivoArticolo }) {
 }
 
 const DraggableStockRow = memo(function DraggableStockRow({
-  item, isLow, inArrivo, section, isSelected, hasSections, optionalColumns, supplierName, warehouseName,
+  item, isLow, inArrivo, section, isSelected, hasSections, optionalColumns, supplierName, warehouseName, showWarehouse = true,
   onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask, onAudit, onSerials, onDelete, onReserve,
   readOnly = false,
   canViewCosts = false,
@@ -1336,12 +1356,21 @@ const DraggableStockRow = memo(function DraggableStockRow({
     disabled: readOnly,
   });
 
+  // Clic sulla riga = dettaglio (26/11/2026). Casella, trascinamento, link e menu fanno la loro cosa.
+  const apriDallaRiga = (e: ReactMouseEvent) => {
+    if ((e.target as HTMLElement).closest("button, a, input, label, [role=checkbox], [role=menuitem], [data-no-row-click]")) return;
+    onHistory();
+  };
+  const disponibile = Number(item.quantity_available ?? item.quantity);
+  const um = item.unita_misura || "";
   return (
     <TableRow
       ref={setNodeRef}
-      className={`${isLow ? "bg-amber-50/50 dark:bg-amber-950/10" : ""} ${isDragging ? "opacity-40" : ""}`}
+      onClick={apriDallaRiga}
+      className={cn("group cursor-pointer [&>td]:whitespace-nowrap [&>td]:px-2 [&>td]:py-1.5 [&>td]:text-sm", isLow && "bg-amber-50/50 dark:bg-amber-950/10", isDragging && "opacity-40")}
     >
-      <TableCell>
+      {/* Casella e nome fermi a sinistra: se la tabella scorre di lato, il nome resta in vista. */}
+      <TableCell className={cn("sticky left-0 z-10 w-8 group-hover:bg-muted", isLow ? "bg-amber-50" : "bg-card")}>
         {!readOnly && (
           <Checkbox
             checked={isSelected}
@@ -1350,57 +1379,53 @@ const DraggableStockRow = memo(function DraggableStockRow({
           />
         )}
       </TableCell>
-      <TableCell>
-        <div className="flex items-start gap-2">
-          {!readOnly && hasSections && <button type="button" className="mt-0.5 cursor-grab text-muted-foreground active:cursor-grabbing" aria-label={t("Trascina {name}", { name: String(item.name ?? "") })} {...listeners} {...attributes}><GripVertical className="h-4 w-4" /></button>}
-          <div className="min-w-0">
-          <button type="button" className="text-left font-medium text-primary hover:underline" onClick={onHistory} aria-label={t("Dettaglio {name}", { name: String(item.name ?? "") })}>{item.name}</button>
-          <p className="mt-0.5 text-xs text-muted-foreground">{!optionalColumns.includes("code") && item.internal_code ? `${item.internal_code} · ` : ""}{item.unita_misura || t("Unità non indicata")}{item.tracking_mode === "serialized" ? ` ${t("· Con matricola")}` : ""}</p>
-          {item.description && <p className="max-w-[220px] truncate text-xs text-muted-foreground" title={item.description}>{item.description}</p>}
-          </div>
+      <TableCell className={cn("sticky left-8 z-10 shadow-[1px_0_0_hsl(var(--border))] group-hover:bg-muted", isLow ? "bg-amber-50" : "bg-card")}>
+        <div className="flex items-center gap-1.5">
+          {!readOnly && hasSections && <button type="button" className="cursor-grab text-muted-foreground active:cursor-grabbing" aria-label={t("Trascina {name}", { name: String(item.name ?? "") })} {...listeners} {...attributes}><GripVertical className="h-3.5 w-3.5" /></button>}
+          <button type="button" className="block max-w-[220px] truncate text-left font-medium text-primary hover:underline 2xl:max-w-[340px]" onClick={onHistory}
+            title={item.description ? `${item.name} — ${item.description}` : item.name}
+            aria-label={t("Apri dettaglio {name}", { name: String(item.name ?? "") })}>{item.name}</button>
+          {item.tracking_mode === "serialized" && <Badge variant="outline" className="px-1 py-0 font-mono text-[9px]" title={t("· Con matricola")}>SER</Badge>}
         </div>
       </TableCell>
-      <TableCell className="text-sm text-muted-foreground">{warehouseName ?? t("Non indicato")}</TableCell>
       {optionalColumns.includes("code") && <TableCell>
-        {item.internal_code ? (
-          <span className="font-mono text-xs text-muted-foreground">{item.internal_code}</span>
+        {item.internal_code || item.barcode ? (
+          <span className="block max-w-[110px] truncate font-mono text-xs text-muted-foreground" title={item.internal_code || item.barcode || ""}>{item.internal_code || item.barcode}</span>
         ) : (
           <span className="text-xs text-muted-foreground">—</span>
         )}
       </TableCell>}
+      {optionalColumns.includes("unit") && <TableCell className="text-xs text-muted-foreground">{um || "—"}</TableCell>}
+      {showWarehouse && <TableCell className="max-w-[120px] truncate text-muted-foreground" title={warehouseName}>{warehouseName ?? t("Non indicato")}</TableCell>}
       {hasSections && optionalColumns.includes("zone") && (
         <TableCell>
           {section ? (
-            <Badge variant="outline" className="text-xs gap-1">
-              <div className="h-2 w-2 rounded-full" style={{ backgroundColor: section.color }} />
+            <span className="inline-flex items-center gap-1 text-xs">
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: section.color }} />
               {section.name}
-            </Badge>
+            </span>
           ) : (
             <span className="text-xs text-muted-foreground">—</span>
           )}
         </TableCell>
       )}
-      <TableCell className="text-center">
-        <div className="flex items-center justify-center gap-1.5">
-          <span className="tabular-nums">{formattaQuantitaMovimento(Number(item.quantity))}</span>
-          {item.tracking_mode === "serialized" && (
-            <Badge variant="outline" className="px-1 py-0 text-[9px] font-mono">SER</Badge>
-          )}
-        </div>
-        <InArrivoNota inArrivo={inArrivo} />
+      <TableCell className="text-right tabular-nums">
+        {formattaQuantitaMovimento(Number(item.quantity))}
+        {!optionalColumns.includes("incoming") && <InArrivoNota inArrivo={inArrivo} />}
       </TableCell>
-      <TableCell className="text-center tabular-nums">{formattaQuantitaMovimento(Number(item.quantity_reserved ?? 0))}</TableCell>
-      <TableCell className="text-center font-semibold tabular-nums">{formattaQuantitaMovimento(Number(item.quantity_available ?? item.quantity))}</TableCell>
-      <TableCell><Badge variant={isLow ? "outline" : "secondary"}>{isLow ? t("Sotto scorta") : Number(item.quantity_available ?? item.quantity) > 0 ? t("Disponibile") : t("Non disponibile")}</Badge></TableCell>
-      {canViewCosts && optionalColumns.includes("unit_cost") && <TableCell className="text-right">{item.prezzo_da_definire ? <span className="text-xs text-amber-700">{t("Da definire")}</span> : formatCurrency(item.unit_cost)}</TableCell>}
-      {canViewCosts && optionalColumns.includes("total_value") && <TableCell className="text-right">{item.prezzo_da_definire ? <span className="text-xs text-muted-foreground">{t("Da valorizzare")}</span> : formatCurrency(item.unit_cost * item.quantity)}</TableCell>}
-      {optionalColumns.includes("supplier") && <TableCell>{supplierName}</TableCell>}
-      {optionalColumns.includes("threshold") && <TableCell className="text-center">{formattaQuantitaMovimento(item.min_stock_level ?? 0)}</TableCell>}
+      <TableCell className="text-right tabular-nums text-muted-foreground">{formattaQuantitaMovimento(Number(item.quantity_reserved ?? 0))}</TableCell>
+      <TableCell className="text-right font-semibold tabular-nums">{formattaQuantitaMovimento(disponibile)}{!optionalColumns.includes("unit") && um ? <span className="ml-1 text-[11px] font-normal text-muted-foreground">{um}</span> : null}</TableCell>
+      {optionalColumns.includes("incoming") && <TableCell className="text-right tabular-nums">
+        {inArrivo && inArrivo.quantita > 0 ? <InArrivoNota inArrivo={inArrivo} /> : <span className="text-xs text-muted-foreground">—</span>}
+      </TableCell>}
+      {optionalColumns.includes("threshold") && <TableCell className="text-right tabular-nums text-muted-foreground">{item.min_stock_level ? formattaQuantitaMovimento(item.min_stock_level) : "—"}</TableCell>}
+      {canViewCosts && optionalColumns.includes("unit_cost") && <TableCell className="text-right tabular-nums">{item.prezzo_da_definire ? <span className="text-xs text-amber-700">{t("Da definire")}</span> : formatCurrency(item.unit_cost)}</TableCell>}
+      {canViewCosts && optionalColumns.includes("total_value") && <TableCell className="text-right tabular-nums">{item.prezzo_da_definire ? <span className="text-xs text-muted-foreground">{t("Da valorizzare")}</span> : formatCurrency(item.unit_cost * item.quantity)}</TableCell>}
+      {optionalColumns.includes("supplier") && <TableCell className="max-w-[140px] truncate" title={supplierName}>{supplierName || <span className="text-muted-foreground">—</span>}</TableCell>}
+      <TableCell><Badge variant={isLow ? "outline" : "secondary"} className={cn("px-1.5 py-0 text-[11px] font-medium", isLow ? "border-amber-300 bg-amber-50 text-amber-800" : disponibile > 0 ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600")}>{isLow ? t("Sotto scorta") : disponibile > 0 ? t("Disponibile") : t("Non disponibile")}</Badge></TableCell>
       <TableCell className="text-right">
-        <div className="flex items-center justify-end gap-1">
-          <Button variant="outline" size="sm" className="whitespace-nowrap" onClick={onHistory} aria-label={t("Apri dettaglio {name}", { name: String(item.name ?? "") })}>{t("Apri dettaglio")}</Button>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="shrink-0" aria-label={t("Azioni {name}", { name: String(item.name ?? "") })}><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
+            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" aria-label={t("Azioni {name}", { name: String(item.name ?? "") })}><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuLabel className="max-w-52 truncate">{item.name}</DropdownMenuLabel>
               <DropdownMenuItem onClick={onHistory}><History className="mr-2 h-4 w-4" />{t("Dettaglio e storico")}</DropdownMenuItem>
@@ -1418,7 +1443,6 @@ const DraggableStockRow = memo(function DraggableStockRow({
               </>}
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
       </TableCell>
   </TableRow>
   );

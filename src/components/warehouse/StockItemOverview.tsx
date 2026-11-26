@@ -3,41 +3,73 @@ import { Badge } from "@/components/ui/badge";
 import { isSottoScorta, type StockItem } from "@/types/warehouse";
 import type { InArrivoArticolo } from "@/hooks/useMagazzinoRiepilogo";
 import { formatCurrency } from "@/lib/formatters";
+import { cn } from "@/lib/utils";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
-export function StockItemOverview({ item, supplierName, sectionName, inArrivo, arriviUnavailable, canViewCosts }: {
+/**
+ * Situazione di un articolo nella finestra di dettaglio del magazzino.
+ *
+ * 26/11/2026: sei numeri in fila (giacenza, impegnato, disponibile, in arrivo, scorta minima,
+ * valore) e l'anagrafica su tre colonne — codice, barcode, magazzino, zona, fornitore, unità,
+ * costo, IVA, tracciamento, garanzia, ultimo aggiornamento. Prima c'erano tre numeri e cinque
+ * voci, e per il resto bisognava aprire «Modifica articolo».
+ */
+export function StockItemOverview({ item, supplierName, sectionName, warehouseName, inArrivo, arriviUnavailable, canViewCosts }: {
   item: StockItem;
   supplierName?: string;
   sectionName?: string;
+  warehouseName?: string;
   inArrivo?: InArrivoArticolo;
   arriviUnavailable?: boolean;
   canViewCosts: boolean;
 }) {
   const t = useT();
   const quantity = (n: number) => Number(n).toLocaleString(intlCampo(), { maximumFractionDigits: 6 });
-  return <section aria-label={t("Situazione articolo")} className="space-y-4 rounded-xl border bg-slate-50 p-4">
+  const um = item.unita_misura || "";
+  const disponibile = Number(item.quantity_available ?? item.quantity);
+  const sottoScorta = isSottoScorta(item);
+  const arrivo = !arriviUnavailable && inArrivo && inArrivo.quantita > 0 ? inArrivo.quantita : 0;
+  const numeri: Array<{ label: string; value: string; unita?: boolean; tono?: string }> = [
+    { label: "Giacenza fisica", value: quantity(item.quantity), unita: true },
+    { label: "Impegnato", value: quantity(item.quantity_reserved ?? 0), unita: true },
+    { label: "Disponibile", value: quantity(disponibile), unita: true, tono: sottoScorta ? "text-amber-700" : disponibile > 0 ? "text-emerald-700" : undefined },
+    { label: "In arrivo", value: arriviUnavailable ? "—" : quantity(arrivo), unita: !arriviUnavailable },
+    { label: "Scorta minima", value: item.min_stock_level ? quantity(item.min_stock_level) : "—", unita: !!item.min_stock_level },
+  ];
+  if (canViewCosts) numeri.push({ label: "Valore totale", value: item.prezzo_da_definire ? t("Da valorizzare") : formatCurrency(Number(item.unit_cost) * Number(item.quantity)) });
+  const data = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString(intlCampo()) : "—");
+  // Il codice è già in testa al riquadro; il barcode compare qui solo se è un altro codice.
+  const voci: Array<[string, string]> = [
+    ...(item.internal_code && item.barcode ? [["Barcode", item.barcode] as [string, string]] : []),
+    ["Unità di misura", um || t("Non indicata")],
+    ["Magazzino", warehouseName || t("Non indicato")],
+    ["Ubicazione / zona", sectionName || t("Non indicata")],
+    ["Fornitore", supplierName || t("Non indicato")],
+  ];
+  if (canViewCosts) {
+    voci.push(["Costo unitario", item.prezzo_da_definire ? t("Da definire") : formatCurrency(item.unit_cost)]);
+    voci.push(["IVA", item.vat_rate != null ? `${item.vat_rate}%` : "—"]);
+  }
+  voci.push(["Tracciamento", item.tracking_mode === "serialized" ? t("Con matricola") : t("A quantità")]);
+  if (item.requires_warranty || item.default_warranty_months) voci.push(["Garanzia", item.default_warranty_months ? t("{n} mesi", { n: item.default_warranty_months }) : t("Obbligatoria")]);
+  voci.push(["Ultimo aggiornamento", data(item.updated_at)]);
+
+  return <section aria-label={t("Situazione articolo")} className="space-y-3 rounded-xl border bg-slate-50 p-3">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <span className="text-sm text-muted-foreground">{item.internal_code || item.barcode || t("Codice non indicato")}</span>
-      <Badge variant={isSottoScorta(item) ? "destructive" : "secondary"}>{isSottoScorta(item) ? t("Sotto scorta") : Number(item.quantity_available ?? item.quantity) > 0 ? t("Disponibile") : t("Non disponibile")}</Badge>
+      <span className="font-mono text-xs text-muted-foreground">{item.internal_code || item.barcode || ""}</span>
+      <Badge variant={sottoScorta ? "destructive" : "secondary"}>{sottoScorta ? t("Sotto scorta") : disponibile > 0 ? t("Disponibile") : t("Non disponibile")}</Badge>
     </div>
-    {/* I tre numeri su una riga, con l'unità accanto; l'unità da sola non occupa più un riquadro
-        («Non indicata» a 18px al posto di un numero — collaudo 23/11/2026). */}
-    <dl className="grid grid-cols-3 gap-2 sm:gap-3">
-      {[
-        ["Giacenza fisica", quantity(item.quantity)],
-        ["Impegnato", quantity(item.quantity_reserved ?? 0)],
-        ["Disponibile", quantity(item.quantity_available ?? item.quantity)],
-      ].map(([label, value]) => <div key={label} className="min-w-0 rounded-lg border bg-white p-3 max-sm:p-2"><dt className="text-xs text-muted-foreground">{t(String(label))}</dt><dd className="mt-1 text-lg font-semibold tabular-nums max-sm:text-base">{value}{item.unita_misura ? <span className="ml-1 text-xs font-normal text-muted-foreground">{item.unita_misura}</span> : null}</dd></div>)}
+    <dl className="grid grid-cols-3 gap-2 md:grid-cols-6">
+      {numeri.map((n) => <div key={n.label} className="min-w-0 rounded-lg border bg-white px-2.5 py-1.5">
+        <dt className="truncate text-[11px] text-muted-foreground">{t(n.label)}</dt>
+        <dd className={cn("mt-0.5 truncate text-base font-semibold tabular-nums", n.tono)}>{n.value}{n.unita && um ? <span className="ml-1 text-xs font-normal text-muted-foreground">{um}</span> : null}</dd>
+      </div>)}
     </dl>
-    <dl className="grid gap-3 text-sm sm:grid-cols-2">
-      <div><dt className="text-muted-foreground">{t("Fornitore")}</dt><dd>{supplierName || t("Non indicato")}</dd></div>
-      <div><dt className="text-muted-foreground">{t("Ubicazione / zona")}</dt><dd>{sectionName || t("Non indicata")}</dd></div>
-      <div><dt className="text-muted-foreground">{t("Scorta minima")}</dt><dd>{quantity(item.min_stock_level ?? 0)}</dd></div>
-      <div><dt className="text-muted-foreground">{t("Unità di misura")}</dt><dd>{item.unita_misura || t("Non indicata")}</dd></div>
-      {canViewCosts && <div><dt className="text-muted-foreground">{t("Costo unitario")}</dt><dd>{item.prezzo_da_definire ? t("Da definire") : formatCurrency(item.unit_cost)}</dd></div>}
+    <dl className="grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2 lg:grid-cols-3">
+      {voci.map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-muted-foreground">{t(label)}</dt><dd className="truncate" title={value}>{value}</dd></div>)}
     </dl>
     {item.description && <p className="text-sm text-muted-foreground">{item.description}</p>}
-    <div className="border-t pt-3 text-sm">
+    <div className="border-t pt-2 text-sm">
       <h3 className="font-medium">{t("Ordini in arrivo")}</h3>
       {arriviUnavailable ? <p className="text-muted-foreground">{t("Arrivi non verificati: consulta gli ordini fornitore.")}</p> : !inArrivo || inArrivo.quantita <= 0 ? <p className="text-muted-foreground">{t("Nessun arrivo da ordini fornitore aperti.")}</p> : <>
         <p>{t("{quantita} {unita} previste, escluse dalla giacenza disponibile.", { quantita: quantity(inArrivo.quantita), unita: item.unita_misura || t("unità") })}</p>

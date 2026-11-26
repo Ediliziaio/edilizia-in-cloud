@@ -23,7 +23,7 @@ import {
   CheckCircle, Clock, Loader2, FileText, PenLine,
   Send, Download, FileCheck,
 	  ClipboardSignature, ShieldCheck, Package, Wrench,
-	  Camera, BookOpenCheck, MessageSquare, Navigation, LogIn, LogOut, ClipboardList, Receipt,
+	  Camera, BookOpenCheck, MessageSquare, Navigation, LogIn, LogOut, ClipboardList, Receipt, PlusCircle,
 	} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
@@ -930,6 +930,8 @@ export default function CampoLavoroDetail() {
           {/* La bolla del cantiere si fa nella sua scheda, non nella pagina generale (24/11/2026). */}
           <QuickAction icon={Receipt} label={t("Bolla")} onClick={() => { setActiveTab("bolle"); pageRef.current?.scrollIntoView({ block: "start" }); }} />
           <QuickAction icon={AlertCircle} label={t("Segnala")} onClick={() => navigate(`/campo/ticket/nuovo/${orderId}`)} />
+          {/* Il cliente chiede un lavoro in più: si segnala subito, l'ufficio lo prezza (piano campo completo 2.1). */}
+          <QuickAction icon={PlusCircle} label={t("Extra")} onClick={() => navigate(`/campo/lavoro/${orderId}/extra`)} />
           {orderId && <BottoneCollaudo orderId={orderId} />}
           {/* «Piano e documenti» stava accanto al titolo e lo tagliava: ora è un'azione come le altre. */}
           {vedeSchedaTecnica && <QuickAction icon={BookOpenCheck} label={t("Piano e documenti")} onClick={() => navigate(percorsoCantiereTecnico(orderId))} />}

@@ -29,7 +29,7 @@ import { useRiepilogoCommesse } from "@/hooks/useRiepilogoCommesse";
 import { RiepilogoCommesseScelta } from "@/components/orders/RiepilogoCommesseScelta";
 import { CATALOGO_RIQUADRI, commesseInRitardo, margineDelPeriodo, riquadriVisibili, serieVisibili, usaGenerali, type RiquadroRiepilogo } from "@/lib/orders/riepilogoCommesse";
 import { useCruscottoGenerali } from "@/hooks/useCruscottoGenerali";
-import { Plus, Package, LayoutList, Columns3, Upload, MoreHorizontal, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Settings2, Clock, Wrench, CheckCircle2, FolderOpen, Coins, Percent, Wallet, History, Receipt, Landmark, Hammer, Building2, Map as MapIcon, FileQuestion, NotebookPen } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Upload, MoreHorizontal, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, ArrowUpDown, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Settings2, Clock, Wrench, CheckCircle2, FolderOpen, Coins, Percent, Wallet, History, Receipt, Landmark, Hammer, Building2, Map as MapIcon, FileQuestion, NotebookPen } from "lucide-react";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
@@ -1451,45 +1451,54 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
   const barraBacheca = viewMode === "pipeline" && focusReady && !isStatusesError && !pipelinePending && !pipelineError && !scopeError;
   const opzioniTabella = viewMode === "table" ? (
     <div role="group" aria-label={t("Opzioni tabella commesse")} className="flex shrink-0 flex-wrap items-center gap-1.5 max-lg:p-3">
-      <Select value={sortField} onValueChange={(v) => { setSortField(v as typeof sortField); setPage(1); }}>
-        <SelectTrigger aria-label={t("Ordina commesse per")} title={t("Ordina per")} className="h-8 w-[124px] px-2 text-xs max-lg:min-h-11">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="created_at">{t("Data creazione")}</SelectItem>
-          <SelectItem value="order_code">{t("Codice commessa")}</SelectItem>
-          <SelectItem value="description">{t("Descrizione")}</SelectItem>
-          <SelectItem value="total_amount">{t("Importo imponibile")}</SelectItem>
-          <SelectItem value="expected_date">{t("Data posa prevista")}</SelectItem>
-          <SelectItem value="warehouse_arrival_date">{t("Arrivo merce")}</SelectItem>
-          <SelectItem value="work_start_date">{t("Inizio lavori")}</SelectItem>
-          <SelectItem value="work_end_date">{t("Fine lavori")}</SelectItem>
-        </SelectContent>
-      </Select>
-      <Select value={sortDir} onValueChange={(v) => { setSortDir(v as "asc" | "desc"); setPage(1); }}>
-        <SelectTrigger aria-label={t("Direzione ordinamento")} className="h-8 w-[98px] px-2 text-xs max-lg:min-h-11">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="desc">{
-            ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
-              ? t("↓ Recenti")
-              : t("↓ Z → A")
-          }</SelectItem>
-          <SelectItem value="asc">{
-            ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
-              ? t("↑ Vecchi")
-              : t("↑ A → Z")
-          }</SelectItem>
-        </SelectContent>
-      </Select>
+      {/* 25/11/2026: ordinamento e colonne in un bottone solo. I due menu dell'ordinamento stavano nella riga
+          dei filtri e la mandavano a capo; restano qui perché ordinano TUTTE le commesse sul server, mentre
+          il clic sull'intestazione della tabella riordina solo la pagina mostrata. */}
       <Popover>
         <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8 w-8 px-0 text-xs max-lg:size-11" title={t("Colonne visibili")} aria-label={t("Colonne visibili")}>
+          <Button variant="outline" size="sm" className="h-8 gap-1 px-2 text-xs max-lg:min-h-11" title={`${t("Ordina per")} · ${t("Colonne visibili")}`} aria-label={`${t("Ordina per")} · ${t("Colonne visibili")}`}>
+            <ArrowUpDown className="h-3.5 w-3.5" />
             <Columns className="h-3.5 w-3.5" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="end" className="w-[280px] p-3">
+        <PopoverContent align="end" className="w-[300px] p-3">
+          <div className="mb-3 space-y-1.5 border-b pb-3">
+            <p className="text-sm font-medium">{t("Ordina per")}</p>
+            <div className="flex items-center gap-1.5">
+            <Select value={sortField} onValueChange={(v) => { setSortField(v as typeof sortField); setPage(1); }}>
+              <SelectTrigger aria-label={t("Ordina commesse per")} title={t("Ordina per")} className="h-8 min-w-0 flex-1 px-2 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="created_at">{t("Data creazione")}</SelectItem>
+                <SelectItem value="order_code">{t("Codice commessa")}</SelectItem>
+                <SelectItem value="description">{t("Descrizione")}</SelectItem>
+                <SelectItem value="total_amount">{t("Importo imponibile")}</SelectItem>
+                <SelectItem value="expected_date">{t("Data posa prevista")}</SelectItem>
+                <SelectItem value="warehouse_arrival_date">{t("Arrivo merce")}</SelectItem>
+                <SelectItem value="work_start_date">{t("Inizio lavori")}</SelectItem>
+                <SelectItem value="work_end_date">{t("Fine lavori")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sortDir} onValueChange={(v) => { setSortDir(v as "asc" | "desc"); setPage(1); }}>
+              <SelectTrigger aria-label={t("Direzione ordinamento")} className="h-8 w-[104px] shrink-0 px-2 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="desc">{
+                  ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
+                    ? t("↓ Recenti")
+                    : t("↓ Z → A")
+                }</SelectItem>
+                <SelectItem value="asc">{
+                  ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
+                    ? t("↑ Vecchi")
+                    : t("↑ A → Z")
+                }</SelectItem>
+              </SelectContent>
+            </Select>
+            </div>
+          </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium">{t("Colonne visibili")}</p>
@@ -1581,7 +1590,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5 lg:flex-wrap lg:justify-end">
-          {canDeleteOrders && <Button variant="outline" size="sm" className="max-lg:hidden" onClick={() => setTrashOpen(true)}>{t("Cestino")}</Button>}
+          {canDeleteOrders && <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs max-lg:hidden" onClick={() => setTrashOpen(true)}>{t("Cestino")}</Button>}
           {/* Qui c'era anche il selettore dell'anno: lo stesso della riga dei
               filtri sotto (dove ora ha anche «{anno} + precedenti da gestire»). */}
           {/* Filtri avanzati */}
@@ -1681,7 +1690,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
             >
               <Plus className="h-3.5 w-3.5 mr-1" />
               <span className="hidden lg:inline">{t("Nuova Commessa")}</span>
-              <span className="lg:hidden" aria-hidden="true">{t("Nuova")}</span>
+              <span className="hidden sm:inline lg:hidden" aria-hidden="true">{t("Nuova")}</span>
             </Button>
           ) : conBivio ? (
             <Button
@@ -1692,7 +1701,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
             >
               <Plus className="h-3.5 w-3.5 mr-1" />
               <span className="hidden lg:inline">{t("Nuova Commessa")}</span>
-              <span className="lg:hidden" aria-hidden="true">{t("Nuova")}</span>
+              <span className="hidden sm:inline lg:hidden" aria-hidden="true">{t("Nuova")}</span>
             </Button>
           ) : (
             <Button
@@ -1703,7 +1712,7 @@ function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNo
               <Link to="/azienda/ordini/nuovo" aria-label={t("Nuova commessa")}>
                 <Plus className="h-3.5 w-3.5 mr-1" />
                 <span className="hidden lg:inline">{t("Nuova Commessa")}</span>
-                <span className="lg:hidden" aria-hidden="true">{t("Nuova")}</span>
+                <span className="hidden sm:inline lg:hidden" aria-hidden="true">{t("Nuova")}</span>
               </Link>
             </Button>
           )}

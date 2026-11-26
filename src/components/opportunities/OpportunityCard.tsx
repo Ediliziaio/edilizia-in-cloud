@@ -351,11 +351,11 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
                     onPointerEnter={anteprima ? (e) => misuraRiquadro(e.currentTarget) : undefined}
                     onFocus={anteprima ? (e) => misuraRiquadro(e.currentTarget) : undefined}
                     className={cn(
-                      "relative p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground",
+                      "relative p-0.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground",
                       !mobileVisible && "hidden md:block"
                     )}
                   >
-                    <Icon className="h-3.5 w-3.5" />
+                    <Icon className="h-3 w-3" />
                     {badge && (
                       <span className={cn(
                         "absolute -top-1.5 -right-1.5 h-3.5 min-w-[14px] rounded-full text-[8px] font-bold flex items-center justify-center px-0.5",
@@ -466,9 +466,10 @@ function CardDetailRows({ opportunity, contact, activeFields, layout }: {
   if (rows.length === 0) return null;
 
   return (
-    <div className={cn("space-y-0.5", layout === "compact" && "space-y-0")}>
+    // 25/11/2026: righe a 10px e senza spazio tra l'una e l'altra anche da computer (erano 11px con 2px in mezzo).
+    <div className="space-y-0">
       {rows.map((row) => (
-        <p key={row.label} className={cn("leading-tight truncate", layout === "compact" ? "text-[10px]" : "text-[10px] md:text-[11px]")}>
+        <p key={row.label} className="text-[10px] leading-tight truncate">
           {layout !== "no-label" && (
             <span className="text-muted-foreground">{row.label}: </span>
           )}

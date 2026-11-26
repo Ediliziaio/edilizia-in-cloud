@@ -78,7 +78,7 @@ interface CreateUserWizardProps {
 const ROLE_OPTIONS: { value: StaffRoleType; label: string; description: string; icon: React.ElementType; preview?: string[] }[] = [
   { value: "company_admin", label: "Amministratore", description: "Accesso completo a tutto", icon: ShieldCheck, preview: [] },
   { value: "company_staff", label: "Operatore", description: "Gestione interna commesse", icon: User, preview: ["Ordini & Commesse", "Magazzino", "Calendario", "Clienti", "Fatturazione"] },
-  { value: "salesperson", label: "Venditore", description: "Vendite e opportunità", icon: TrendingUp, preview: ["CRM Contatti", "Opportunità", "Preventivi CRM", "Calendar CRM", "Sales OS"] },
+  { value: "salesperson", label: "Venditore", description: "Vendite e opportunità", icon: TrendingUp, preview: ["CRM Contatti", "Opportunità", "Preventivi/Computi", "Calendar CRM", "Sales OS"] },
   { value: "call_center", label: "Call Center", description: "Contatti e assistenza", icon: Phone, preview: ["CRM Contatti", "Opportunità (sposta le fasi)", "Calendario CRM", "Appuntamenti"] },
   { value: "employee", label: "Operaio / Tecnico", description: "Solo app di cantiere", icon: HardHat, preview: ["Calendario (propri turni)", "Giornale Lavori"] },
   { value: "subcontractor", label: "Subappaltatore", description: "Solo commesse assegnate", icon: Building2, preview: ["Ordini assegnati", "Calendario", "Clienti (propri)"] },

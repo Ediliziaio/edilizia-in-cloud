@@ -15,11 +15,12 @@ import { cn } from "@/lib/utils";
 import { CHIP, RIQUADRO, TITOLO_RIQUADRO } from "@/lib/campo/stileCampo";
 import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 import { senzaRete } from "@/lib/campo/timbra";
+import { syncQueue } from "@/lib/campo/sync-queue";
 import { compressImage } from "@/lib/campo/compressImage";
 import { pulisciScontrino } from "@/lib/campo/scontrinoLetto";
 import {
   COLONNE_SPESA, STATI_SPESA, TIPI_SPESA, euro, leggiImporto, percorsoScontrino, totaliSpese,
-  type PagataCon, type Spesa, type TipoSpesa,
+  type PagataCon, type Spesa, type SpesaInCoda, type TipoSpesa,
 } from "@/lib/campo/spese";
 
 const PILL = "min-h-11 rounded-full border px-4 text-sm font-semibold";
@@ -75,11 +76,19 @@ export default function CampoSpese() {
   const totali = totaliSpese(spese);
 
   const invia = useMutation({
-    mutationFn: async () => {
-      if (senzaRete()) throw new Error(t("Sei senza rete: la spesa resta qui. Mandala appena torna il campo."));
+    mutationFn: async (): Promise<"inviata" | "in_coda"> => {
       if (!companyId || !user?.id) throw new Error(t("Azienda non disponibile, riprova tra un istante"));
       if (!importo) throw new Error(t("Scrivi l'importo dello scontrino"));
       const id = crypto.randomUUID();
+      // Senza rete la spesa va in coda sul telefono e parte da sola appena torna il segnale (piano 1.7).
+      if (senzaRete()) {
+        const riga = { id, company_id: companyId, user_id: user.id, order_id: cantiereScelto || null,
+          tipo, importo, descrizione: nota.trim() || null, pagata_con: pagataCon, giorno };
+        const payload: SpesaInCoda = { company_id: companyId, user_id: user.id, riga,
+          foto: foto ? { path: percorsoScontrino(companyId, user.id, id, foto.name), blob: foto, contentType: foto.type || "image/jpeg" } : undefined };
+        await syncQueue.enqueue<SpesaInCoda>({ type: "spesa", dedupKey: id, operationId: id, payload });
+        return "in_coda";
+      }
       let fotoPath: string | null = null;
       if (foto) {
         fotoPath = percorsoScontrino(companyId, user.id, id, foto.name);
@@ -94,9 +103,10 @@ export default function CampoSpese() {
         if (fotoPath) void supabase.storage.from("campo-spese").remove([fotoPath]);
         throw error;
       }
+      return "inviata";
     },
-    onSuccess: () => {
-      toast.success(t("Spesa inviata all'ufficio"));
+    onSuccess: (esito) => {
+      toast.success(esito === "in_coda" ? t("Sei senza rete: la spesa parte da sola appena torna il segnale.") : t("Spesa inviata all'ufficio"));
       setFoto(null); setImportoTesto(""); setNota(""); setGiorno(oggi); setLettura("no");
       void qc.invalidateQueries({ queryKey: ["campo-mie-spese"] });
     },

@@ -17,6 +17,9 @@ import { toast } from "sonner";
 import CampoAudioRecorder from "@/components/campo/CampoAudioRecorder";
 import { useRapportinoVocale } from "@/hooks/campo/useRapportinoVocale";
 import { senzaRete } from "@/lib/campo/timbra";
+import { syncQueue } from "@/lib/campo/sync-queue";
+import type { SegnalazioneInCoda } from "@/lib/campo/spese";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { MASSIMO_FOTO_SEGNALAZIONE, SERVE_ENTRO, dataServeEntro, segnalazioneDaTesto, type ServeEntro } from "@/lib/campo/segnalazione";
 import { MieSegnalazioni } from "@/components/campo/MieSegnalazioni";
 import { cn } from "@/lib/utils";
@@ -49,7 +52,8 @@ export default function CampoTicketNuovo() {
   const [testo, setTesto] = useState(() => (parametri.get("testo") ?? "").slice(0, 500));
   const [urgente, setUrgente] = useState(false);
   const [materiale, setMateriale] = useState(() => parametri.get("tipo") === "materiale");
-  const [entro, setEntro] = useState<ServeEntro | null>(null);
+  // «?entro=domani» dalle richieste per domani della squadra (piano campo completo 2.2).
+  const [entro, setEntro] = useState<ServeEntro | null>(() => SERVE_ENTRO.find(s => s.value === parametri.get("entro"))?.value ?? null);
   const [selectedOrderId, setSelectedOrderId] = useState(orderId ?? "");
   const [foto, setFoto] = useState<File[]>([]);
   const [voceAperta, setVoceAperta] = useState(false);
@@ -69,8 +73,7 @@ export default function CampoTicketNuovo() {
   });
 
   const submitMutation = useMutation({
-    mutationFn: async () => {
-      if (senzaRete()) throw new Error(t("Sei senza rete: il testo resta qui. Mandalo appena torna il campo."));
+    mutationFn: async (): Promise<{ fotoPerse: number; inCoda?: boolean }> => {
       // company_id è NOT NULL: senza guardia un profilo non ancora caricato
       // produceva un errore criptico invece di un messaggio chiaro.
       if (!companyId) throw new Error(t("Azienda non disponibile, riprova tra un istante"));
@@ -80,7 +83,7 @@ export default function CampoTicketNuovo() {
       const serveEntro = entro ? dataServeEntro(entro, new Date()) : null;
       // L'id nasce qui: l'operaio non può rileggere i ticket, e la foto si attacca a questo.
       const ticketId = crypto.randomUUID();
-      const { error } = await supabase.from("tickets").insert({
+      const riga: TablesInsert<"tickets"> = {
         id: ticketId,
         company_id: companyId,
         order_id: selectedOrderId || null,
@@ -100,7 +103,17 @@ export default function CampoTicketNuovo() {
         serve_entro: serveEntro,
         // Cosa manca sta nel testo: `merce_mancante` il database la tiene solo per l'arrivo parziale.
         ...(materiale ? { category: "materiale_mancante", merce_stato: "da_ordinare" } : {}),
-      });
+      };
+      // Senza rete la segnalazione va in coda con le foto e parte da sola (piano campo completo 1.7).
+      if (senzaRete()) {
+        const payload: SegnalazioneInCoda = {
+          company_id: companyId, user_id: user!.id, riga: { ...riga, id: ticketId },
+          foto: foto.map(file => ({ path: `${ticketId}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`, blob: file, contentType: file.type, nome: file.name })),
+        };
+        await syncQueue.enqueue<SegnalazioneInCoda>({ type: "segnalazione", dedupKey: ticketId, operationId: ticketId, payload });
+        return { fotoPerse: 0, inCoda: true };
+      }
+      const { error } = await supabase.from("tickets").insert(riga);
       if (error) throw error;
 
       let fotoPerse = 0;
@@ -123,7 +136,8 @@ export default function CampoTicketNuovo() {
       }
       return { fotoPerse };
     },
-    onSuccess: ({ fotoPerse }) => {
+    onSuccess: ({ fotoPerse, inCoda }) => {
+      if (inCoda) toast.success(t("Sei senza rete: la segnalazione parte da sola appena torna il segnale."));
       if (fotoPerse > 0) toast.warning(t("Segnalazione inviata, ma una foto non è partita: mandala in chat."));
       setDone(true);
       // Da link diretto/notifica la history è vuota: -1 uscirebbe dall'app.

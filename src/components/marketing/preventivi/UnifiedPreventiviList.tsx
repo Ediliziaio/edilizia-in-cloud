@@ -45,6 +45,9 @@ import {
   SlidersHorizontal, Download, Loader2, Hammer, Bath, Home, Wind, Zap, Flame, LayoutGrid, Waves,
   Trash2, MoreHorizontal, ExternalLink, AlertTriangle, FileX2, Copy, Calculator, Hourglass } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BOTTONE_SECONDARIO, RICERCA_BARRA } from "@/components/orders/TestataScheda";
+import { BottoneGrafici } from "@/components/shared/BottoneGrafici";
+import { useGraficiRicordati } from "@/hooks/useGraficiRicordati";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/formatters";
 import { UnifiedFiltersSheet, type UnifiedFilters, DEFAULT_FILTERS } from "./UnifiedFiltersSheet";
@@ -233,7 +236,9 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
     }
   };
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [insightsOpen, setInsightsOpen] = useState(false);
+  // Statistiche e grafici col bottone «Grafici» nella barra (25/11/2026): era un riquadro apribile
+  // alto 46px fra i numeri e la ricerca. Si caricano solo quando si aprono, come prima.
+  const [insightsOpen, setInsightsOpen] = useGraficiRicordati("preventivi-elenco");
   const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
 
@@ -1084,7 +1089,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
   const tipiPresenti = Array.from(new Set(allRows.map((r) => r.tipo)));
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-3">
       {/* ─── KPI Hero 4 cards — solo desktop: su mobile i conteggi sono già nei tab
           di stato qui sotto, e quattro card di numeri piccoli occupano mezzo schermo. ─── */}
       <div className="hidden lg:grid lg:grid-cols-4 gap-2 sm:gap-3">
@@ -1093,45 +1098,6 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
         <KpiCard label={tr("Vinte")} value={kpi.vintaCount} attivo={statoTab === "vinto"} onClick={() => setStatoTab(statoTab === "vinto" ? "all" : "vinto")} hint={kpi.tassoConv !== null ? tr("{tassoConv}% delle chiuse", { tassoConv: String(kpi.tassoConv ?? "") }) : "—"} icon={<FileCheck2 className="h-4 w-4" />} tone="emerald" />
         <KpiCard label={tr("Ricavo firmato")} value={importoKpi(kpi.ricavoVinte)} titolo={formatCurrency(kpi.ricavoVinte)} hint={kpi.vintaCount > 0 ? tr("ticket medio {ticketMedio}", { ticketMedio: formatCurrency(kpi.ticketMedio) }) : tr("nessuna firmata")} icon={<Euro className="h-4 w-4" />} tone="orange" />
       </div>
-
-      {!isMobile && <details className="rounded-xl border bg-card" onToggle={event => setInsightsOpen(event.currentTarget.open)}>
-        <summary className="cursor-pointer rounded-xl px-4 py-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{tr("Andamento e statistiche dei preventivi")}</summary>
-        {insightsOpen && <div className="space-y-4 px-4 pb-4">
-      {/* ─── Striscia navy avanzata: solo desktop. Su mobile è superflua — i 4 KPI
-          sopra bastano e conversione/pipeline sono già nei loro hint. ─── */}
-      {!isMobile && (
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-eic-navy to-[#2C5184] p-4 sm:p-5 shadow-sm">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <AdvKpi icon={<Target className="h-4 w-4 text-orange-300" />} label={tr("Tasso conversione")} value={kpi.tassoConv !== null ? `${kpi.tassoConv}%` : "—"} hint={kpi.vintaCount + kpi.persoCount > 0 ? tr("{vintaCount}/{vintaCount2} con risposta", { vintaCount: String(kpi.vintaCount ?? ""), vintaCount2: kpi.vintaCount + kpi.persoCount }) : undefined} />
-          <AdvKpi icon={<TrendingUp className="h-4 w-4 text-orange-300" />} label={tr("Pipeline attiva")} value={formatCurrency(kpi.pipeline)} hint={tr(kpi.inCorsoCount === 1 ? "{n} offerta" : "{n} offerte", { n: kpi.inCorsoCount })} />
-          <AdvKpi icon={<FileText className="h-4 w-4 text-orange-300" />} label={tr("Valore medio")} value={formatCurrency(kpi.valoreMedio)} hint={tr(kpi.total - kpi.bozzeCount === 1 ? "su {n} offerta" : "su {n} offerte", { n: kpi.total - kpi.bozzeCount })} />
-          <AdvKpi icon={<Clock className="h-4 w-4 text-orange-300" />} label={tr("Cross-modulo")} value={`${allRows.length}`} hint={[
-            quotesData.length > 0 ? tr("{n} classici", { n: quotesData.length }) : null,
-            serramentiData.length > 0 ? tr("{n} serramenti", { n: serramentiData.length }) : null,
-            fvData.length > 0 ? tr("{n} fotovoltaico", { n: fvData.length }) : null,
-            ristrutturazioneData.length > 0 ? tr("{n} ristrutturazione", { n: ristrutturazioneData.length }) : null,
-            bagniData.length > 0 ? tr("{n} bagni", { n: bagniData.length }) : null,
-            tettiData.length > 0 ? tr("{n} tetti", { n: tettiData.length }) : null,
-            climatizzazioneData.length > 0 ? tr("{n} climatizzazione", { n: climatizzazioneData.length }) : null,
-            elettricoData.length > 0 ? tr("{n} elettrico", { n: elettricoData.length }) : null,
-            termoidraulicoData.length > 0 ? tr("{n} termoidraulico", { n: termoidraulicoData.length }) : null,
-            pavimentiData.length > 0 ? tr("{n} pavimenti", { n: pavimentiData.length }) : null,
-            piscineData.length > 0 ? tr("{n} piscine", { n: piscineData.length }) : null,
-          ].filter(Boolean).join(" · ") || tr("totale preventivi")} />
-        </div>
-      </div>
-      )}
-
-      <Suspense fallback={<p role="status" className="flex h-48 items-center justify-center text-sm text-muted-foreground">{tr("Caricamento dei grafici…")}</p>}>
-        <GraficiPreventivi righe={allRows} ricavoFirmato={kpi.ricavoVinte} distribuzione={tipiConteggio.map(({ tipo, n }) => ({
-          name: tr(TIPO_LABEL[tipo].label),
-          color: TIPO_LABEL[tipo].color,
-          value: n,
-        }))} />
-      </Suspense>
-
-        </div>}
-      </details>}
 
       {/* ─── Telefono: ricerca e bottone dei filtri ─── */}
       <CercaConFiltri
@@ -1187,18 +1153,19 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       </PannelloFiltri>
 
       {/* ─── Toolbar: search + Filtra + Export + counter ─── */}
-      <Card className="max-lg:hidden">
-        <CardContent className="p-2.5 sm:p-3 flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[140px]">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+      {/* Barra su una riga (25/11/2026): senza riquadro, con gli stati e «Grafici» accanto alla ricerca.
+          Sotto i 1536px Excel e Cestino restano solo icona (col nome nel tooltip), se no «Grafici» andava a capo. */}
+      <div className="flex flex-wrap items-center gap-2 max-lg:hidden">
+          <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder={tr("Cerca per numero, cliente, P.IVA o commerciale…")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-9"
+              className="h-8 pl-8 text-xs"
             />
           </div>
-          <Button variant="outline" size="sm" className="h-9 gap-1.5 px-2.5 sm:px-3" onClick={() => setFiltersOpen(true)} aria-label={tr("Filtri")}>
+          <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} onClick={() => setFiltersOpen(true)} aria-label={tr("Filtri")}>
             <SlidersHorizontal className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">{tr("Filtri")}</span>
             {advancedFiltersCount > 0 && (
@@ -1211,33 +1178,82 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
               e senza «Esporta Clienti». */}
           {!isMobile && canExportClients && (
           <Button
-            variant="outline" size="sm" className="h-9 gap-1.5 px-2.5 sm:px-3"
+            variant="outline" size="sm" className={BOTTONE_SECONDARIO}
             onClick={handleExportExcel}
             disabled={exporting || filtered.length === 0}
             aria-label={tr("Esporta Excel")}
+            title={tr("Esporta Excel")}
           >
             {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-            <span className="hidden sm:inline">Excel</span>
+            <span className="hidden 2xl:inline">Excel</span>
           </Button>
           )}
-          {onApriCestino && <Button variant="outline" size="sm" className="h-9 gap-1.5 px-2.5 sm:px-3" onClick={onApriCestino} aria-label={tr("Cestino")}>
+          {onApriCestino && <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} onClick={onApriCestino} aria-label={tr("Cestino")} title={tr("Cestino")}>
             <Trash2 className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{tr("Cestino")}</span>
+            <span className="hidden 2xl:inline">{tr("Cestino")}</span>
           </Button>}
           {hasAnyFilter && (
-            <Button variant="ghost" size="sm" onClick={reset} className="h-9 text-xs gap-1 px-2.5" aria-label={tr("Azzera filtri")}>
+            <Button variant="ghost" size="sm" onClick={reset} className={BOTTONE_SECONDARIO} aria-label={tr("Azzera filtri")}>
               <X className="h-3.5 w-3.5" /> <span className="hidden sm:inline">{tr("Azzera")}</span>
             </Button>
           )}
-          <span className="text-xs text-muted-foreground ml-auto tabular-nums" title={filtered.length !== allRows.length && valoreFiltrati > 0 ? tr("Valore dei {n} preventivi mostrati: {valoreFiltrati}", { n: filtered.length, valoreFiltrati: formatCurrency(valoreFiltrati) }) : undefined}>
+          {/* ─── Sub-tab stati (telefono: nel pannello dei filtri) ─── */}
+          <div className="flex items-center gap-1 overflow-x-auto pb-px">
+            <StatoTab label={tr("Tutti")} count={tabCounts.all} active={statoTab === "all"} onClick={() => setStatoTab("all")} />
+            <StatoTab label={tr("Bozze")} count={tabCounts.bozza} active={statoTab === "bozza"} onClick={() => setStatoTab("bozza")} tone="slate" />
+            <StatoTab label={tr("In corso")} count={tabCounts.in_corso} active={statoTab === "in_corso"} onClick={() => setStatoTab("in_corso")} tone="blue" />
+            <StatoTab label={tr("Vinte")} count={tabCounts.vinto} active={statoTab === "vinto"} onClick={() => setStatoTab("vinto")} tone="emerald" />
+            <StatoTab label={tr("Perse")} count={tabCounts.perso} active={statoTab === "perso"} onClick={() => setStatoTab("perso")} tone="rose" />
+            {tabCounts.altro > 0 && (
+              <StatoTab label={tr("Altre")} count={tabCounts.altro} active={statoTab === "altro"} onClick={() => setStatoTab("altro")} />
+            )}
+          </div>
+          <BottoneGrafici aperti={insightsOpen} onCambia={setInsightsOpen} />
+          {/* Senza filtri il totale lo dice già «Tutti»: sotto i 1536px il contatore lascia la riga. */}
+          <span className={cn("text-xs text-muted-foreground ml-auto tabular-nums", filtered.length === allRows.length && "max-2xl:hidden")} title={filtered.length !== allRows.length && valoreFiltrati > 0 ? tr("Valore dei {n} preventivi mostrati: {valoreFiltrati}", { n: filtered.length, valoreFiltrati: formatCurrency(valoreFiltrati) }) : undefined}>
             {filtered.length === allRows.length
               ? tr("{n} preventivi", { n: allRows.length })
               : tr("{n} di {n2} preventivi", { n: filtered.length, n2: allRows.length })}
             {/* Con un filtro acceso, quanto valgono i preventivi che si stanno guardando (31/10/2026). */}
             {filtered.length !== allRows.length && valoreFiltrati > 0 && <> · <b className="font-semibold text-slate-700">{importoKpi(valoreFiltrati)}</b></>}
           </span>
-        </CardContent>
-      </Card>
+      </div>
+
+      {!isMobile && insightsOpen && <section aria-label={tr("Andamento e statistiche dei preventivi")} className="space-y-4 rounded-xl border bg-card p-4 max-lg:hidden">
+      {/* ─── Striscia navy avanzata: solo desktop. Su mobile è superflua — i 4 KPI
+          sopra bastano e conversione/pipeline sono già nei loro hint. ─── */}
+      {!isMobile && (
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-eic-navy to-[#2C5184] px-3 py-2 shadow-sm">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <AdvKpi icon={<Target className="h-4 w-4 text-orange-300" />} label={tr("Tasso conversione")} value={kpi.tassoConv !== null ? `${kpi.tassoConv}%` : "—"} hint={kpi.vintaCount + kpi.persoCount > 0 ? tr("{vintaCount}/{vintaCount2} con risposta", { vintaCount: String(kpi.vintaCount ?? ""), vintaCount2: kpi.vintaCount + kpi.persoCount }) : undefined} />
+          <AdvKpi icon={<TrendingUp className="h-4 w-4 text-orange-300" />} label={tr("Pipeline attiva")} value={formatCurrency(kpi.pipeline)} hint={tr(kpi.inCorsoCount === 1 ? "{n} offerta" : "{n} offerte", { n: kpi.inCorsoCount })} />
+          <AdvKpi icon={<FileText className="h-4 w-4 text-orange-300" />} label={tr("Valore medio")} value={formatCurrency(kpi.valoreMedio)} hint={tr(kpi.total - kpi.bozzeCount === 1 ? "su {n} offerta" : "su {n} offerte", { n: kpi.total - kpi.bozzeCount })} />
+          <AdvKpi icon={<Clock className="h-4 w-4 text-orange-300" />} label={tr("Cross-modulo")} value={`${allRows.length}`} hint={[
+            quotesData.length > 0 ? tr("{n} classici", { n: quotesData.length }) : null,
+            serramentiData.length > 0 ? tr("{n} serramenti", { n: serramentiData.length }) : null,
+            fvData.length > 0 ? tr("{n} fotovoltaico", { n: fvData.length }) : null,
+            ristrutturazioneData.length > 0 ? tr("{n} ristrutturazione", { n: ristrutturazioneData.length }) : null,
+            bagniData.length > 0 ? tr("{n} bagni", { n: bagniData.length }) : null,
+            tettiData.length > 0 ? tr("{n} tetti", { n: tettiData.length }) : null,
+            climatizzazioneData.length > 0 ? tr("{n} climatizzazione", { n: climatizzazioneData.length }) : null,
+            elettricoData.length > 0 ? tr("{n} elettrico", { n: elettricoData.length }) : null,
+            termoidraulicoData.length > 0 ? tr("{n} termoidraulico", { n: termoidraulicoData.length }) : null,
+            pavimentiData.length > 0 ? tr("{n} pavimenti", { n: pavimentiData.length }) : null,
+            piscineData.length > 0 ? tr("{n} piscine", { n: piscineData.length }) : null,
+          ].filter(Boolean).join(" · ") || tr("totale preventivi")} />
+        </div>
+      </div>
+      )}
+
+      <Suspense fallback={<p role="status" className="flex h-48 items-center justify-center text-sm text-muted-foreground">{tr("Caricamento dei grafici…")}</p>}>
+        <GraficiPreventivi righe={allRows} ricavoFirmato={kpi.ricavoVinte} distribuzione={tipiConteggio.map(({ tipo, n }) => ({
+          name: tr(TIPO_LABEL[tipo].label),
+          color: TIPO_LABEL[tipo].color,
+          value: n,
+        }))} />
+      </Suspense>
+
+      </section>}
 
       {/* ─── Chip filtri attivi (telefono: il numero sta sul bottone) ─── */}
       {advancedFiltersCount > 0 && (
@@ -1261,18 +1277,6 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
           {filters.sort !== "recent" && <FilterChip label={tr("Ordine: {prezzo}", { prezzo: tr(SORT_LABEL[filters.sort]) })} onClear={() => setFilters({ ...filters, sort: "recent" })} />}
         </div>
       )}
-
-      {/* ─── Sub-tab stati (telefono: nel pannello dei filtri) ─── */}
-      <div className="flex items-center gap-1 overflow-x-auto pb-px max-lg:hidden">
-        <StatoTab label={tr("Tutti")} count={tabCounts.all} active={statoTab === "all"} onClick={() => setStatoTab("all")} />
-        <StatoTab label={tr("Bozze")} count={tabCounts.bozza} active={statoTab === "bozza"} onClick={() => setStatoTab("bozza")} tone="slate" />
-        <StatoTab label={tr("In corso")} count={tabCounts.in_corso} active={statoTab === "in_corso"} onClick={() => setStatoTab("in_corso")} tone="blue" />
-        <StatoTab label={tr("Vinte")} count={tabCounts.vinto} active={statoTab === "vinto"} onClick={() => setStatoTab("vinto")} tone="emerald" />
-        <StatoTab label={tr("Perse")} count={tabCounts.perso} active={statoTab === "perso"} onClick={() => setStatoTab("perso")} tone="rose" />
-        {tabCounts.altro > 0 && (
-          <StatoTab label={tr("Altre")} count={tabCounts.altro} active={statoTab === "altro"} onClick={() => setStatoTab("altro")} />
-        )}
-      </div>
 
       {/* ─── Viste rapide e tipi: un clic invece di aprire il pannello filtri ─── */}
       <div className="flex flex-wrap items-center gap-1.5 max-lg:hidden" aria-label={tr("Viste rapide")}>
@@ -1667,15 +1671,15 @@ function KpiCard({
       type={onClick ? "button" : undefined}
       onClick={onClick}
       aria-pressed={onClick ? !!attivo : undefined}
-      className={cn("relative block w-full min-w-0 bg-white border-l-4 rounded-lg shadow-sm p-2.5 sm:p-4 text-left", c.border,
+      className={cn("relative block w-full min-w-0 bg-white border-l-4 rounded-lg shadow-sm px-3 py-2 text-left", c.border,
         onClick && "transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         attivo && "ring-2 ring-slate-300")}
       title={titolo ?? (onClick ? (attivo ? t("Mostra tutti i preventivi") : t("Mostra solo: {label}", { label: label.toLowerCase() })) : undefined)}
     >
-      <span className={cn("absolute right-2 top-2 h-6 w-6 sm:h-7 sm:w-7 rounded-md flex items-center justify-center", c.iconBg, c.iconColor)}>{icon}</span>
+      <span className={cn("absolute right-2 top-2 h-6 w-6 rounded-md flex items-center justify-center", c.iconBg, c.iconColor)}>{icon}</span>
       <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wide truncate pr-7 leading-tight">{label}</p>
       {/* Tra 768 e 1280 a 24px gli importi si tagliavano («318.478,…»). */}
-      <p className={cn("text-xl sm:text-2xl md:max-xl:text-xl font-bold leading-tight mt-0.5 sm:mt-1 tabular-nums truncate", c.valueColor)}>{value}</p>
+      <p className={cn("text-lg font-bold leading-tight mt-0.5 tabular-nums truncate", c.valueColor)}>{value}</p>
       {hint && <p className="text-[10px] text-muted-foreground mt-0.5 truncate leading-tight">{hint}</p>}
     </Tag>
   );

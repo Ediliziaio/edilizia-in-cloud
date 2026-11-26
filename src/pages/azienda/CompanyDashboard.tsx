@@ -24,7 +24,6 @@ import {
   CheckCircle2,
   ClipboardCheck,
   HardHat,
-  LayoutDashboard,
   Loader2,
   RefreshCw,
   Truck,
@@ -224,22 +223,29 @@ function RegiaOperativa() {
   return (
     <div className="space-y-5 pb-6">
       <OnboardingChecklist />
-      <header className="flex flex-col justify-between gap-4 pt-1 xl:flex-row xl:items-center">
-        <div className="min-w-0">
-          <div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <LayoutDashboard className="h-3.5 w-3.5" />
-            <span>{tr("Dashboard Operativa")}</span>
-            <DashboardSelectorBar title={tr("Dashboard Operativa")} soloSelettore />
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+      {/* 25/11/2026: testata come il Controllo di Gestione: selettore e titolo da 20px sulla stessa riga,
+          azienda e data accanto (da 1536px), «Cruscotto Economico» tra i comandi. Prima titolo da 30px, una riga
+          sopra e una sotto, e una riga vuota prima dei numeri solo per quel collegamento. */}
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <DashboardSelectorBar title={tr("Dashboard Operativa")} soloSelettore />
+          <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground">
             {tr("Panoramica operativa")}
           </h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">
+          <p className="text-xs text-muted-foreground max-2xl:hidden">
             {effectiveCompany.name} ·{" "}
             <span>{oggi.replace(/^./, (c) => c.toUpperCase())}</span>
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {(permissions.isAdmin || permissions.canViewCruscotto) && (
+            <Link
+              to="/azienda/cruscotto/aziendale"
+              className="inline-flex items-center gap-1 px-1 text-xs font-medium text-muted-foreground hover:text-primary"
+            >
+              {tr("Cruscotto Economico")} <ArrowUpRight className="h-3.5 w-3.5" />
+            </Link>
+          )}
           <DashboardQuickActions fullLabels />
           <Button
             variant="outline"
@@ -264,17 +270,6 @@ function RegiaOperativa() {
       )}
 
       <section aria-label={tr("Riepilogo operativo")}>
-        <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
-          <span />
-          {(permissions.isAdmin || permissions.canViewCruscotto) && (
-            <Link
-              to="/azienda/cruscotto/aziendale"
-              className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-primary"
-            >
-              {tr("Cruscotto Economico")} <ArrowUpRight className="h-3.5 w-3.5" />
-            </Link>
-          )}
-        </div>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {r.isLoading ? (
             Array.from({ length: 4 }).map((_, i) => (

@@ -261,7 +261,7 @@ export function RechargeDialog({ open, onOpenChange, walletType }: Props) {
                         <p className="text-[11px] text-muted-foreground">{t("€{pricePerRender} / render", { pricePerRender: String(pricePerRender ?? "") })}</p>
                         <Button
                           size="sm"
-                          variant={pkg.popular ? "default" : "outline"}
+                          variant={pkg.popular ? "default" : "outline"} aria-pressed={pkg.popular}
                           className="w-full"
                           disabled={loadingAmount !== null}
                         >
@@ -318,7 +318,7 @@ export function RechargeDialog({ open, onOpenChange, walletType }: Props) {
                       )}
                       <Button
                         size="sm"
-                        variant={pkg.popular ? "default" : "outline"}
+                        variant={pkg.popular ? "default" : "outline"} aria-pressed={pkg.popular}
                         className="w-full"
                         disabled={loadingAmount !== null}
                       >

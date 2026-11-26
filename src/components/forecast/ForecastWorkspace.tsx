@@ -71,7 +71,7 @@ const fullDate = (date: string): string =>
 const sum = (rows: ForecastMovement[]) =>
   rows.reduce((total, m) => total + m.cents, 0);
 const section = "rounded-xl border bg-card text-card-foreground";
-const selectClass = "h-9 min-w-0 rounded-md border bg-background px-2 text-xs";
+const selectClass = "h-8 min-w-0 rounded-md border bg-background px-2 text-xs";
 const filtroEtichetta =
   "text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
 
@@ -726,13 +726,15 @@ export function ForecastWorkspace({
 
   return (
     <div className="space-y-4 pb-8" data-testid="forecast-workspace">
-      <header className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+      <header className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div>
           {/* Dentro Tesoreria il titolo c'è già nella sua testata: due titoli
               uno sotto l'altro dicevano la stessa cosa. */}
           {!dentroTesoreria && <h1 className="text-lg font-bold leading-6 sm:text-xl">{tr("Previsionale di cassa")}</h1>}
+          {/* Da computer niente frase sotto il titolo (standard delle testate, 25/11/2026):
+              resta per i lettori di schermo, che sentono anche «Caricamento…». */}
           <p
-            className="mt-0.5 text-xs text-muted-foreground"
+            className="mt-0.5 text-xs text-muted-foreground sm:sr-only"
             role="status"
             aria-live="polite"
           >
@@ -769,8 +771,8 @@ export function ForecastWorkspace({
         aria-label={tr("Filtri del previsionale")}
         className={cn(section, "divide-y print:hidden")}
       >
-        <div className="flex flex-wrap items-end gap-x-5 gap-y-3 p-3">
-          <div className="flex flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 2xl:gap-x-5">
+          <div className="flex items-center gap-2">
             <span className={filtroEtichetta}>{tr("Orizzonte")}</span>
             <div
               className="flex rounded-md bg-muted p-0.5"
@@ -785,7 +787,7 @@ export function ForecastWorkspace({
                     setFilter({ giorni: days === 90 ? null : String(days) })
                   }
                   className={cn(
-                    "min-h-8 rounded px-2.5 text-xs tabular-nums",
+                    "min-h-7 rounded px-2 text-xs tabular-nums",
                     f.horizon === days &&
                       "bg-background font-semibold shadow-sm",
                   )}
@@ -793,11 +795,11 @@ export function ForecastWorkspace({
               ))}
             </div>
           </div>
-          <label className="flex flex-col gap-1 max-md:hidden">
+          <label className="flex items-center gap-2 max-md:hidden">
             <span className={filtroEtichetta}>{tr("Incassi")}</span>
             <UniformSelect
               aria-label={tr("Scenario incassi")}
-              className={cn(selectClass, "w-52")}
+              className={cn(selectClass, "w-40 2xl:w-52")}
               value={f.scenario}
               onChange={(e) =>
                 setFilter({
@@ -816,7 +818,7 @@ export function ForecastWorkspace({
               <option value="30">{tr("Incassi +30 giorni")}</option>
             </UniformSelect>
           </label>
-          <label className="flex flex-col gap-1 max-md:hidden">
+          <label className="flex items-center gap-2 max-md:hidden">
             <span className={filtroEtichetta}>{tr("Soglia di sicurezza")}</span>
             <div className="relative">
               <Input
@@ -831,7 +833,7 @@ export function ForecastWorkspace({
                   if (Number.isFinite(n) && n >= 0 && n <= 1000000000)
                     setThreshold(Math.round(n * 100));
                 }}
-                className="h-9 w-32 pr-7 text-right text-xs tabular-nums"
+                className="h-8 w-24 pr-7 text-right text-xs tabular-nums"
               />
               <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
                 €
@@ -844,7 +846,7 @@ export function ForecastWorkspace({
             aria-expanded={advanced}
             aria-controls="forecast-advanced"
             onClick={() => setAdvanced((v) => !v)}
-            className="max-md:hidden"
+            className={cn(BOTTONE_SECONDARIO, "max-md:hidden")}
           >
             {tr("Filtri avanzati")}
             {filtered
@@ -855,10 +857,10 @@ export function ForecastWorkspace({
             variant="ghost"
             size="sm"
             onClick={resetFilters}
-            className="ml-auto h-9 text-muted-foreground max-md:hidden"
+            className={cn(BOTTONE_SECONDARIO, "ml-auto text-muted-foreground max-md:hidden")}
           >
-            <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-            {tr("Azzera filtri")}
+            <RotateCcw aria-hidden />
+            <span className="max-2xl:sr-only">{tr("Azzera filtri")}</span>
           </Button>
         </div>
         <div id="forecast-advanced" hidden={!advanced}>
@@ -980,8 +982,8 @@ export function ForecastWorkspace({
             : "border-blue-200 bg-blue-50/30 dark:border-blue-500/30 dark:bg-blue-500/10",
         )}
       >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="mr-1">
             <h2 className="text-sm font-semibold">
               {incomplete ||
               data.opening.cents === null ||
@@ -992,30 +994,23 @@ export function ForecastWorkspace({
             </h2>
           </div>
           <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setFilter({ scheda: "fonti" })}
-          >
-            {tr("Fonti e ipotesi")}
-            {data.warnings.length ? ` · ${data.warnings.length}` : ""}
-          </Button>
-        </div>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <Button
             variant="outline"
             size="sm"
+            className={BOTTONE_SECONDARIO}
             disabled={!projection.undated.length}
             onClick={() => openMovements("senza-data")}
           >{tr("{n} senza data", { n: projection.undated.length })}</Button>
           <Button
             variant="outline"
             size="sm"
+            className={BOTTONE_SECONDARIO}
             disabled={!projection.possibleDuplicates.length}
             onClick={() => openMovements("doppioni")}
           >{tr("{n} possibili doppioni", { n: projection.possibleDuplicates.length })}</Button>
           <Button
             variant="outline"
             size="sm"
+            className={BOTTONE_SECONDARIO}
             disabled={!estimatesIncluded.length}
             onClick={() => openMovements("stime")}
           >{tr("{n} stime incluse", { n: estimatesIncluded.length })}</Button>
@@ -1023,12 +1018,22 @@ export function ForecastWorkspace({
             <Button
               variant="ghost"
               size="sm"
+              className={BOTTONE_SECONDARIO}
               onClick={() => setFilter({ scheda: "da-sistemare" })}
             >
               {tr("Scaduti esclusi: {n}", { n: (!f.overdueIn ? overdueIncome.length : 0) +
                 (!f.overdueOut ? overdueExpense.length : 0) })}
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(BOTTONE_SECONDARIO, "ml-auto")}
+            onClick={() => setFilter({ scheda: "fonti" })}
+          >
+            {tr("Fonti e ipotesi")}
+            {data.warnings.length ? ` · ${data.warnings.length}` : ""}
+          </Button>
         </div>
         {!!projection.undated.length && (
           <p className="mt-2 text-xs">{tr("Senza data, fuori piano: entrate {in} · uscite {out}. Importi esposti separatamente, non compensati.", { in: String(money(movementTotals(projection.undated).in) ?? ""), out: String(money(movementTotals(projection.undated).out) ?? "") })}</p>
@@ -1058,7 +1063,7 @@ export function ForecastWorkspace({
                 <TabsTrigger
                   key={value}
                   value={value}
-                  className="min-h-9 px-3 text-xs sm:text-sm"
+                  className="min-h-8 px-3 text-xs"
                 >
                   {tr(label)}
                   {value === "da-sistemare" &&
@@ -1087,7 +1092,7 @@ export function ForecastWorkspace({
                   <TabsTrigger
                     key={value}
                     value={value}
-                    className="min-h-9 text-xs"
+                    className="min-h-8 text-xs"
                   >
                     {tr(label)}
                   </TabsTrigger>
@@ -1979,7 +1984,7 @@ function MovementList({
     <div className={cn(section, "overflow-hidden")}>
       <div className="flex flex-col gap-2 border-b p-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-2 h-4 w-4 text-muted-foreground" />
           <Input
             aria-label={t("Cerca nei movimenti")}
             placeholder={t("Cerca descrizione, cliente, commessa o fonte")}
@@ -1988,7 +1993,7 @@ function MovementList({
               setSearch(e.target.value);
               setPage(1);
             }}
-            className="h-9 pl-9"
+            className="h-8 pl-9 text-xs"
           />
         </div>
         <div className="flex flex-wrap gap-2">
@@ -2023,10 +2028,10 @@ function MovementList({
             size="sm"
             onClick={exportView}
             disabled={!filtered.length}
-            className="h-9"
+            className={BOTTONE_SECONDARIO}
             title={t("Esporta tutti i movimenti che corrispondono ai filtri, anche nelle altre pagine")}
           >
-            <Download className="mr-1.5 h-4 w-4" aria-hidden />
+            <Download aria-hidden />
             {t("Esporta vista")}
           </Button>
         </div>

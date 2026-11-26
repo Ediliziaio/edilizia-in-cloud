@@ -115,7 +115,7 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 p-2.5 rounded bg-background border cursor-pointer hover:bg-muted/40 transition-colors sm:flex-row sm:items-center sm:justify-between",
+        "flex flex-col gap-2 rounded border bg-background p-2.5 cursor-pointer hover:bg-muted/40 transition-colors sm:flex-row sm:items-center sm:justify-between sm:py-1.5",
         isSelected && "ring-1 ring-primary"
       )}
       onClick={(e) => {
@@ -136,9 +136,10 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
         <Badge variant="secondary" className="font-mono text-xs shrink-0">
           {fmt(Number(item.quantity ?? 0))} {item.unita_misura ?? ""}
         </Badge>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-foreground">
+        {/* Da 1024px nome, quantità della commessa e fornitore su una riga sola (26/11/2026). */}
+        <div className="min-w-0 flex-1 lg:flex lg:items-center lg:gap-4">
+          <div className="flex flex-wrap items-center gap-1.5 lg:min-w-0 lg:max-w-[340px] lg:flex-none lg:flex-nowrap">
+            <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-foreground lg:truncate" title={item.name}>
               {item.name}
             </p>
             {stockMatch && (
@@ -155,11 +156,11 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
               </Tooltip>
             )}
           </div>
-          {preparation ? <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4" aria-label={t("Quantità commessa {name}", { name: String(item.name ?? "") })}>
-            {[["Previsti", preparation.previsti],["Prenotati",preparation.impegnato],["Fuori deposito",preparation.fuori],["Da coprire",preparation.daCoprire]].map(([label, quantity]) => <div key={label}><dt className="text-muted-foreground">{t(String(label))}</dt><dd className="font-semibold tabular-nums">{fmt(Number(quantity))} {item.unita_misura ?? ""}</dd></div>)}
-          </dl> : <p className="mt-1 text-xs text-muted-foreground">{item.stock_item_id ? t("Quantità da verificare") : t("Associa un articolo per verificare prenotazioni e prelievi")}</p>}
+          {preparation ? <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4 lg:mt-0 lg:flex lg:flex-none lg:gap-4" aria-label={t("Quantità commessa {name}", { name: String(item.name ?? "") })}>
+            {[["Previsti", preparation.previsti],["Prenotati",preparation.impegnato],["Fuori deposito",preparation.fuori],["Da coprire",preparation.daCoprire]].map(([label, quantity]) => <div key={label} className="lg:flex lg:items-baseline lg:gap-1 lg:whitespace-nowrap"><dt className="text-muted-foreground">{t(String(label))}</dt><dd className="font-semibold tabular-nums">{fmt(Number(quantity))} {item.unita_misura ?? ""}</dd></div>)}
+          </dl> : <p className="mt-1 text-xs text-muted-foreground lg:mt-0 lg:truncate">{item.stock_item_id ? t("Quantità da verificare") : t("Associa un articolo per verificare prenotazioni e prelievi")}</p>}
           {(supplierName || (isSupplierGroup && item.order.order_code)) && (
-            <p className="text-xs text-muted-foreground truncate">
+            <p className="text-xs text-muted-foreground truncate lg:min-w-0">
               {isSupplierGroup
                 ? `${item.order.order_code || "Ordine"} - ${item.order.customer?.first_name ?? ""} ${item.order.customer?.last_name ?? ""}`.trim()
                 : supplierName}

@@ -29,6 +29,8 @@ import { useCreateDdtFromUscita } from "@/hooks/warehouse/useWarehouseUscita";
 import { CAUSALI_TRASPORTO, causalePerDestinatario } from "@/lib/ddt/causaliTrasporto";
 import { datiTrasportoDdt, type UscitaPerDdt } from "@/lib/magazzino/usciteDdt";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { BOTTONE_NUOVO } from "@/components/orders/TestataScheda";
+import { cn } from "@/lib/utils";
 
 export function CreaDdtDaUscitaDialog({
   uscita,
@@ -102,11 +104,13 @@ function Modulo({
     <DialogContent className="sm:max-w-md">
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
-          <Truck className="h-5 w-5 text-primary" /> {t("DDT dell'uscita {numero}", { numero: String(uscita.numero ?? "") })}
+          <Truck className="h-5 w-5 text-muted-foreground" /> {t("DDT dell'uscita {numero}", { numero: String(uscita.numero ?? "") })}
         </DialogTitle>
         <DialogDescription>
           {appenaRegistrata && <>{t("Uscita registrata, la giacenza è già scalata.")} </>}
           {t("Per {destinatario}. Il DDT nasce in bozza: lo controlli nell'editor prima di emetterlo.", { destinatario: String(uscita.destinatario ?? "") })}
+          {/* Chi sceglie «Più tardi» deve sapere dove ritrovarla (26/11/2026). */}
+          {appenaRegistrata && <> {t("Più tardi: Magazzino → Arrivi e uscite → Uscite, filtro «Senza DDT».")}</>}
         </DialogDescription>
       </DialogHeader>
 
@@ -151,10 +155,10 @@ function Modulo({
       </div>
 
       <DialogFooter className="gap-2 sm:gap-0">
-        <Button variant="outline" onClick={() => onOpenChange(false)} disabled={crea.isPending}>
+        <Button variant="outline" className="h-9" onClick={() => onOpenChange(false)} disabled={crea.isPending}>
           {appenaRegistrata ? t("Più tardi") : t("Annulla")}
         </Button>
-        <Button onClick={conferma} disabled={crea.isPending}>
+        <Button className={cn(BOTTONE_NUOVO, "h-9 text-sm")} onClick={conferma} disabled={crea.isPending}>
           {crea.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileText className="h-4 w-4 mr-2" />}
           {t("Crea il DDT")}
         </Button>

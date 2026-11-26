@@ -150,7 +150,7 @@ describe("office workspace", () => {
     ];
     mount();
     expect(
-      await screen.findByText("1 di 2 completate · solo attività d’ufficio"),
+      await screen.findByText("1 di 2 completate · tutte le attività della commessa"),
     ).toBeVisible();
     expect(
       screen.getByText(/Aspetta il cantiere: «Rilievo misure»/),
@@ -197,7 +197,7 @@ describe("office workspace", () => {
     mount();
     await screen.findByRole("button", { name: "Apri attività: Contratto" });
     fireEvent.change(
-      screen.getByRole("textbox", { name: "Cerca attività d’ufficio" }),
+      screen.getByRole("textbox", { name: "Cerca tra le attività della commessa" }),
       { target: { value: "Anna" } },
     );
     fireEvent.click(
@@ -211,7 +211,7 @@ describe("office workspace", () => {
   it("creates a single office-scoped task in the chosen group", async () => {
     mount();
     fireEvent.click(
-      screen.getByRole("button", { name: "Nuova attività d’ufficio" }),
+      screen.getByRole("button", { name: "Nuova attività" }),
     );
     const form = await screen.findByRole("dialog");
     fireEvent.change(within(form).getByLabelText("Titolo *"), {
@@ -241,7 +241,7 @@ describe("office workspace", () => {
     mount();
     await screen.findByRole("button", { name: "Inizia" });
     fireEvent.click(
-      screen.getByRole("button", { name: "Nuova attività d’ufficio" }),
+      screen.getByRole("button", { name: "Nuova attività" }),
     );
     const form = await screen.findByRole("dialog");
     fireEvent.change(within(form).getByLabelText("Titolo *"), {
@@ -273,7 +273,7 @@ describe("office workspace", () => {
     await screen.findByRole("button", { name: "Apri attività: Contratto" });
     expect(screen.queryByRole("button", { name: "Completa" })).toBeNull();
     expect(
-      screen.queryByRole("button", { name: "Nuova attività d’ufficio" }),
+      screen.queryByRole("button", { name: "Nuova attività" }),
     ).toBeNull();
   });
   it("does not replace a loading failure with an empty success state", async () => {

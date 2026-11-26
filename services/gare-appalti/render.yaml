@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: edilizia-gare-demo-2
+    branch: codex/gare-pilota-demo-2
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./services/gare-appalti/Dockerfile
+    dockerContext: .
+    autoDeployTrigger: "off"
+    envVars:
+      - key: GARE_BIND_ALL
+        value: "1"
+      - key: GARE_PORT
+        value: "10000"
+      - key: GARE_AI_BACKEND
+        value: openrouter
+      - key: GARE_AI_MODEL
+        sync: false
+      - key: GARE_SUPABASE_URL
+        sync: false
+      - key: GARE_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: GARE_SUPABASE_SERVICE_KEY
+        sync: false
+      - key: GARE_PROXY_SECRET
+        sync: false
+      - key: GARE_AI_BRIDGE_SECRET
+        sync: false

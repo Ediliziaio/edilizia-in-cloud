@@ -7,21 +7,22 @@
   box-shadow: none;
 }
 .settings-workspace [data-ui="card-title"] {
-  font-size: 1rem;
+  font-size: .9375rem;
   line-height: 1.5;
   font-weight: 600;
 }
 .settings-workspace [data-ui="tabs-list"] {
   max-width: 100%;
   height: auto;
-  min-height: 2.75rem;
+  min-height: 2rem;
   justify-content: flex-start;
-  gap: .25rem;
-  padding: .25rem;
+  gap: .125rem;
+  padding: .125rem;
   border-radius: .625rem;
 }
 .settings-workspace [data-ui="tabs-trigger"] {
-  min-height: 2.25rem;
+  /* 25/11/2026: da 36 a 28px, come le linguette del resto dell'app. */
+  min-height: 1.75rem;
   border-radius: .375rem;
   border-bottom-color: transparent;
 }
@@ -68,7 +69,12 @@
    tagliare la parola che distingue due funzioni. */
 .settings-sidebar [data-sidebar="menu-button"] {
   height: auto;
-  min-height: 2.25rem;
+  min-height: 1.75rem;
+}
+/* Etichette dei gruppi un po' più piccole, come le aree del menu principale (25/11/2026). */
+.settings-sidebar [data-sidebar="group-label"] {
+  height: 1.75rem;
+  font-size: 10.5px;
 }
 .settings-sidebar [data-sidebar="menu-button"] > span:last-child {
   white-space: normal;
@@ -81,6 +87,9 @@
 .settings-content > * { min-width: 0; }
 .settings-workspace [data-ui="card-header"] { padding: 1rem 1rem .75rem; }
 .settings-workspace [data-ui="card-content"] { padding: 0 1rem 1rem; }
+/* Un riquadro senza intestazione (le schede delle Sedi, i riquadri vuoti) ha il contenuto in cima:
+   senza margine sopra il titolo finiva attaccato al bordo, sotto la striscia colorata (25/11/2026). */
+.settings-workspace [data-ui="card"]:not(:has(> [data-ui="card-header"])) > [data-ui="card-content"] { padding-top: 1rem; }
 .settings-workspace [data-ui="card"] [data-ui="card"] {
   border-radius: .375rem;
   box-shadow: none;
@@ -99,4 +108,178 @@
 }
 @media (max-width: 767px) {
   .settings-workspace [data-ui="button"][data-variant="ghost"] { min-height: 2.75rem; }
+}
+
+/* Comandi delle impostazioni alla stessa misura del resto dell'app (25/11/2026): da computer
+   bottoni e tendine alti 32px con testo 12px, come le testate di Commesse, Finanza e le altre
+   pagine. Una regola sola qui invece di toccare 45 pagine; i campi di testo dei moduli restano
+   come sono (si leggono e si scrivono), il telefono ha la sua regola in index.css. */
+@media (min-width: 768px) {
+  .settings-workspace [data-ui="button"].h-10,
+  .settings-workspace [data-ui="button"].h-9 {
+    height: 2rem;
+    font-size: .75rem;
+  }
+  .settings-workspace [data-ui="button"].h-10.px-4,
+  .settings-workspace [data-ui="button"].h-9.px-3 {
+    padding-left: .75rem;
+    padding-right: .75rem;
+  }
+  .settings-workspace [data-ui="button"].w-10,
+  .settings-workspace [data-ui="button"].w-9 { width: 2rem; }
+  .settings-workspace [data-ui="button"].h-10 svg,
+  .settings-workspace [data-ui="button"].h-9 svg {
+    width: .875rem;
+    height: .875rem;
+  }
+  .settings-workspace button[role="combobox"].h-10,
+  .settings-workspace button[role="combobox"].h-9 {
+    height: 2rem;
+    font-size: .75rem;
+  }
+  /* Ricerche: 288×32 come in tutte le pagine (RICERCA_BARRA). Si riconoscono dalla lente
+     dentro il riquadro; erano larghe da 224 a 1088px e alte 36-40. */
+  .settings-workspace div.relative:has(> svg.lucide-search + input) {
+    flex: none;
+    width: 18rem;
+    max-width: 100%;
+  }
+  .settings-workspace div.relative:has(> svg.lucide-search + input) > input {
+    height: 2rem;
+    padding-left: 2rem;
+    font-size: .75rem;
+  }
+  .settings-workspace div.relative:has(> svg.lucide-search + input) > svg.lucide-search {
+    left: .625rem;
+    top: 50%;
+    width: .875rem;
+    height: .875rem;
+    transform: translateY(-50%);
+  }
+  /* Linguette: 28px e testo 12px (erano 36px con testo 14px). */
+  .settings-workspace [role="tab"].h-9,
+  .settings-workspace [role="tab"].h-10 { height: 1.75rem; }
+  .settings-workspace [role="tab"] {
+    min-height: 1.75rem;
+    padding-top: .25rem;
+    padding-bottom: .25rem;
+    font-size: .75rem;
+  }
+}
+
+/* Scala dei moduli delle impostazioni (25/11/2026), da computer: descrizioni dei riquadri 12px,
+   etichette e campi a 13px, campi alti 36px (erano 40px con testo 14px), margini interni più
+   stretti. Il telefono resta com'è (lì servono bersagli più grandi). */
+@media (min-width: 768px) {
+  .settings-workspace [data-ui="card-header"] { padding: .75rem .875rem .5rem; }
+  .settings-workspace [data-ui="card-content"] { padding: 0 .875rem .875rem; }
+  .settings-workspace [data-ui="card"]:not(:has(> [data-ui="card-header"])) > [data-ui="card-content"] { padding-top: .875rem; }
+  .settings-workspace [data-ui="card-header"] > p { font-size: .75rem; line-height: 1.4; }
+  .settings-workspace label { font-size: .8125rem; }
+  .settings-workspace input.h-10:not([type="checkbox"]):not([type="radio"]),
+  .settings-workspace input.h-9:not([type="checkbox"]):not([type="radio"]) {
+    height: 2.25rem;
+    font-size: .8125rem;
+  }
+  .settings-workspace textarea { font-size: .8125rem; }
+  .settings-workspace button[role="combobox"]:not(.h-10):not(.h-9):not(.h-8):not(.h-7) {
+    min-height: 2rem;
+    font-size: .8125rem;
+  }
+}
+
+/* Giro pagina per pagina del 25/11/2026 (45 pagine misurate a 1600px). Da computer: */
+@media (min-width: 768px) {
+  /* «Nuovo…», «Aggiungi…», «Crea…» (bottoni con il «+») arancio come in tutto il resto
+     dell'app; erano blu pieni. «Salva» e i filtri attivi restano come sono. */
+  .settings-workspace [data-ui="button"][data-variant="default"]:has(> svg.lucide-plus) {
+    background-image: linear-gradient(to right, rgb(249 115 22), rgb(245 158 11));
+    background-color: rgb(249 115 22);
+    color: #fff;
+    border-color: transparent;
+  }
+  .settings-workspace [data-ui="button"][data-variant="default"]:has(> svg.lucide-plus):hover {
+    background-image: linear-gradient(to right, rgb(234 88 12), rgb(245 158 11));
+  }
+  /* Bottoni scritti a mano (senza il componente Button) alti 36-40px. */
+  .settings-content button.h-10:not([role="tab"]),
+  .settings-content button.h-9:not([role="tab"]) {
+    height: 2rem;
+    font-size: .75rem;
+  }
+  .settings-content button.h-10.w-10,
+  .settings-content button.h-9.w-9 { width: 2rem; }
+  /* Numeri dei riquadri e titoli di sezione: 18 e 16px (erano 20 e 18px). */
+  .settings-content .text-xl:not(h1) { font-size: 1.125rem; line-height: 1.5rem; }
+  .settings-content h2.text-lg,
+  .settings-content h3.text-lg { font-size: 1rem; line-height: 1.4rem; }
+}
+@media (min-width: 768px) {
+  /* Le stesse misure quando l'altezza arriva da varianti (sm:/md:) o da un'altezza minima. */
+  .settings-workspace :is([data-ui="button"], button):is(.sm\:h-10, .sm\:h-9, .md\:h-10, .md\:h-9):not([role="tab"]) {
+    height: 2rem;
+    font-size: .75rem;
+  }
+  .settings-workspace :is([data-ui="button"], button):is(.min-h-10, .min-h-9, .min-h-11, .md\:min-h-9):not([role="tab"]) {
+    min-height: 2rem;
+  }
+  .settings-workspace :is([data-ui="button"], button).min-h-10:not(.h-auto),
+  .settings-workspace :is([data-ui="button"], button).min-h-11:not(.h-auto) { height: 2rem; }
+  .settings-workspace :is([data-ui="button"], button):is(.min-h-10, .min-h-11, .md\:min-h-9).text-sm { font-size: .75rem; }
+}
+
+/* Secondo giro del 25/11/2026: 127 viste misurate (ogni pagina e ogni scheda), da computer.
+   Erano sei misure diverse per i titoli di sezione (12-24px), bottoni alti uguali con testo a
+   12, 14 o 16px, la ricerca alta 36px e larga da 224 a 938px, i filtri attivi blu pieni. */
+@media (min-width: 768px) {
+  /* Titoli: sezione 16px, riquadro 15px, in ogni pagina. */
+  .settings-content h2:not(.sr-only) { font-size: 1rem; line-height: 1.4rem; font-weight: 600; }
+  .settings-content h3:not(.sr-only) { font-size: .9375rem; line-height: 1.3rem; font-weight: 600; }
+  .settings-content h4:not(.sr-only) { font-size: .8125rem; line-height: 1.2rem; font-weight: 600; }
+  /* Bottoni da 28-32px: testo sempre 12px. */
+  .settings-content :is([data-ui="button"], button, a.inline-flex):is(.h-8, .h-7, [data-size="sm"]):not([role="tab"]):not([role="switch"]) {
+    font-size: .75rem;
+  }
+  /* Bottoni e campi alti 44px: come gli altri. */
+  .settings-content :is([data-ui="button"], button):is(.h-11, .h-12):not([role="tab"]) { height: 2rem; font-size: .75rem; }
+  .settings-content input:is(.h-11, .h-12):not([type="checkbox"]):not([type="radio"]) { height: 2.25rem; font-size: .8125rem; }
+  /* Ricerca: 288×32 ovunque, testo 12px. */
+  /* Più forte della regola dei campi da 36px qui sopra (.settings-workspace input.h-9…). */
+  .settings-workspace .settings-content input:is([placeholder^="Cerca" i], [type="search"]):not([type="checkbox"]):not([type="radio"]) {
+    height: 2rem;
+    font-size: .75rem;
+    max-width: 18rem;
+  }
+  .settings-content div.relative:has(> input:is([placeholder^="Cerca" i], [type="search"])) {
+    width: 18rem;
+    max-width: 100%;
+    flex: 0 1 18rem;
+  }
+  /* Filtro o pillola selezionata: arancio tenue come nel resto dell'app, non blu pieno (che sembra
+     un bottone d'azione). */
+  .settings-content :is(button, a):is(.rounded-full, [aria-pressed="true"], [aria-current="true"], [aria-current="page"]):is([class~="bg-primary"], [class~="md:bg-primary"], [data-state="on"], [data-variant="secondary"]):not(:has(> svg.lucide-plus)) {
+    background-image: none;
+    background-color: rgb(255 247 237);
+    border-color: rgb(254 215 170);
+    color: rgb(194 65 12);
+  }
+}
+@media (min-width: 768px) {
+  /* Voce scelta di un elenco laterale (es. Cartelle documenti: «Tutti», le cartelle): tinta arancio
+     come le altre scelte, non azzurra. */
+  .settings-content :is(button, a):is([aria-current="true"], [aria-current="page"])[class~="bg-primary/10"] {
+    background-color: rgb(255 247 237);
+    border-color: rgb(254 215 170);
+    color: rgb(194 65 12);
+  }
+  /* Tendine alte 40px scritte a mano: come i campi (36px, testo 13px). */
+  .settings-workspace .settings-content button[role="combobox"]:is(.h-10, .h-11) {
+    height: 2.25rem;
+    font-size: .8125rem;
+  }
+}
+@media (min-width: 768px) {
+  /* Le frasi di spiegazione (in cima alla pagina e nei riquadri) a 12px in tutte le pagine: erano
+     12, 14 o 16px a seconda di chi aveva scritto la pagina. */
+  .settings-content p.text-muted-foreground:is(.text-sm, .text-base) { font-size: .75rem; line-height: 1.4; }
 }

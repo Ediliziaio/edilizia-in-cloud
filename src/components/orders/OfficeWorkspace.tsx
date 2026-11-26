@@ -60,6 +60,7 @@ interface Task {
   assigned_to: string | null;
   ufficio_id: string | null;
   office_stage: string | null;
+  activity_scope: string | null;
   sort_order: number | null;
   attende_fase_id: string | null;
   bloccata_da_task_id: string | null;
@@ -68,6 +69,21 @@ interface Task {
   updated_at: string;
   [key: string]: unknown;
 }
+/**
+ * Le attività che non sono d'ufficio non hanno una fase dell'ufficio: metterle
+ * in «Da organizzare» le farebbe sembrare lavoro d'ufficio lasciato indietro.
+ * Hanno due gruppi loro, in fondo, dopo le fasi.
+ */
+const GRUPPI_AMBITO = [
+  ["ambito-cantiere", "Attività di cantiere"],
+  ["ambito-generale", "Altre attività della commessa"],
+] as const;
+const gruppoAttivita = (r: { activity_scope?: string | null; office_stage?: string | null }) => {
+  const ambito = r.activity_scope ?? "generale";
+  if (ambito === "ufficio") return officeStage(r.office_stage);
+  return ambito === "cantiere" ? "ambito-cantiere" : "ambito-generale";
+};
+
 type Filter =
   | "aperte"
   | "tutte"
@@ -155,7 +171,10 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
           .select("*")
           .eq("company_id", companyId)
           .eq("order_id", orderId)
-          .eq("activity_scope", "ufficio")
+          // Tutte le attività della commessa, non solo quelle d'ufficio: una
+          // attività di cantiere o generale legata a questa commessa non si
+          // vedeva da nessuna parte dentro la commessa, e chi la cercava qui
+          // la dava per non esistente. L'ambito diventa un'etichetta sulla riga.
           .order("sort_order", { ascending: true, nullsFirst: false })
           .order("created_at", { ascending: true })
           .range(offset, offset + 499);
@@ -256,7 +275,6 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
         .update(patch)
         .eq("company_id", companyId)
         .eq("order_id", orderId)
-        .eq("activity_scope", "ufficio")
         .eq("id", task.id);
       if (task.updated_at) q = q.eq("updated_at", task.updated_at);
       const { data, error } = await q.select("id,status");
@@ -372,14 +390,14 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
   );
   const detail = rows.find((r) => r.id === selected);
   return (
-    <section aria-label={t("Attività d’ufficio")} className="space-y-4">
+    <section aria-label={t("Attività della commessa")} className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold tracking-tight">
-            {t("Il lavoro dell’ufficio")}
+            {t("Le attività della commessa")}
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            {t("Responsabili, scadenze e passaggi della commessa. Le stesse attività della tua agenda.")}
+            {t("Tutto quello che c’è da fare su questa commessa, d’ufficio e non: responsabili, scadenze e passaggi. Le stesse attività della tua agenda.")}
           </p>
         </div>
         <div className="flex gap-2">
@@ -407,15 +425,18 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
               }}
             >
               <Plus className="mr-1.5 h-4 w-4" />
-              {t("Nuova attività d’ufficio")}
+              {t("Nuova attività")}
             </Button>
           )}
         </div>
       </div>
-      {!tasks.isLoading && !tasks.isError && (
+      {/* I quattro numeri servono a filtrare: su una commessa senza attività
+          erano quattro riquadri grandi con quattro zeri, e la prima cosa da
+          fare — aggiungerne una — finiva sotto la piega. */}
+      {!tasks.isLoading && !tasks.isError && counts.total > 0 && (
         <div
           className="grid grid-cols-2 gap-2 lg:grid-cols-4"
-          aria-label={t("Situazione attività d’ufficio")}
+          aria-label={t("Situazione delle attività")}
         >
           {(
             [
@@ -430,7 +451,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
               onClick={() => setFilter(key)}
               aria-pressed={filter === key}
               className={cn(
-                "rounded-xl border bg-card px-4 py-3 text-left transition-colors hover:border-primary/40",
+                "rounded-xl border bg-card px-3 py-2 text-left transition-colors hover:border-primary/40",
                 filter === key && "border-primary/40 bg-primary/5",
               )}
             >
@@ -439,7 +460,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
               </span>
               <strong
                 className={cn(
-                  "mt-1 block text-2xl font-semibold tabular-nums",
+                  "mt-0.5 block text-xl font-semibold tabular-nums",
                   key === "scadute" && count > 0
                     ? "text-orange-600"
                     : "text-foreground",
@@ -481,7 +502,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              aria-label={t("Cerca attività d’ufficio")}
+              aria-label={t("Cerca tra le attività della commessa")}
               placeholder={t("Cerca attività o responsabile…")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -507,7 +528,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
           <>
             <div className="flex flex-wrap items-center gap-3 border-b bg-muted/15 px-4 py-2.5 text-xs text-muted-foreground">
               <span>
-                {t("{fatte} di {totale} completate · solo attività d’ufficio", { fatte: counts.done, totale: counts.total })}
+                {t("{fatte} di {totale} completate · tutte le attività della commessa", { fatte: counts.done, totale: counts.total })}
               </span>
               <div
                 role="progressbar"
@@ -546,18 +567,18 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
                 <p className="text-sm font-medium">
                   {rows.length
                     ? t("Nessuna attività per questa vista")
-                    : t("Organizza il lavoro d’ufficio della commessa")}
+                    : t("Nessuna attività su questa commessa")}
                 </p>
                 <p className="mx-auto mt-1 max-w-lg text-xs text-muted-foreground">
                   {rows.length
                     ? t("Cambia filtro o ricerca per vedere le altre attività.")
-                    : t("Aggiungi un’attività con responsabile e scadenza. Salvare un modello aziendale non lo applica a questa commessa.")}
+                    : t("Aggiungi un’attività con responsabile e scadenza: qui finiscono tutte quelle legate alla commessa, d’ufficio e non. Salvare un modello aziendale non lo applica a questa commessa.")}
                 </p>
               </div>
             ) : (
-              OFFICE_STAGES.map(([stage, label]) => {
+              [...OFFICE_STAGES, ...GRUPPI_AMBITO].map(([stage, label]) => {
                 const group = visible.filter(
-                  (r) => officeStage(r.office_stage) === stage,
+                  (r) => gruppoAttivita(r) === stage,
                 );
                 if (!group.length) return null;
                 return (
@@ -752,7 +773,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
       >
         <DialogContent ampiezza="modulo" struttura="scorrevole" className="task-editor-dialog gap-3">
           <DialogHeader>
-            <DialogTitle>{t("Nuova attività d’ufficio")}</DialogTitle>
+            <DialogTitle>{t("Nuova attività")}</DialogTitle>
             <DialogDescription>
               {t("Organizza il lavoro, scegli l’area e il responsabile. L’attività resta collegata a questa commessa.")}
             </DialogDescription>

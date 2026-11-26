@@ -11,6 +11,8 @@
  *   - Input quantità + pulsante "Aggiungi"
  *   - Lista entries con possibilità di rimuovere/modificare quantità
  */
+import { cn } from "@/lib/utils";
+import { BOTTONE_NUOVO } from "@/components/orders/TestataScheda";
 import { useState, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, X, Loader2, PackageCheck, XCircle } from "lucide-react";
@@ -480,7 +482,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
             type="button"
             onClick={handleAddEntry}
             disabled={!pendingItem || !!quantityError || priceInvalid || adding}
-            className="h-11 shrink-0 flex-1 md:flex-none md:h-9"
+            className={cn(BOTTONE_NUOVO, "h-11 shrink-0 flex-1 text-sm md:flex-none md:h-9")}
           >
             <Plus className="h-4 w-4 mr-1" />
             {tr("Aggiungi")}

@@ -608,9 +608,11 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
       </details>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-3">
+      {/* Da computer su una riga (25/11/2026): comandi da 32px, la ricerca si
+          stringe prima che i bottoni vadano a capo. */}
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-2.5 xl:flex-nowrap">
         <Select value={filterPersona} onValueChange={setFilterPersona}>
-          <SelectTrigger className="h-9 w-48">
+          <SelectTrigger className="h-8 w-48 shrink-0 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -622,7 +624,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
         </Select>
 
         <Select value={filterType} onValueChange={setFilterType}>
-          <SelectTrigger className="h-9 w-40">
+          <SelectTrigger className="h-8 w-40 shrink-0 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -633,28 +635,28 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
           </SelectContent>
         </Select>
 
-        <div className="relative flex-1 min-w-[200px] max-w-md">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <div className="relative flex-1 min-w-[160px] max-w-md">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             placeholder={tr("Cerca nel contenuto, per assistente o per fonte…")}
             aria-label={tr("Cerca tra i ricordi")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-9 pl-9"
+            className="h-8 pl-8 text-xs"
           />
         </div>
 
         <Button
-          variant={showDisabled ? "default" : "outline"}
+          variant={showDisabled ? "default" : "outline"} aria-pressed={showDisabled}
           size="sm"
           onClick={() => setShowDisabled(!showDisabled)}
-          className="h-9 gap-2"
+          className="h-8 shrink-0 gap-1.5 px-2.5 text-xs"
         >
           {showDisabled ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
           {showDisabled ? tr("Nascondi disabilitate") : tr("Includi disabilitate")}
         </Button>
 
-        <Badge variant="outline" className="ml-auto text-xs">
+        <Badge variant="outline" className="ml-auto shrink-0 whitespace-nowrap text-xs">
           {filteredMemories.length === 1 ? tr("1 ricordo") : tr("{n} ricordi", { n: filteredMemories.length })}
         </Badge>
       </div>
@@ -674,7 +676,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
               key={item.value}
               type="button"
               size="sm"
-              variant={qualityFilter === item.value ? "default" : "outline"}
+              variant={qualityFilter === item.value ? "default" : "outline"} aria-pressed={qualityFilter === item.value}
               className="h-8 gap-1.5"
               onClick={() => setQualityFilter(item.value as QualityFilter)}
             >

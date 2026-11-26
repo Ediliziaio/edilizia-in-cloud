@@ -8,6 +8,8 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BOTTONE_SECONDARIO, RICERCA_BARRA } from "@/components/orders/TestataScheda";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -168,9 +170,9 @@ export function FiltriArchivioPiante({
     <section aria-label={t("Filtri delle planimetrie")} className="space-y-2">
       <Card>
         <CardContent className="flex flex-wrap items-center gap-2 p-2.5 sm:p-3">
-          <div className="relative min-w-[140px] flex-1">
+          <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
             <Search
-              className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+              className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
               aria-hidden="true"
             />
             <Input
@@ -178,13 +180,13 @@ export function FiltriArchivioPiante({
               placeholder={t("Cerca progetto…")}
               value={v.ricerca}
               onChange={(e) => onChange({ ricerca: e.target.value })}
-              className="h-9 pl-8 pr-9"
+              className="h-8 pl-8 pr-8 text-xs"
             />
             {v.ricerca && (
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute right-0.5 top-0.5 h-8 w-8"
+                className="absolute right-0.5 top-0.5 h-7 w-7"
                 aria-label={t("Svuota la ricerca")}
                 onClick={() => onChange({ ricerca: "" })}
               >
@@ -199,11 +201,11 @@ export function FiltriArchivioPiante({
           <Button
             variant="outline"
             size="sm"
-            className="h-9 gap-1.5 px-2.5 sm:px-3"
+            className={BOTTONE_SECONDARIO}
             onClick={() => setOpen(true)}
             aria-label={t("Filtri")}
           >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <SlidersHorizontal />
             <span className="hidden sm:inline">{t("Filtri")}</span>
             {activeCount > 0 && (
               <Badge className="ml-1 h-5 bg-orange-500 px-1.5 text-[10px] hover:bg-orange-500">

@@ -18,6 +18,7 @@ import {
   type FormatoEsportazione, type SezioneEsportata, type Tabella,
 } from "@/lib/controlloGestione/esportaTutto";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { BOTTONE_SECONDARIO } from "@/components/orders/TestataScheda";
 
 interface Props {
   anno: number;
@@ -100,8 +101,8 @@ export function EsportaMenu({ anno, sezioni, titolo, tabelleExtra, label = "Scar
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size={size} className="gap-1.5" disabled={occupato !== null} aria-label={t(label || "Scarica")} title={t(label || "Scarica")}>
-            {occupato ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          <Button variant="outline" size={size} className={BOTTONE_SECONDARIO} disabled={occupato !== null} aria-label={t(label || "Scarica")} title={t(label || "Scarica")}>
+            {occupato ? <Loader2 className="animate-spin" /> : <Download />}
             {label ? t(label) : null}
           </Button>
         </DropdownMenuTrigger>

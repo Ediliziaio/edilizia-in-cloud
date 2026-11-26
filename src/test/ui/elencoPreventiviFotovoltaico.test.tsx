@@ -113,16 +113,16 @@ describe("caricamento dei grafici", () => {
     finti.mobile = true;
     apriElenco();
     await screen.findByText("FV-2026-0001");
-    expect(screen.queryByText("Andamento e statistiche dei preventivi")).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Andamento e statistiche dei preventivi" })).not.toBeInTheDocument();
     expect(finti.caricaGrafici).not.toHaveBeenCalled();
   });
 
-  it("su desktop carica i grafici dopo l'apertura delle statistiche", async () => {
+  it("su desktop carica i grafici dopo il bottone «Grafici»", async () => {
     apriElenco();
-    const dettagli = screen.getByText("Andamento e statistiche dei preventivi").closest("details")!;
+    expect(screen.queryByRole("region", { name: "Andamento e statistiche dei preventivi" })).not.toBeInTheDocument();
     expect(finti.caricaGrafici).not.toHaveBeenCalled();
-    dettagli.open = true;
-    fireEvent(dettagli, new Event("toggle"));
+    fireEvent.click(screen.getByRole("button", { name: "Grafici" }));
+    expect(screen.getByRole("region", { name: "Andamento e statistiche dei preventivi" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Trend ultimi 6 mesi" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Distribuzione per tipo" })).toBeVisible();
     expect(finti.caricaGrafici).toHaveBeenCalledTimes(1);

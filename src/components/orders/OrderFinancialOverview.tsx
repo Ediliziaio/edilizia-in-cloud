@@ -206,7 +206,11 @@ export function OrderFinancialOverview(props: Props) {
               onClick={props.onOpenEconomics}
             />
             <Cella
-              label={conImpegni || !distinzioneDisponibile ? t("Margine con impegni") : t("Margine su costi registrati")}
+              // «Margine a oggi», non «su costi registrati»: nella stessa schermata il
+              // conto economico parla di margine lordo, diretto e netto, che dicono
+              // COSA è stato tolto. Qui la riga dice QUANDO — previsto / a oggi — e
+              // due famiglie di nomi che non si incrociano si confondono meno.
+              label={conImpegni || !distinzioneDisponibile ? t("Margine a oggi, con gli impegni") : t("Margine a oggi")}
               value={realeReady ? formatCurrency(numeri.reale.margine) : "—"}
               aside={realeReady ? pctTesto(numeri.reale.marginePct) : undefined}
               evidenza={fine ? t("A fine lavori ≈ {importo} · {percentuale}", { importo: formatCurrency(fine.margine), percentuale: pctTesto(fine.marginePct) }) : undefined}

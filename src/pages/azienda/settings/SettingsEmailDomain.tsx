@@ -731,7 +731,7 @@ export default function SettingsEmailDomain({
             <Button
               key={d.domain.id}
               size="sm"
-              variant={d.domain.domain === domain.domain ? "default" : "outline"}
+              variant={d.domain.domain === domain.domain ? "default" : "outline"} aria-pressed={d.domain.domain === domain.domain}
               onClick={() => setDominioScelto(d.domain.domain)}
             >
               {d.domain.domain}

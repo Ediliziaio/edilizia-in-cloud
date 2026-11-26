@@ -52,7 +52,7 @@ export function DashboardPageHeader({
       )}
     >
       <div className={cn("flex flex-col gap-2.5 sm:gap-4 xl:flex-row xl:items-center xl:justify-between", density === "compact" && "sm:gap-3")}>
-        <div className={cn("flex min-w-0 items-start gap-3", compactTitle && "hidden sm:flex")}>
+        <div className={cn("flex min-w-0 items-center gap-3", compactTitle && "hidden sm:flex")}>
           {Icon && (
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
               <Icon className="h-5 w-5" />
@@ -60,16 +60,14 @@ export function DashboardPageHeader({
           )}
           <div className="min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <h1 className={cn("text-xl font-bold leading-tight tracking-tight text-foreground sm:text-2xl", density === "compact" && "sm:text-xl")}>
+              {/* 20px come la testata standard (TestataScheda): prima 24px da computer. */}
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground">
                 {title}
               </h1>
               {leftAccessory}
             </div>
-            {subtitle && (
-              <p className="mt-0.5 hidden text-sm leading-5 text-muted-foreground sm:block">
-                {subtitle}
-              </p>
-            )}
+            {/* Niente frase sotto il titolo (standard delle testate, 25/11/2026): resta ai lettori di schermo. */}
+            {subtitle && <p className="sr-only">{subtitle}</p>}
           </div>
         </div>
 

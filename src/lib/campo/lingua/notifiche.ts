@@ -35,6 +35,18 @@ export const MODELLI_NOTIFICA: readonly string[] = [
   "Due minuti: cosa hai fatto, quante ore, una foto. Anche a voce.",
   "Non hai timbrato l'uscita",
   "Sei entrato alle {ora}. Se hai finito, timbra l'uscita.",
+  // Avviso della sera (campo_promemoria, slot «domani», 26/11/2026): il testo è l'indirizzo, resta com'è.
+  "Domani sei a {cantiere}",
+  "Apri l'app per i dettagli.",
+  // Il materiale chiesto dal cantiere (trigger campo_materiale_avvisa_richiedente, 26/11/2026)
+  "Il materiale che hai chiesto è stato ordinato",
+  "È arrivata una parte del materiale che hai chiesto",
+  "Il materiale che hai chiesto è arrivato",
+  // Le mie scadenze (hr-check-scadenze, 26/11/2026)
+  "Documento scaduto: {cosa}",
+  "Documento in scadenza: {cosa}",
+  "Scaduto il {data}. Rinnovalo e caricalo dall'app.",
+  "Scade il {data}. Rinnovalo e caricalo dall'app.",
   // Attività
   "Nuova attività assegnata",
   "Attività riassegnata a te",

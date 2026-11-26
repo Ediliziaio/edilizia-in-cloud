@@ -50,8 +50,11 @@ describe("viste del cantiere", () => {
     const controls = mobile ? screen.getAllByRole("option") : screen.getByRole("navigation",{name:"Viste del cantiere"}).querySelectorAll("button");
     const cron = CANTIERE_VIEWS.findIndex(view => view.value === "cronoprogramma");
     expect(controls[cron+1]).toHaveTextContent("Rilievi e sopralluoghi");
-    if (mobile) fireEvent.click(screen.getByRole("option", { name: "Ufficio" }));
-    else fireEvent.click(screen.getByRole("button",{name:"Ufficio"}));
+    // L'etichetta si legge dall'elenco vero: la vista «ufficio» si è chiamata
+    // «Ufficio» e poi «Attività», e il test non deve cadere per un nome.
+    const ufficio = CANTIERE_VIEWS.find(view => view.value === "ufficio")!.label;
+    if (mobile) fireEvent.click(screen.getByRole("option", { name: ufficio }));
+    else fireEvent.click(screen.getByRole("button",{name:ufficio}));
     expect(screen.getByLabelText("URL corrente").textContent).not.toContain("#");
     if (mobile) await scegliNelMenu("Viste del cantiere", "Rilievi e sopralluoghi");
     else fireEvent.click(screen.getByRole("button",{name:"Rilievi e sopralluoghi"}));

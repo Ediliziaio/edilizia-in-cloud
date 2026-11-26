@@ -19,10 +19,12 @@ export default function ContabilitaGeneralePagina() {
   if (attiva === undefined) return <p role="status" className="p-6 text-sm text-muted-foreground">{t("Caricamento…")}</p>;
   if (!attiva) {
     return (
-      <div className="mx-auto max-w-2xl space-y-4 py-6">
+      // Allineata a sinistra come le altre pagine (25/11/2026): prima era un'isola
+      // centrata larga metà schermo. Il testo resta a una larghezza leggibile.
+      <div className="max-w-4xl space-y-3">
         <div className="flex items-center gap-2">
           <BookOpenCheck className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-          <h1 className="text-lg font-semibold">{t("Contabilità generale")}</h1>
+          <h1 className="text-xl font-bold">{t("Contabilità generale")}</h1>
         </div>
         <p className="text-sm text-muted-foreground">
           {t("La partita doppia è spenta per questa azienda. Serve a chi tiene la contabilità in casa: libro giornale, mastrini, bilancio, e a fine anno ammortamenti dal registro dei cespiti, rimanenze, ratei e risconti e la chiusura dell'esercizio. Incassi e pagamenti si registrano comunque in Prima nota, e IVA e F24 sono in Fatture → Fiscalità.")}

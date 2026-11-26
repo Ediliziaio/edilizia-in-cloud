@@ -58,7 +58,7 @@ export function FilterBar({ value, onChange, showScenario = false, showPeriodo =
           value={String(value.anno)}
           onValueChange={(v) => update({ anno: Number(v) })}
         >
-          <SelectTrigger className="h-9 w-[96px]" aria-label={t("Anno")}>
+          <SelectTrigger className="h-8 w-[96px] text-xs" aria-label={t("Anno")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -75,7 +75,7 @@ export function FilterBar({ value, onChange, showScenario = false, showPeriodo =
             value={value.periodo}
             onValueChange={(v) => update({ periodo: v as CGPeriodo })}
           >
-            <SelectTrigger className="h-9 w-[170px]" aria-label={t("Periodo")}>
+            <SelectTrigger className="h-8 w-[170px] text-xs" aria-label={t("Periodo")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -94,7 +94,7 @@ export function FilterBar({ value, onChange, showScenario = false, showPeriodo =
             onValueChange={(v) => update({ mese: Number(v) })}
             disabled={value.periodo === "annuale"}
           >
-            <SelectTrigger className="h-9 w-[130px]" aria-label={t("Mese")}>
+            <SelectTrigger className="h-8 w-[130px] text-xs" aria-label={t("Mese")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -115,7 +115,7 @@ export function FilterBar({ value, onChange, showScenario = false, showPeriodo =
             onValueChange={(v) => update({ scenarioId: v === "_default" ? null : v })}
             disabled={scenariLoading}
           >
-            <SelectTrigger className="h-9 w-[220px]" aria-label={t("Scenario piano")}>
+            <SelectTrigger className="h-8 w-[220px] text-xs" aria-label={t("Scenario piano")}>
               <SelectValue placeholder={scenariLoading ? t("Caricamento…") : t("Predefinito")} />
             </SelectTrigger>
             <SelectContent>

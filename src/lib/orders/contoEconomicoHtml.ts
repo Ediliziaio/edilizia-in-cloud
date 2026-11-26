@@ -10,6 +10,7 @@
  */
 import type { DossierEconomico } from "@/lib/orders/dossierEconomico";
 import { CATEGORIE, STATO_USCITA, documentoUscita, statoRata } from "@/lib/orders/quadroPagamenti";
+import { cashFlowMensileQuadro } from "@/lib/orders/cashFlowQuadro";
 
 const esc = (s: unknown) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const eur = (v: number | null | undefined) =>
@@ -154,6 +155,15 @@ export function htmlContoEconomico(d: DossierEconomico, azienda: AziendaDocument
     ? svgBarreCoppie(d.fasi.slice(0, 14).map((f) => ({ label: f.nome.length > 26 ? `${f.nome.slice(0, 25)}…` : f.nome, a: f.economia.venduto || null, b: f.economia.costoConsuntivo, colore: colore })), ["venduto", "costo sostenuto"])
     : "";
   const cassa = t ? svgCassa(t, opzioni.mostraIncassi) : "";
+  // Il cash flow mese per mese: le stesse rate e uscite elencate più sotto, in fila nel tempo.
+  // Manodopera e provvigioni pagate non hanno una fattura e non stanno nel quadro:
+  // senza di loro il cash flow del documento contava meno uscite della schermata.
+  const senzaFattura = d.cassaSenzaFattura ?? [];
+  const cashFlow = q
+    ? cashFlowMensileQuadro(q.rate, [...q.uscite, ...senzaFattura.map((r) => ({ pagato_il: r.data, pagato: r.importo }))])
+    : [];
+  const manodoperaPagata = senzaFattura.filter((r) => r.voce === "manodopera").reduce((somma, r) => somma + r.importo, 0);
+  const provvigioniPagate = senzaFattura.filter((r) => r.voce === "provvigione").reduce((somma, r) => somma + r.importo, 0);
 
   const tabella = (testa: string, corpo: string) => `<table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;margin-bottom:6px;"><thead><tr style="background:${colore};color:white;">${testa}</tr></thead><tbody>${corpo}</tbody></table>`;
   let n = 0;
@@ -212,10 +222,12 @@ ${titolo("Preventivo e consuntivo per voce")}
 ${tabella(th("Voce", "left") + th("Preventivo") + th("Inc.") + th("Previsto a oggi") + th("Consuntivo") + th("Inc.") + th("Scostamento"),
   totale("Ricavi" + (d.ordine.avanzamento != null ? ` (maturato al ${d.ordine.avanzamento}%)` : ""), c.ricavi, c.ricavoMaturato, true) + righeVoci
   + totale("Totale costi della commessa", c.haPreventivo ? c.costiPreventivo : null, c.costiConsuntivo)
-  + (opzioni.mostraMargini ? totale("Margine di commessa", c.haPreventivo ? c.marginePreventivo : null, c.margineMaturato, true, true)
+  + (opzioni.mostraMargini ? totale("Margine lordo", c.margineContribuzione.preventivo, c.margineContribuzione.maturato, false, true)
+    + totale("La tua squadra sul cantiere", c.risorseDedicate.preventivo, c.risorseDedicate.consuntivo)
+    + totale("Margine diretto", c.haPreventivo ? c.marginePreventivo : null, c.margineMaturato, true, true)
     + totale("Costi di struttura (quota)", c.struttura.preventivo, c.struttura.consuntivo)
     + totale("Margine netto", c.margineNettoPreventivo, c.margineNettoMaturato, true, true) : ""))}
-<p class="nota">Preventivo: costo previsto delle lavorazioni. Consuntivo: costi registrati, gli stessi del Controllo di Gestione. Incidenza sui ricavi totali (preventivo) e sul maturato (consuntivo). La struttura è la quota dei costi generali e d'ufficio sui cantieri attivi: una stima gestionale.</p>
+<p class="nota">Preventivo: costo previsto delle lavorazioni. Consuntivo: costi registrati, gli stessi del Controllo di Gestione. Incidenza sui ricavi totali (preventivo) e sul maturato (consuntivo). La struttura è la quota dei costi generali e d'ufficio sui cantieri attivi: una stima gestionale. Il margine diretto qui è sul lavoro fatto finora, non sul contratto intero.</p>
 ${fine}
 
 ${d.fasi.length ? `<div class="salto"></div>${titolo("Fasi di lavorazione", `${d.fasi.length} fasi`)}
@@ -224,7 +236,10 @@ ${tabella(th("Fase", "left") + th("Avanz.", "left") + th("Venduto") + th("Costo 
 <p class="nota">Un articolo usato su più fasi resta sulla fase della sua riga. Provvigioni, errori, costi diretti e rimborsi stanno nel conto per voce.</p>${fine}` : ""}
 
 ${q ? `${titolo("Cassa della commessa", "IVA inclusa")}
-${cassa ? `<div class="grafico" style="margin-bottom:8px;">${cassa}</div>` : ""}${fine}` : ""}
+${cassa ? `<div class="grafico" style="margin-bottom:8px;">${cassa}</div>` : ""}
+${cashFlow.length ? `${tabella(th("Mese", "left") + th("Incassi") + th("Uscite") + th("Cassa a fine mese"),
+  cashFlow.map((m) => `<tr><td>${esc(m.label)}</td><td class="num">${m.entrate > 0 ? eur(m.entrate) : "—"}</td><td class="num">${m.uscite > 0 ? eur(m.uscite) : "—"}</td><td class="num" style="font-weight:600;${m.saldo < 0 ? "color:#b91c1c;" : ""}">${eur(m.saldo)}</td></tr>`).join(""))}
+<p class="nota">Cassa a fine mese: il cumulato di quello che è entrato meno quello che è uscito, mese dopo mese. Sotto zero il cantiere lo stai finanziando tu. Fonti: le rate incassate e le uscite pagate elencate qui sotto.</p>` : ""}${fine}` : ""}
 
 ${opzioni.mostraIncassi && q ? `${titolo("Incassi dal cliente")}
 <p style="margin-bottom:6px;">Incassato <strong>${eur(t?.incassato)}</strong> · da incassare <strong>${eur(t?.daIncassare)}</strong>${t && t.incassoScaduto > 0 ? ` · <span style="color:#b91c1c;">scaduti ${eur(t.incassoScaduto)}</span>` : ""}</p>
@@ -233,7 +248,8 @@ ${q.sal_cliente.length ? `<p style="margin-top:6px;font-size:8pt;">SAL del clien
 
 ${q ? `${titolo("Pagamenti della commessa", `${q.uscite.length} ${q.uscite.length === 1 ? "voce" : "voci"}`)}
 <p style="margin-bottom:6px;">Pagato <strong>${eur(t?.pagato)}</strong> · da pagare <strong>${eur(t?.daPagare)}</strong>${t && t.pagamentoScaduto > 0 ? ` · <span style="color:#b91c1c;">scaduti ${eur(t.pagamentoScaduto)}</span>` : ""}${t && t.impegnato > 0 ? ` · ordinato senza fattura ${eur(t.impegnato)}` : ""}</p>
-${q.uscite.length ? tabella(th("Controparte", "left") + th("Categoria", "left") + th("Documento", "left") + th("Importo") + th("Pagato") + th("Residuo") + th("Scadenza") + th("Stato", "left"), uscite) : `<p style="color:#64748b;">Nessuna uscita registrata.</p>`}${fine}` : ""}
+${q.uscite.length ? tabella(th("Controparte", "left") + th("Categoria", "left") + th("Documento", "left") + th("Importo") + th("Pagato") + th("Residuo") + th("Scadenza") + th("Stato", "left"), uscite) : `<p style="color:#64748b;">Nessuna uscita registrata.</p>`}
+${manodoperaPagata > 0 || provvigioniPagate > 0 ? `<p class="nota">Fuori da questo elenco perché non hanno una fattura, ma dentro al cash flow qui sopra: ${[manodoperaPagata > 0 ? `manodopera interna pagata ${eur(manodoperaPagata)}` : "", provvigioniPagate > 0 ? `provvigioni pagate ${eur(provvigioniPagate)}` : ""].filter(Boolean).join(" · ")}.</p>` : ""}${fine}` : ""}
 
 <div style="margin-top:24px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:7pt;color:#94a3b8;display:flex;justify-content:space-between;"><span>${esc(azienda.ragione_sociale)} · ${esc(d.ordine.codice ?? "")}</span><span>Conto economico · generato il ${oggi}</span></div>
 </div></body></html>`;

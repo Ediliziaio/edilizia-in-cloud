@@ -10,6 +10,7 @@
  * - incassi e pagamenti: commessa_quadro_pagamenti, come Incassi e pagamenti.
  * Una lettura sola, al click: nessun peso sulla pagina.
  */
+import { calculateStoredCommissionNet } from "@/lib/commissions";
 import { canonicalOrderEconomics, ORDER_ECONOMICS_COLUMNS } from "@/lib/orders/economics";
 import { economiaFasi, type AssegnazioneFase, type EconomiaFase, type RigaContrattoFase } from "@/lib/orders/economiaFasi";
 import { contoEconomicoCommessa, type ContoEconomico } from "@/lib/orders/contoEconomicoCommessa";
@@ -37,6 +38,13 @@ export interface DossierEconomico {
   senzaFase: EconomiaFase;
   quadro: QuadroPagamenti | null;
   totaliQuadro: TotaliQuadro | null;
+  /**
+   * Soldi usciti che non hanno una fattura e non stanno nel quadro pagamenti:
+   * la manodopera interna e le provvigioni, alla data in cui sono state pagate.
+   * Servono al cash flow del documento, che senza di loro contava meno uscite
+   * della schermata «Chi finanzia il cantiere» per lo stesso mese.
+   */
+  cassaSenzaFattura: Array<{ data: string; importo: number; voce: "manodopera" | "provvigione" }>;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -52,7 +60,7 @@ async function righe<T>(q: PromiseLike<{ data: T[] | null; error: unknown }>): P
 export async function caricaDossierEconomico(db: Db, orderId: string, opzioni: { strutturaMensile?: number | null; conUscite?: boolean } = {}): Promise<DossierEconomico> {
   const conUscite = opzioni.conUscite !== false;
   const campiCosto = "id, order_id, amount, allocations, purchase_order_id, order_external_team_id, suppliers(tipo)";
-  const [ordine, marg, persone, ditte, fasi, materiali, voci, acquisti, movimenti, costiDiretti, costiRipartiti, quadroRaw] = await Promise.all([
+  const [ordine, marg, persone, ditte, fasi, materiali, voci, acquisti, movimenti, costiDiretti, costiRipartiti, quadroRaw, personePagate, commercialiPagati] = await Promise.all([
     db.from("orders").select("order_code, description, percentuale_avanzamento, work_start_date, work_end_date").eq("id", orderId).maybeSingle(),
     db.from("v_ordine_marginalita").select(ORDER_ECONOMICS_COLUMNS).eq("id", orderId).maybeSingle(),
     righe<Record<string, unknown>>(db.rpc("commessa_costo_personale_per_fase", {p_order_id: orderId})),
@@ -67,6 +75,8 @@ export async function caricaDossierEconomico(db: Db, orderId: string, opzioni: {
     righe<Record<string, unknown>>(db.from("company_costs").select(campiCosto).eq("order_id", orderId)).catch((): Record<string, unknown>[] => []),
     righe<Record<string, unknown>>(db.from("company_costs").select(campiCosto).contains("allocations", JSON.stringify([{ order_id: orderId }]))).catch((): Record<string, unknown>[] => []),
     conUscite ? db.rpc("commessa_quadro_pagamenti", { p_order_id: orderId }) : Promise.resolve({ data: null, error: null }),
+    righe<Record<string, unknown>>(db.from("order_employees").select("total_cost, is_paid, paid_date").eq("order_id", orderId)).catch((): Record<string, unknown>[] => []),
+    righe<Record<string, unknown>>(db.from("order_salespeople").select("commission_amount, deduction_amount, is_paid, paid_date").eq("order_id", orderId)).catch((): Record<string, unknown>[] => []),
   ]);
   if (ordine.error) throw ordine.error;
   if (marg.error) throw marg.error;
@@ -140,5 +150,18 @@ export async function caricaDossierEconomico(db: Db, orderId: string, opzioni: {
     senzaFase: economia.senzaFase,
     quadro,
     totaliQuadro: quadro ? totaliQuadro(quadro) : null,
+    cassaSenzaFattura: [
+      ...personePagate
+        .filter((r) => r.is_paid === true && typeof r.paid_date === "string" && n(r.total_cost) > 0)
+        .map((r) => ({ data: r.paid_date as string, importo: n(r.total_cost), voce: "manodopera" as const })),
+      ...commercialiPagati
+        .filter((r) => r.is_paid === true && typeof r.paid_date === "string")
+        .map((r) => ({
+          data: r.paid_date as string,
+          importo: calculateStoredCommissionNet(r.commission_amount as number | null, r.deduction_amount as number | null),
+          voce: "provvigione" as const,
+        }))
+        .filter((r) => r.importo > 0),
+    ],
   };
 }

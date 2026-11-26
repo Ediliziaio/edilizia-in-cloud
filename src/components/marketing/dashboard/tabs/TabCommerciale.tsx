@@ -184,11 +184,12 @@ export function TabCommerciale({ filters, assignedUserIds }: Props) {
       </div>
 
       {permissions.canViewSalesOs && (
-        <Button variant="outline" className="h-auto w-full justify-between py-3 text-left max-sm:hidden" onClick={() => navigate("/azienda/marketing/sales-os")}>
+        <Button variant="outline" className="h-auto w-full justify-between py-3 text-left max-sm:hidden" onClick={() => navigate("/azienda/marketing/reportistica?tab=oggi")}>
           <span className="flex items-center gap-3">
             <Gauge className="h-5 w-5 text-primary shrink-0" />
             <span>
-              <span className="block font-medium">Sales OS</span>
+              {/* Sales OS è la scheda «Oggi» di Reportistica dal 25/11/2026. */}
+              <span className="block font-medium">{t("Reportistica")} · {t("Oggi")}</span>
               <span className="block text-xs font-normal text-muted-foreground">{t("Forecast, velocity e lead caldi per priorità")}</span>
             </span>
           </span>

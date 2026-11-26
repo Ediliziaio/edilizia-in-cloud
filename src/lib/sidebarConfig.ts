@@ -1,5 +1,6 @@
 import {
   LayoutDashboard,
+  Gavel,
   ClipboardList,
   Users,
   HeadphonesIcon,
@@ -44,7 +45,6 @@ import {
   GraduationCap,
   SquarePen,
   Star,
-  Calculator,
   ShoppingCart,
   LayoutPanelTop,
   BookOpenCheck,
@@ -62,6 +62,9 @@ export interface NavItem {
    *  Portale: l'admin ha già il Portale come superficie corsi, la voce sarebbe un
    *  doppione. Il dipendente puro (senza canManagePortal) continua a vederla. */
   hideIfPermissionKey?: string;
+  /** Permesso alternativo: la voce c'è anche per chi ha questo invece di `permissionKey`.
+   *  Es. Reportistica, che dal 25/11/2026 contiene Sales OS (scheda «Oggi»). */
+  orPermissionKey?: string;
   moduleKey?: ModuleKey;
   /** Se il `moduleKey` NON è incluso nel piano, nasconde la voce del tutto —
    *  niente teaser DEMO — anche sui piani "limited" (dove di default un modulo
@@ -72,6 +75,7 @@ export interface NavItem {
   featureKey?: string;
   isBeta?: boolean;
   demoCompanyOnly?: boolean;
+  garePilotOnly?: boolean;
   /** Visibile solo se l'utente ha accesso a più aziende (console agenzia). */
   multiCompanyOnly?: boolean;
   category?: "internal" | "marketing";
@@ -166,6 +170,13 @@ export const macroAreas: MacroArea[] = [
     ],
   },
 
+  {
+    id: "area_pratiche",
+    title: "Pratiche e Progettazione",
+    icon: Gavel,
+    items: [{ title: "Gare e appalti", url: "/azienda/gare", icon: Gavel, garePilotOnly: true }],
+  },
+
   // 3. Finanza
   {
     id: "area_finanza",
@@ -244,8 +255,7 @@ export const macroAreas: MacroArea[] = [
       // Flag dedicato (non crm_modulo): il Piano Marketing tiene il CRM ma spegne i preventivi.
       // Stesso permesso della rotta (canViewPreventivi): prima usava le
       // Opportunità, e chi le aveva senza «Preventivi» trovava la pagina negata.
-      { title: "Preventivi CRM", url: "/azienda/marketing/preventivi", icon: FileSignature, permissionKey: "canViewPreventivi", featureKey: "preventivi_crm" },
-      { title: "Simulatore", url: "/azienda/marketing/simulatore", icon: Calculator, permissionKey: "canViewMarketingOpportunities", featureKey: "simulatore" },
+      { title: "Preventivi/Computi", url: "/azienda/marketing/preventivi", icon: FileSignature, permissionKey: "canViewPreventivi", featureKey: "preventivi_crm" },
       // 2026-07-12: voce "Firma Elettronica" rimossa da qui — l'hub vive solo in
       // "Cantieri & Lavori". Il commerciale invia comunque preventivi/contratti in firma
       // dal dettaglio preventivo (SendSignatureDialog in QuoteDetail/FotovoltaicoDettaglio),
@@ -261,9 +271,11 @@ export const macroAreas: MacroArea[] = [
       // «Calendario commerciale» e non «Calendario» (25/11/2026): la griglia delle app
       // sul telefono (MobileAppGrid) non accorpa per nome, e due riquadri con la stessa
       // icona e lo stesso nome finivano affiancati in «Recenti», indistinguibili.
-      { title: "Calendario commerciale", url: "/azienda/calendario?tipo=commerciali", icon: CalendarDays, permissionKey: "canViewMarketingAppointments", featureKey: "crm_modulo" },
-      { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Gauge, permissionKey: "canViewSalesOs", featureKey: "sales_os" },
-      { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: PieChart, permissionKey: "canViewMarketingReports", featureKey: "marketing_reporting" },
+      // Dal 25/11/2026 ha un indirizzo suo: da computer i due calendari sono separati (vedi CalendarioUnico).
+      { title: "Calendario commerciale", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketingAppointments", featureKey: "crm_modulo" },
+      // 25/11/2026: «Sales OS» non è più una voce: è la scheda «Oggi» di Reportistica
+      // (/azienda/marketing/sales-os rimanda lì), che si apre a chi ha l'uno o l'altro permesso.
+      { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: PieChart, permissionKey: "canViewMarketingReports", orPermissionKey: "canViewSalesOs", featureKey: "marketing_reporting" },
       // ─── Marketing ───
       { title: "Pubblicità", url: "/azienda/marketing/pubblicita", icon: Megaphone, permissionKey: "canViewMarketingDashboard", groupLabel: "Marketing" },
       { title: "Gestione Social", url: "/azienda/marketing/social", icon: Share2, permissionKey: "canViewMarketingDashboard" },
@@ -355,7 +367,6 @@ export const marketingNavItems: NavItem[] = [
   { title: "Centralino", url: "/azienda/centralino", icon: PhoneCall, permissionKey: "canViewMarketingAiAgent", category: "marketing", subcategory: "mkt_comunicazione" },
   { title: "Automazioni", url: "/azienda/automazioni?tab=marketing", icon: Zap, permissionKey: "canViewMarketingAutomations", category: "marketing", subcategory: "mkt_automation" },
   { title: "Agenti AI", url: "/azienda/agenti-ai?tipo=custom", icon: Bot, permissionKey: "canViewMarketingAiAgent", category: "marketing", subcategory: "mkt_automation" },
-  { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Zap, permissionKey: "canViewMarketingOpportunities", category: "marketing", subcategory: "mkt_analisi" },
   { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: BarChart3, permissionKey: "canViewMarketingReports", category: "marketing", subcategory: "mkt_analisi" },
   { title: "Pubblicità", url: "/azienda/marketing/pubblicita", icon: Megaphone, permissionKey: "canViewMarketingDashboard", category: "marketing", subcategory: "mkt_analisi" },
   { title: "Reputazione", url: "/azienda/marketing/reputazione", icon: Star, permissionKey: "canViewMarketingDashboard", category: "marketing", subcategory: "mkt_analisi" },

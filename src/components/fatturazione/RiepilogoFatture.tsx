@@ -13,12 +13,12 @@
  *
  * Sul telefono tre numeri.
  */
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { formatEuroRiquadro } from "@/lib/controlloGestione/formatCG";
+import { formatCurrency } from "@/lib/formatters";
 import type { MonthSummary } from "@/hooks/billing/useMonthlyTimeline";
 import { AnelloPercentuale, Comparsa, PillolaVariazione } from "@/components/charts/grafici/comune";
-import { NumeroVeloce } from "@/components/charts/grafici/NumeroVeloce";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Il nome del mese nella lingua scelta («Gennaio» in italiano). */
@@ -77,6 +77,41 @@ export const TESTI_RICEVUTE: TestiRiepilogo = {
   totale: "Ricevuto", incassato: "Pagato", daIncassare: "Da pagare", notaIncassato: "di queste fatture", incassatoBuono: false,
 };
 
+const RIGA = "flex min-h-[34px] flex-wrap items-center gap-x-5 gap-y-1 rounded-xl border bg-card px-3 py-1.5";
+
+/** Una voce della riga: etichetta piccola e cifra; la nota nel titolo (o in vista, se chiesto). */
+function Voce({
+  etichetta, valore, cifra, nota, notaInVista, tono = "neutro", extra,
+}: {
+  etichetta: string;
+  valore?: number;
+  cifra?: string;
+  nota?: string;
+  notaInVista?: boolean;
+  tono?: "neutro" | "buono" | "cattivo";
+  extra?: ReactNode;
+}) {
+  const testo = cifra ?? (valore != null ? formatEuroRiquadro(valore) : "—");
+  const pieno = valore != null && cifra == null ? formatCurrency(valore) : undefined;
+  return (
+    <div className="flex min-w-0 items-center gap-1.5" title={[pieno, nota].filter(Boolean).join(" · ") || undefined}>
+      <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{etichetta}</span>
+      <span
+        className={cn(
+          "whitespace-nowrap text-sm font-bold tabular-nums leading-tight",
+          tono === "buono" && "text-emerald-600 dark:text-emerald-400",
+          tono === "cattivo" && "text-rose-600 dark:text-rose-400",
+          cifra === "…" && "text-muted-foreground",
+        )}
+      >
+        {testo}
+      </span>
+      {extra}
+      {notaInVista && nota && <span className="whitespace-nowrap text-[10px] text-muted-foreground">{nota}</span>}
+    </div>
+  );
+}
+
 export function RiepilogoFatture({
   mesi, mesiAnnoPrima, meseScelto, isMobile, etichettaDocumenti = "fatture", testi = TESTI_EMESSE, caricamento,
 }: {
@@ -128,9 +163,9 @@ export function RiepilogoFatture({
       );
     }
     return (
-      <section aria-label="Numeri delle fatture" aria-busy="true" className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
-        {[`${testi.totale} ${nomePeriodo}`, "Imponibile", "IVA", testi.incassato, testi.daIncassare, "Scaduto"].map((e, i) => (
-          <NumeroVeloce key={e} indice={i} etichetta={e} testo="…" nota="…" />
+      <section aria-label="Numeri delle fatture" aria-busy="true" className={RIGA}>
+        {[`${testi.totale} ${nomePeriodo}`, "Imponibile", "IVA", testi.incassato, testi.daIncassare, "Scaduto"].map((e) => (
+          <Voce key={e} etichetta={e} cifra="…" />
         ))}
       </section>
     );
@@ -156,13 +191,16 @@ export function RiepilogoFatture({
     );
   }
 
-  const numeri = (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
-      <NumeroVeloce
-        indice={0}
+  // Da tablet in su (25/11/2026): i sei numeri su UNA riga da 34px, non sei riquadri da 76px.
+  // Le note che stavano sotto ogni cifra («senza IVA», «0,2% dell'imponibile»…) restano nel
+  // titolo di ogni voce; il numero delle fatture resta in vista accanto al fatturato.
+  return (
+    <section aria-label={t("Numeri delle fatture")} className={RIGA}>
+      <Voce
         etichetta={`${t(testi.totale)} ${nomePeriodo}`}
         valore={s.totale}
         nota={`${s.doc} ${t(etichettaDocumenti)}`}
+        notaInVista
         extra={
           <PillolaVariazione
             pct={variazione}
@@ -170,26 +208,22 @@ export function RiepilogoFatture({
           />
         }
       />
-      <NumeroVeloce indice={1} etichetta={t("Imponibile")} valore={s.imponibile} nota={t("senza IVA")} />
-      <NumeroVeloce indice={2} etichetta="IVA" valore={s.iva} nota={s.imponibile > 0 ? t("{percentuale}% dell'imponibile", { percentuale: ((s.iva / s.imponibile) * 100).toLocaleString(intlCampo(), { maximumFractionDigits: 1 }) }) : undefined} />
-      <NumeroVeloce
-        indice={3}
+      <Voce etichetta={t("Imponibile")} valore={s.imponibile} nota={t("senza IVA")} />
+      <Voce etichetta="IVA" valore={s.iva} nota={s.imponibile > 0 ? t("{percentuale}% dell'imponibile", { percentuale: ((s.iva / s.imponibile) * 100).toLocaleString(intlCampo(), { maximumFractionDigits: 1 }) }) : undefined} />
+      <Voce
         etichetta={t(testi.incassato)}
         valore={s.incassato}
         tono={testi.incassatoBuono ? "buono" : "neutro"}
         nota={daIncassareTot > 0 ? `${Math.round(pctIncassato)}% ${t(testi.notaIncassato)}` : t("di queste fatture")}
-        extra={daIncassareTot > 0 ? <AnelloPercentuale pct={pctIncassato} dimensione={22} /> : undefined}
+        extra={daIncassareTot > 0 ? <AnelloPercentuale pct={pctIncassato} dimensione={16} /> : undefined}
       />
-      <NumeroVeloce indice={4} etichetta={t(testi.daIncassare)} valore={s.daIncassare} nota={t("di queste fatture")} />
-      <NumeroVeloce
-        indice={5}
+      <Voce etichetta={t(testi.daIncassare)} valore={s.daIncassare} nota={t("di queste fatture")} />
+      <Voce
         etichetta={t("Scaduto")}
         valore={s.scaduto}
         tono={s.scaduto > 0 ? "cattivo" : "neutro"}
         nota={s.scaduto > 0 ? t("oltre la scadenza") : t("niente in ritardo")}
       />
-    </div>
+    </section>
   );
-
-  return <section aria-label={t("Numeri delle fatture")}>{numeri}</section>;
 }

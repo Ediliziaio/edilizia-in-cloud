@@ -47,6 +47,8 @@ export interface Scrittura {
   storno_di: string | null;
   stornata?: boolean;
   revisione?: number;
+  /** Nata da un documento e corretta a mano: la generazione automatica la lascia stare. */
+  a_mano?: boolean;
   contabilita_righe: RigaScrittura[];
 }
 

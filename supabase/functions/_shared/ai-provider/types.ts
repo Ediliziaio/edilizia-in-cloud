@@ -15,6 +15,7 @@ export type TaskKind =
   | "render_image_edit"
   | "render_scene_analysis"
   | "render_image_qa"
+  | "gare_appalti"
   | "default";
 
 export type ChatMessageContentPart =

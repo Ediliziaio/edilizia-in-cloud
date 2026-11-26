@@ -19,6 +19,7 @@ describe("documento_elimina_bozza", () => {
   });
   it("«Elimina» dall'editor passa da lì per le bozze dei documenti fiscali", () => {
     expect(hook).toContain('"documento_elimina_bozza"');
-    expect(hook).toMatch(/stato === "bozza" && tipo &&/);
+    // Dal 26/11/2026 ci passa anche una emessa mai uscita: vedi annullaFatturaMaiUscita.test.ts
+    expect(hook).toMatch(/\(stato === "bozza" \|\| maiUscita\)/);
   });
 });

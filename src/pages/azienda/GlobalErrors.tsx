@@ -1175,13 +1175,14 @@ export default function GlobalErrors() {
         nuovo={canEdit ? { etichetta: t("Nuova anomalia"), onClick: () => setCreating(true) } : undefined}
       />
 
-      {view === "register" && <OperationalSummary compatto label={t("Riepilogo anomalie")} title={t("I problemi da gestire")} icon={AlertTriangle} columns={3} note={t("Indicatori riferiti ai filtri attivi.")}>
+      {view === "register" && <OperationalSummary compatto inLinea label={t("Riepilogo anomalie")} title={t("I problemi da gestire")} icon={AlertTriangle} columns={3} note={t("Indicatori riferiti ai filtri attivi.")}>
         <OperationalSummaryMetric isLoading={isLoading} label={t("Anomalie aperte")} value={String(openRows.length)} hint={t("Da verificare, assegnare o risolvere")} icon={AlertTriangle} tone="orange" />
         <OperationalSummaryMetric isLoading={isLoading} label={t("Interventi scaduti")} value={String(overdueRows.length)} hint={t("Scadenza correttiva superata, caso ancora aperto")} icon={Clock3} tone={overdueRows.length ? "red" : "green"} />
         <OperationalSummaryMetric isLoading={isLoading} label={t("Costo stimato problemi aperti")} value={formatCurrency(openRows.reduce((sum, e) => sum + anomalyNotes(e).estimate, 0))} hint={t("Stime dei casi aperti nei filtri attivi")} icon={TrendingDown} tone="red" />
       </OperationalSummary>}
 
-      <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
+      {/* Barra senza riquadro attorno (25/11/2026): 32px invece di 56, come le altre schede. */}
+      <div>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -1516,8 +1517,9 @@ export default function GlobalErrors() {
       </div>}
       {view === "register" &&
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
+        {/* Testata della tabella bassa (25/11/2026): era p-6, 76px prima delle righe. */}
+        <CardHeader className="px-3 py-2">
+          <div className="flex min-h-7 items-center justify-between">
             <CardTitle className="text-base">{t("Registro anomalie")}</CardTitle>
             {activeFilterCount > 0 && (
               <Button
@@ -1532,7 +1534,7 @@ export default function GlobalErrors() {
             )}
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-3 pb-3">
           <div className="max-h-[65vh] overflow-auto rounded-lg border">
             <Table aria-label={t("Registro anomalie operative")} className="min-w-[1050px] text-xs [&_th]:whitespace-nowrap [&_th]:px-3 [&_td]:px-3 [&_td]:py-2">
               <TableHeader className="sticky top-0 z-10 bg-background shadow-sm"><TableRow>

@@ -1,6 +1,12 @@
 import { calculateStoredCommissionNet } from "@/lib/commissions";
 
-export interface DatedCashEvent { date: string; in: number; out: number }
+/** Che cosa ha mosso i soldi: la chiave, non la frase (la traduce chi la mostra). */
+export type VoceCassa = "rata" | "incasso" | "costo" | "manodopera" | "ditta" | "provvigione";
+
+export interface DatedCashEvent { date: string; in: number; out: number; voce?: VoceCassa }
+
+/** Un movimento singolo del mese: serve ad aprire la riga, non a rifare i conti. */
+export interface MovimentoCassa { date: string; voce: VoceCassa; in: number; out: number }
 
 interface ProvvigioneCassa {
   commission_amount: number | null;
@@ -16,7 +22,7 @@ export function cassaProvvigioni(provvigioni: readonly ProvvigioneCassa[]) {
     const importo = calculateStoredCommissionNet(voce.commission_amount, voce.deduction_amount);
     if (importo <= 0) continue;
     if (!voce.is_paid) daPagare += importo;
-    else if (voce.paid_date) eventi.push({ date: voce.paid_date, in: 0, out: importo });
+    else if (voce.paid_date) eventi.push({ date: voce.paid_date, in: 0, out: importo, voce: "provvigione" });
   }
   return { eventi, daPagare };
 }
@@ -24,11 +30,20 @@ export function cassaProvvigioni(provvigioni: readonly ProvvigioneCassa[]) {
 const months = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
 export function cashExposureTimeline(events: DatedCashEvent[], today: string) {
   const daily = new Map<string, { income: number; expense: number }>();
+  // I movimenti singoli restano a parte: i totali continuano a passare dal giorno,
+  // questi servono solo ad aprire la riga del mese e vederci dentro.
+  const movimenti = new Map<string, MovimentoCassa[]>();
   for (const event of events) {
     const day = event.date.slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !Number.isFinite(event.in) || !Number.isFinite(event.out)) continue;
     const [year, month, d] = day.split('-').map(Number);
     if (new Date(Date.UTC(year, month - 1, d)).toISOString().slice(0, 10) !== day) continue;
+    if (event.voce && (event.in > 0 || event.out > 0)) {
+      const ym = day.slice(0, 7);
+      const lista = movimenti.get(ym) ?? [];
+      lista.push({ date: day, voce: event.voce, in: event.in, out: event.out });
+      movimenti.set(ym, lista);
+    }
     const bucket = daily.get(day) ?? { income: 0, expense: 0 };
     bucket.income += Math.round(event.in * 100);
     bucket.expense += Math.round(event.out * 100);
@@ -49,7 +64,7 @@ export function cashExposureTimeline(events: DatedCashEvent[], today: string) {
     const m = perMonth.get(ym) ?? { income: 0, expense: 0 };
     m.income += bucket.income; m.expense += bucket.expense; perMonth.set(ym, m);
   }
-  const serieMensile: { ym: string; label: string; entrate: number; uscite: number; saldo: number }[] = [];
+  const serieMensile: { ym: string; label: string; entrate: number; uscite: number; saldo: number; movimenti: MovimentoCassa[] }[] = [];
   if (days.length) {
     const firstMonth = days[0][0].slice(0, 7);
     const lastMonth = [today.slice(0, 7), days[days.length - 1][0].slice(0, 7)].sort().at(-1)!;
@@ -64,7 +79,8 @@ export function cashExposureTimeline(events: DatedCashEvent[], today: string) {
       const bucket = perMonth.get(ym) ?? { income: 0, expense: 0 };
       running += bucket.income - bucket.expense;
       serieMensile.push({ ym, label: `${months[m - 1]} '${String(y).slice(2)}`, entrate: bucket.income / 100,
-        uscite: bucket.expense / 100, saldo: running / 100 });
+        uscite: bucket.expense / 100, saldo: running / 100,
+        movimenti: (movimenti.get(ym) ?? []).sort((a, b) => a.date.localeCompare(b.date)) });
       if (++m > 12) { m = 1; y++; }
     }
   }

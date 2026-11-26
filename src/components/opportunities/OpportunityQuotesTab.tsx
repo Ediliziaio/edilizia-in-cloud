@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
-import { NewPreventivoMenu } from "@/components/marketing/preventivi/NewPreventivoMenu";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -15,7 +14,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Collapsible,
   CollapsibleContent,
-  CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
   Select,
@@ -505,10 +503,20 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
       {/* Header */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h3 className="text-sm font-semibold">{t("Preventivi")}</h3>
-        <div className="flex gap-2 flex-wrap">
-          {/* Scelta del modello come nell'elenco Preventivi (prima: solo il preventivo «avanzato»/classico). */}
-          <NewPreventivoMenu contactId={contactId} opportunityId={opportunityId} size="sm" label={t("Nuovo preventivo")} />
-        </div>
+        {/* 25/11/2026: qui c'erano «Nuovo preventivo» (doppione di «+ Preventivo» in testata alla finestra), il bottone
+            blu a tutta larghezza «Crea Preventivo Rapido» e, a lista vuota, due riquadri che sembravano bottoni ma non
+            facevano niente. Il nuovo preventivo si crea dalla testata; qui resta solo la creazione rapida, in piccolo. */}
+        <Button
+          type="button"
+          size="sm"
+          variant={showForm ? "secondary" : "outline"}
+          className="h-8 gap-1.5 px-2.5 text-xs [&_svg]:h-3.5 [&_svg]:w-3.5"
+          aria-expanded={showForm}
+          onClick={() => setShowForm(!showForm)}
+        >
+          {showForm ? <ChevronUp /> : <Zap />}
+          {showForm ? t("Chiudi creazione rapida") : t("Preventivo rapido")}
+        </Button>
       </div>
 
       {/* Colpo d'occhio: quanto vale la trattativa */}
@@ -659,22 +667,6 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
 
       {/* Inline Quick Creator */}
       <Collapsible open={showForm} onOpenChange={setShowForm}>
-        <CollapsibleTrigger asChild>
-          <Button size="sm" variant={showForm ? "secondary" : "default"} className="w-full">
-            {showForm ? (
-              <>
-                <ChevronUp className="h-4 w-4 mr-1" />
-                {t("Chiudi creazione rapida")}
-              </>
-            ) : (
-              <>
-                <Zap className="h-4 w-4 mr-1" />
-                {t("Crea Preventivo Rapido")}
-              </>
-            )}
-          </Button>
-        </CollapsibleTrigger>
-
         <CollapsibleContent className="mt-3 space-y-4 border rounded-lg p-4 bg-muted/30">
           {/* Title + Validity */}
           <div className="grid grid-cols-2 gap-3">
@@ -886,20 +878,12 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
 
       {/* Existing Quotes List */}
       {quotes.length === 0 && !showForm ? (
-        <div className="flex flex-col items-center justify-center py-8 text-center gap-3">
-          <FileText className="h-8 w-8 text-muted-foreground" />
-          <p className="text-sm font-medium">{t("Nessun preventivo per questo contatto")}</p>
-          <div className="grid w-full max-w-md grid-cols-2 gap-2 text-left">
-            <div className="rounded-lg border p-3">
-              <p className="text-xs font-semibold">{t("Preventivo rapido")}</p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">{t("Poche righe e un totale: una bozza pronta in un minuto, da rifinire poi.")}</p>
-            </div>
-            <div className="rounded-lg border p-3">
-              <p className="text-xs font-semibold">{t("Preventivo avanzato")}</p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">{t("Articoli a listino, sconti, clausole e PDF completo da inviare per la firma.")}</p>
-            </div>
+        srProgetti.length === 0 && fvProgetti.length === 0 && !srLoading && !fvLoading ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center gap-2">
+            <FileText className="h-7 w-7 text-muted-foreground/50" />
+            <p className="text-sm text-muted-foreground">{t("Nessun preventivo per questo contatto")}</p>
           </div>
-        </div>
+        ) : null
       ) : (
         <div className="space-y-2">
           {preventiviOrdinati.filter((q: any) => filtroStato === "tutti" || gruppoDi(q.status) === filtroStato).map((q: any) => {

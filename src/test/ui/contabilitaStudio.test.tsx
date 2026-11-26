@@ -183,3 +183,25 @@ it("il bilancio al termine scelto esclude le scritture successive dalla stampa",
   expect(await screen.findByTestId("stampa")).toHaveTextContent("31/01/2026");
   expect(screen.getByTestId("stampa")).not.toHaveTextContent("40,00");
 });
+
+// 25/11/2026: una scrittura nata da una fattura, finché il periodo è provvisorio, si
+// corregge e si elimina dalla pagina. Prima si poteva solo rifare il documento.
+it("corregge ed elimina una scrittura nata da una fattura, finché il periodo è provvisorio", async () => {
+  apri("scritture");
+  fireEvent.click(await screen.findByRole("button", { name: "Apri scrittura 3/2026" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Modifica scrittura" }));
+  expect(screen.getByRole("heading", { name: "Modifica scrittura provvisoria" })).toBeInTheDocument();
+  for (const campo of screen.getAllByDisplayValue("40")) fireEvent.change(campo, { target: { value: "45" } });
+  fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
+  await waitFor(() => expect(state.rpc.filter((r) => r.fn === "contabilita_modifica_scrittura").at(-1)?.args).toMatchObject({
+    p_scrittura: "s3", p_righe: [{ conto_id: "materie", dare: 45, avere: 0 }, { conto_id: "fornitori", dare: 0, avere: 45 }],
+  }));
+  fireEvent.click(await screen.findByRole("button", { name: "Apri scrittura 3/2026" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Elimina scrittura" }));
+  expect(screen.getByText(/resta fuori dal giornale finché non lo riprendi/)).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Motivo dell’eliminazione"), { target: { value: "Fattura doppia" } });
+  fireEvent.click(screen.getByRole("button", { name: "Elimina scrittura" }));
+  await waitFor(() => expect(state.rpc.filter((r) => r.fn === "contabilita_elimina_scrittura").at(-1)?.args).toMatchObject({
+    p_scrittura: "s3", p_motivo: "Fattura doppia",
+  }));
+});

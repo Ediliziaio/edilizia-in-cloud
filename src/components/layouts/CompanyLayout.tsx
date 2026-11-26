@@ -92,6 +92,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useGarePilot } from "@/modules/gare-appalti/useGarePilot";
 import { macroAreas, type NavItem, type MacroArea } from "@/lib/sidebarConfig";
 import { getSmartCruscottoPath } from "@/lib/dashboardRouting";
 import { canAccessMediaLibrary } from "@/lib/mediaLibrary";
@@ -880,7 +881,8 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
   }, [allGroups, query, voci, managementMode]);
 
   const navLinkClass =
-    "flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent";
+    // 25/11/2026: stessa scala del menu principale (VOCE_MENU_COMPATTA): testo 11,5px, icone 14px.
+    "flex items-center gap-2.5 rounded-md px-3 py-1.5 text-[11.5px] text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent [&>svg]:!h-3.5 [&>svg]:!w-3.5";
   const navLinkActive =
     "bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary";
 
@@ -891,13 +893,15 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
         <Button
           variant="ghost"
           size="sm"
-          className="justify-start gap-2 mb-2 text-muted-foreground hover:text-foreground w-full"
-          onClick={() => navigate("/azienda")}
+          className="justify-start gap-2 mb-1.5 h-7 px-2 text-xs text-muted-foreground hover:text-foreground w-full"
+          // Uscendo dalle impostazioni si torna sempre ad Attività (richiesta del 25/11/2026):
+          // «/azienda» portava al cruscotto o a pagine diverse secondo il ruolo.
+          onClick={() => navigate("/azienda/attivita")}
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-3.5 w-3.5" />
           {t("Torna indietro")}
         </Button>
-        <h2 className="text-lg font-semibold px-3 mb-3">{t("Impostazioni")}</h2>
+        <h2 className="text-base font-semibold px-2 mb-2">{t("Impostazioni")}</h2>
 
         {/* Barra di ricerca fuzzy */}
         <div className="relative mb-2">
@@ -906,7 +910,7 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder={t("Cerca impostazioni…")}
-            className="pl-8 h-8 text-sm bg-muted/40 border-0 focus-visible:ring-1"
+            className="pl-8 h-8 text-xs bg-muted/40 border-0 focus-visible:ring-1"
             aria-label={t("Cerca nelle impostazioni")}
           />
         </div>
@@ -1093,7 +1097,9 @@ const CompanySidebar = memo(function CompanySidebar({ badgePronti }: { badgePron
   }, [isImpersonating, exitImpersonation, navigate, signOut]);
 
   // La partita doppia si vede solo con «Contabilità generale in casa» accesa.
+  const showGarePilot = !!useGarePilot().role;
   const filterNavItems = useCallback((items: NavItem[]) => {
+    const visible = items.filter(item => !item.garePilotOnly || showGarePilot);
     // v8.6.83 — Demo Mode policy:
     //   - featureKey con access_level=preview → visibile con badge DEMO
     //   - featureKey con access_level=disabled → nascosta
@@ -1127,7 +1133,7 @@ const CompanySidebar = memo(function CompanySidebar({ badgePronti }: { badgePron
     };
 
     if (permissions.isLoading || gatingLoading) {
-      return applyCommercialistaScope(items.filter((item) => {
+      return applyCommercialistaScope(visible.filter((item) => {
         if (item.url === "/azienda/contenuti-multimediali") return true;
         if (item.demoCompanyOnly && !isDemoBaseline) return false;
         if (item.multiCompanyOnly && !hasMultipleCompanies) return false;
@@ -1138,7 +1144,7 @@ const CompanySidebar = memo(function CompanySidebar({ badgePronti }: { badgePron
         return true;
       }));
     }
-    return applyCommercialistaScope(items.filter((item) => {
+    return applyCommercialistaScope(visible.filter((item) => {
       if (item.url === "/azienda/contenuti-multimediali" && !canAccessMediaLibrary(permissions)) {
         return false;
       }
@@ -1179,7 +1185,11 @@ const CompanySidebar = memo(function CompanySidebar({ badgePronti }: { badgePron
         ) {
           return false;
         }
-      } else if (item.permissionKey && permissions[item.permissionKey as keyof typeof permissions] !== true) {
+      } else if (
+        item.permissionKey &&
+        permissions[item.permissionKey as keyof typeof permissions] !== true &&
+        !(item.orPermissionKey && permissions[item.orPermissionKey as keyof typeof permissions] === true)
+      ) {
         return false;
       }
       // Gate inverso: nascondi la voce a chi HA questo permesso (evita doppioni tra
@@ -1208,7 +1218,7 @@ const CompanySidebar = memo(function CompanySidebar({ badgePronti }: { badgePron
       }
       return true;
     }));
-  }, [permissions, gatingLoading, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, isDemoBaseline, limitsLoading, currentPlan, isCommercialistaMode, hasMultipleCompanies, schedeManodopera, effectiveCompany?.management_mode]);
+  }, [showGarePilot, permissions, gatingLoading, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, isDemoBaseline, limitsLoading, currentPlan, isCommercialistaMode, hasMultipleCompanies, schedeManodopera, effectiveCompany?.management_mode]);
 
   const { state: sidebarState, toggleSidebar, isMobile: sidebarAPannello } = useSidebar();
   const isCollapsed = sidebarState === "collapsed" && !sidebarAPannello;
@@ -1705,7 +1715,15 @@ export function CompanyLayout() {
     <>
     {/* Sui tablet anche in orizzontale il menu si apre sopra il contenuto. */}
     <SidebarProvider pannelloSotto={1280}>
-      <div className={`md:min-h-screen flex w-full ${altezzaBloccata ? "md:h-dvh" : "md:h-auto"} h-[calc(100dvh-env(safe-area-inset-top))] overflow-hidden`}>
+      {/* Da tablet in su la pagina scorre con la finestra, non dentro <main>: con
+          `overflow: hidden/auto` qui e su <main> il browser prendeva loro come
+          riferimento per gli elementi «sticky», e quelli non si incollavano mai
+          (le schede della commessa sparivano scorrendo). `overflow-x: clip`
+          continua a tagliare di lato senza creare un contenitore di scorrimento;
+          `hidden` creerebbe di nuovo il problema, e `visible` su un asse solo
+          diventa `auto` da specifica. Su telefono resta tutto com'era: lì <main>
+          scorre davvero, e lo sticky funzionava già. */}
+      <div className={`md:min-h-screen flex w-full ${altezzaBloccata ? "md:h-dvh" : "md:h-auto"} h-[calc(100dvh-env(safe-area-inset-top))] overflow-hidden ${altezzaBloccata ? "" : "md:overflow-x-clip md:overflow-y-visible"}`}>
         <CompanySidebar badgePronti={deferredRealtimeReady} />
         {/* NIENTE pt-safe qui: il top safe-area è già riservato UNA volta dal
             padding-top del body (html.capacitor body). Aggiungerlo qui lo
@@ -1714,7 +1732,9 @@ export function CompanyLayout() {
             (la bottom-nav resta visibile sopra l'home indicator). */}
         {/* relative: ancora la bottom-nav pillola (absolute) al fondo del
             container — overlay sul contenuto, niente fascia di layout. */}
-        <div className="relative flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Stessa ragione del contenitore sopra: `overflow-hidden` qui faceva da
+            contenitore di scorrimento e rompeva gli «sticky» dentro la pagina. */}
+        <div className={`relative flex-1 flex flex-col min-w-0 overflow-hidden ${altezzaBloccata ? "" : "md:overflow-x-clip md:overflow-y-visible"}`}>
           {/* Skip to main content — keyboard / screen-reader accessibility */}
           <a
             href="#main-content"
@@ -1839,7 +1859,7 @@ export function CompanyLayout() {
               "spazi vuoti ai lati quando scrollo") — le tabelle scrollano nei loro wrapper */}
           {/* pb mobile ≈ altezza pillola flottante + safe-area: l'ultimo
               elemento resta raggiungibile sopra il vetro della bottom-nav. */}
-          <main className={`flex-1 ${altezzaBloccata ? "min-h-0" : ""} overflow-y-auto overflow-x-hidden ${paddingMain} bg-muted/30`} id="main-content" aria-label={t("Contenuto principale")}>
+          <main className={`flex-1 ${altezzaBloccata ? "min-h-0" : ""} overflow-y-auto overflow-x-hidden ${altezzaBloccata ? "" : "md:overflow-x-clip md:overflow-y-visible"} ${paddingMain} bg-muted/30`} id="main-content" aria-label={t("Contenuto principale")}>
             <ErrorBoundary title={t("Errore nel caricamento della pagina")} resetKey={location.pathname}>
               {/* Skeleton (non spinner) al cambio pagina: percezione di velocità sul primo paint mobile */}
               <Suspense fallback={

@@ -50,6 +50,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCurrencyCompact } from "@/lib/formatters";
 import { safeNumber } from "@/lib/numberUtils";
 import { cn } from "@/lib/utils";
+import { useGraficiRicordati } from "@/hooks/useGraficiRicordati";
+import { BottoneGrafici } from "@/components/shared/BottoneGrafici";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 type ExecutiveTone = "green" | "orange" | "red" | "blue";
@@ -80,12 +82,12 @@ function SedeFilterBarMarketing() {
   // Grafico "Analytics per Sede" (recharts): vetrina desktop → non su mobile.
   if (isMobile || sedi.length === 0) return null;
   return (
-    <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
+    <div className="space-y-2 rounded-2xl border border-border bg-card px-4 py-3 shadow-sm">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <span className="text-sm font-semibold text-eic-navy">{t("Analytics per Sede")}</span>
         <SedeFilterBar />
       </div>
-      <LeadPerSedeChart />
+      <LeadPerSedeChart vuotoInRiga />
     </div>
   );
 }
@@ -96,6 +98,9 @@ export default function MarketingDashboard() {
   const { activeTab, switchTab, tabs, visibleTabs, toggleTabVisibility } = useDashboardLayout();
   const { effectiveCompany } = useAuth();
   const isMobile = useIsMobile();
+  // Grafici chiusi di partenza: in cima le cose da fare e le tabelle (25/11/2026).
+  const [graficiAperti, setGraficiAperti] = useGraficiRicordati("dashboard-marketing");
+  const grafici = graficiAperti && !isMobile;
   useMetaLeadNotifications();
   const { isScopriPlan } = useSubscriptionLimits();
   const companyId = effectiveCompany?.id;
@@ -138,7 +143,7 @@ export default function MarketingDashboard() {
       });
     },
     // Grafico trend 12 mesi non mostrato su mobile → non scaricarne i dati.
-    enabled: !!companyId && !isMobile,
+    enabled: !!companyId && grafici,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -390,6 +395,7 @@ export default function MarketingDashboard() {
           <>
             {/* Aggiorna come icona; obiettivi, sezioni ed esportazione in «Altro»:
                 prima erano quattro bottoni uguali accanto ai filtri */}
+            {!isMobile && <BottoneGrafici aperti={graficiAperti} onCambia={setGraficiAperti} />}
             <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg border-border shadow-none" onClick={aggiornaTutto} disabled={isLoading} aria-label={tr("Aggiorna")} title={tr("Aggiorna")}>
               <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
             </Button>
@@ -432,21 +438,16 @@ export default function MarketingDashboard() {
       {/* P3.4 — skeleton placeholder durante il primo caricamento */}
       {isLoading && !data?.kpi && (
         <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-          <div className="grid gap-0 xl:grid-cols-[minmax(340px,0.58fr)_minmax(540px,1fr)]">
-            <div className="bg-eic-navy-deep p-5 text-white sm:p-6">
-              <div className="flex items-center gap-3">
-                <Loader2 className="h-5 w-5 animate-spin text-orange-200" />
-                <p className="text-sm text-blue-50/85">{tr("Caricamento KPI commerciali…")}</p>
-              </div>
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                {[0, 1, 2, 3].map((i) => (
-                  <div key={i} className="h-[88px] animate-pulse rounded-xl border border-white/12 bg-white/9" />
-                ))}
-              </div>
+          <div className="flex flex-col gap-3 bg-eic-navy-deep px-4 py-3 text-white xl:flex-row xl:items-center xl:gap-4">
+            <div className="flex items-center gap-3 xl:w-[360px] xl:shrink-0">
+              <Loader2 className="h-4 w-4 animate-spin text-orange-200" />
+              <p className="text-sm text-blue-50/85">{tr("Caricamento KPI commerciali…")}</p>
             </div>
-            <aside className="border-t border-border bg-gradient-to-br from-white to-orange-50/50 p-5 xl:border-l xl:border-t-0">
-              <div className="h-[260px] animate-pulse rounded-xl border border-border/60 bg-muted" />
-            </aside>
+            <div className="grid flex-1 grid-cols-2 gap-2 lg:grid-cols-4">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="h-[58px] animate-pulse rounded-lg border border-white/12 bg-white/9" />
+              ))}
+            </div>
           </div>
         </section>
       )}
@@ -473,72 +474,66 @@ export default function MarketingDashboard() {
       {/* Executive Summary commerciale (stessa struttura del Cruscotto) */}
       {data?.kpi && (
         <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-          <div className="grid gap-0 xl:grid-cols-[minmax(340px,0.58fr)_minmax(540px,1fr)]">
-            {/* Telefono: titolo, bottone e quattro numeri 2×2; via icona, occhiello e spiegazione. */}
-            <div className="bg-eic-navy-deep p-5 text-white sm:p-6 max-sm:p-4">
-              {/* 15/11/2026: tra 1280 e 1535 px la colonna è stretta (circa 370 px): titolo e
-                  bottone uno sotto l'altro, e niente icone nei quattro riquadri, che si
-                  troncavano («LEAD PERIO…», «4 · 413…»). */}
-              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between xl:flex-col 2xl:flex-row max-sm:gap-3">
-                <div className="flex min-w-0 gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] max-sm:hidden">
-                    {executiveState.tone === "green" ? <ShieldCheck className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
+            {/* 25/11/2026: una sola fascia bassa — stato e bottone a sinistra, i quattro
+                numeri in fila (cifre a 16px). Il grafico dei 12 mesi sta sotto, col bottone
+                «Grafici». Telefono: titolo, bottone e quattro numeri 2×2, come prima. */}
+            <div className="bg-eic-navy-deep px-4 py-3 text-white max-sm:p-4">
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:gap-4">
+                <div className="flex min-w-0 items-start justify-between gap-3 xl:w-[360px] xl:shrink-0">
+                  <div className="flex min-w-0 gap-2.5">
+                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber text-white max-sm:hidden">
+                      {executiveState.tone === "green" ? <ShieldCheck className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
+                    </div>
+                    <div className="min-w-0">
+                      <h2 className="text-[15px] font-semibold leading-5 text-white max-sm:text-base">{executiveState.title}</h2>
+                      <p className="mt-0.5 line-clamp-2 text-xs leading-4 text-blue-50/80 max-sm:hidden" title={executiveState.detail}>{executiveState.detail}</p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-100 max-sm:hidden">{tr("Quadro commerciale")}</p>
-                    <h2 className="mt-1 text-xl font-semibold text-white max-sm:mt-0 max-sm:text-base">{executiveState.title}</h2>
-                    <p className="mt-1 max-w-2xl text-sm leading-6 text-blue-50/85 max-sm:hidden">{executiveState.detail}</p>
-                  </div>
+                  <Button
+                    asChild
+                    size="sm"
+                    className="h-8 w-fit shrink-0 bg-card px-2.5 text-xs text-orange-600 shadow-sm hover:bg-orange-50"
+                  >
+                    <Link to={executiveState.route}>
+                      {executiveState.cta}
+                      <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
+                    </Link>
+                  </Button>
                 </div>
-                <Button
-                  asChild
-                  size="sm"
-                  className="w-fit shrink-0 bg-card text-orange-600 shadow-sm hover:bg-orange-50"
-                >
-                  <Link to={executiveState.route}>
-                    {executiveState.cta}
-                    <ArrowUpRight className="ml-1.5 h-3.5 w-3.5" />
-                  </Link>
-                </Button>
-              </div>
 
-              <div className="mt-6 grid gap-3 sm:grid-cols-2 max-sm:mt-3 max-sm:grid-cols-2 max-sm:gap-2">
-                {executiveKpis.map((item, i) => {
-                  const Icon = item.icon;
-                  return (
-                    <Comparsa key={item.label} indice={i} className="rounded-xl border border-white/12 bg-white/9 p-4 transition-colors hover:bg-white/[0.13] max-sm:px-3 max-sm:py-2">
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={cn(
-                            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 max-sm:hidden xl:hidden 2xl:flex",
-                            item.tone === "green" && "text-emerald-100",
-                            item.tone === "red" && "text-red-100",
-                            item.tone === "orange" && "text-orange-100",
-                            item.tone === "blue" && "text-blue-100",
-                          )}
-                        >
-                          <Icon className="h-4 w-4" />
-                        </span>
-                        <span className="min-w-0">
+                <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 lg:grid-cols-4">
+                  {executiveKpis.map((item, i) => {
+                    const Icon = item.icon;
+                    return (
+                      <Comparsa key={item.label} indice={i} className="min-w-0 rounded-lg border border-white/12 bg-white/9 px-3 py-1.5 transition-colors hover:bg-white/[0.13] max-sm:py-2">
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <Icon
+                            className={cn(
+                              "h-3.5 w-3.5 shrink-0 max-sm:hidden",
+                              item.tone === "green" && "text-emerald-200",
+                              item.tone === "red" && "text-red-200",
+                              item.tone === "orange" && "text-orange-200",
+                              item.tone === "blue" && "text-blue-200",
+                            )}
+                          />
                           <span className="block truncate text-[11px] font-semibold uppercase tracking-wide text-blue-100 max-sm:font-medium max-sm:normal-case max-sm:tracking-normal">{item.label}</span>
-                          <span className="block truncate text-xl font-bold text-white max-sm:text-base">{item.value}</span>
-                          <span className="mt-0.5 flex min-w-0 items-center gap-1.5">
-                            <PillolaVariazione pct={item.variazione} suScuro titolo={tr("Rispetto al periodo precedente")} className="shrink-0" />
-                            <span className="block truncate text-xs text-blue-50/70 max-sm:hidden">{item.hint}</span>
-                          </span>
                         </span>
-                      </div>
-                    </Comparsa>
-                  );
-                })}
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className="block shrink-0 truncate text-base font-bold tabular-nums text-white">{item.value}</span>
+                          <PillolaVariazione pct={item.variazione} suScuro titolo={tr("Rispetto al periodo precedente")} className="shrink-0" />
+                        </span>
+                        <span className="block truncate text-[11px] leading-4 text-blue-50/70 max-sm:hidden" title={item.hint}>{item.hint}</span>
+                      </Comparsa>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
-            {/* Grafico 12 mesi (recharts, multi-serie): "vetrina" desktop,
-                pesante e illeggibile su telefono. I numeri chiave sono già
-                nelle KPI del riquadro sopra → su mobile nascondiamo il grafico. */}
-            {!isMobile && (
-            <aside className="border-t bg-gradient-to-br from-card to-orange-50/50 p-5 dark:to-orange-500/5 xl:border-l xl:border-t-0">
+            {/* Grafico 12 mesi (recharts, multi-serie): "vetrina" desktop, dietro il
+                bottone «Grafici». Sul telefono non c'è: i numeri chiave sono sopra. */}
+            {grafici && (
+            <aside className="border-t bg-gradient-to-br from-card to-orange-50/50 p-4 dark:to-orange-500/5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase text-muted-foreground">{tr("Andamento 12 mesi")}</p>
@@ -670,14 +665,15 @@ export default function MarketingDashboard() {
               )}
             </aside>
             )}
-          </div>
         </section>
       )}
 
       {/* Aree di controllo — stesso wrapper del Cruscotto */}
       {data?.kpi && (
         <section className="rounded-2xl border border-border bg-card p-3 shadow-sm sm:p-4">
-          {/* Telefono: niente intestazione di sezione, parlano i tre tasselli. */}
+          {/* Telefono: niente intestazione di sezione, parlano i tre tasselli.
+              Computer coi grafici chiusi: neanche, si parte dalle cose da fare. */}
+          {grafici && (
           <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between max-sm:hidden">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{tr("Aree di controllo")}</p>
@@ -685,8 +681,11 @@ export default function MarketingDashboard() {
             </div>
             <p className="text-sm text-muted-foreground">{tr("Lo stato commerciale resta sopra. Qui sotto trovi i dettagli per area.")}</p>
           </div>
+          )}
 
-          {/* Telefono: lead, pipeline e conversioni sono già nei quattro numeri in cima. */}
+          {/* Telefono: lead, pipeline e conversioni sono già nei quattro numeri in cima.
+              Computer: semaforo e salute commerciale stanno coi grafici. */}
+          {grafici && (
           <div className="border-b border-border pb-3 mb-3 max-sm:hidden">
             <SemaforoMarketing
               leadsTotal={data.kpi.leads_total}
@@ -699,10 +698,12 @@ export default function MarketingDashboard() {
               contractsWon={data.kpi.contracts_won}
             />
           </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 sm:gap-4 mb-3">
             {/* Salute commerciale: pannello-vetrina → nascosto su mobile;
                 resta "Azioni commerciali" (le cose da fare). */}
+            {grafici && (
             <div className="hidden lg:col-span-2 lg:block">
               <SaluteCommerciale
                 leadsNew={data.kpi.leads_new}
@@ -718,8 +719,10 @@ export default function MarketingDashboard() {
                 isLoading={isLoading}
               />
             </div>
-            <div className="lg:col-span-3">
+            )}
+            <div className={grafici ? "lg:col-span-3" : "lg:col-span-5"}>
               <AzioniCommerciali
+                inRiga={!grafici}
                 staleLeads={data.alerts?.stale_leads ?? 0}
                 staleLeads2h={data.alerts?.stale_leads_2h ?? 0}
                 showRate={data.kpi.show_rate}
@@ -751,7 +754,7 @@ export default function MarketingDashboard() {
             </TabsList>
 
             <TabsContent value="panoramica" className="mt-4">
-              <TabPanoramica data={data} isLoading={isLoading} filters={filters} assignedUserIds={effectiveAssignedIds} />
+              <TabPanoramica data={data} isLoading={isLoading} filters={filters} assignedUserIds={effectiveAssignedIds} mostraGrafici={grafici} />
             </TabsContent>
             <TabsContent value="pipeline" className="mt-4">
               <TabPipeline data={data} isLoading={isLoading} filters={filters} assignedUserIds={effectiveAssignedIds} />
@@ -776,7 +779,7 @@ export default function MarketingDashboard() {
       )}
 
       {/* Sede analytics (se presenti sedi) */}
-      <SedeFilterBarMarketing />
+      {grafici && <SedeFilterBarMarketing />}
 
       {/* Error banner */}
       {error && !isLoading && (

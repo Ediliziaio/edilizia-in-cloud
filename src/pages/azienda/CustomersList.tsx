@@ -58,7 +58,6 @@ import {
   CustomerImportDialog,
   type ImportOptions,
 } from "@/components/clients/CustomerImportDialog";
-import { NavyStatCard } from "@/components/costi/KpiCard";
 import { logger } from "@/utils/logger";
 // MP-CAN-001 Fase 2 — types/constants/formatters/anomalies estratti
 import type {
@@ -842,7 +841,8 @@ function CustomersListInner() {
 
   // ── Render ─────────────────────────────────────────────
   return (
-    <div className="space-y-4 sm:space-y-6">
+    // 25/11/2026: blocchi a 16px l'uno dall'altro anche da tablet (erano 24).
+    <div className="space-y-4">
       {/* Header */}
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 py-3 sm:py-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -850,7 +850,8 @@ function CustomersListInner() {
             <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
               <Users className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
-            <div className="min-w-0">
+            {/* Da tablet Clienti/Committenti sta accanto al titolo (25/11/2026): era una riga sotto. */}
+            <div className="min-w-0 sm:flex sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1">
               <h1 className="text-lg font-bold leading-tight tracking-tight text-slate-900 sm:text-xl">
                 {sonoCommittenti ? t("Committenti") : t("Clienti")}
               </h1>
@@ -860,7 +861,7 @@ function CustomersListInner() {
                   : t("Gestisci anagrafica, ordini, accessi al portale e import da file o AI.")}
               </p>
               {moduloAppaltatori && (
-                <div className="mt-2 inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-medium shadow-sm">
+                <div className="mt-2 inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-medium shadow-sm sm:mt-0">
                   {([
                     { v: "privato" as const, label: t("Clienti") },
                     { v: "appaltatore" as const, label: t("Committenti") },
@@ -871,7 +872,7 @@ function CustomersListInner() {
                       aria-pressed={divisione === v}
                       onClick={() => cambiaDivisione(v)}
                       className={cn(
-                        "rounded-md px-3 py-1.5 transition-colors max-sm:min-h-9 max-sm:px-4 max-sm:text-[13px]",
+                        "rounded-md px-3 py-1.5 transition-colors sm:py-1 max-sm:min-h-9 max-sm:px-4 max-sm:text-[13px]",
                         divisione === v ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100",
                       )}
                     >
@@ -1008,58 +1009,45 @@ function CustomersListInner() {
       {/* Mobile no: i numeri erano già nascosti e restava un riquadro blu vuoto
           con scritto «Clienti». */}
       {/* Senza l'etichetta «Clienti»: ripeteva il titolo della pagina. */}
-      <div className="hidden rounded-2xl bg-eic-navy-deep px-3 py-2 sm:block">
+      {/* 25/11/2026: i quattro numeri su una riga sola (87 → 34px); la nota di ogni
+          numero è nel suo titolo, la variazione del mese resta scritta. */}
+      <div className="hidden rounded-xl bg-eic-navy-deep px-3 py-1.5 sm:block">
         {statsLoading ? (
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+          <div className="flex items-center gap-6 py-0.5">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="rounded-lg border border-white/12 bg-white/9 px-2.5 py-1.5">
-                <Skeleton className="mb-2 h-3 w-20 bg-white/20" />
-                <Skeleton className="h-6 w-12 bg-white/20" />
-              </div>
+              <Skeleton key={i} className="h-4 w-28 bg-white/20" />
             ))}
           </div>
         ) : statsError ? (
-          <div className="flex items-start gap-2 rounded-xl border border-white/12 bg-white/9 p-3 text-sm">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-orange-300" />
-            <div>
-              <p className="font-semibold text-white">{t("Dashboard non disponibile")}</p>
-              <p className="mt-1 text-xs text-blue-100">
-                {statsError instanceof Error ? statsError.message : t("Errore statistiche")}
-              </p>
-            </div>
+          <div className="flex items-center gap-2 text-sm">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-orange-300" />
+            <p className="font-semibold text-white">{t("Dashboard non disponibile")}</p>
+            <p className="truncate text-xs text-blue-100">
+              {statsError instanceof Error ? statsError.message : t("Errore statistiche")}
+            </p>
           </div>
         ) : (
-          <div className="hidden sm:grid sm:grid-cols-4 sm:gap-1.5">
-            <NavyStatCard
-              label={t("Totale clienti")}
-              value={stats?.total ?? 0}
-              sub="in anagrafica"
-              icon={Users}
-              tone="text-blue-100"
-            />
-            <NavyStatCard
-              label={t("Nuovi questo mese")}
-              value={stats?.month_current ?? 0}
-              sub={trend != null ? `${trend.positive ? "+" : ""}${trend.value}% vs mese scorso` : "vs mese scorso"}
-              icon={UserPlus}
-              tone="text-emerald-300"
-            />
-            <div className="hidden sm:contents">
-              <NavyStatCard
-                label={t("Con ordini")}
-                value={stats?.with_orders ?? 0}
-                sub="almeno 1 ordine"
-                icon={ShoppingBag}
-                tone="text-blue-100"
-              />
-              <NavyStatCard
-                label={t("Senza accesso al portale")}
-                value={stats?.portal_disabled ?? 0}
-                sub="clienti con accesso disattivato"
-                icon={ShieldOff}
-                tone="text-blue-100"
-              />
-            </div>
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+            {([
+              { label: t("Totale clienti"), value: stats?.total ?? 0, sub: "in anagrafica", icon: Users, tone: "text-blue-100" },
+              {
+                label: t("Nuovi questo mese"),
+                value: stats?.month_current ?? 0,
+                sub: trend != null ? `${trend.positive ? "+" : ""}${trend.value}% vs mese scorso` : "vs mese scorso",
+                icon: UserPlus,
+                tone: "text-emerald-300",
+                subScritta: trend != null,
+              },
+              { label: t("Con ordini"), value: stats?.with_orders ?? 0, sub: "almeno 1 ordine", icon: ShoppingBag, tone: "text-blue-100" },
+              { label: t("Senza accesso al portale"), value: stats?.portal_disabled ?? 0, sub: "clienti con accesso disattivato", icon: ShieldOff, tone: "text-blue-100" },
+            ]).map(({ label, value, sub, icon: Icon, tone, subScritta }) => (
+              <span key={label} title={sub} className="flex min-w-0 items-center gap-2 text-xs">
+                <Icon className={cn("h-3.5 w-3.5 shrink-0", tone)} />
+                <span className="text-blue-100">{label}</span>
+                <span className="text-base font-semibold tabular-nums leading-6 text-white">{value}</span>
+                {subScritta && <span className="text-[11px] text-blue-50/70">{sub}</span>}
+              </span>
+            ))}
           </div>
         )}
       </div>
@@ -1281,18 +1269,16 @@ function CustomersListInner() {
           ("il troppo non va bene" sul telefono). */}
       {customers.length > 0 && anomalyTotals.total > 0 && (
         <Card className="hidden md:block border-l-4 border-l-amber-500 bg-amber-50/40 dark:bg-amber-950/10">
-          <CardContent className="py-2.5">
-            <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center xl:justify-between">
+          {/* 25/11/2026: più bassa (77 → ~44px): ogni cliente su una riga sola. */}
+          <CardContent className="py-1.5">
+            <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-sm font-semibold text-slate-900">{t("Anomalie clienti")}</h2>
+                  <h2 className="text-sm font-semibold text-slate-900" title={t("Controllo operativo sui clienti visibili: dati mancanti, portale, venditore e cantiere.")}>{t("Anomalie clienti")}</h2>
                   <Badge variant="outline" className="border-red-300 bg-white text-red-700">{t("{n} critiche", { n: anomalyTotals.high ?? 0 })}</Badge>
                   <Badge variant="outline" className="border-amber-300 bg-white text-amber-700">{t("{n} da gestire", { n: anomalyTotals.medium ?? 0 })}</Badge>
                   <Badge variant="outline" className="border-slate-300 bg-white text-slate-700">{t("{n} leggere", { n: anomalyTotals.low ?? 0 })}</Badge>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground max-2xl:hidden">
-                  {t("Controllo operativo sui clienti visibili: dati mancanti, portale, venditore e cantiere.")}
-                </p>
               </div>
 
               <div className="grid min-w-0 flex-1 gap-2 md:grid-cols-3">
@@ -1309,15 +1295,13 @@ function CustomersListInner() {
                       key={row.customer.id}
                       type="button"
                       onClick={() => navigate(`${schedaBase}/${row.customer.id}`)}
-                      className={`rounded-lg border px-3 py-2 text-left transition hover:shadow-sm ${colorClass}`}
+                      className={`flex min-w-0 items-center gap-2 rounded-lg border px-2.5 py-1 text-left transition hover:shadow-sm ${colorClass}`}
                     >
-                      <div className="flex items-center gap-2">
-                        <Icon className="h-4 w-4 shrink-0" />
-                        <span className="truncate text-xs font-semibold">{row.fullName}</span>
-                      </div>
-                      <p className="mt-1 truncate text-[11px] opacity-80">
+                      <Icon className="h-3.5 w-3.5 shrink-0" />
+                      <span className="shrink-0 truncate text-xs font-semibold max-w-[55%]">{row.fullName}</span>
+                      <span className="min-w-0 truncate text-[11px] opacity-80">
                         {main.label}{row.anomalies.length > 1 ? ` +${row.anomalies.length - 1}` : ""}
-                      </p>
+                      </span>
                     </button>
                   );
                 })}

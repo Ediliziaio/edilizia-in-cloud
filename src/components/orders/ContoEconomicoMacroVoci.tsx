@@ -1,12 +1,14 @@
 /**
  * Conto economico della commessa per macro-voci: preventivo e consuntivo uno
  * accanto all'altro, incidenza di ogni voce sui ricavi, previsto ad oggi
- * secondo l'avanzamento dei lavori, scostamento, poi margine di commessa,
- * quota di struttura e margine netto. I numeri li calcola
+ * secondo l'avanzamento dei lavori, scostamento, poi la scala dei tre margini
+ * — lordo, diretto, netto — con la squadra e la struttura in mezzo. I numeri li calcola
  * contoEconomicoCommessa (src/lib/orders), con le fonti scritte lì.
  */
+import { Fragment, useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
-import { pctIt, type ContoEconomico, type RigaConto } from "@/lib/orders/contoEconomicoCommessa";
+import { pctIt, type ContoEconomico, type RigaConto, type VoceConto } from "@/lib/orders/contoEconomicoCommessa";
 import { cn } from "@/lib/utils";
 import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
@@ -31,21 +33,50 @@ function Barra({ prev, cons }: { prev: number | null; cons: number | null }) {
   );
 }
 
-function Riga({ r }: { r: RigaConto }) {
+/** Una voce del dettaglio: da dove arriva il consuntivo di quella macro-voce. */
+export interface DettaglioVoce { id: string; label: string; value: number; nota?: string }
+
+function Riga({ r, nota, dettaglio }: { r: RigaConto; nota?: string; dettaglio?: DettaglioVoce[] }) {
   const t = useT();
+  const [aperta, setAperta] = useState(false);
+  const esplodibile = !!dettaglio && dettaglio.length > 0;
+  const etichetta = (
+    <>
+      {t(r.label)}
+      {nota && <span className="block text-[11px] font-normal text-muted-foreground">{nota}</span>}
+    </>
+  );
   return (
-    <tr className="border-t align-top">
-      <th scope="row" className="py-2 pr-3 text-left font-medium text-foreground">
-        {t(r.label)}
-        <div className="mt-1 w-32 max-w-full"><Barra prev={r.incidenzaPreventivo} cons={r.incidenzaConsuntivo} /></div>
-      </th>
-      <td className="py-2 pr-3 text-right tabular-nums">{eur(r.preventivo)}</td>
-      <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">{pctIt(r.incidenzaPreventivo)}</td>
-      <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">{eur(r.previstoAOggi)}</td>
-      <td className="py-2 pr-3 text-right font-semibold tabular-nums">{eur(r.consuntivo)}</td>
-      <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">{pctIt(r.incidenzaConsuntivo)}</td>
-      <td className="py-2 text-right tabular-nums"><Scostamento v={r.scostamento} /></td>
-    </tr>
+    <Fragment>
+      <tr className="border-t align-top">
+        <th scope="row" className="py-2 pr-3 text-left font-medium text-foreground">
+          {esplodibile ? (
+            <button type="button" className="flex items-start gap-1 text-left" aria-expanded={aperta} onClick={() => setAperta((v) => !v)}>
+              {aperta ? <ChevronDown className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : <ChevronRight className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+              <span>{etichetta}</span>
+            </button>
+          ) : etichetta}
+          <div className="mt-1 w-32 max-w-full"><Barra prev={r.incidenzaPreventivo} cons={r.incidenzaConsuntivo} /></div>
+        </th>
+        <td className="py-2 pr-3 text-right tabular-nums">{eur(r.preventivo)}</td>
+        <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">{pctIt(r.incidenzaPreventivo)}</td>
+        <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">{eur(r.previstoAOggi)}</td>
+        <td className="py-2 pr-3 text-right font-semibold tabular-nums">{eur(r.consuntivo)}</td>
+        <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">{pctIt(r.incidenzaConsuntivo)}</td>
+        <td className="py-2 text-right tabular-nums"><Scostamento v={r.scostamento} /></td>
+      </tr>
+      {esplodibile && aperta && dettaglio!.map((d) => (
+        <tr key={d.id} className="border-t bg-slate-50/60 text-[13px] dark:bg-muted/20">
+          <th scope="row" className="py-1.5 pl-5 pr-3 text-left font-normal text-muted-foreground">
+            {d.label}
+            {d.nota && <span className="ml-1.5 text-[11px]">{d.nota}</span>}
+          </th>
+          <td /><td /><td />
+          <td className="py-1.5 pr-3 text-right tabular-nums">{formatCurrency(d.value)}</td>
+          <td /><td />
+        </tr>
+      ))}
+    </Fragment>
   );
 }
 
@@ -71,10 +102,42 @@ function Totale({ label, prev, prevPct, cons, consPct, forte, tono, nota }: {
 
 const pctSu = (v: number | null, su: number) => (v == null || su <= 0 ? null : Math.round((v / su) * 1000) / 10);
 
-export function ContoEconomicoMacroVoci({ conto, mostraMargini }: { conto: ContoEconomico; mostraMargini: boolean }) {
+/** I mezzi dell'azienda su questo cantiere: una stima, non un costo registrato. */
+export interface MezziStimati {
+  estimatedCost: number;
+  vehiclesUsed: number;
+  vehicleDays: number;
+  vehiclesWithoutCost: number;
+}
+
+export function ContoEconomicoMacroVoci({ conto, mostraMargini, mezziStimati = null, dettagli }: {
+  conto: ContoEconomico;
+  mostraMargini: boolean;
+  /** Mostrata sotto «Noleggi e mezzi»: non entra nel consuntivo, che è quello della vista del margine. */
+  mezziStimati?: MezziStimati | null;
+  /** Da dove arriva il consuntivo di ogni macro-voce: la riga si apre e lo mostra. */
+  dettagli?: Partial<Record<VoceConto, DettaglioVoce[]>>;
+}) {
   const t = useT();
+  // I mezzi nostri non sono una voce a sé: stanno sotto i noleggi, come stima,
+  // perché un riquadro per loro in mezzo ai margini spezzava la lettura.
+  const notaMezzi = mezziStimati && mezziStimati.vehiclesUsed > 0
+    ? t("mezzi nostri: {giorni} giorni-mezzo, {costo} stimati fuori dal consuntivo", {
+        giorni: mezziStimati.vehicleDays,
+        costo: formatCurrency(mezziStimati.estimatedCost),
+      })
+    : undefined;
   const { avanzamento } = conto;
-  const diretti = conto.righe.filter((r) => r.gruppo === "diretti");
+  const righeDirette = conto.righe.filter((r) => r.gruppo === "diretti");
+  // Con una stima dei mezzi ma nessun noleggio fatturato la riga non esisterebbe
+  // (le voci vuote si nascondono) e la stima sparirebbe: la riga resta, a zero.
+  const diretti = notaMezzi && !righeDirette.some((r) => r.key === "noleggi")
+    ? [...righeDirette, {
+        key: "noleggi" as const, label: "Noleggi e mezzi", gruppo: "diretti" as const,
+        preventivo: null, consuntivo: 0, incidenzaPreventivo: null, incidenzaConsuntivo: 0,
+        previstoAOggi: null, scostamento: null,
+      }]
+    : righeDirette;
   const commerciali = conto.righe.filter((r) => r.gruppo === "commerciali");
   const sforate = conto.righe.filter((r) => (r.scostamento ?? 0) > 0.5);
   return (
@@ -107,12 +170,18 @@ export function ContoEconomicoMacroVoci({ conto, mostraMargini }: { conto: Conto
           <tbody>
             <Totale label={t("Ricavi")} nota={avanzamento != null ? t("Maturato al {percentuale}%: {importo}", { percentuale: avanzamento.toLocaleString(intlCampo(), { maximumFractionDigits: 0 }), importo: formatCurrency(conto.ricavoMaturato) }) : t("Contratto e varianti approvate")}
               prev={conto.ricavi} prevPct={100} cons={conto.ricavoMaturato} consPct={100} forte />
-            {diretti.map((r) => <Riga key={r.key} r={r} />)}
-            {commerciali.length > 0 && commerciali.map((r) => <Riga key={r.key} r={r} />)}
+            {diretti.map((r) => <Riga key={r.key} r={r} nota={r.key === "noleggi" ? notaMezzi : undefined} dettaglio={dettagli?.[r.key]} />)}
+            {commerciali.length > 0 && commerciali.map((r) => <Riga key={r.key} r={r} dettaglio={dettagli?.[r.key]} />)}
             <Totale label={t("Totale costi della commessa")} prev={conto.haPreventivo ? conto.costiPreventivo : null} prevPct={conto.haPreventivo ? pctSu(conto.costiPreventivo, conto.ricavi) : null}
               cons={conto.costiConsuntivo} consPct={pctSu(conto.costiConsuntivo, conto.ricavoMaturato)} />
             {mostraMargini && <>
-              <Totale label={t("Margine di commessa")} nota={t("Ricavi meno costi della commessa (primo margine)")} tono="margine" forte
+              <Totale label={t("Margine lordo")} nota={t("Ricavi meno materiali, ditte e costi variabili")} tono="margine"
+                prev={conto.margineContribuzione.preventivo} prevPct={pctSu(conto.margineContribuzione.preventivo, conto.ricavi)}
+                cons={conto.margineContribuzione.maturato} consPct={pctSu(conto.margineContribuzione.maturato, conto.ricavoMaturato)} />
+              <Totale label={t("La tua squadra sul cantiere")} nota={t("Ore degli operai interni, alla loro tariffa")}
+                prev={conto.risorseDedicate.preventivo} prevPct={pctSu(conto.risorseDedicate.preventivo, conto.ricavi)}
+                cons={conto.risorseDedicate.consuntivo} consPct={pctSu(conto.risorseDedicate.consuntivo, conto.ricavoMaturato)} />
+              <Totale label={t("Margine diretto")} nota={t("Dopo i materiali, le ditte e la tua squadra, sul lavoro fatto finora")} tono="margine" forte
                 prev={conto.haPreventivo ? conto.marginePreventivo : null} prevPct={conto.haPreventivo ? pctSu(conto.marginePreventivo, conto.ricavi) : null}
                 cons={conto.margineMaturato} consPct={pctSu(conto.margineMaturato, conto.ricavoMaturato)} />
               <Totale label={t("Costi di struttura (quota)")} nota={t("Costi generali e ufficio divisi sui cantieri attivi, per i mesi della commessa")}
@@ -132,6 +201,8 @@ export function ContoEconomicoMacroVoci({ conto, mostraMargini }: { conto: Conto
       )}
       <p className="mt-1.5 text-[11px] text-muted-foreground">
         {t("Preventivo: costo previsto delle lavorazioni (voci del preventivo, assegnazioni, costi delle righe). Consuntivo: costi registrati, gli stessi del Controllo di Gestione. Incidenza sui ricavi totali (preventivo) e sul maturato (consuntivo). La struttura è una stima gestionale: non cambia il consuntivo contabile.")}
+        {" "}
+        {t("Il margine diretto in cima alla pagina è calcolato sul contratto intero: qui, nella colonna Consuntivo, è sul lavoro fatto finora.")}
       </p>
     </section>
   );

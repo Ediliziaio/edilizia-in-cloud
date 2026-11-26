@@ -1,0 +1,19 @@
+name: Gare · Verifica del servizio documentale
+
+on:
+  push:
+    tags: [verify-automation-completion-gare-*]
+
+permissions:
+  contents: read
+
+jobs:
+  document-worker:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and verify the document worker offline
+        run: bash services/gare-appalti/verify-container.sh
+      - name: Verify synthetic documents within the free cloud instance limits
+        run: GARE_TEST_SMALL_INSTANCE=1 bash services/gare-appalti/verify-container.sh

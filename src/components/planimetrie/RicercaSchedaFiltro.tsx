@@ -106,7 +106,7 @@ export function RicercaSchedaFiltro({
           aria-label={t("Filtra per {label}", { label: label.toLocaleLowerCase("it") })}
           aria-expanded={open}
           disabled={!companyId}
-          className={`h-9 min-w-0 justify-between px-3 text-xs font-normal shadow-none ${className || "w-full"}`}
+          className={`h-8 min-w-0 justify-between px-3 text-xs font-normal shadow-none ${className || "w-full"}`}
         >
           <span className="truncate" title={caption}>
             {caption}

@@ -11,7 +11,14 @@ import { useOrderSubcontractStatistics } from "@/hooks/useOrderSubcontractStatis
 import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** No assignment editors here: Lavorazioni is the single operational entrypoint. */
-export function OrderResourceStatistics({ orderId, onManage }: { orderId: string; onManage: () => void }) {
+export function OrderResourceStatistics({ orderId, onManage, annidato = false }: {
+  orderId: string;
+  onManage: () => void;
+  /** Dentro una tendina che ha già il suo titolo: niente riquadro e niente
+   *  secondo titolo. «Squadre, ditte e costi del personale» seguito da
+   *  «Risorse e statistiche» erano due nomi per la stessa cosa, uno dentro l'altro. */
+  annidato?: boolean;
+}) {
   const t = useT();
   const number = new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 2 });
   const work = useOrderWorkPhases(orderId);
@@ -23,18 +30,26 @@ export function OrderResourceStatistics({ orderId, onManage }: { orderId: string
   const capo = access.data?.find(a => a.is_capocantiere);
   const unavailable = work.isError || crews.isError;
   const loading = work.isLoading || crews.isLoading;
-  return <Card>
-    <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0 p-4">
-      <div><CardTitle className="text-base">{t("Risorse e statistiche")}</CardTitle><p className="mt-1 text-xs text-muted-foreground">{t("Riepilogo della commessa. Le assegnazioni si gestiscono in Lavorazioni.")}</p></div>
-      <Button size="sm" variant="outline" onClick={onManage}>{t("Apri Lavorazioni")}</Button>
-    </CardHeader>
-    <CardContent className="space-y-4 p-4 pt-0">
+  const intestazione = annidato
+    ? <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs text-muted-foreground">{t("Riepilogo della commessa. Le assegnazioni si gestiscono in Lavorazioni.")}</p>
+        <Button size="sm" variant="outline" onClick={onManage}>{t("Apri Lavorazioni")}</Button>
+      </div>
+    : <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0 p-4">
+        <div><CardTitle className="text-base">{t("Risorse e statistiche")}</CardTitle><p className="mt-1 text-xs text-muted-foreground">{t("Riepilogo della commessa. Le assegnazioni si gestiscono in Lavorazioni.")}</p></div>
+        <Button size="sm" variant="outline" onClick={onManage}>{t("Apri Lavorazioni")}</Button>
+      </CardHeader>;
+  const Contenitore = annidato ? "div" : Card;
+  const Corpo = annidato ? "div" : CardContent;
+  return <Contenitore className={annidato ? "space-y-3" : undefined}>
+    {intestazione}
+    <Corpo className={annidato ? "space-y-3" : "space-y-4 p-4 pt-0"}>
       {loading ? <p role="status">{t("Caricamento statistiche…")}</p> : unavailable ? <div role="alert"><p>{t("Statistiche non disponibili. I dati mancanti non sono conteggiati come zero.")}</p><Button className="mt-2" variant="outline" onClick={() => { void work.refetch(); void crews.refetch(); }}>{t("Riprova statistiche")}</Button></div> : <>
         <dl className="grid grid-cols-2 gap-2 lg:grid-cols-4">
           {[
-            [t("Dipendenti assegnati"), stats.employees], [t("Squadre coinvolte"), stats.crews.length],
-            [t("Ditte / gruppi assegnati"), stats.companies], [t("Ore dipendenti registrate"), `${number.format(stats.hours)} h`],
-          ].map(([label, value]) => <div key={label} className="rounded-lg border bg-slate-50 p-3"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 text-xl font-semibold tabular-nums">{value}</dd></div>)}
+            [t("Dipendenti assegnati"), stats.employees], [t("Squadre interne"), stats.crews.length],
+            [t("Ditte esterne"), stats.companies], [t("Ore dipendenti registrate"), `${number.format(stats.hours)} h`],
+          ].map(([label, value]) => <div key={label} className="rounded-lg border bg-slate-50 px-3 py-2"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-0.5 text-lg font-semibold tabular-nums">{value}</dd></div>)}
         </dl>
         <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-lg border p-3 text-sm">
           <p><span className="text-muted-foreground">{t("Capocantiere:")} </span>{access.isError ? t("dato non disponibile") : access.isLoading ? t("caricamento…") : capo ? nomeAccesso(capo) : t("non assegnato")}</p>
@@ -68,6 +83,6 @@ export function OrderResourceStatistics({ orderId, onManage }: { orderId: string
         {stats.crews.length > 0 && <section aria-label={t("Riepilogo squadre")}><h3 className="mb-2 text-sm font-semibold">{t("Squadre e capisquadra")}</h3><ul className="divide-y rounded-lg border">{stats.crews.map(crew => <li key={crew.squadra_id} className="px-3 py-2 text-sm"><p className="font-medium">{crew.nome}</p><p className="text-xs text-muted-foreground">{t("{n} componenti · Caposquadra: {nome}", { n: crew.componenti.length, nome: crew.responsabile ? `${crew.responsabile.nome} ${crew.responsabile.cognome}` : t("non impostato") })}</p></li>)}</ul></section>}
         {stats.people.length + stats.crews.length === 0 && <p className="text-sm text-muted-foreground">{t("Nessuna risorsa assegnata. Organizza il lavoro in Lavorazioni.")}</p>}
       </>}
-    </CardContent>
-  </Card>;
+    </Corpo>
+  </Contenitore>;
 }

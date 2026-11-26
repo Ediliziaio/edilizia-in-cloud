@@ -1,7 +1,7 @@
 import { useParams, Link } from "react-router-dom";
 import { useDentroPopupDocumento, useIdDocumento, useNavigaDocumento } from "@/lib/orders/documentoPopup";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
-import { useDocumentoFiscale, useUpdateDocumento, useEmittiDocumento } from "@/hooks/useDocumentiFiscali";
+import { useDocumentoFiscale, useUpdateDocumento, useEmittiDocumento, useDeleteDocumento } from "@/hooks/useDocumentiFiscali";
 import { preparaCopiaDocumento, siPuoDuplicare } from "@/lib/fatturazione/duplicaDocumento";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { useAuth } from "@/contexts/AuthContext";
@@ -32,7 +32,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Copy, FileWarning, Loader2, CreditCard, AlertTriangle, CheckCircle, Send, ExternalLink, Mail, Pencil, Printer, Save, FileText, Lock } from "lucide-react";
+import { ArrowLeft, Copy, FileWarning, Loader2, CreditCard, AlertTriangle, CheckCircle, Send, ExternalLink, Mail, Pencil, Printer, Save, FileText, Lock, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { TIPI_SDI } from "@/lib/fatturazione/sdiCassetto";
@@ -87,6 +87,7 @@ export default function DocumentoDetail() {
   const fatturazioneEsterna = useBillingMode({ facoltativo: true })?.isExternal ?? false;
   const updateMutation = useUpdateDocumento();
   const emittiMutation = useEmittiDocumento();
+  const deleteMutation = useDeleteDocumento();
   const [ncLoading, setNcLoading] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfMessaggio, setPdfMessaggio] = useState<string | null>(null);
@@ -208,6 +209,15 @@ export default function DocumentoDetail() {
   const handleStatoPreventivo = (nuovoStato: "accettata" | "annullata") => {
     if (updateMutation.isPending) return;
     updateMutation.mutate({ id: doc.id, stato: nuovoStato === "accettata" ? "accettata" : "annullata" });
+  };
+
+  // Emessa e mai partita (26/11/2026): non c'è niente da stornare, si annulla e il numero
+  // torna alla serie. Dopo, l'elenco: questa scheda non esiste più fuori dal cestino.
+  const handleAnnullaMaiUscita = () => {
+    if (deleteMutation.isPending) return;
+    deleteMutation.mutate(doc.id, {
+      onSuccess: () => navigate("/azienda/documenti"),
+    });
   };
 
   return (
@@ -337,6 +347,36 @@ export default function DocumentoDetail() {
                 </Button>
               </div>
               <AlertDialogFooter><AlertDialogCancel>{t("Annulla")}</AlertDialogCancel></AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+
+        {/* Mai partita: si annulla, non si storna. Il numero torna alla serie (26/11/2026). */}
+        {!fatturazioneEsterna && maiUscita && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" disabled={deleteMutation.isPending} className="gap-1.5 text-destructive hover:text-destructive">
+                {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                {t("Annulla fattura")}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t("Annullare la fattura n° {numero}?", { numero: String(doc.numero ?? "") })}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {t("Non è mai stata inviata allo SDI, quindi non serve una nota di credito: va nel cestino e il numero {numero} torna alla serie, lo prenderà la prossima fattura.", { numero: String(doc.numero ?? "") })}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{t("Annulla")}</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={handleAnnullaMaiUscita}
+                  disabled={deleteMutation.isPending}
+                >
+                  {deleteMutation.isPending ? t("Annullamento…") : t("Annulla la fattura")}
+                </AlertDialogAction>
+              </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
         )}

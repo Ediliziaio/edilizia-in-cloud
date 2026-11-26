@@ -86,3 +86,33 @@ export function totaliSpese(spese: Pick<Spesa, "stato" | "importo" | "pagata_con
     daRimborsare: somma(s => s.stato === "approvata" && s.pagata_con === "soldi_miei"),
   };
 }
+
+/** Una segnalazione (ticket dal cantiere) fatta senza rete, con le foto (piano campo completo 1.7). */
+export interface SegnalazioneInCoda {
+  company_id: string;
+  user_id: string;
+  riga: Record<string, unknown> & { id: string };
+  foto: Array<{ path: string; blob: Blob; contentType: string; nome: string }>;
+}
+
+/** Una riga con le foto da caricare prima, fatta senza rete (sicurezza e mezzi, piano campo completo 1.7).
+ * `bucket` e `fotoTabella` dicono dove vanno le foto e (per i mezzi) la tabella che le collega. */
+export interface RigaConFotoInCoda {
+  company_id: string;
+  user_id: string;
+  riga: Record<string, unknown> & { id: string };
+  bucket: string;
+  foto: Array<{ path: string; blob: Blob; contentType: string }>;
+}
+
+/** Una spesa fatta senza rete, in coda sul telefono (piano campo completo 1.7). `user_id` e `company_id` in cima:
+ * la coda li usa per sapere di chi è e di quale azienda (syncItemScope). */
+export interface SpesaInCoda {
+  company_id: string;
+  user_id: string;
+  riga: {
+    id: string; company_id: string; user_id: string; order_id: string | null; tipo: string; importo: number;
+    descrizione: string | null; pagata_con: string; giorno: string;
+  };
+  foto?: { path: string; blob: Blob; contentType: string };
+}

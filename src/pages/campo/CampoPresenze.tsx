@@ -19,6 +19,7 @@ import { shiftWorkDay, workDayStart } from "@/lib/campo/workDay";
 import { aggiungiOreRapportini, type GiornoPresenza, type OreRapportino } from "@/lib/campo/presenzeDaRapportini";
 import { oreBrevi } from "@/lib/campo/numeriItaliani";
 import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
+import { OreApprovateMese } from "@/components/campo/OreApprovateMese";
 
 const GIORNI_SETTIMANA = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
@@ -234,6 +235,9 @@ export default function CampoPresenze() {
           </Card>
         ))}
       </div>
+
+      {/* Le ore del registro dell'ufficio, con lo stato (piano campo completo 1.3). */}
+      <OreApprovateMese mese={currentMonth} />
 
       {/* Calendario */}
       <Card>

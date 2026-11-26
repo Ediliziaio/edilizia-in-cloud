@@ -5,7 +5,11 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { supabase } from '@/integrations/supabase/client';
 import { refreshWorkQueries } from '@/lib/orders/refreshWorkQueries';
 import { assertDailyHoursCompany, dailyHoursLines, type DailyHoursPerson, type DailyHoursOrder, type DailyHoursRecord } from '@/lib/orders/dailyHours';
+import { finestreAnnuali } from '@/lib/orders/orePersone';
 import { oggiRoma } from '@/hooks/useOperai';
+
+/** Una lettura di `ufficio_leggi_ore`: una finestra di al massimo un anno. */
+type EsitoOre={data:{company_id?:string;pending?:number;records?:DailyHoursRecord[]}|null;error:{message:string}|null};
 
 /** `periodo`: da/a espliciti (es. tutta la commessa); senza, il mese scelto con setMonth. */
 export function useDailyHours(orderId?:string, periodo?:{da:string;a:string}) {
@@ -16,7 +20,19 @@ export function useDailyHours(orderId?:string, periodo?:{da:string;a:string}) {
  const [month,setMonth]=useState(oggiRoma().slice(0,7));
  const query=useQuery({queryKey:['daily-hours',companyId,orderId,periodo?`${periodo.da}..${periodo.a}`:month,p.canViewCosts],enabled:allowed,queryFn:async()=>{
   const start=periodo?.da??month+'-01'; const end=new Date(Number(month.slice(0,4)),Number(month.slice(5,7)),0).getDate();
-  const reports=(supabase as any).rpc('ufficio_leggi_ore',{p_order_id:orderId??null,p_da:start,p_a:periodo?.a??`${month}-${end}`,p_solo_riepilogo:false});
+  const stop=periodo?.a??`${month}-${end}`;
+  // `ufficio_leggi_ore` non legge più di un anno per volta: un periodo più lungo (una commessa
+  // aperta da anni) si legge a finestre di un anno e i rapportini si uniscono. Prima il chiamante
+  // tagliava il periodo a 12 mesi e il resto della commessa spariva senza dirlo.
+  const reports=(async():Promise<EsitoOre>=>{
+   const finestre=finestreAnnuali(start,stop);
+   const esiti:EsitoOre[]=await Promise.all((finestre.length?finestre:[{da:start,a:stop}]).map(f=>(supabase as any).rpc('ufficio_leggi_ore',{p_order_id:orderId??null,p_da:f.da,p_a:f.a,p_solo_riepilogo:false}) as Promise<EsitoOre>));
+   const fallita=esiti.find(e=>e.error);
+   if(fallita) return {data:null,error:fallita.error};
+   for(const e of esiti) assertDailyHoursCompany(e.data,companyId!);
+   const prima=esiti[0]?.data??null;
+   return {data:prima?{...prima,records:esiti.flatMap(e=>e.data?.records??[])}:null,error:null};
+  })();
   let jobsQuery=supabase.from('orders').select('id,order_code,description').eq('company_id',companyId!).is('deleted_at',null).order('created_at',{ascending:false}).limit(1000);
   if(orderId)jobsQuery=jobsQuery.eq('id',orderId);
   const [people,jobs,rows]=await Promise.all([

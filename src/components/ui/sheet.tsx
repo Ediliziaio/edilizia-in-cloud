@@ -88,7 +88,10 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
           <div aria-hidden="true" className="mx-auto -mt-2 mb-2 h-1.5 w-12 shrink-0 rounded-full bg-muted max-sm:hidden" />
         )}
         {children}
-        <SheetPrimitive.Close className={cn("absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity data-[state=open]:bg-secondary hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none", closeButtonClassName)}>
+        {/* Telefono: la X scende sotto l'ora e l'isola dell'iPhone (26/11/2026, founder su iPhone 17 Pro Max:
+            «in alto non c'è più e non mi fa chiudere»). Nell'app installata la pagina arriva fino al bordo:
+            con «top-4» la X stava sotto la barra di stato e non si poteva toccare. */}
+        <SheetPrimitive.Close className={cn("absolute right-4 top-4 max-sm:top-[calc(env(safe-area-inset-top)+0.75rem)] rounded-sm opacity-70 ring-offset-background transition-opacity data-[state=open]:bg-secondary hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none", closeButtonClassName)}>
           <X className="h-4 w-4" />
           <span className="sr-only">{t("Chiudi")}</span>
         </SheetPrimitive.Close>

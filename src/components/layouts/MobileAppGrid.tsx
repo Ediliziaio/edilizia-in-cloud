@@ -14,6 +14,7 @@ import { useMemo, useEffect, useState, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { X, Search, Clock, Settings as SettingsIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useGarePilot } from "@/modules/gare-appalti/useGarePilot";
 import { macroAreas, type NavItem } from "@/lib/sidebarConfig";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
@@ -57,8 +58,6 @@ const MOBILE_HIDDEN_URLS = new Set<string>([
   "/azienda/previsionale",
   "/azienda/prima-nota",
   "/azienda/corsi",
-  "/azienda/marketing/simulatore",
-  "/azienda/marketing/sales-os",
   "/azienda/marketing/reportistica",
   // 2026-09-25: il Portale formazione è la gestione dei corsi, che da
   // telefono non si imposta; i corsi si vedono da «La mia formazione» (le
@@ -296,10 +295,12 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
     if (open) setRecents(loadRecents());
   }, [open]);
 
+  const showGarePilot = !!useGarePilot().role;
   const filterNavItems = useMemo(() => {
     return (items: NavItem[]) => {
       if (permissions.isLoading) {
         return items.filter((item) => {
+        if (item.garePilotOnly && !showGarePilot) return false;
           if (!isCompanyPathAvailable(effectiveCompany?.management_mode, item.url)) return false;
           if (MOBILE_HIDDEN_URLS.has(item.url) && !(effectiveCompany?.management_mode === "accounting" && item.url === "/azienda/prima-nota")) return false;
           if (item.url === "/azienda/contenuti-multimediali") return true;
@@ -311,13 +312,18 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
         });
       }
       return items.filter((item) => {
+        if (item.garePilotOnly && !showGarePilot) return false;
         if (!isCompanyPathAvailable(effectiveCompany?.management_mode, item.url)) return false;
           if (MOBILE_HIDDEN_URLS.has(item.url) && !(effectiveCompany?.management_mode === "accounting" && item.url === "/azienda/prima-nota")) return false;
         if (item.url === "/azienda/contenuti-multimediali" && !canAccessMediaLibrary(permissions)) return false;
         if (item.demoCompanyOnly && !isDemoBaseline) return false;
         if (item.url === "/azienda/cruscotto") {
           if (!permissions.canViewCruscotto && !permissions.canViewDashboard && !permissions.canViewMarketingDashboard && !permissions.canViewCallcenterDashboard) return false;
-        } else if (item.permissionKey && permissions[item.permissionKey as keyof typeof permissions] !== true) {
+        } else if (
+          item.permissionKey &&
+          permissions[item.permissionKey as keyof typeof permissions] !== true &&
+          !(item.orPermissionKey && permissions[item.orPermissionKey as keyof typeof permissions] === true)
+        ) {
           return false;
         }
         if (item.moduleKey && !isModuleEnabled(item.moduleKey)) return false;
@@ -329,7 +335,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
         return true;
       });
     };
-  }, [permissions, isModuleEnabled, billingMode, isFeatureEnabled, isDemoBaseline, effectiveCompany?.management_mode]);
+  }, [showGarePilot, permissions, isModuleEnabled, billingMode, isFeatureEnabled, isDemoBaseline, effectiveCompany?.management_mode]);
 
   const filteredAreas = useMemo(() => {
     const aree = macroAreas

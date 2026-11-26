@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { BolleInBloccoDialog } from "@/components/ddt/BolleInBloccoDialog";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -45,6 +46,18 @@ const STATO_BADGE: Record<string, "default" | "secondary" | "outline" | "destruc
   parziale: "secondary",
   attesa: "outline",
 };
+/** 26/11/2026: stati a colori tenui, come nel resto dell'app (prima «ricevuto» era un blu pieno). */
+const STATO_COLORE: Record<string, string> = {
+  ricevuto: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  emessa: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  verificato: "border-sky-200 bg-sky-50 text-sky-700",
+  parziale: "border-amber-200 bg-amber-50 text-amber-700",
+  attesa: "border-slate-200 bg-slate-50 text-slate-600",
+  bozza: "border-slate-200 bg-slate-50 text-slate-600",
+  annullata: "border-red-200 bg-red-50 text-red-700",
+};
+const BADGE_STATO = "px-1.5 py-0 text-[11px] font-medium capitalize";
+const RIGA = "[&>td]:whitespace-nowrap [&>td]:px-3 [&>td]:py-1.5 [&>td]:text-sm";
 
 /** Stato → variante badge per i DDT in uscita (documenti_fiscali). */
 const STATO_USCITA_BADGE: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
@@ -132,31 +145,32 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
   const uscite = usciteData?.documenti ?? [];
 
   return (
-    <Tabs defaultValue="entrata" className="space-y-4">
-      <TabsList>
-        <TabsTrigger value="entrata" className="gap-1.5">
+    <Tabs defaultValue="entrata" className="space-y-2">
+      {/* Linguette e «Carica più bolle» sulla stessa riga (prima una riga ciascuno). */}
+      <div className="flex flex-wrap items-center gap-2">
+      <TabsList className="h-8">
+        <TabsTrigger value="entrata" className="h-7 gap-1.5 text-xs [&_svg]:h-3.5 [&_svg]:w-3.5">
           <ArrowDownToLine className="h-4 w-4" />
           {t("In entrata")}
           {ddts.length > 0 && (
-            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[11px]">{ddts.length}</Badge>
+            <Badge variant="secondary" className="ml-0.5 h-4 px-1 text-[10px]">{ddts.length}</Badge>
           )}
         </TabsTrigger>
-        <TabsTrigger value="uscita" className="gap-1.5">
+        <TabsTrigger value="uscita" className="h-7 gap-1.5 text-xs [&_svg]:h-3.5 [&_svg]:w-3.5">
           <Truck className="h-4 w-4" />
-          {t("In uscita")}
+          {t("DDT emessi")}
           {uscite.length > 0 && (
-            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[11px]">{uscite.length}</Badge>
+            <Badge variant="secondary" className="ml-0.5 h-4 px-1 text-[10px]">{uscite.length}</Badge>
           )}
         </TabsTrigger>
       </TabsList>
+        {!permessi.solaLettura && (
+          <Button variant="outline" size="sm" className="ml-auto h-8 px-2.5 text-xs" onClick={() => setCaricaPiu(true)}>{t("Carica più bolle")}</Button>
+        )}
+      </div>
 
       {/* ───────────────── In entrata ───────────────── */}
-      <TabsContent value="entrata">
-        {!permessi.solaLettura && (
-          <div className="mb-3 flex justify-end">
-            <Button variant="outline" size="sm" onClick={() => setCaricaPiu(true)}>{t("Carica più bolle")}</Button>
-          </div>
-        )}
+      <TabsContent value="entrata" className="mt-0">
         {caricaPiu && <BolleInBloccoDialog open onOpenChange={setCaricaPiu} destinazione="magazzino" warehouseId={warehouseFilter} />}
         {isLoading ? (
           <p className="text-muted-foreground text-center py-8" role="status" aria-live="polite">
@@ -206,16 +220,18 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
                 <TableBody>
                   {ddts.map((d) => {
                     const qta = typeof d.quantita_ricevuta === "number" ? d.quantita_ricevuta : 0;
+                    // Clic sulla riga = la bolla (righe, verifica, collegamenti); l'ordine resta su «Apri ODA».
                     return (
-                      <TableRow key={d.id}>
-                        <TableCell className="font-medium">
-                          {d.numero_ddt}
+                      <TableRow key={d.id} className={cn(RIGA, "cursor-pointer")}
+                        onClick={(e) => { if (!(e.target as HTMLElement).closest("button, a")) navigate(`/azienda/ddt/${d.id}`); }}>
+                        <TableCell className="max-w-[360px] overflow-hidden text-ellipsis whitespace-nowrap">
+                          <span className="font-medium">{d.numero_ddt}</span>
                           {d.note && (
-                            <p className="text-xs text-muted-foreground line-clamp-1 max-w-[220px]">{d.note}</p>
+                            <span className="ml-2 text-xs text-muted-foreground" title={d.note}>{d.note}</span>
                           )}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={STATO_BADGE[d.stato] ?? "outline"}>{d.stato}</Badge>
+                          <Badge variant={STATO_BADGE[d.stato] ?? "outline"} className={cn(BADGE_STATO, STATO_COLORE[d.stato])}>{d.stato}</Badge>
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                           {fmtDate(d.data_ricezione)}
@@ -224,14 +240,16 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
                         <TableCell className="text-sm text-muted-foreground">{d.warehouse?.name ?? "—"}</TableCell>
                         <TableCell className="text-center">{qta > 0 ? qta : "—"}</TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="outline"
+                          {/* Solo se c'è un ordine: senza, il bottone portava a una pagina vuota. */}
+                          {d.purchase_order_id ? <Button
+                            variant="ghost"
                             size="sm"
+                            className="h-7 px-2 text-xs"
                             onClick={() => navigate(`/azienda/ordini-acquisto/${d.purchase_order_id}`)}
                             aria-label={t("Apri ordine di acquisto collegato al DDT {numero_ddt}", { numero_ddt: String(d.numero_ddt ?? "") })}
                           >
                             {t("Apri ODA")}
-                          </Button>
+                          </Button> : <span className="text-xs text-muted-foreground">—</span>}
                         </TableCell>
                       </TableRow>
                     );
@@ -244,7 +262,7 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
       </TabsContent>
 
       {/* ───────────────── In uscita ───────────────── */}
-      <TabsContent value="uscita">
+      <TabsContent value="uscita" className="mt-0">
         {isLoadingUscite ? (
           <p className="text-muted-foreground text-center py-8" role="status" aria-live="polite">
             {t("Caricamento DDT…")}
@@ -287,15 +305,15 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
                 </TableHeader>
                 <TableBody>
                   {uscite.map((d) => (
-                    <TableRow key={d.id}>
-                      <TableCell className="font-medium">
-                        {d.numero}
+                    <TableRow key={d.id} className={RIGA}>
+                      <TableCell className="max-w-[360px] overflow-hidden text-ellipsis whitespace-nowrap">
+                        <span className="font-medium">{d.numero}</span>
                         {d.note_documento && (
-                          <p className="text-xs text-muted-foreground line-clamp-1 max-w-[220px]">{d.note_documento}</p>
+                          <span className="ml-2 text-xs text-muted-foreground" title={d.note_documento}>{d.note_documento}</span>
                         )}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={STATO_USCITA_BADGE[d.stato] ?? "outline"}>{d.stato}</Badge>
+                        <Badge variant={STATO_USCITA_BADGE[d.stato] ?? "outline"} className={cn(BADGE_STATO, STATO_COLORE[d.stato])}>{d.stato}</Badge>
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                         {fmtDate(d.data_emissione)}
@@ -310,6 +328,7 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
                             <Button
                               variant="outline"
                               size="sm"
+                              className="h-7 px-2 text-xs"
                               onClick={() => generateDDT(d.id)}
                               disabled={isGenerating}
                               aria-label={t("Scarica PDF del DDT {numero}", { numero: String(d.numero ?? "") })}

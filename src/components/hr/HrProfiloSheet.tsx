@@ -34,6 +34,7 @@ import { toast } from "sonner";
 import { usePermissions } from "@/hooks/usePermissions";
 import { normalizeHrNumbers } from "@/lib/personale/profileNumbers";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { LinguaAppDipendente } from "@/components/hr/LinguaAppDipendente";
 
 interface Props {
   open: boolean;
@@ -441,6 +442,7 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
                           />
                         </div>
                       )}
+                      {profilo?.user_id && <LinguaAppDipendente userId={profilo.user_id} />}
                     </div>
                   </div>
 

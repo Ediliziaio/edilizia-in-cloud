@@ -19,6 +19,8 @@ export function passiFineGiornata(input: {
   timbra: boolean;
   dentro: boolean;
   haTimbratoOggi: boolean;
+  /** Il capo ha detto «No, tutto a posto» al passo del materiale (piano campo completo 2.8). */
+  materialeOk?: boolean;
 }): PassoFineGiornata[] {
   const passi: PassoFineGiornata[] = [];
   const miei = input.cantieri.filter(c => c.capo);
@@ -36,7 +38,7 @@ export function passiFineGiornata(input: {
       chiave: "materiale",
       testo: "Manca qualcosa per domani?",
       dettaglio: "Dillo ora all'ufficio",
-      fatto: false,
+      fatto: !!input.materialeOk,
       link: miei.length === 1 ? `/campo/ticket/nuovo/${miei[0].order_id}?tipo=materiale` : "/campo/ticket/nuovo?tipo=materiale",
     });
   }

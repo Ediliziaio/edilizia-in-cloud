@@ -8,11 +8,15 @@ import {
   type CompanyStructureSnapshot,
   type StructureEmployee,
   type StructureFixedCost,
+  statiCheChiudono,
+  type StatoCommessa,
   type StructureOrder,
 } from "@/lib/controlloGestione/strutturaCommessa";
 
 export interface CompanyStructureResult extends CompanyStructureSnapshot {
   today: string;
+  /** Le fasi che chiudono il cantiere: serve anche alla singola commessa. */
+  statiChiusi: ReadonlySet<string>;
 }
 
 /**
@@ -29,12 +33,13 @@ export function useCompanyStructure(enabled = true) {
     enabled: enabled && !!companyId,
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<CompanyStructureResult> => {
-      const [costsRes, employeesRes, operationalRes, ordersRes, parametriRes] = await Promise.all([
+      const [costsRes, employeesRes, operationalRes, ordersRes, parametriRes, statiRes] = await Promise.all([
         leggiTutteLeRighe((da, a) => supabase
           .from("company_costs")
-          .select("amount, recurrence, recurrence_end_date, allocations, quota_magazzino", { count: "exact" })
+          .select("amount, recurrence, recurrence_end_date, allocations, quota_magazzino, category, cost_type, purchase_order_id", { count: "exact" })
           .eq("company_id", companyId!)
-          .eq("cost_type", "fixed")
+          // Anche i variabili senza commessa: non entrano nella quota mensile, ma
+          // vanno contati fra quelli «da attribuire», o spariscono dal conto economico.
           .is("order_id", null)
           // Un costo fisso già finito non pesa più sulla struttura (stesso filtro di useMarginData).
           .or(`recurrence_end_date.is.null,recurrence_end_date.gte.${new Date().toLocaleDateString("en-CA")}`)
@@ -53,7 +58,7 @@ export function useCompanyStructure(enabled = true) {
           .order("id").range(da, a)),
         leggiTutteLeRighe((da, a) => supabase
           .from("orders")
-          .select("status, percentuale_avanzamento, work_start_date, work_end_date", { count: "exact" })
+          .select("status, percentuale_avanzamento, work_start_date, work_end_date, fulfillment_status, current_status_id", { count: "exact" })
           .eq("company_id", companyId!)
           .is("deleted_at", null)
           .order("id").range(da, a)),
@@ -61,9 +66,15 @@ export function useCompanyStructure(enabled = true) {
           .from("costo_personale_parametri")
           .select("profilo, mensilita, inps, inail, cassa_edile, tfr, altri, ore_produttive")
           .eq("company_id", companyId!),
+        supabase
+          .from("order_statuses")
+          .select("id, position, is_support_phase")
+          .eq("company_id", companyId!),
       ]);
 
       if (parametriRes.error) throw parametriRes.error;
+      if (statiRes.error) throw statiRes.error;
+      const statiChiusi = statiCheChiudono((statiRes.data ?? []) as StatoCommessa[]);
 
       const today = new Date().toLocaleDateString("en-CA");
       const snapshot = calculateCompanyStructureSnapshot({
@@ -71,11 +82,12 @@ export function useCompanyStructure(enabled = true) {
         employees: employeesRes as StructureEmployee[],
         operationalEmployeeIds: operationalRes.map((row) => row.employee_id),
         orders: ordersRes as StructureOrder[],
+        statiChiusi,
         today,
         parametri: parametriDaRighe(parametriRes.data),
       });
 
-      return { ...snapshot, today };
+      return { ...snapshot, today, statiChiusi };
     },
   });
 }

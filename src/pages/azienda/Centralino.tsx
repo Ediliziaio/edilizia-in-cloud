@@ -16,6 +16,8 @@ import { CentralinoCallHistory } from "@/components/telephony/CentralinoCallHist
 import { DisponibilitaOperatore } from "@/components/telephony/DisponibilitaOperatore";
 import { RichiamiCentralino } from "@/components/telephony/RichiamiCentralino";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { BOTTONE_SECONDARIO } from "@/components/orders/TestataScheda";
+import { cn } from "@/lib/utils";
 import "@/components/ui/fish-agent-pipeline.css";
 
 const PAD = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"];
@@ -58,11 +60,11 @@ export default function Centralino() {
       <header className="eic-workspace-header eic-motion-enter flex flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-4">
         <div className="flex items-center gap-2.5">
           <span className="eic-workspace-icon"><Phone aria-hidden="true" className="size-5" /></span>
-          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{t("Centralino")}</h1>
+          <h1 className="text-xl font-semibold tracking-tight">{t("Centralino")}</h1>
         </div>
         {canViewCalls && (
-          <Button asChild variant="outline" size="sm" className="gap-1.5 max-md:hidden">
-            <Link to="/azienda/agenti-ai?tab=telefonia"><Settings2 className="h-4 w-4" /> {t("Numeri e collegamenti")}</Link>
+          <Button asChild variant="outline" size="sm" className={cn(BOTTONE_SECONDARIO, "max-md:hidden")}>
+            <Link to="/azienda/agenti-ai?tab=telefonia"><Settings2 /> {t("Numeri e collegamenti")}</Link>
           </Button>
         )}
       </header>
@@ -96,7 +98,7 @@ function CentralinoChiamate() {
   return (
     <div className="max-w-6xl space-y-3">
       {stats && (
-        <dl aria-label={t("Riepilogo delle chiamate recenti")} className="eic-workspace-header grid grid-cols-2 gap-x-4 gap-y-2 px-4 py-3 sm:grid-cols-4">
+        <dl aria-label={t("Riepilogo delle chiamate recenti")} className="eic-workspace-header grid grid-cols-2 gap-x-4 gap-y-1 px-3 py-2 sm:grid-cols-4">
           {stats.map(({ label, value }) => (
             <div key={label} className="flex flex-wrap items-baseline gap-x-2">
               <dt className="text-xs text-muted-foreground">{label}</dt>

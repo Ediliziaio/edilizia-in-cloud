@@ -9,7 +9,7 @@
  */
 import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ChevronDown, ChevronRight, Loader2, Plus } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Loader2, Plus, UsersRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDailyHours } from "@/hooks/useDailyHours";
@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { RiquadroCommessa } from "./TabellaCommessa";
 import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -120,25 +121,39 @@ export function OreEPersone({ orderId, inizioLavori }: { orderId: string; inizio
     finally { setOccupato(false); }
   };
 
-  return (
-    <section className="space-y-4 rounded-xl border bg-white p-4" aria-labelledby="ore-persone-titolo">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 id="ore-persone-titolo" className="font-semibold">{tr("Ore e persone")}</h3>
-          <p className="mt-1 text-sm text-muted-foreground">{tr("Chi ha lavorato su questa commessa, quanto, e se torna con le timbrature.")}</p>
-        </div>
-        {c.canEdit && <Button onClick={() => setInserisci({ persone: [] })} disabled={c.loading || !!c.error} className="gap-1.5"><Plus className="h-4 w-4" />{tr("Inserisci ore")}</Button>}
-      </div>
+  const numeri = c.loading || c.error ? undefined : (
+    <dl className="grid grid-cols-2 gap-2 rounded-md border bg-muted/20 p-3 sm:grid-cols-4">
+      {[
+        [tr("Ore confermate"), ore(totConfermate)],
+        [tr("In attesa di approvazione"), ore(totAttesa)],
+        [tr("Persone"), String(righe.length)],
+        ...(c.showCosts ? [[tr("Costo confermato"), totCosto == null ? tr("Da completare") : formatCurrency(totCosto)]] : []),
+      ].map(([etichetta, valore]) => (
+        <div key={etichetta}><dt className="text-xs text-muted-foreground">{etichetta}</dt><dd className="mt-1 text-sm font-semibold tabular-nums">{valore}</dd></div>
+      ))}
+    </dl>
+  );
 
+  return (
+    <RiquadroCommessa
+      id="section-ore-persone"
+      icona={<UsersRound className="h-5 w-5 text-primary" aria-hidden="true" />}
+      titolo={tr("Ore e persone")}
+      descrizione={tr("Chi ha lavorato su questa commessa, quanto, e se torna con le timbrature.")}
+      conteggio={c.loading || c.error ? undefined : righe.length}
+      azioni={c.canEdit && <Button size="sm" onClick={() => setInserisci({ persone: [] })} disabled={c.loading || !!c.error} className="gap-1.5"><Plus className="h-4 w-4" />{tr("Inserisci ore")}</Button>}
+      numeri={numeri}
+    >
+      <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <div role="radiogroup" aria-label={tr("Periodo")} className="inline-flex rounded-lg border p-0.5">
           {([["commessa", tr("Tutta la commessa")], ["mese", tr("Un mese")]] as const).map(([v, t]) => (
             <button key={v} type="button" role="radio" aria-checked={periodo === v} onClick={() => setPeriodo(v)}
-              className={`min-h-9 rounded-md px-3 ${periodo === v ? "bg-primary text-primary-foreground" : ""}`}>{t}</button>
+              className={`min-h-9 rounded-md px-3 ${periodo === v ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>{t}</button>
           ))}
         </div>
         {periodo === "mese" && <Input aria-label={tr("Mese")} type="month" className="h-9 w-40" value={mese} max={oggi.slice(0, 7)} onChange={(e) => /^\d{4}-\d{2}$/.test(e.target.value) && setMese(e.target.value)} />}
-        <span className="text-muted-foreground">{dataIt(intervallo.da)} – {dataIt(intervallo.a)}{intervallo.tagliato ? ` · ${tr("ultimi 12 mesi")}` : ""}</span>
+        <span className="tabular-nums text-muted-foreground">{dataIt(intervallo.da)} – {dataIt(intervallo.a)}</span>
       </div>
 
       {c.error ? (
@@ -147,16 +162,6 @@ export function OreEPersone({ orderId, inizioLavori }: { orderId: string; inizio
         <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />{tr("Carico le ore…")}</p>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {[
-              [tr("Ore confermate"), ore(totConfermate)],
-              [tr("In attesa di approvazione"), ore(totAttesa)],
-              [tr("Persone"), String(righe.length)],
-              ...(c.showCosts ? [[tr("Costo confermato"), totCosto == null ? tr("Da completare") : formatCurrency(totCosto)]] : []),
-            ].map(([etichetta, valore]) => (
-              <div key={etichetta} className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-muted-foreground">{etichetta}</p><p className="mt-1 font-semibold tabular-nums">{valore}</p></div>
-            ))}
-          </div>
           {daControllare > 0 && (
             <p className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
               <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -251,7 +256,8 @@ export function OreEPersone({ orderId, inizioLavori }: { orderId: string; inizio
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </section>
+      </div>
+    </RiquadroCommessa>
   );
 }
 

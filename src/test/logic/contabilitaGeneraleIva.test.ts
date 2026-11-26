@@ -6,6 +6,8 @@
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { DEF_SCRITTURE } from "@/lib/contabilita/colonneScritture";
+import { colonneVisibili } from "@/lib/tabelle/colonneTabella";
 import { numeriGiornale, riferimentoDocumento, type Scrittura } from "@/lib/contabilita/libroGiornale";
 import {
   csvLiquidazioneContabile,
@@ -131,9 +133,16 @@ describe("Contabilità generale: l'IVA con gli stessi strumenti di Fatture → F
   });
 
   it("l'elenco delle scritture ha la colonna del documento accanto al numero di scrittura", () => {
-    // Le colonne ci sono: testo letterale o passato dal sistema di traduzione.
-    expect(pagina).toMatch(/>(?:N\. scrittura|\{(?:t|tr|tTesto)\("N\. scrittura"\)\})<\/th>/);
-    expect(pagina).toMatch(/>(?:Documento|\{(?:t|tr|tTesto)\("Documento"\)\})<\/th>/);
+    // Dal 26/11/2026 le colonne non sono più `<th>` scritti a mano: le dichiara
+    // DEF_SCRITTURE e l'azienda può spegnerle e riordinarle. Il numero di scrittura e il
+    // documento restano due colonne distinte, e il numero non si può spegnere: il cliente
+    // leggeva il n. di scrittura come n. di fattura, ed è per questo che la colonna
+    // «Documento» esiste.
+    const chiavi = DEF_SCRITTURE.map((c) => c.chiave);
+    expect(chiavi).toContain("numero");
+    expect(chiavi).toContain("documento");
+    expect(DEF_SCRITTURE.find((c) => c.chiave === "numero")?.fissa).toBe(true);
+    expect(colonneVisibili(DEF_SCRITTURE).map((c) => c.chiave)).toEqual(chiavi);
     expect(pagina).toContain("riferimentoDocumento(s)");
   });
 });

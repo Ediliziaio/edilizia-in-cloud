@@ -29,57 +29,61 @@ export function MarketingDomainGateWall() {
     );
   }
 
+  // Da computer il titolo della pagina sopra il riquadro, come nelle altre pagine (25/11/2026).
   return (
-    <Card className="max-w-2xl mx-auto border-orange-200">
-      <CardContent className="pt-10 pb-10 text-center space-y-6">
-        <div className="mx-auto h-16 w-16 rounded-2xl bg-gradient-to-br from-orange-500 to-eic-amber-strong flex items-center justify-center shadow-sm shadow-orange-200">
-          <Globe className="h-8 w-8 text-white" />
-        </div>
+    <div className="space-y-4">
+      <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground">{t("Email Marketing")}</h1>
+      <Card className="max-w-2xl mx-auto border-orange-200">
+        <CardContent className="pt-10 pb-10 text-center space-y-6">
+          <div className="mx-auto h-16 w-16 rounded-2xl bg-gradient-to-br from-orange-500 to-eic-amber-strong flex items-center justify-center shadow-sm shadow-orange-200">
+            <Globe className="h-8 w-8 text-white" />
+          </div>
 
-        <div className="space-y-2">
-          <h2 className="text-xl font-bold text-slate-950">
-            {t("Collega il dominio email della tua azienda")}
-          </h2>
-          <p className="text-sm text-slate-600 max-w-md mx-auto">
-            {t("Per inviare campagne di email marketing devi prima collegare e verificare il tuo dominio")} ({t("es.")} <strong>tuaazienda.it</strong>).{" "}{t("Le email partiranno a nome tuo, con il tuo brand.")}
-          </p>
-        </div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold text-slate-950">
+              {t("Collega il dominio email della tua azienda")}
+            </h2>
+            <p className="text-sm text-slate-600 max-w-md mx-auto">
+              {t("Per inviare campagne di email marketing devi prima collegare e verificare il tuo dominio")} ({t("es.")} <strong>tuaazienda.it</strong>).{" "}{t("Le email partiranno a nome tuo, con il tuo brand.")}
+            </p>
+          </div>
 
-        <ul className="text-sm text-left max-w-sm mx-auto space-y-2.5">
-          <li className="flex gap-2.5 items-start">
-            <BadgeCheck className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-            <span>
-              <strong>{t("Mittente professionale")}</strong> {t("— i clienti ricevono email da")} <em>info@tuaazienda.it</em>{t(", non da un dominio generico")}
-            </span>
-          </li>
-          <li className="flex gap-2.5 items-start">
-            <TrendingUp className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-            <span>
-              <strong>{t("Più consegne in inbox")}</strong> {t("— SPF e DKIM sul tuo dominio aumentano la deliverability")}
-            </span>
-          </li>
-          <li className="flex gap-2.5 items-start">
-            <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-            <span>
-              <strong>{t("Reputazione protetta")}</strong> {t("— ogni azienda invia con la propria reputazione, indipendente dalle altre")}
-            </span>
-          </li>
-        </ul>
+          <ul className="text-sm text-left max-w-sm mx-auto space-y-2.5">
+            <li className="flex gap-2.5 items-start">
+              <BadgeCheck className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+              <span>
+                <strong>{t("Mittente professionale")}</strong> {t("— i clienti ricevono email da")} <em>info@tuaazienda.it</em>{t(", non da un dominio generico")}
+              </span>
+            </li>
+            <li className="flex gap-2.5 items-start">
+              <TrendingUp className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+              <span>
+                <strong>{t("Più consegne in inbox")}</strong> {t("— SPF e DKIM sul tuo dominio aumentano la deliverability")}
+              </span>
+            </li>
+            <li className="flex gap-2.5 items-start">
+              <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+              <span>
+                <strong>{t("Reputazione protetta")}</strong> {t("— ogni azienda invia con la propria reputazione, indipendente dalle altre")}
+              </span>
+            </li>
+          </ul>
 
-        <div className="space-y-2">
-          <Button
-            size="lg"
-            className="gap-2"
-            onClick={() => navigate("/azienda/impostazioni/dominio-email")}
-          >
-            {t("Configura il dominio email")}
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-          <p className="text-xs text-slate-500">
-            {t("Servono ~5 minuti: aggiungi il dominio, copia i record DNS dal pannello del tuo registrar (Aruba, Register, GoDaddy…) e verifica.")}
-          </p>
-        </div>
-      </CardContent>
-    </Card>
+          <div className="space-y-2">
+            <Button
+              size="lg"
+              className="gap-2"
+              onClick={() => navigate("/azienda/impostazioni/dominio-email")}
+            >
+              {t("Configura il dominio email")}
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+            <p className="text-xs text-slate-500">
+              {t("Servono ~5 minuti: aggiungi il dominio, copia i record DNS dal pannello del tuo registrar (Aruba, Register, GoDaddy…) e verifica.")}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

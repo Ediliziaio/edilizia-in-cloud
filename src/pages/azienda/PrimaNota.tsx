@@ -1,4 +1,4 @@
-import { BOTTONE_NUOVO, RICERCA_BARRA } from "@/components/orders/TestataScheda";
+import { BOTTONE_NUOVO, BOTTONE_SECONDARIO, RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { cn } from "@/lib/utils";
 import { Suspense, useState, useMemo } from "react";
 import { etichettaMetodo } from "@/lib/finance/metodoScadenza";
@@ -13,10 +13,13 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { ArrowDownLeft, ArrowUpRight, BookOpen, Bot, ChevronLeft, ChevronRight, Download, ExternalLink, Landmark, FileSpreadsheet, FileText, Loader2, MoreHorizontal, Pencil, Plus, Printer, RefreshCw, Search, Trash2 } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, BarChart3, BookOpen, Bot, ChevronLeft, ChevronRight, Download, ExternalLink, Landmark, FileSpreadsheet, FileText, Loader2, MoreHorizontal, Pencil, Plus, Printer, RefreshCw, Search, Trash2 } from "lucide-react";
 import { CercaConFiltri, DateFiltro, DettaglioFiltri, GruppoFiltri, KpiMobili, PannelloFiltri, SceltaFiltro } from "@/components/mobile/FiltriMobile";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { perchePrimaNotaNonModificabile, usePrimaNota, type PrimaNotaEntry } from "@/hooks/usePrimaNota";
+import { SceltaColonne } from "@/components/tabelle/SceltaColonne";
+import { useColonneTabella } from "@/hooks/useColonneTabella";
+import { DEF_PRIMA_NOTA, PRIMA_NOTA_A_DESTRA, PRIMA_NOTA_TITOLI } from "@/lib/primaNota/colonnePrimaNota";
 import { ModificaCollegamentiMovimento } from "@/components/prima-nota/ModificaCollegamentiMovimento";
 import { AnteprimaAllegato } from "@/components/prima-nota/AnteprimaAllegato";
 import { AllegatoPrimaNota } from "@/components/prima-nota/AllegatoPrimaNota";
@@ -47,6 +50,9 @@ import { StornaPagamentiCosto } from "@/components/prima-nota/StornaPagamentiCos
 import { QuoteDelMovimento, etichettaQuota } from "@/components/prima-nota/QuoteDelMovimento";
 import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
+// Il grafico dei mesi si apre a richiesta (25/11/2026): chiuso, l'elenco parte sotto i numeri.
+const CHIAVE_GRAFICO_MESI = "primaNota.graficoMesiAperto";
+const leggiGraficoAperto = () => { try { return localStorage.getItem(CHIAVE_GRAFICO_MESI) === "1"; } catch { return false; } };
 const GraficoEntrateUscite = lazyWithRetry(() => import("@/components/charts/grafici/GraficoEntrateUscite"));
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -61,7 +67,31 @@ const CATEGORY_LABELS: Record<string, string> = {
   finanziamento: "Finanziamento",
   giroconto: "Giroconto",
   altro: "Altro",
+  // 25/11/2026: categorie che arrivano dai costi, dagli storni e dalle importazioni. Prima si vedeva la
+  // chiave del database («storno_incasso», «pagamento_fornitore»).
+  pagamento_fornitore: "Pagamento fornitore",
+  subappalti: "Subappalti",
+  subappalto: "Subappalto",
+  storno: "Storno",
+  materiali: "Materiali",
+  manutenzione: "Manutenzione",
+  clienti: "Clienti",
+  carburante: "Carburante",
+  trasferte: "Trasferte",
+  software: "Software",
+  pubblicita: "Pubblicità",
+  affitti: "Affitti",
+  commercialista: "Commercialista",
 };
+
+/** Il nome della categoria: tradotto se conosciuto, altrimenti la chiave resa leggibile
+ *  («storno_incasso» → «Storno incasso»), mai la chiave nuda. */
+function nomeCategoria(categoria: string, t: (s: string) => string) {
+  const nota = CATEGORY_LABELS[categoria];
+  if (nota) return t(nota);
+  const leggibile = categoria.replaceAll("_", " ").trim();
+  return leggibile.charAt(0).toUpperCase() + leggibile.slice(1);
+}
 
 function origineMovimento(e: PrimaNotaEntry) {
   if (!e.is_auto) return "Manuale";
@@ -74,6 +104,11 @@ function PrimaNotaInner() {
   const navigate = useNavigate();
   const vistaCompatta = useIsMobile(1024);
   const [tabella, setTabella] = useState(false);
+  const [graficoAperto, setGraficoAperto] = useState(leggiGraficoAperto);
+  const alternaGrafico = () => setGraficoAperto((v) => {
+    try { localStorage.setItem(CHIAVE_GRAFICO_MESI, v ? "0" : "1"); } catch { /* solo comodità */ }
+    return !v;
+  });
   const { effectiveCompany } = useAuth();
   const contiPrimaNota = useContiPrimaNota(effectiveCompany?.id);
   const [contoFiltro, setContoFiltro] = useState("tutti");
@@ -81,6 +116,8 @@ function PrimaNotaInner() {
   const confirm = useConfirm();
   const apriOrigine = (e: PrimaNotaEntry) => navigate(e.bank_transaction_id ? linkTesoreriaMovimento(e.bank_transaction_id) : e.documento_fiscale_id ? linkFattura(e.documento_fiscale_id, true) : e.cost_id ? `/azienda/costi?costo=${encodeURIComponent(e.cost_id)}` : e.scadenza_id ? "/azienda/scadenzario" : e.invoice_id ? linkFattura(e.invoice_id, false) : "/azienda/documenti");
   const [dettaglioId, setDettaglioId] = useState<string | null>(null);
+  // Quali colonne vede questa azienda, e in che ordine (26/11/2026).
+  const colonnePrimaNota = useColonneTabella("prima-nota", DEF_PRIMA_NOTA);
   const [scrollContainer, setScrollContainer] = useState<HTMLDivElement | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -213,6 +250,7 @@ function PrimaNotaInner() {
     }
     return rows;
   }, [monthlyChart]);
+  const conGrafico = !vistaCompatta && chartData.some((d) => d.entrate > 0 || d.uscite > 0);
 
   // Esporta TUTTE le righe filtrate (non solo la pagina visibile): prima il CSV
   // conteneva solo i 50 movimenti della pagina corrente → export incompleto.
@@ -334,7 +372,7 @@ function PrimaNotaInner() {
   const eurTondo = (v: number) => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v);
   const testoSaldo = isSaldoLoading ? "…" : saldoError && !saldo ? "—" : undefined;
   return (
-    <div className="space-y-6 max-sm:space-y-3">
+    <div className="space-y-3">
       <AllineamentoPrimaNota company={effectiveCompany?.id} open={allineaAperto} onOpenChange={setAllineaAperto} />
       {/* Header */}
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
@@ -389,6 +427,8 @@ function PrimaNotaInner() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          {/* Solo da computer: la tabella con le colonne c'è da lg in su. */}
+          <span className="hidden lg:inline-flex"><SceltaColonne colonne={colonnePrimaNota} /></span>
           <DropdownMenu><DropdownMenuTrigger asChild><Button size="sm" className={cn(BOTTONE_NUOVO, "max-lg:h-11 max-sm:px-3 max-sm:text-sm")}><Plus className="h-3.5 w-3.5" />{t("Nuova registrazione")}</Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-72">
               <DropdownMenuItem onSelect={() => setNewOpen(true)}>{t("Movimento di cassa o banca")}</DropdownMenuItem>
@@ -435,7 +475,7 @@ function PrimaNotaInner() {
       {/* Entrate e uscite degli ultimi 6 mesi (16/11/2026): stessa veste dei grafici del
           Controllo di Gestione e delle fatture (fondo a puntini, barre sfumate, tooltip a
           scheda, totali sopra). Vetrina → non su mobile (bastano i numeri sopra). */}
-      {!vistaCompatta && chartData.some((d) => d.entrate > 0 || d.uscite > 0) && (
+      {graficoAperto && conGrafico && (
         <ErrorBoundary fallback={<p role="alert" className="text-sm text-muted-foreground">{t("Grafico non disponibile.")}</p>}>
           <Suspense fallback={null}>
             <GraficoEntrateUscite dati={chartData} />
@@ -477,7 +517,7 @@ function PrimaNotaInner() {
       {/* Una riga di filtri senza riquadro attorno; la ricerca non scende sotto
           i 220px (a 1024 si riduceva a «C…») e, se non c'è posto, gli altri
           filtri vanno a capo. */}
-      <div className="hidden flex-wrap items-center gap-3 lg:flex">
+      <div className="hidden flex-wrap items-center gap-2 lg:flex">
         {filtroConto}
         {/* Search — full width on mobile, flexible on desktop */}
         <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
@@ -498,11 +538,11 @@ function PrimaNotaInner() {
             onValueChange={(v) => { if (v) { setAutoView(v as typeof autoView); setPage(1); } }}
             className="border rounded-md"
           >
-            <ToggleGroupItem value="tutte" className="text-xs h-9 px-3">{t("Tutte")}</ToggleGroupItem>
-            <ToggleGroupItem value="auto" className="text-xs h-9 px-3">
+            <ToggleGroupItem value="tutte" className="text-xs h-8 px-3">{t("Tutte")}</ToggleGroupItem>
+            <ToggleGroupItem value="auto" className="text-xs h-8 px-3">
               <Bot className="h-3 w-3 mr-1" /> {t("Auto")}
             </ToggleGroupItem>
-            <ToggleGroupItem value="manuali" className="text-xs h-9 px-3">{t("Manuali")}</ToggleGroupItem>
+            <ToggleGroupItem value="manuali" className="text-xs h-8 px-3">{t("Manuali")}</ToggleGroupItem>
           </ToggleGroup>
           <Select
             value={direction || "all"}
@@ -521,14 +561,22 @@ function PrimaNotaInner() {
         </div>
         {/* Date range */}
         <div className="flex items-center gap-2">
-          <Input type="date" aria-label={t("Movimenti dal")} value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} className="h-9 w-full sm:w-36" />
+          <Input type="date" aria-label={t("Movimenti dal")} value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} className="h-8 w-full text-xs sm:w-36" />
           <span className="text-muted-foreground text-sm shrink-0">→</span>
-          <Input type="date" aria-label={t("Movimenti al")} value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} className="h-9 w-full sm:w-36" />
+          <Input type="date" aria-label={t("Movimenti al")} value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} className="h-8 w-full text-xs sm:w-36" />
         </div>
+        {conGrafico && (
+          <Button size="sm" variant={graficoAperto ? "secondary" : "outline"} className={cn(BOTTONE_SECONDARIO, "ml-auto shrink-0")}
+            aria-expanded={graficoAperto} title={t("Andamento nei mesi")} onClick={alternaGrafico}>
+            <BarChart3 aria-hidden="true" />{t("Grafico")}
+          </Button>
+        )}
       </div>
 
       {/* Sul telefono niente selezione multipla: le eliminazioni in blocco si fanno da computer. */}
-      {permessi.isAdmin && entries.length > 0 && <div className="max-sm:hidden"><BarraSelezioneRighe
+      {/* Da computer la casella «tutta la pagina» sta nell'intestazione della tabella (25/11/2026):
+          la barra compare quando c'è qualcosa di selezionato. */}
+      {permessi.isAdmin && entries.length > 0 && (selezione.selezionate.length > 0 || (vistaCompatta && !tabella)) && <div className="max-sm:hidden"><BarraSelezioneRighe
         nome={t("i movimenti")} selezionate={selezione.selezionate.length} consentite={eliminabili.length}
         tutte={selezione.tutte} parziale={selezione.parziale}
         entrate={eliminabili.filter((e) => e.direction === "entrata").reduce((n, e) => n + Number(e.amount), 0)}
@@ -596,7 +644,7 @@ function PrimaNotaInner() {
                 <span className="min-w-0 flex-1">
                   <span className="block break-words text-sm font-semibold leading-tight max-sm:truncate">{e.description}</span>
                   <span className="mt-1 block truncate text-xs text-muted-foreground">
-                    {format(new Date(e.entry_date), "dd/MM/yyyy")} · {e.account_label || (CATEGORY_LABELS[e.category] ? t(CATEGORY_LABELS[e.category]) : e.category)}
+                    {format(new Date(e.entry_date), "dd/MM/yyyy")} · {e.account_label || nomeCategoria(e.category, t)}
                   </span>
                   {e.prima_nota_gruppi && <span className="mt-0.5 block truncate text-xs text-primary">{etichettaQuota(e.prima_nota_gruppi)}</span>}
                 </span>
@@ -614,32 +662,40 @@ function PrimaNotaInner() {
           <table aria-label={t("Movimenti di prima nota")} className="w-full whitespace-nowrap text-sm [&_td]:px-3 [&_td]:py-2">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="w-9 px-3"><span className="sr-only">{t("Selezione")}</span></th>
-                <th className="text-left p-3 font-medium">{t("Data")}</th>
-                <th className="text-left p-3 font-medium">{t("Categoria")}</th>
-                <th className="text-left p-3 font-medium">{t("Descrizione")}</th>
-                <th className="text-right p-3 font-medium">{t("Importo")}</th>
-                <th className="p-3 text-right font-medium" title={t("Somma progressiva dei movimenti visualizzati nella pagina")}>{t("Progressivo pagina")}</th>
-                {["Metodo", "Conto", "Origine", "Documento", "Commessa", "Fornitore", "Riferimento", "Allegato", "Azioni"].map(titolo =>
-                  <th key={titolo} className="p-3 text-left font-medium">{t(titolo)}</th>)}
+                <th className="w-9 px-3">{permessi.isAdmin
+                  ? <Checkbox aria-label={t("Seleziona {nome} di questa pagina", { nome: t("i movimenti") })} checked={selezione.tutte ? true : selezione.parziale ? "indeterminate" : false}
+                    disabled={removeMany.isPending} onCheckedChange={(v) => selezione.pagina(v === true)} />
+                  : <span className="sr-only">{t("Selezione")}</span>}</th>
+                {colonnePrimaNota.colonne.map(c => <th key={c.chiave}
+                  className={`p-3 font-medium ${PRIMA_NOTA_A_DESTRA.has(c.chiave) ? "text-right" : "text-left"}`}
+                  title={PRIMA_NOTA_TITOLI[c.chiave] ? t(PRIMA_NOTA_TITOLI[c.chiave]) : undefined}>
+                  {t(c.etichetta)}
+                </th>)}
+                <th className="p-3 text-left font-medium">{t("Azioni")}</th>
               </tr>
             </thead>
             <tbody>
               {righeElenco.map((r) => r.k === "gruppo" ? (
                 <tr key={`g${r.g}`} className="cursor-pointer border-b bg-muted/30 hover:bg-muted/50" onClick={() => alternaGruppo(r.g)}>
                   <td className="p-3" />
-                  <td className="p-3">{format(new Date(r.righe[0].entry_date), "dd/MM/yyyy", { locale: dateFnsCampo() })}</td>
-                  <td className="p-3"><Badge variant="secondary" className="text-xs">{t("Diviso")}</Badge></td>
-                  <td className="p-3">
-                    <button type="button" aria-expanded={gruppiAperti.has(r.g)} className="block max-w-[24rem] truncate text-left font-medium hover:underline"
-                      onClick={(ev) => { ev.stopPropagation(); alternaGruppo(r.g); }}>
-                      {gruppiAperti.has(r.g) ? "▾" : "▸"} {r.righe[0].prima_nota_gruppi?.descrizione ?? t("Movimento diviso")} · {r.righe.length} {t("quote")}
-                    </button>
-                  </td>
-                  <td className={`p-3 text-right font-mono ${totaleGruppo(r.righe) >= 0 ? "text-green-700" : "text-destructive"}`}>
-                    {totaleGruppo(r.righe) >= 0 ? "+" : "−"}{formatCurrency(Math.abs(totaleGruppo(r.righe)))}
-                  </td>
-                  <td className="p-3" colSpan={100} />
+                  {/* Anche la riga del gruppo segue l'ordine scelto, se no una colonna spostata
+                      le metterebbe la data sotto l'importo. Dove non ha niente da dire, vuota. */}
+                  {(() => {
+                    const celle: Record<string, React.ReactNode> = {
+                      data: format(new Date(r.righe[0].entry_date), "dd/MM/yyyy", { locale: dateFnsCampo() }),
+                      categoria: <Badge variant="secondary" className="text-xs">{t("Diviso")}</Badge>,
+                      descrizione: <button type="button" aria-expanded={gruppiAperti.has(r.g)} className="block max-w-[24rem] truncate text-left font-medium hover:underline"
+                        onClick={(ev) => { ev.stopPropagation(); alternaGruppo(r.g); }}>
+                        {gruppiAperti.has(r.g) ? "▾" : "▸"} {r.righe[0].prima_nota_gruppi?.descrizione ?? t("Movimento diviso")} · {r.righe.length} {t("quote")}
+                      </button>,
+                      importo: <span className={`font-mono ${totaleGruppo(r.righe) >= 0 ? "text-green-700" : "text-destructive"}`}>
+                        {totaleGruppo(r.righe) >= 0 ? "+" : "−"}{formatCurrency(Math.abs(totaleGruppo(r.righe)))}
+                      </span>,
+                    };
+                    return colonnePrimaNota.colonne.map(c => <td key={c.chiave}
+                      className={`p-3 ${PRIMA_NOTA_A_DESTRA.has(c.chiave) ? "text-right" : ""}`}>{celle[c.chiave] ?? null}</td>);
+                  })()}
+                  <td className="p-3" />
                 </tr>
               ) : [r.e].map((e) => (
                 <tr key={e.id} className="cursor-pointer border-b hover:bg-muted/40 data-[selected=true]:bg-primary/5" data-selected={selezione.ids.has(e.id)}
@@ -650,41 +706,35 @@ function PrimaNotaInner() {
                     }
                   }}>
                   <td className="p-3" onClick={event => event.stopPropagation()}>{permessi.isAdmin && <Checkbox aria-label={t("Seleziona {description}", { description: String(e.description ?? "") })} checked={selezione.ids.has(e.id)} disabled={removeMany.isPending} onCheckedChange={() => selezione.alterna(e.id)} />}</td>
-                  <td className="p-3">
-                    <div className="flex items-center gap-1.5">
+                  {(() => {
+                    const celle: Record<string, React.ReactNode> = {
+                      data: <div className="flex items-center gap-1.5">
                       {format(new Date(e.entry_date), "dd/MM/yyyy", { locale: dateFnsCampo() })}
-                    </div>
-                  </td>
-                  <td className="p-3">
-                    <Badge variant="outline" className="text-xs">
-                      {CATEGORY_LABELS[e.category] ? t(CATEGORY_LABELS[e.category]) : e.category}
-                    </Badge>
-                  </td>
-                  <td className="p-3">
+                    </div>,
+                      categoria: <Badge variant="outline" className="text-xs">
+                      {nomeCategoria(e.category, t)}
+                    </Badge>,
+                      descrizione: <>
                     <button type="button" aria-haspopup="dialog" className="block max-w-[24rem] truncate text-left font-medium hover:underline"
                       title={e.description} onClick={() => setDettaglioId(e.id)}>{e.description}</button>
                     {e.prima_nota_gruppi && <span className="block max-w-[24rem] truncate text-xs text-primary">{etichettaQuota(e.prima_nota_gruppi)}</span>}
-                  </td>
-                  <td className="p-3 text-right font-mono">
-                    <span className={`flex items-center justify-end gap-1 ${e.direction === "entrata" ? "text-green-700" : "text-destructive"}`}>
+                  </>,
+                      importo: <span className={`flex items-center justify-end gap-1 font-mono ${e.direction === "entrata" ? "text-green-700" : "text-destructive"}`}>
                       {e.direction === "entrata"
                         ? <ArrowDownLeft className="h-3.5 w-3.5" />
                         : <ArrowUpRight className="h-3.5 w-3.5" />
                       }
                       {e.direction === "uscita" ? "-" : "+"}{formatCurrency(e.amount)}
-                    </span>
-                  </td>
-                  <td className="p-3 text-right font-mono">
-                    <span className={e.runningBalance >= 0 ? "" : "text-destructive"}>
+                    </span>,
+                      progressivo: <span className={`font-mono ${e.runningBalance >= 0 ? "" : "text-destructive"}`}>
                       {formatCurrency(e.runningBalance)}
-                    </span>
-                  </td>
-                  <td className="p-3 text-xs text-muted-foreground capitalize">
+                    </span>,
+                      metodo: <span className="text-xs capitalize text-muted-foreground">
                     {etichettaMetodo(e.payment_method) || "—"}
-                  </td>
-                  <td>{e.account_label || "—"}</td>
-                  <td>{t(origineMovimento(e))}</td>
-                  <td>{e.documenti_fiscali?.id ? (
+                  </span>,
+                      conto: e.account_label || "—",
+                      origine: t(origineMovimento(e)),
+                      documento: e.documenti_fiscali?.id ? (
                         <button
                           onClick={() => navigate(linkFattura(e.documenti_fiscali!.id, true))}
                           className="inline-flex items-center gap-0.5 text-xs text-primary hover:underline"
@@ -693,13 +743,17 @@ function PrimaNotaInner() {
                           {e.documenti_fiscali.tipo === "nota_credito" ? "NC" : t("Fatt.")} #{e.documenti_fiscali.numero}
                           <ExternalLink className="h-2.5 w-2.5" />
                         </button>
-                      ) : e.invoices?.invoice_number || "—"}</td>
-                  <td>{e.orders?.order_code && e.order_id
+                      ) : e.invoices?.invoice_number || "—",
+                      commessa: e.orders?.order_code && e.order_id
                     ? <button className="text-primary hover:underline" onClick={() => navigate(`/azienda/ordini/${e.order_id}`)}>{e.orders.order_code}</button>
-                    : "—"}</td>
-                  <td>{e.suppliers?.name || "—"}</td>
-                  <td>{e.reference_number || "—"}</td>
-                  <td>{e.attachment_url ? <AllegatoPrimaNota url={e.attachment_url} nome={e.attachment_name} /> : "—"}</td>
+                    : "—",
+                      fornitore: e.suppliers?.name || "—",
+                      riferimento: e.reference_number || "—",
+                      allegato: e.attachment_url ? <AllegatoPrimaNota url={e.attachment_url} nome={e.attachment_name} /> : "—",
+                    };
+                    return colonnePrimaNota.colonne.map(c => <td key={c.chiave}
+                      className={`p-3 ${PRIMA_NOTA_A_DESTRA.has(c.chiave) ? "text-right" : ""}`}>{celle[c.chiave] ?? null}</td>);
+                  })()}
                   <td className="p-3">
                     <div className="flex items-center justify-end gap-0.5">
                     <NotaRiga
@@ -830,7 +884,7 @@ function PrimaNotaInner() {
           </div>
           <dl className="grid grid-cols-2 gap-3 text-sm">
             {[
-              ["Categoria", CATEGORY_LABELS[dettaglio.category] ? t(CATEGORY_LABELS[dettaglio.category]) : dettaglio.category],
+              ["Categoria", nomeCategoria(dettaglio.category, t)],
               ["Origine", t(origineMovimento(dettaglio))], ["Metodo", etichettaMetodo(dettaglio.payment_method)],
               ["Conto", dettaglio.account_label], ["Fornitore", dettaglio.suppliers?.name],
               ["Riferimento", dettaglio.reference_number], ["Progressivo pagina", formatCurrency(dettaglio.runningBalance)],

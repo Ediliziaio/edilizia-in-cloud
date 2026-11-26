@@ -55,9 +55,9 @@ import {
 
 import {
   QuoteHubTabs,
-  QuotePageHeader,
   type HubTab,
 } from "@/components/marketing/preventivi/ui/builderUI";
+import { BOTTONE_NUOVO, BOTTONE_SECONDARIO, TestataScheda } from "@/components/orders/TestataScheda";
 import { PreventiviCestinoDialog } from "@/components/marketing/preventivi/PreventiviCestinoDialog";
 import { NewQuoteDialog } from "@/components/marketing/preventivi/moduli/NewQuoteDialog";
 import { useModuliVendita } from "@/lib/moduli-vendita";
@@ -221,7 +221,7 @@ export default function Preventivi() {
             label: t("Approvazioni sconto"),
             icon: <Percent className="h-4 w-4" />,
             badge: pendingApprovalsCount > 0 ? (
-              <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-[10px]">
+              <Badge variant="destructive" className="ml-0.5 h-4 px-1.5 text-[10px]">
                 {pendingApprovalsCount}
               </Badge>
             ) : null,
@@ -294,18 +294,18 @@ export default function Preventivi() {
               </div>
             </div>
           ) : (
-            <QuotePageHeader
-              title={t("Preventivi")}
-              icon={<FileSignature className="h-5 w-5" />}
-              actions={
+            // Testata come Commesse e Finanza (25/11/2026): titolo 20px, comandi a 32px, «Nuovo» arancio.
+            <TestataScheda
+              titolo={t("Preventivi")}
+              azioni={
                 <>
-                  {localAiEnabled && <NewQuoteDialog ai open={showAiQuote} onOpenChange={setShowAiQuote} params={searchParams} trigger={<Button variant="outline" size="sm" aria-label={t("Preventivo AI")} title={t("Preventivo AI")}><Sparkles className="h-4 w-4 xl:mr-2" /><span className="hidden xl:inline">{t("Preventivo AI")}</span></Button>} />}
+                  {localAiEnabled && <NewQuoteDialog ai open={showAiQuote} onOpenChange={setShowAiQuote} params={searchParams} trigger={<Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} aria-label={t("Preventivo AI")} title={t("Preventivo AI")}><Sparkles /><span className="hidden xl:inline">{t("Preventivo AI")}</span></Button>} />}
                   {puoCreare && <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm" className="h-10 sm:h-9 flex-1 sm:flex-initial" aria-label={t("Crea preventivo da fonte")} title={t("Crea da documento, computo, foto o audio")}>
-                        <Sparkles className="h-4 w-4 xl:mr-2" />
+                      <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} aria-label={t("Crea preventivo da fonte")} title={t("Crea da documento, computo, foto o audio")}>
+                        <Sparkles />
                         <span className="hidden xl:inline">{t("Crea da...")}</span>
-                        <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-60" />
+                        <ChevronDown className="opacity-60" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-64">
@@ -337,10 +337,10 @@ export default function Preventivi() {
                   {listiniModuli.length > 0 && !isMobile && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-10 sm:h-9 flex-1 sm:flex-initial" aria-label={t("Listini lavorazioni")} title={t("Listini lavorazioni")}>
-                          <Library className="h-4 w-4 xl:mr-2" />
+                        <Button variant="outline" size="sm" className={BOTTONE_SECONDARIO} aria-label={t("Listini lavorazioni")} title={t("Listini lavorazioni")}>
+                          <Library />
                           <span className="hidden xl:inline">{t("Listini")}</span>
-                          <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-60" />
+                          <ChevronDown className="opacity-60" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-64">
@@ -350,10 +350,10 @@ export default function Preventivi() {
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}
-                  {puoCreare && <NewQuoteDialog open={quoteDialogOpen} onOpenChange={handleQuoteDialog} params={searchParams}
-                    trigger={<Button size="sm" className="h-11 sm:h-10"><Plus className="mr-1.5 h-4 w-4" />{t("Nuovo preventivo")}</Button>} />}
                 </>
               }
+              nuovo={puoCreare && <NewQuoteDialog open={quoteDialogOpen} onOpenChange={handleQuoteDialog} params={searchParams}
+                trigger={<Button size="sm" className={BOTTONE_NUOVO}><Plus className="h-3.5 w-3.5" />{t("Nuovo preventivo")}</Button>} />}
             />
           )}
 

@@ -76,7 +76,7 @@ export const DashboardStrategicKPI = memo(function DashboardStrategicKPI({ kpi, 
                       <Icon className={cn("h-4 w-4", c.accentClass)} />
                     </span>
                   </div>
-                  <div className="mb-1 truncate text-xl sm:text-2xl font-black tracking-tight text-foreground max-sm:mb-0 max-sm:text-base">{formatValue(value, c.format)}</div>
+                  <div className="mb-1 truncate text-lg font-black tracking-tight text-foreground max-sm:mb-0 max-sm:text-base">{formatValue(value, c.format)}</div>
                   {delta ? (
                   <div className={cn("mb-2 flex items-center gap-1 text-xs font-semibold max-sm:mb-0 max-sm:text-[11px]",
                     delta.direction === "up" && "text-emerald-600 dark:text-emerald-400",

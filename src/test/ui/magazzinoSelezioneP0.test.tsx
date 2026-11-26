@@ -109,23 +109,33 @@ it("apre le giacenze anche prima che la query restituisca il primo array", () =>
 describe("Giacenze semplificate: accesso alle funzioni e colonne", () => {
   it("parte dalle informazioni essenziali senza togliere selezione e dettaglio", () => {
     mount();
-    expect(screen.getAllByRole("columnheader").map((c) => c.textContent)).toEqual(["", "Articolo", "Magazzino", "Giacenza", "Impegnato", "Disponibile", "Stato", "Azioni"]);
+    // 26/11/2026: una riga per articolo con i riferimenti in colonna; il magazzino solo se ce n'è più d'uno.
+    expect(screen.getAllByRole("columnheader").map((c) => c.textContent)).toEqual(["", "Articolo", "Codice", "Giacenza", "Impegnato", "Disponibile", "In arrivo", "Valore totale", "Fornitore", "Stato", "Azioni"]);
     fireEvent.click(screen.getByRole("button", { name: "Apri dettaglio Articolo 0" }));
     expect(screen.getByTestId("dettaglio-articolo-aperto")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Carico" })).toBeNull();
   });
+  it("il clic sulla riga apre il dettaglio, la casella seleziona e basta", () => {
+    mount();
+    const casella = screen.getAllByRole("checkbox", { name: "Seleziona Articolo 1" }).find((c) => c.closest("tr"))!;
+    const riga = casella.closest("tr")!;
+    fireEvent.click(casella);
+    expect(screen.queryByTestId("dettaglio-articolo-aperto")).toBeNull();
+    fireEvent.click(within(riga).getAllByRole("cell")[3]);
+    expect(screen.getByTestId("dettaglio-articolo-aperto")).toBeTruthy();
+  });
   it("aggiunge una colonna e conserva la preferenza al nuovo accesso", async () => {
     const { unmount } = mount();
     fireEvent.keyDown(screen.getByRole("button", { name: "Colonne" }), { key: "ArrowDown" });
-    fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "Fornitore" }));
+    fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "Scorta minima" }));
     fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
-    expect(await screen.findByRole("columnheader", { name: "Fornitore" })).toBeTruthy();
-    expect(JSON.parse(localStorage.getItem("warehouse-columns:v1:demo:current")!)).toEqual(["supplier"]);
+    expect(await screen.findByRole("columnheader", { name: "Scorta minima" })).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem("warehouse-columns:v3:demo:current")!)).toEqual(["code", "zone", "incoming", "total_value", "supplier", "threshold"]);
     unmount(); mount();
-    expect(screen.getByRole("columnheader", { name: "Fornitore" })).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Scorta minima" })).toBeTruthy();
   });
   it("non rivela i costi salvati nelle preferenze quando manca il permesso", async () => {
-    localStorage.setItem("warehouse-columns:v1:demo:current", '["unit_cost","total_value","supplier"]');
+    localStorage.setItem("warehouse-columns:v3:demo:current", '["unit_cost","total_value","supplier"]');
     state.costs = false; mount();
     expect(screen.queryByRole("columnheader", { name: "Costo unitario" })).toBeNull();
     expect(screen.queryByRole("columnheader", { name: "Valore totale" })).toBeNull();
@@ -144,10 +154,10 @@ describe("Giacenze semplificate: accesso alle funzioni e colonne", () => {
     expect(state.csv).toHaveBeenCalledOnce();
   });
   it("ignora preferenze corrotte e colonne sconosciute", () => {
-    localStorage.setItem("warehouse-columns:v1:demo:current", '["sconosciuta",12,"code"]');
+    localStorage.setItem("warehouse-columns:v3:demo:current", '["sconosciuta",12,"code"]');
     mount();
     expect(screen.getByRole("columnheader", { name: "Codice" })).toBeTruthy();
-    expect(screen.getAllByRole("columnheader")).toHaveLength(9);
+    expect(screen.getAllByRole("columnheader")).toHaveLength(8);
   });
 });
 

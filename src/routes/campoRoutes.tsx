@@ -4,6 +4,7 @@
  */
 // Le pagine si caricano col ritentativo: dopo un deploy i chunk vecchi non
 // esistono più e senza questo la pagina va in errore (vedi lazyWithRetry).
+import { SoloPersonaleInterno } from "@/components/campo/SoloPersonaleInterno";
 import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -46,6 +47,13 @@ const CampoFerie          = lazy(() => import("@/pages/campo/CampoFerie"));
 const CampoSpese          = lazy(() => import("@/pages/campo/CampoSpese"));
 const CampoCedolini       = lazy(() => import("@/pages/campo/CampoCedolini"));
 const CampoAvanzamento    = lazy(() => import("@/pages/campo/CampoAvanzamento"));
+const SubContratti        = lazy(() => import("@/pages/campo/subappaltatore/SubContratti"));
+const SubOrdiniServizio   = lazy(() => import("@/pages/campo/subappaltatore/SubOrdiniServizio"));
+const SubOperai           = lazy(() => import("@/pages/campo/subappaltatore/SubOperai"));
+const CampoLavoroExtra    = lazy(() => import("@/pages/campo/CampoLavoroExtra"));
+const CampoFermo          = lazy(() => import("@/pages/campo/CampoFermo"));
+const CampoBriefingSicurezza = lazy(() => import("@/pages/campo/CampoBriefingSicurezza"));
+const CampoIngressi       = lazy(() => import("@/pages/campo/CampoIngressi"));
 const CampoMenu           = lazy(() => import("@/pages/campo/CampoMenu"));
 const CampoAttivita       = lazy(() => import("@/pages/campo/CampoAttivita"));
 const CampoSopralluoghi = lazy(() => import("@/pages/campo/CampoSopralluoghi"));
@@ -87,6 +95,10 @@ export default function CampoRoutesContainer() {
             <Route path="rapportino" element={<CampoRapportino />} />
             <Route path="rapporto-fine-lavori" element={<CampoRapportino tipo="client" />} />
             <Route path="verbale" element={<CampoVerbale />} />
+            <Route path="extra" element={<CampoLavoroExtra />} />
+            <Route path="fermo" element={<CampoFermo />} />
+            <Route path="sicurezza-squadra" element={<CampoBriefingSicurezza />} />
+            <Route path="ingressi" element={<CampoIngressi />} />
             <Route path="foto" element={<CampoFotoCantiere />} />
             {/* La route "rapportino/:rapportinoId" NON è una modifica: il
                 componente ignorava l'id e CREAVA un secondo rapportino. Redirect
@@ -96,20 +108,9 @@ export default function CampoRoutesContainer() {
           </Route>
           <Route path="sicurezza" element={<CampoChecklistSicurezza />} />
           <Route path="rapportino-vocale" element={<CampoRapportinoVoce />} />
-          <Route path="timbratura" element={<CampoTimbratura />} />
 
-          <Route path="squadra/:orderId" element={<CampoSquadra />} />
-          <Route path="presenze" element={<CampoPresenze />} />
-          <Route path="ferie" element={<CampoFerie />} />
-          <Route path="spese" element={<CampoSpese />} />
-          <Route path="cedolini" element={<CampoCedolini />} />
-          <Route path="magazzino" element={<CampoMagazzino />} />
           <Route path="ddt" element={<CampoDDT />} />
-          <Route path="merce" element={<CampoMerce />} />
-          <Route path="merce/arrivo/:odaId" element={<CampoArrivoPosizioni />} />
-          <Route path="mezzi" element={<CampoMezzi />} />
           {/* L'attrezzo appena inquadrato col QR: dove sta, e cosa se ne fa. */}
-          <Route path="mezzi/scansione/:codice" element={<CampoAttrezzo />} />
           <Route path="chat" element={<CampoChat />} />
           <Route path="chat/:channelId" element={<CampoChat />} />
           <Route path="documenti" element={<CampoDocumenti />} />
@@ -119,8 +120,11 @@ export default function CampoRoutesContainer() {
           {/* Infortuni, quasi-incidenti e situazioni pericolose (23/11/2026). */}
           <Route path="sicurezza/segnala" element={<CampoSegnalaSicurezza />} />
           <Route path="sicurezza/segnala/:orderId" element={<CampoSegnalaSicurezza />} />
-          <Route path="buoni-pasto" element={<CampoBuoniPasto />} />
           <Route path="avanzamento" element={<CampoAvanzamento />} />
+          {/* Contratto e pagamenti della ditta (piano campo completo 3.3): ognuno vede solo i suoi. */}
+          <Route path="contratti" element={<SubContratti />} />
+          <Route path="ordini-servizio" element={<SubOrdiniServizio />} />
+          <Route path="operai-ditta" element={<SubOperai />} />
           {/* Legacy: la vecchia pagina "SAL" era costruita sugli importi (e non ha
               mai funzionato: FK e colonne sbagliate). In cantiere serve segnare le
               fasi fatte, non la contabilità → redirect all'avanzamento. */}
@@ -135,6 +139,21 @@ export default function CampoRoutesContainer() {
           <Route path="sopralluoghi" element={<CampoSopralluoghi />} />
           <Route path="sopralluoghi/:id" element={<CampoSopralluogo />} />
           <Route path="menu" element={<CampoMenu />} />
+          {/* Solo personale dell'azienda: il subappaltatore torna alla Home (fase 0.1, 26/11/2026). */}
+          <Route element={<SoloPersonaleInterno />}>
+            <Route path="timbratura" element={<CampoTimbratura />} />
+            <Route path="squadra/:orderId" element={<CampoSquadra />} />
+            <Route path="presenze" element={<CampoPresenze />} />
+            <Route path="ferie" element={<CampoFerie />} />
+            <Route path="spese" element={<CampoSpese />} />
+            <Route path="cedolini" element={<CampoCedolini />} />
+            <Route path="magazzino" element={<CampoMagazzino />} />
+            <Route path="merce" element={<CampoMerce />} />
+            <Route path="merce/arrivo/:odaId" element={<CampoArrivoPosizioni />} />
+            <Route path="mezzi" element={<CampoMezzi />} />
+            <Route path="mezzi/scansione/:codice" element={<CampoAttrezzo />} />
+            <Route path="buoni-pasto" element={<CampoBuoniPasto />} />
+          </Route>
         </Route>
         <Route path="*" element={<Navigate to="/campo" replace />} />
       </Route>

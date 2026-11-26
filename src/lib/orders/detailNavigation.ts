@@ -4,7 +4,9 @@ export const CANTIERE_VIEWS = [
   { value: "lavorazioni", label: "Lavorazioni", description: "Fasi, responsabili, assegnazioni e mezzi del cantiere." },
   { value: "cronoprogramma", label: "Cronoprogramma", description: "Le fasi nel tempo: date previste e reali, ritardi e avanzamento." },
   { value: "sopralluoghi", label: "Rilievi e sopralluoghi", description: "Visite, misure e verifiche tecniche collegate a questa commessa." },
-  { value: "ufficio", label: "Ufficio", description: "Le fasi dell’ufficio: contratto, ordini, pratiche, fatture, con chi le fa." },
+  // Dal 25/11 la vista tiene TUTTE le attività della commessa, non solo quelle
+  // d'ufficio: chiamarla ancora «Ufficio» mandava a cercarle altrove.
+  { value: "ufficio", label: "Attività", description: "Tutte le attività della commessa: contratto, ordini, pratiche, fatture e il resto, con chi le fa e quando scadono." },
   { value: "squadra", label: "Ore e persone", description: "Chi ha lavorato, quante ore, se tornano con le timbrature. L’ufficio inserisce le ore qui." },
   // «Diario» si chiama Rapportini (31/10/2026): è lì che si leggono, si approvano e si scrivono.
   { value: "diario", label: "Rapportini", description: "Rapportini, foto e aggiornamenti dal cantiere; anche scritti dall'ufficio." },

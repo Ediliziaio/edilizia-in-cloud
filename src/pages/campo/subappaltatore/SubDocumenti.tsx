@@ -1,7 +1,11 @@
 import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Documenti subappaltatore — caricamento e gestione documenti propri.
- * Upload verso bucket 'documenti-sub' + lista con stato scadenza.
+ *
+ * Dal 26/11/2026 (piano campo completo, fase 0.2) i documenti vanno nel fascicolo della ditta
+ * (`subappaltatori_documenti`, bucket `subappaltatori-documenti`, percorso «azienda/ditta/file»): lo stesso
+ * che l'ufficio vede nella scheda della ditta e in Sicurezza, con gli avvisi di scadenza. Prima finivano in
+ * `documenti_dipendenti`, che l'ufficio non guarda. Un documento nuovo dello stesso tipo supera il vecchio.
  */
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -16,19 +20,32 @@ import { cn } from "@/lib/utils";
 import { apriDocumentoDopoAttesa } from "@/lib/campo/apriDocumento";
 import { toast } from "sonner";
 import { PosDellaDitta } from "./PosDellaDitta";
+import { statoDocumentiDitta } from "@/lib/campo/documentiDitta";
 import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TIPI_DOCUMENTO = [
-  { value: "visura_camerale", label: "Visura camerale" },
   { value: "durc", label: "DURC" },
+  { value: "visura", label: "Visura camerale" },
+  { value: "patente_crediti", label: "Patente a crediti" },
   { value: "polizza_rc", label: "Polizza RC" },
-  { value: "attestazione_soa", label: "Attestazione SOA" },
+  { value: "pos", label: "POS" },
+  { value: "soa", label: "Attestazione SOA" },
+  { value: "formazione_operai", label: "Formazione degli operai" },
+  { value: "cassa_edile", label: "Cassa Edile" },
   { value: "documento_identita", label: "Documento d'identità" },
-  { value: "contratto", label: "Contratto" },
   { value: "altro", label: "Altro" },
 ];
 
-const PRIVATE_DOC_BUCKET = "documenti-dipendenti";
+const PRIVATE_DOC_BUCKET = "subappaltatori-documenti";
+
+/** Riga del fascicolo come la mostra la pagina. */
+interface DocumentoDitta { id: string; tipo: string; nome_file: string; url: string | null; data_scadenza: string | null; mio: boolean }
+
+/** Il nome del file dal percorso «azienda/ditta/1732612345-nome.pdf». */
+function nomeDaPercorso(percorso: string | null): string {
+  const ultimo = (percorso ?? "").split("/").pop() ?? "";
+  return ultimo.replace(/^\d+-/, "") || ultimo;
+}
 const MAX_FILE_SIZE = 15 * 1024 * 1024;
 const SUB_DOCUMENTI_TIMEOUT_MS = 8000;
 const ALLOWED_MIME_TYPES = new Set([
@@ -72,24 +89,42 @@ export default function SubDocumenti() {
 
   const today = new Date();
 
-  const { data: documenti = [], isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ["sub-documenti", companyId, user?.id],
+  // La mia ditta: la riga di `subappaltatori` collegata al mio accesso.
+  const ditta = useQuery({
+    queryKey: ["sub-mia-ditta", companyId, user?.id],
+    enabled: !!user?.id && !!companyId,
+    staleTime: 5 * 60_000,
     queryFn: async () => {
-      if (!companyId) return [];
+      const { data, error } = await supabase.from("subappaltatori").select("id")
+        .eq("user_id", user!.id).eq("company_id", companyId!).limit(1).maybeSingle();
+      if (error) throw error;
+      return (data as { id: string } | null)?.id ?? null;
+    },
+  });
+  const dittaId = ditta.data ?? null;
+
+  const { data: documenti = [], isLoading, isError, error, refetch, isFetching } = useQuery({
+    queryKey: ["sub-documenti", companyId, dittaId],
+    queryFn: async (): Promise<DocumentoDitta[]> => {
+      if (!companyId || !dittaId) return [];
       const { data, error } = await withTimeout(
         supabase
-          .from("documenti_dipendenti")
-          .select("*")
-          .eq("user_id", user!.id)
+          .from("subappaltatori_documenti")
+          .select("id, tipo, scadenza, storage_path, uploaded_by, created_at")
           .eq("company_id", companyId)
+          .eq("subappaltatore_id", dittaId)
+          .in("status", ["active", "expired"])
           .order("created_at", { ascending: false }),
         SUB_DOCUMENTI_TIMEOUT_MS,
         "Caricamento documenti troppo lento",
       );
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []).map(d => ({
+        id: d.id, tipo: d.tipo, nome_file: nomeDaPercorso(d.storage_path), url: d.storage_path,
+        data_scadenza: d.scadenza, mio: d.uploaded_by === user!.id,
+      }));
     },
-    enabled: !!user?.id && !!companyId,
+    enabled: !!user?.id && !!companyId && !!dittaId,
     retry: false,
   });
 
@@ -105,6 +140,7 @@ export default function SubDocumenti() {
   const uploadMutation = useMutation({
     mutationFn: async () => {
       if (!companyId) throw new Error(tr("Azienda non disponibile, ricarica la pagina"));
+      if (!dittaId) throw new Error(tr("La tua ditta non è ancora collegata: chiedi all'ufficio."));
       if (!selectedFile) throw new Error(tr("Seleziona un file"));
       if (selectedFile.size > MAX_FILE_SIZE) throw new Error(tr("File troppo grande: massimo 15 MB"));
       if (selectedFile.type && !ALLOWED_MIME_TYPES.has(selectedFile.type)) {
@@ -112,23 +148,28 @@ export default function SubDocumenti() {
       }
 
       setUploading(true);
+      const nome = (nomeFile.trim() || selectedFile.name).replace(/[^\w.-]+/g, "_").slice(0, 120);
       const ext = selectedFile.name.split(".").pop() ?? "pdf";
-      const path = `${user!.id}/${Date.now()}_${crypto.randomUUID()}.${ext}`;
+      const conEstensione = nome.toLowerCase().endsWith(`.${ext.toLowerCase()}`) ? nome : `${nome}.${ext}`;
+      const path = `${companyId}/${dittaId}/${Date.now()}-${conEstensione}`;
 
       const { error: uploadErr } = await supabase.storage
         .from(PRIVATE_DOC_BUCKET)
         .upload(path, selectedFile, { contentType: selectedFile.type });
       if (uploadErr) throw uploadErr;
 
-      const { error: dbErr } = await supabase.from("documenti_dipendenti").insert({
-        user_id: user!.id,
+      const { error: dbErr } = await supabase.from("subappaltatori_documenti").insert({
         company_id: companyId,
+        subappaltatore_id: dittaId,
         tipo: tipoDoc,
-        nome_file: nomeFile.trim() || selectedFile.name,
-        url: path,
-        data_scadenza: dataScadenza || null,
+        storage_path: path,
+        scadenza: dataScadenza || null,
+        uploaded_by: user!.id,
       });
-      if (dbErr) throw dbErr;
+      if (dbErr) {
+        await supabase.storage.from(PRIVATE_DOC_BUCKET).remove([path]);
+        throw dbErr;
+      }
     },
     onSuccess: () => {
       toast.success(tr("Documento caricato"));
@@ -137,20 +178,23 @@ export default function SubDocumenti() {
       setNomeFile("");
       setDataScadenza("");
       setTipoDoc("durc");
-      qc.invalidateQueries({ queryKey: ["sub-documenti", companyId, user?.id] });
+      qc.invalidateQueries({ queryKey: ["sub-documenti", companyId, dittaId] });
     },
     onError: (err: any) => toast.error(err.message ?? tr("Errore nel caricamento")),
     onSettled: () => setUploading(false),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("documenti_dipendenti")
+    mutationFn: async (doc: DocumentoDitta) => {
+      const { data, error } = await supabase
+        .from("subappaltatori_documenti")
         .delete()
-        .eq("id", id)
-        .eq("user_id", user!.id);
+        .eq("id", doc.id)
+        .eq("uploaded_by", user!.id)
+        .select("id");
       if (error) throw error;
+      if (!data?.length) throw new Error("non rimosso");
+      if (doc.url && isStoragePath(doc.url)) await supabase.storage.from(PRIVATE_DOC_BUCKET).remove([doc.url]);
     },
     onSuccess: () => {
       toast.success(tr("Documento rimosso"));
@@ -193,6 +237,28 @@ export default function SubDocumenti() {
       </div>
 
       <div className="px-4 py-4 space-y-4">
+        {/* Cosa manca per entrare in cantiere (piano campo completo 3.1). */}
+        {!isLoading && !isError && (() => {
+          const stati = statoDocumentiDitta(documenti, format(today, "yyyy-MM-dd"));
+          const daFare = stati.filter(d => d.stato !== "ok");
+          return (
+            <section aria-label={tr("Per entrare in cantiere")} className={cn("rounded-2xl border p-3", daFare.length ? "border-amber-300 bg-amber-50" : "border-emerald-300 bg-emerald-50")}>
+              <p className="text-sm font-semibold">{daFare.length ? tr("Per entrare in cantiere ti mancano:") : tr("Hai tutti i documenti per entrare in cantiere.")}</p>
+              {daFare.length > 0 && (
+                <ul className="mt-1 space-y-0.5 text-sm">
+                  {daFare.map(d => (
+                    <li key={d.tipo} className="flex items-center justify-between gap-2">
+                      <span>{tr(d.label)}</span>
+                      <span className={cn("text-xs font-semibold", d.stato === "in_scadenza" ? "text-amber-800" : "text-red-700")}>
+                        {d.stato === "manca" ? tr("da caricare") : d.stato === "scaduto" ? tr("scaduto") : tr("scade presto")}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          );
+        })()}
         {companyId && user?.id && <PosDellaDitta companyId={companyId} userId={user.id} />}
         {/* Alert scadenze */}
         {scadutiCount > 0 && (
@@ -251,7 +317,7 @@ export default function SubDocumenti() {
           </div>
         ) : (
           <div className="space-y-3">
-            {documenti.map((doc: any) => {
+            {documenti.map((doc) => {
               const status = getScadenzaStatus(doc.data_scadenza);
               const etichettaTipo = TIPI_DOCUMENTO.find(t => t.value === doc.tipo)?.label;
               const tipoLabel = etichettaTipo ? tr(etichettaTipo) : doc.tipo;
@@ -317,13 +383,17 @@ export default function SubDocumenti() {
                             <Download className="w-3.5 h-3.5 text-muted-foreground" />
                           </button>
                         )}
-                        <button
-                          onClick={() => deleteMutation.mutate(doc.id)}
-                          disabled={deleteMutation.isPending}
-                          className="w-7 h-7 rounded-lg bg-muted flex items-center justify-center"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 text-red-600" />
-                        </button>
+                        {/* Si toglie solo quello caricato da sé: il resto lo gestisce l'ufficio. */}
+                        {doc.mio && (
+                          <button
+                            onClick={() => deleteMutation.mutate(doc)}
+                            disabled={deleteMutation.isPending}
+                            aria-label={tr("Rimuovi documento")}
+                            className="w-7 h-7 rounded-lg bg-muted flex items-center justify-center"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

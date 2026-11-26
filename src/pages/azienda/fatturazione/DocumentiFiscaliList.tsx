@@ -21,9 +21,10 @@ import { useShipmentDDTPDF } from "@/hooks/useShipmentDDTPDF";
 import { scaricaXmlFattura } from "@/lib/fatturazione/scaricaXml";
 import { siPuoRipristinare } from "@/lib/fatturazione/cestino";
 import { creaNotaCredito } from "@/lib/fatturazione/noteCredito";
+import { documentoEliminabile, emessaMaiUscita } from "@/lib/fatturazione/correggibile";
 import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
-import { MonthlyTimeline } from "@/components/fatturazione/MonthlyTimeline";
+import { BottoneMesi, MonthlyTimeline, useStrisciaMesi } from "@/components/fatturazione/MonthlyTimeline";
 import { RiepilogoFatture } from "@/components/fatturazione/RiepilogoFatture";
 import { CompletezzaFatture } from "@/components/fatturazione/CompletezzaFatture";
 import { StatoBadge } from "@/components/fatturazione/StatoBadge";
@@ -138,15 +139,19 @@ function haIncassi(doc: DocumentoFiscale) {
 }
 
 function isDocumentoEliminabile(doc: DocumentoFiscale) {
-  return doc.stato === "bozza" || doc.stato === "annullata";
+  // Bozza, già annullata, o emessa mai uscita di qui (26/11/2026): vedi correggibile.ts.
+  return documentoEliminabile(doc);
 }
 
 function BillingHubTabs({
   activeTab,
   onChange,
+  senzaLinguette,
 }: {
   activeTab: BillingHubTab;
   onChange: (tab: BillingHubTab) => void;
+  /** Sugli schermi larghi le linguette stanno nella riga del titolo della scheda (Fatture): qui solo sotto i 1536px. */
+  senzaLinguette?: boolean;
 }) {
   const t = useT();
   // Telefono (decisione del founder, 23/11/2026): Registro incassi e Fiscalità non compaiono.
@@ -158,20 +163,29 @@ function BillingHubTabs({
   return (
     <>
       <SelettoreSezione nome={t("Sezioni documenti")} valore={activeTab} sezioni={sezioni} onScegli={onChange} className="max-sm:-order-1 lg:hidden" />
-      <nav aria-label={t("Sezioni documenti")} className="hidden flex-wrap gap-1 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm lg:flex">
+      <LinguetteSezioni activeTab={activeTab} onChange={onChange} className={senzaLinguette ? "2xl:hidden" : undefined} />
+    </>
+  );
+}
+
+function LinguetteSezioni({ activeTab, onChange, className }: { activeTab: BillingHubTab; onChange: (tab: BillingHubTab) => void; className?: string }) {
+  const t = useT();
+  // Con la contabilità generale l'IVA sta là (24/11/2026): qui Fiscalità tiene ritenute di garanzia e archivio.
+  const { attiva: generale } = useContabilitaGeneraleAttiva();
+  const schede = generale ? HUB_TABS.map((h) => (h.id === "fiscalita" ? { ...h, description: "Ritenute di garanzia e archivio" } : h)) : HUB_TABS;
+  return (
+    <>
+      {/* Da computer (25/11/2026): cinque linguette da 32px su una riga, non cinque schede da 53px.
+          La descrizione di ogni sezione resta nel titolo della linguetta. */}
+      <nav aria-label={t("Sezioni documenti")} className={cn("hidden min-h-0 flex-wrap gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm lg:flex", className)}>
         {schede.map(({ id, icon: Icon, label, description }) => {
           const attiva = activeTab === id;
           return (
-            <button key={id} type="button" aria-current={attiva ? "page" : undefined} onClick={() => onChange(id)}
-              className={cn("flex min-w-0 flex-1 basis-40 items-center gap-2 rounded-xl px-3 py-2 text-left",
-                attiva ? "bg-slate-950 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950")}>
-              <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg", attiva ? "bg-white/15" : "bg-slate-100")}>
-                <Icon aria-hidden="true" className="size-4" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-sm font-semibold">{t(label)}</span>
-                <span className={cn("block text-[11px]", attiva ? "text-white/70" : "text-slate-500")}>{t(description)}</span>
-              </span>
+            <button key={id} type="button" aria-current={attiva ? "page" : undefined} onClick={() => onChange(id)} title={t(description)}
+              className={cn("flex h-8 min-w-0 items-center gap-1.5 rounded-lg px-3 text-left text-sm",
+                attiva ? "bg-slate-950 font-semibold text-white shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950")}>
+              <Icon aria-hidden="true" className="size-4 shrink-0" />
+              <span className="truncate">{t(label)}</span>
             </button>
           );
         })}
@@ -205,10 +219,15 @@ function DocumentiFiscaliHub() {
   // Mobile: colonna flessibile, così le linguette (order -1) scendono sotto il
   // titolo della scheda (order -2), che sta dentro il componente figlio.
   return (
-    <div className="space-y-4 max-sm:flex max-sm:flex-col max-sm:gap-3 max-sm:space-y-0">
-      <BillingHubTabs activeTab={activeHubTab} onChange={handleHubTabChange} />
+    <div className="space-y-3 max-sm:flex max-sm:flex-col max-sm:gap-3 max-sm:space-y-0">
+      {/* Sulla scheda Fatture, da 1536px in su, le linguette stanno nella riga del titolo
+          (25/11/2026): una riga da 54px in meno prima dell'elenco. Più stretto non ci stanno
+          accanto ai comandi e restano qui sopra. Le altre schede hanno la loro testata. */}
+      <BillingHubTabs activeTab={activeHubTab} onChange={handleHubTabChange} senzaLinguette={activeHubTab === "fatture"} />
 
-      {activeHubTab === "fatture" && <DocumentiFiscaliListInner />}
+      {activeHubTab === "fatture" && (
+        <DocumentiFiscaliListInner sezioni={<LinguetteSezioni activeTab={activeHubTab} onChange={handleHubTabChange} className="mr-auto lg:hidden 2xl:flex" />} />
+      )}
       {activeHubTab === "rubrica" && <AnagraficheList embedded />}
       {/* Chi fattura qui vede il registro nativo e, sotto, lo storico delle
           importate: il giorno del passaggio di incassi nativi non ce n'è
@@ -229,7 +248,7 @@ function DocumentiFiscaliHub() {
 }
 
 // ─── Inner Component ──────────────────────────────────────
-function DocumentiFiscaliListInner() {
+function DocumentiFiscaliListInner({ sezioni }: { sezioni?: React.ReactNode } = {}) {
   const tr = useT();
   const isMobile = useIsMobile();
   const [tabellaSuTablet, setTabellaSuTablet] = useState(false);
@@ -433,6 +452,8 @@ function DocumentiFiscaliListInner() {
   // vuoti: prima aspettavano i numeri e comparivano a mezzo secondo dalla
   // pagina, spingendo giù l'elenco (23/11/2026).
   const mesiStriscia = useMemo(() => timelineMonths ?? mesiVuoti(timelineYear), [timelineMonths, timelineYear]);
+  const striscia = useStrisciaMesi("emesse", selectedMonth);
+  const strisciaVisibile = !isTrash && !soloBozzeFatture;
   // L'anno prima serve solo alla variazione dei numeri veloci, e solo da tablet in su.
   const { data: timelineMonthsPrima } = useMonthlyTimeline(currentTab.tipos, timelineYear - 1, {
     enabled: !isTrash && !soloBozzeFatture && activeTab === "fattura" && !isMobile,
@@ -688,10 +709,10 @@ function DocumentiFiscaliListInner() {
   return (
     <>
     {/* Mobile: «contents», i figli stanno nella colonna del contenitore (vedi hub). */}
-    <div className="space-y-4 max-sm:contents max-sm:space-y-0">
+    <div className="space-y-3 max-sm:contents max-sm:space-y-0">
       {/* ── Header ─────────────────────────────────────── */}
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6 max-sm:-order-2">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between lg:items-center">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
               <FileText className="h-5 w-5" />
@@ -701,6 +722,7 @@ function DocumentiFiscaliListInner() {
               <p className="mt-0.5 text-sm text-slate-500">{tr("Gestisci documenti fiscali, SDI, incassi e scadenze operative.")}</p>
             </div>
           </div>
+          {sezioni}
           {/* Testata (25/11/2026): in vista solo «Fatture in bozza» e «Nuovo documento», alti 32px.
               Report, abbinamento alle commesse, emesse importate, scontrini e impostazioni stanno nel «⋯»:
               sette bottoni andavano su due righe e tagliavano il titolo («Fatturazion…»). */}
@@ -804,31 +826,6 @@ function DocumentiFiscaliListInner() {
         />
       )}
 
-      {/* ── Monthly Timeline ───────────────────────────── */}
-      {/* Strip 12 mesi a scorrimento: filtro secondario ingombrante su mobile.
-          Solo da tablet in su; su telefono si resta su "tutti i mesi". */}
-      {!isTrash && !soloBozzeFatture && (
-        <div className="hidden md:block">
-          <MonthlyTimeline
-            months={mesiStriscia}
-            selectedMonth={selectedMonth}
-            onSelectMonth={(m) => {
-              setSelectedMonth(m);
-              setFiltriEmesse(v => ({ ...v, dal: "", al: "" }));
-              vaiAPagina(0);
-              clearSelection();
-            }}
-            year={timelineYear}
-            onYearChange={(y) => {
-              setTimelineYear(y);
-              setSelectedMonth(null);
-              vaiAPagina(0);
-              clearSelection();
-            }}
-          />
-        </div>
-      )}
-
       {/* Numeri saltati e mesi sospetti nelle emesse (16/11/2026): stavano in cima alle ricevute. */}
       {!isTrash && !soloBozzeFatture && activeTab === "fattura" && effectiveCompany?.id && (
         <div className="max-md:hidden"><CompletezzaFatture companyId={effectiveCompany.id} /></div>
@@ -836,7 +833,7 @@ function DocumentiFiscaliListInner() {
 
       {/* ── Tabs ───────────────────────────────────────── */}
       {/* Mobile: il tipo di documento sta nel pannello dei filtri. */}
-      <div role="group" aria-label={tr("Filtra per tipo di documento")} className={cn("flex flex-wrap items-center gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm", soloTabella)}>
+      <div role="group" aria-label={tr("Filtra per tipo di documento")} className={cn("flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm", soloTabella)}>
         {TIPO_TABS.map((tab) => {
           const count = counts?.[tab.countKey as keyof typeof counts] ?? 0;
           const isActive = activeTab === tab.id;
@@ -847,7 +844,7 @@ function DocumentiFiscaliListInner() {
               aria-pressed={isActive}
               onClick={() => handleTabChange(tab.id)}
               className={cn(
-                "flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm transition-all whitespace-nowrap",
+                "flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm transition-all whitespace-nowrap",
                 "shrink-0",
                 isActive
                   ? "bg-orange-50 text-orange-700 font-medium shadow-sm ring-1 ring-orange-100"
@@ -868,7 +865,37 @@ function DocumentiFiscaliListInner() {
             </button>
           );
         })}
+        {strisciaVisibile && (
+          <BottoneMesi className="ml-auto max-md:hidden" idStriscia="striscia-mesi-emesse" aperta={striscia.aperta} onClick={striscia.cambia} months={mesiStriscia} selectedMonth={selectedMonth} />
+        )}
       </div>
+
+      {/* ── Monthly Timeline ───────────────────────────── */}
+      {/* Strip 12 mesi a scorrimento: filtro secondario ingombrante su mobile.
+          Solo da tablet in su; su telefono si resta su "tutti i mesi".
+          25/11/2026: sta sotto le linguette dei tipi e si apre col bottone «Mesi» (piegata di
+          serie quando si guardano tutti i mesi): 142px in meno prima dell'elenco. */}
+      {strisciaVisibile && striscia.aperta && (
+        <div id="striscia-mesi-emesse" className="hidden md:block">
+          <MonthlyTimeline
+            months={mesiStriscia}
+            selectedMonth={selectedMonth}
+            onSelectMonth={(m) => {
+              setSelectedMonth(m);
+              setFiltriEmesse(v => ({ ...v, dal: "", al: "" }));
+              vaiAPagina(0);
+              clearSelection();
+            }}
+            year={timelineYear}
+            onYearChange={(y) => {
+              setTimelineYear(y);
+              setSelectedMonth(null);
+              vaiAPagina(0);
+              clearSelection();
+            }}
+          />
+        </div>
+      )}
 
       {/* ── Cestino info banner ─────────────────────── */}
       {isTrash && (
@@ -890,10 +917,10 @@ function DocumentiFiscaliListInner() {
         filtriAttivi={(activeTab !== "fattura" ? 1 : 0) + (statoFilter !== "all" ? 1 : 0) + nFiltriEmesse}
         onApriFiltri={() => setFiltriMobileAperti(true)}
       />
-      <div className={cn("flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm", soloTabella)}>
+      <div className={cn("flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm", soloTabella)}>
         {!isTrash && (
           <Select value={statoFilter} onValueChange={(v) => { setStatoFilter(v); setPage(0); clearSelection(); }}>
-            <SelectTrigger aria-label={tr("Filtra per stato")} className="w-[190px] h-9 text-xs">
+            <SelectTrigger aria-label={tr("Filtra per stato")} className="h-8 w-[160px] text-xs 2xl:w-[190px]">
               <SelectValue placeholder={tr("Stato")} />
             </SelectTrigger>
             <SelectContent>
@@ -914,11 +941,11 @@ function DocumentiFiscaliListInner() {
         </div>
 
         {elencoEmesse && <FiltriFattureEmesse valore={filtriEmesse} cambia={cambiaFiltriEmesse} />}
-        {elencoEmesse && !soloBozzeFatture && <Select value={ordinamento} onValueChange={v => { setOrdinamento(v as "progressivo" | "data"); vaiAPagina(0); clearSelection(); }}>
-          <SelectTrigger aria-label={tr("Ordina fatture")} className="h-9 w-[170px] text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="progressivo">{tr("Anno e numero ↓")}</SelectItem><SelectItem value="data">{tr("Data emissione ↓")}</SelectItem></SelectContent>
-        </Select>}
-        {elencoEmesse && <SceltaColonneEmesse {...sceltaColonne} />}
+        {elencoEmesse && <SceltaColonneEmesse {...sceltaColonne} ordinamento={soloBozzeFatture ? undefined : {
+          valore: ordinamento,
+          cambia: v => { setOrdinamento(v as "progressivo" | "data"); vaiAPagina(0); clearSelection(); },
+          voci: [{ value: "progressivo", label: "Anno e numero ↓" }, { value: "data", label: "Data emissione ↓" }],
+        }} />}
 
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 text-xs">
@@ -1486,14 +1513,18 @@ function DocumentiFiscaliListInner() {
                 ? tr("Eliminare il documento?")
                 : deleteTarget?.stato === "annullata"
                   ? tr("Eliminare definitivamente?")
-                  : tr("Documento non eliminabile")}
+                  : deleteTarget && emessaMaiUscita(deleteTarget)
+                    ? tr("Annullare la fattura?")
+                    : tr("Documento non eliminabile")}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget?.stato === "bozza"
                 ? <>{tr("Stai per spostare nel cestino il documento")} <strong>{deleteTarget?.numero}</strong>.</>
                 : deleteTarget?.stato === "annullata"
                   ? <>{tr("Il documento")} <strong>{deleteTarget?.numero}</strong> {tr("verrà mantenuto nel cestino secondo le regole di conservazione fiscale.")}</>
-                  : <>{tr("Il documento")} <strong>{deleteTarget?.numero}</strong> {tr("è emesso: usa una nota di credito per stornarlo.")}</>
+                  : deleteTarget && emessaMaiUscita(deleteTarget)
+                    ? <>{tr("La fattura")} <strong>{deleteTarget?.numero}</strong> {tr("non è mai stata inviata allo SDI: va nel cestino e il suo numero torna alla serie, quindi lo prenderà la prossima fattura. Nessuna nota di credito.")}</>
+                    : <>{tr("Il documento")} <strong>{deleteTarget?.numero}</strong> {tr("è emesso: usa una nota di credito per stornarlo.")}</>
               }
             </AlertDialogDescription>
           </AlertDialogHeader>

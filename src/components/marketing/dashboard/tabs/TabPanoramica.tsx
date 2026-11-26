@@ -16,6 +16,8 @@ interface Props {
   isLoading: boolean;
   filters: DashboardFiltersState;
   assignedUserIds: string[] | null;
+  /** Fatturato, vendite e obiettivo in grande: col bottone «Grafici» della pagina (di base sì). */
+  mostraGrafici?: boolean;
 }
 
 /* ── KpiChip with optional threshold coloring ── */
@@ -81,7 +83,7 @@ function KpiChip({
   );
 }
 
-export const TabPanoramica = memo(function TabPanoramica({ data, isLoading, filters, assignedUserIds }: Props) {
+export const TabPanoramica = memo(function TabPanoramica({ data, isLoading, filters, assignedUserIds, mostraGrafici = true }: Props) {
   const tr = useT();
   const isMobile = useIsMobile();
   const kpi = data?.kpi;
@@ -103,7 +105,7 @@ export const TabPanoramica = memo(function TabPanoramica({ data, isLoading, filt
       {/* Hero KPI e fila di cifre solo da computer: sul telefono fatturato,
           contratti, lead e show rate sono già nei quattro numeri in cima, e qui
           resta il percorso dal lead alla vendita. */}
-      {!isMobile && <DashboardStrategicKPI kpi={kpi} kpiPrev={kpiPrev} isLoading={isLoading} />}
+      {!isMobile && mostraGrafici && <DashboardStrategicKPI kpi={kpi} kpiPrev={kpiPrev} isLoading={isLoading} />}
 
       {/* KPI strip: 6 core + divider + 2 call center */}
       {isLoading ? (

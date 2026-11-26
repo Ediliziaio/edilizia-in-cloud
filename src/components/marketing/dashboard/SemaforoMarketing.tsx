@@ -126,7 +126,7 @@ export function SemaforoMarketing(props: Props) {
                   <p className={`text-[11px] font-bold uppercase tracking-[0.16em] max-sm:text-[11px] max-sm:tracking-wide ${c.label}`}>{item.label}</p>
                   <span className={`h-2.5 w-2.5 rounded-full ${c.dot} ${item.color === "red" ? "animate-pulse" : ""}`} />
                 </div>
-                <p className={`mt-2 truncate text-xl font-bold max-sm:mt-0.5 max-sm:text-[15px] ${c.text}`}>{item.value}</p>
+                <p className={`mt-2 truncate text-lg font-bold max-sm:mt-0.5 max-sm:text-[15px] ${c.text}`}>{item.value}</p>
                 <p className="mt-1 truncate text-xs font-medium text-muted-foreground dark:text-muted-foreground/80 max-sm:hidden">{item.detail}</p>
               </div>
             </div>

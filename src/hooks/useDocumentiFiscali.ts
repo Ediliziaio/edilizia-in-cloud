@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import type { DocumentoFiscale, TipoDocumento, StatoDocumento } from "@/types/fatturazione";
 import { giornoItaliano, ricercaDocumenti } from "@/lib/fatturazione/filtriDocumenti";
 import { stornatoDellaFattura } from "@/lib/fatturazione/noteCredito";
+import { emessaMaiUscita, TIPI_NUMERO_FISCALE } from "@/lib/fatturazione/correggibile";
 import type { RichiestaCopiaDocumento } from "@/lib/fatturazione/duplicaDocumento";
 
 const DOCUMENTI_QUERY_TIMEOUT_MS = 12_000;
@@ -550,6 +551,12 @@ export function useRipristinaDocumento() {
 //   bozza      → stato = annullata, deleted_at = now()  (hidden from all views)
 //   annullata  → deleted_at = now()                     (already annulled, just hide)
 // Emitted invoices must be reversed via nota di credito; this hook refuses them.
+//
+// Unica eccezione (26/11/2026): una emessa che non è mai uscita di qui — niente SDI,
+// niente incassi, nessuna nota che la citi. Per l'Agenzia non esiste, quindi non c'è
+// nulla da stornare: si annulla e il numero torna alla serie. La decide il database
+// (documento_elimina_bozza), che controlla anche le email al cliente e la contabilità
+// collegata; qui il controllo serve solo a scegliere la strada.
 
 export function useDeleteDocumento() {
   const companyId = useEffectiveCompanyId();
@@ -559,28 +566,39 @@ export function useDeleteDocumento() {
     mutationFn: async (id: string) => {
       const { data: doc, error: fetchErr } = await supabase
         .from("documenti_fiscali" as never)
-        .select("stato, tipo")
+        .select("stato, tipo, sdi_id_trasmissione, sdi_stato, sdi_identificativo, importo_pagato, pagato_at")
         .eq("id", id)
         .eq("company_id", companyId!)
         .single();
 
       if (fetchErr) throw fetchErr;
-      const stato = (doc as Record<string, unknown>)?.stato as string | undefined;
-      const tipo = (doc as Record<string, unknown>)?.tipo as string | undefined;
+      const riga = doc as Record<string, unknown> | null;
+      const stato = riga?.stato as string | undefined;
+      const tipo = riga?.tipo as string | undefined;
 
-      if (!stato) throw new Error("Documento non trovato");
+      if (!stato || !tipo) throw new Error("Documento non trovato");
 
-      if (stato !== "bozza" && stato !== "annullata") {
+      const maiUscita = emessaMaiUscita({
+        tipo,
+        stato,
+        sdi_id_trasmissione: riga?.sdi_id_trasmissione as string | null,
+        sdi_stato: riga?.sdi_stato as string | null,
+        sdi_identificativo: riga?.sdi_identificativo as string | null,
+        importo_pagato: Number(riga?.importo_pagato ?? 0),
+        pagato_at: riga?.pagato_at as string | null,
+      });
+
+      if (stato !== "bozza" && stato !== "annullata" && !maiUscita) {
         throw new Error(
           "I documenti emessi non possono essere eliminati. Emetti una nota di credito per stornare la fattura."
         );
       }
 
-      // Bozza di un documento fiscale: il numero va restituito alla serie, se no
-      // la fattura dopo salta un numero. Lo fa il database (documento_elimina_bozza):
-      // la bozza va nel cestino con un segnaposto al posto del numero e il
-      // contatore torna al più alto ancora in uso.
-      if (stato === "bozza" && tipo && ["fattura", "fattura_pa", "nota_credito", "nota_debito", "autofattura", "fattura_riepilogativa", "reverse_charge_interno", "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"].includes(tipo)) {
+      // Bozza di un documento fiscale, o emessa mai uscita: il numero va restituito
+      // alla serie, se no la fattura dopo salta un numero. Lo fa il database
+      // (documento_elimina_bozza): il documento va nel cestino con un segnaposto al
+      // posto del numero e il contatore torna al più alto ancora in uso.
+      if ((stato === "bozza" || maiUscita) && TIPI_NUMERO_FISCALE.includes(tipo)) {
         const { error: rpcErr } = await (supabase.rpc.bind(supabase) as unknown as (
           fn: string,
           args: Record<string, unknown>,

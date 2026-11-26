@@ -105,11 +105,17 @@
      vuol dire testate di sezione e barre alte 64px anche con una riga sola:
      in «La mia formazione» 36px vuoti sotto il titolo. Da telefono,
      dentro il contenuto della pagina, l'altezza la decide il componente.
-     Barra dell'app in alto e barra in basso stanno fuori da <main>. */
-  .group\/sidebar-wrapper main header,
-  .group\/sidebar-wrapper main nav {
-    min-height: 0;
-  }
+     Barra dell'app in alto e barra in basso stanno fuori da <main>.
+     La regola è subito sotto, fuori dal layer. */
+}
+
+/* Fuori da @layer (26/11/2026): dentro un layer perdeva sempre contro il CSS critico di index.html,
+   che non è in un layer, e ogni <nav>/<header> delle pagine restava alto 64px (le linguette del
+   Calendario: bottoni da 60px). Stessa ragione della regola sui bordi qui sotto.
+   Fuori dal layer vincerebbe anche sulle utility min-h-*: chi ne dichiara una se la tiene. */
+.group\/sidebar-wrapper main header:not([class*="min-h-"]),
+.group\/sidebar-wrapper main nav:not([class*="min-h-"]) {
+  min-height: 0;
 }
 
 /* ── Bordi dei <button>: la causa vera del "sembra tutto bianco" ──────────────

@@ -65,7 +65,7 @@ export default function ScadenzarioKPIs({ summary, isLoading, className, onScadu
 
   if (isLoading || !summary) {
     return (
-      <div className={cn("grid grid-cols-2 gap-2 xl:grid-cols-4", className)}>
+      <div className={cn("grid grid-cols-2 gap-2 lg:grid-cols-4", className)}>
         {[...Array(4)].map((_, i) => <div key={i} className="h-[68px] animate-pulse rounded-xl border bg-muted/40" />)}
       </div>
     );
@@ -77,7 +77,7 @@ export default function ScadenzarioKPIs({ summary, isLoading, className, onScadu
   // Il numero grosso dello scaduto è il credito scaduto — la cosa su cui si può agire — e il
   // debito scaduto sta nella nota, dichiarato (prima si sommavano i due, un numero senza senso).
   return (
-    <div className={cn("grid grid-cols-2 gap-2 xl:grid-cols-4", className)}>
+    <div className={cn("grid grid-cols-2 gap-2 lg:grid-cols-4", className)}>
       <NumeroVeloce
         indice={0}
         etichetta={tr("Scaduto da incassare")}

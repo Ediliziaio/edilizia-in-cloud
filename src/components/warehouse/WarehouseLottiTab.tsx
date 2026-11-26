@@ -45,6 +45,7 @@ import { differenceInDays, parseISO, format } from "date-fns";
 import { StockUnitsDrilldownSheet } from "@/components/warehouse/StockUnitsDrilldownSheet";
 import { AssignSerialsToLottoDialog } from "@/components/warehouse/AssignSerialsToLottoDialog";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { BOTTONE_NUOVO } from "@/components/orders/TestataScheda";
 
 interface Lotto {
   id: string;
@@ -382,15 +383,16 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Package className="h-5 w-5 text-primary" />
-          <h2 className="font-semibold text-lg">{t("Lotti")}</h2>
-          <Badge variant="outline">{lotti.length}</Badge>
+      {/* 26/11/2026: titolo a 14px come le altre sezioni del magazzino e «Nuovo lotto» arancio (era blu). */}
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <Package className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold">{t("Lotti")}</h2>
+          <Badge variant="outline" className="h-5 px-1.5 text-[11px]">{lotti.length}</Badge>
         </div>
         {!readOnly && (
-          <Button size="sm" onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" /> {t("Nuovo lotto")}
+          <Button size="sm" className={BOTTONE_NUOVO} onClick={() => setDialogOpen(true)}>
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" /> {t("Nuovo lotto")}
           </Button>
         )}
       </div>
@@ -426,8 +428,8 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
 
       {lotti.length === 0 ? (
         <Card>
-          <CardContent className="py-14 flex flex-col items-center justify-center gap-3 text-center">
-            <Package className="h-12 w-12 text-muted-foreground/30" aria-hidden="true" />
+          <CardContent className="py-8 flex flex-col items-center justify-center gap-2 text-center">
+            <Package className="h-8 w-8 text-muted-foreground/30" aria-hidden="true" />
             <div>
               <p className="text-sm font-medium">{t("Nessun lotto registrato")}</p>
               <p className="text-xs text-muted-foreground mt-0.5">

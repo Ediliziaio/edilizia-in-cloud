@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Tab Squadre della pagina Squadre e calendari lavori: la tabella, il dialog, e per ogni
@@ -216,13 +217,13 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
               placeholder={t("Cerca squadra o referente…")}
               value={selezionata ? "" : cerca}
               onChange={(e) => { setCerca(e.target.value); togliRichiesta(); }}
-              className="min-w-0 basis-full sm:basis-auto sm:flex-1 sm:max-w-sm"
+              className="h-8 min-w-0 basis-full text-xs sm:basis-auto sm:w-72 sm:flex-none"
             />
             <UniformSelect
               aria-label={t("Tipo di squadra")}
               value={selezionata ? "tutte" : tipo}
               onChange={(e) => { setTipo(e.target.value); togliRichiesta(); }}
-              className="h-10 rounded-md border bg-background px-3 text-sm"
+              className="h-8 rounded-md border bg-background px-3 text-xs"
             >
               <option value="tutte">{t("Tutte le squadre")}</option>
               <option value="interna">{t("Interne")}</option>
@@ -287,7 +288,7 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
                   <TableHead className="w-32" />
                 </TableRow>
               </TableHeader>
-              <TableBody className={compact ? "grid gap-3 bg-muted/20 p-3" : "block lg:table-row-group"}>
+              <TableBody className={compact ? "grid gap-2 bg-muted/20 p-2" : "block lg:table-row-group"}>
                 {visibili.map((s) => {
                   const stato = statoSyncSquadra({
                     google_calendar_id: s.google_calendar_id ?? null,
@@ -301,9 +302,11 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
                   return (
                     <TableRow
                       key={s.id}
-                      className={`grid grid-cols-2 gap-2 p-3 [&>td]:block [&>td]:p-1 ${compact ? "rounded-lg border bg-card" : "lg:table-row lg:p-0 lg:[&>td]:table-cell lg:[&>td]:p-4"} ${s.is_active ? "" : "opacity-60"}`}
+                      className={`grid grid-cols-2 gap-2 p-3 [&>td]:block [&>td]:p-1 ${compact ? "rounded-lg border bg-card lg:grid-cols-[minmax(12rem,1fr)_auto_auto_auto] lg:items-center lg:gap-x-2 lg:px-3 lg:py-2 lg:[&>td]:p-0" : "lg:table-row lg:p-0 lg:[&>td]:table-cell lg:[&>td]:p-4"} ${s.is_active ? "" : "opacity-60"}`}
                     >
-                      <TableCell className="col-span-2">
+                      {/* Da computer (versione a schede) una squadra è una riga sola: nome, calendario, stato, azioni
+                          (25/11/2026). Prima ogni pezzo aveva la sua riga e la scheda era alta il doppio. */}
+                      <TableCell className={compact ? "col-span-2 lg:col-span-1" : "col-span-2"}>
                         <span className="flex flex-wrap items-center gap-2 break-words font-medium">
                           <span
                             className="inline-block h-3 w-3 shrink-0 rounded-full"
@@ -352,7 +355,7 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
                         className={
                           senzaAccountGoogle
                             ? compact ? "!hidden" : "col-span-2 max-lg:!hidden"
-                            : "col-span-2"
+                            : compact ? "col-span-2 lg:col-span-1" : "col-span-2"
                         }
                       >
                         {senzaAccountGoogle && (
@@ -407,9 +410,11 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className={compact ? "col-start-1 self-center" : undefined}>
+                      <TableCell className={compact ? "col-start-1 self-center lg:col-start-auto" : undefined}>
                         <div className="flex flex-wrap items-center gap-2">
-                          <Badge className={STATO_CLASSE[stato]}>
+                          {/* «Nessun calendario» ripeteva le tendine vuote accanto: nella riga da computer resta
+                              solo quando c'è qualcosa da dire (attiva, spenta, errore). */}
+                          <Badge className={cn(STATO_CLASSE[stato], compact && stato === "non_collegata" && "lg:hidden")}>
                             {STATO_SYNC_LABEL[stato]}
                           </Badge>
                           {s.google_calendar_id && (
@@ -431,7 +436,7 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className={compact ? "col-start-2 self-center" : undefined}>
+                      <TableCell className={compact ? "col-start-2 self-center lg:col-start-auto" : undefined}>
                         <div className="flex justify-end gap-1">
                           <Button
                             variant="ghost"

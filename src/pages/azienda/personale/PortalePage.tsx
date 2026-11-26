@@ -97,6 +97,7 @@ import {
   uploadPortalMaterial,
 } from "@/lib/portalLearningApi";
 import { cn } from "@/lib/utils";
+import { BOTTONE_NUOVO, BOTTONE_SECONDARIO, RICERCA_BARRA, TENDINA_STATO_BARRA } from "@/components/orders/TestataScheda";
 import {
   avanzamentoCorso,
   leggiModuliSpuntati,
@@ -1798,19 +1799,18 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
       // Da 640: titolo e azioni su una riga, i quattro numeri in fila sotto.
       // Prima i numeri erano un 2×2 a destra e tra titolo e bottoni restava
       // un vuoto alto quanto loro (testata di 260px).
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-6 bg-gradient-to-br from-white via-blue-50/50 to-orange-50/70 p-5 lg:p-6 sm:gap-4">
+      // 26/11/2026: testata come le altre pagine (niente riquadro sfumato né tessera blu col cappello),
+      // i quattro numeri su una fascia bassa: le schede partivano a 340px, ora sotto i 200.
+      <section>
+        <div className="grid gap-2">
           <div className="flex flex-col justify-between gap-5 sm:flex-row sm:flex-wrap sm:items-center">
             {!isAdminContext && (
               <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm shadow-blue-200">
-                  <GraduationCap className="h-6 w-6" />
-                </div>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     {/* Il titolo segue la voce di menu: in «Crea corsi» diceva «Portale». */}
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-950">{mode === "builder" ? t("Crea corsi") : t("Portale")}</h1>
-                    <Badge className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-50">{t("Beta operativa")}</Badge>
+                    <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-950">{mode === "builder" ? t("Crea corsi") : t("Portale")}</h1>
+                    <Badge variant="outline" className="border-slate-200 bg-slate-50 font-medium text-slate-600">{t("Beta operativa")}</Badge>
                     {/* Lo stato si vede solo quando c'è qualcosa da sapere (caricamento,
                         salvataggio locale…): da sincronizzato mostrava «Sync Supabase»,
                         il nome del nostro fornitore, che al cliente non dice nulla. */}
@@ -1837,8 +1837,8 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                   Solo dove il Builder è disponibile ("Crea corsi"): nel "Portale"
                   (library) la creazione non c'è. */}
               {showBuilder && (
-                <Button className="h-11 gap-2 bg-blue-600 hover:bg-blue-700" onClick={createCourseQuick}>
-                  <Plus className="h-4 w-4" />
+                <Button size="sm" className={BOTTONE_NUOVO} onClick={createCourseQuick}>
+                  <Plus />
                   {t("Nuovo corso")}
                 </Button>
               )}
@@ -1941,11 +1941,12 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                 <DialogTrigger asChild>
                   <Button
                     variant="outline"
-                    className="h-11 gap-2 border-blue-200 bg-white text-blue-700 hover:bg-blue-50"
+                    size="sm"
+                    className={BOTTONE_SECONDARIO}
                     disabled={isCourseReadOnly}
                     title={isCourseReadOnly ? t("Corso piattaforma · sola lettura") : undefined}
                   >
-                    <UploadCloud className="h-4 w-4" />
+                    <UploadCloud />
                     {t("Carica materiale")}
                   </Button>
                 </DialogTrigger>
@@ -2119,20 +2120,21 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
               {mode === "full" && (
                 <Button
                   variant="ghost"
-                  className="h-11 gap-2 text-slate-700 hover:bg-white"
+                  size="sm"
+                  className={cn(BOTTONE_SECONDARIO, "text-slate-700 hover:bg-white")}
                   onClick={() => {
                     setActiveTab("preview");
                     toast.success(t("Anteprima utente aperta."));
                   }}
                 >
-                  <PanelRight className="h-4 w-4" />
+                  <PanelRight />
                   {t("Apri pagina utente")}
                 </Button>
               )}
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             <StatCard label={t("Corsi pubblicati")} value={String(stats.published)} icon={BookMarked} tone="blue" />
             <StatCard label={t("Iscrizioni team")} value={usaIscrizioniReali ? totaliIscrizioni ? String(totaliIscrizioni.enrolled) : "—" : String(stats.totalEnrolled)} icon={Users} tone="orange" />
             <StatCard label={t("Completamento")} value={usaIscrizioniReali ? totaliIscrizioni ? `${totaliIscrizioni.completion}%` : "—" : `${stats.avgCompletion}%`} icon={CheckCircle2} tone="green" />
@@ -2151,13 +2153,13 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
 
       <Tabs value={effectiveTab} onValueChange={setActiveTab} className="space-y-5">
         {mode !== "library" && (
-        <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
-          <TabsTrigger value="corsi" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+        <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+          <TabsTrigger value="corsi" className="gap-2 h-8 px-2.5 text-xs data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none">
             <Library className="h-4 w-4" />
             {t("Corsi")}
           </TabsTrigger>
           {showBuilder && (
-            <TabsTrigger value="builder" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+            <TabsTrigger value="builder" className="gap-2 h-8 px-2.5 text-xs data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none">
               <LayoutTemplate className="h-4 w-4" />
               {t("Builder")}
             </TabsTrigger>
@@ -2167,26 +2169,26 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
               in admin la distribuzione cross-company è nella DistributionBar. */}
           {showAuthoringMgmt && (
             <>
-              <TabsTrigger value="procedure" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+              <TabsTrigger value="procedure" className="gap-2 h-8 px-2.5 text-xs data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none">
                 <ClipboardCheck className="h-4 w-4" />
                 {t("Procedure")}
               </TabsTrigger>
-              <TabsTrigger value="accessi" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+              <TabsTrigger value="accessi" className="gap-2 h-8 px-2.5 text-xs data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none">
                 <LockKeyhole className="h-4 w-4" />
                 {t("Accessi")}
               </TabsTrigger>
-              <TabsTrigger value="persone" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+              <TabsTrigger value="persone" className="gap-2 h-8 px-2.5 text-xs data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none">
                 <Users className="h-4 w-4" />
                 {t("Persone")}
               </TabsTrigger>
-              <TabsTrigger value="riepilogo" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+              <TabsTrigger value="riepilogo" className="gap-2 h-8 px-2.5 text-xs data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none">
                 <BarChart3 className="h-4 w-4" />
                 {t("Riepilogo")}
               </TabsTrigger>
             </>
           )}
           {showPreview && (
-            <TabsTrigger value="preview" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+            <TabsTrigger value="preview" className="gap-2 h-8 px-2.5 text-xs data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none">
               <UserRoundCheck className="h-4 w-4" />
               {t("Pagina utente")}
             </TabsTrigger>
@@ -2210,12 +2212,12 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(380px,0.75fr)]">
             <section className="space-y-4">
               <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center">
-                <div className="relative flex-1">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    className="h-11 rounded-xl border-slate-200 pl-9 text-sm"
+                    className="h-8 pl-8 text-xs"
                     aria-label={t("Cerca corso, manuale o procedura")}
                     placeholder={t("Cerca corso, manuale o procedura")}
                   />
@@ -2223,7 +2225,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                 <div className="flex items-center gap-2">
                   <Filter className="h-4 w-4 text-slate-500" />
                   <Select value={areaFilter} onValueChange={(value) => setAreaFilter(value as PortalArea | "tutte")}>
-                    <SelectTrigger aria-label={t("Filtra corsi per area")} className="h-11 w-full rounded-xl border-slate-200 lg:w-[180px]">
+                    <SelectTrigger aria-label={t("Filtra corsi per area")} className={TENDINA_STATO_BARRA}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -2443,12 +2445,12 @@ function StatCard({
   }[tone];
 
   return (
-    <div className="rounded-2xl border border-white/70 bg-white/85 p-4 shadow-sm">
-      <div className={cn("mb-3 flex h-9 w-9 items-center justify-center rounded-xl border", toneClass)}>
-        <Icon className="h-4 w-4" />
+    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 shadow-sm">
+      <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border", toneClass)}>
+        <Icon className="h-3.5 w-3.5" />
       </div>
-      <p className="text-2xl font-bold text-slate-950">{value}</p>
-      <p className="mt-1 text-xs font-medium text-slate-500">{label}</p>
+      <p className="text-base font-bold tabular-nums leading-tight text-slate-950">{value}</p>
+      <p className="min-w-0 truncate text-xs font-medium text-slate-500">{label}</p>
     </div>
   );
 }
@@ -2571,7 +2573,7 @@ function PortalCommandCenter({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t("Qualità corso")}</p>
-                  <h3 className="mt-1 text-2xl font-bold text-slate-950">{quality.score}%</h3>
+                  <h3 className="mt-1 text-lg font-bold text-slate-950">{quality.score}%</h3>
                 </div>
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
                   <Target className="h-5 w-5" />
@@ -4797,12 +4799,12 @@ function PortalPreview({
                 <p className="truncate text-xs text-slate-500 max-sm:hidden">{t("Area utente finale · corsi, materiali, quiz e attestati")}</p>
               </div>
             </div>
-            <div className="relative min-w-0 flex-1 lg:max-w-2xl">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={learnerSearch}
                 onChange={(event) => setLearnerSearch(event.target.value)}
-                className="h-10 rounded-2xl border-slate-200 pl-9 text-sm"
+                className="h-8 pl-8 text-xs"
                 placeholder={t("Cerca corsi e procedure")}
               />
             </div>
@@ -4843,10 +4845,10 @@ function PortalPreview({
               <div className="flex flex-wrap items-center gap-2">
                 <Badge className="border-emerald-300/30 bg-emerald-400/15 text-emerald-100 hover:bg-emerald-400/15">{t("{n} corsi sbloccati", { n: learnerCourses.length })}</Badge>
               </div>
-              <h2 className="mt-4 max-w-3xl text-2xl font-bold tracking-tight sm:text-3xl">
+              <h2 className="mt-1 max-w-3xl text-lg font-bold tracking-tight">
                 {t("La tua formazione")}
               </h2>
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-blue-100">
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-blue-100">
                 {t("Riprendi le lezioni, consulta procedure e materiali, completa i moduli e tieni sotto controllo gli attestati.")}
               </p>
             </div>
@@ -4870,12 +4872,13 @@ function PortalPreview({
               />
             </div>
             <Button
-              className="mt-4 h-11 w-full bg-white text-blue-800 hover:bg-blue-50"
+              size="sm"
+              className={cn(BOTTONE_SECONDARIO, "mt-4 w-full bg-white text-blue-800 hover:bg-blue-50")}
               onClick={() =>
                 openLearnerCourse(activeLearnerCourse, activeModule?.id ?? activeLearnerCourse.modules[0]?.id ?? "")
               }
             >
-              <PlayCircle className="mr-2 h-4 w-4" />
+              <PlayCircle />
               {previewCourseCompletion >= 100 ? t("Rivedi corso") : previewCourseCompletion > 0 ? t("Riprendi corso") : t("Inizia corso")}
             </Button>
           </div>
@@ -5407,12 +5410,12 @@ function PortalPreview({
 
 function LearnerMetric({ label, value, icon: Icon }: { label: string; value: string; icon: typeof Video }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/10 p-2.5 backdrop-blur sm:p-3">
+    <div className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 backdrop-blur">
       <div className="flex items-center gap-1.5 text-[11px] font-medium text-blue-100 sm:text-xs">
         <Icon className="hidden h-3.5 w-3.5 shrink-0 sm:block sm:h-4 sm:w-4" />
         <span className="truncate">{label}</span>
       </div>
-      <p className="mt-1.5 text-xl font-bold text-white sm:mt-2 sm:text-2xl">{value}</p>
+      <p className="mt-1 text-lg font-bold leading-tight text-white">{value}</p>
     </div>
   );
 }

@@ -18,7 +18,7 @@ import { Loader2, PackageSearch, Search, ArrowDownToLine, ChevronRight } from "l
 import { format } from "date-fns";
 import { readAllOrderRows } from "@/lib/orders/listScope";
 import { supabase } from "@/integrations/supabase/client";
-import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DialogContentOperativo as DialogContent } from "@/components/orders/generali/design/ContestoOperativo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -130,6 +130,12 @@ export function ArrivoMerceEntryDialog({
       [o.oda_number, o.fornitore, o.commessa].some((v) => (v ?? "").toLowerCase().includes(q))),
     );
   }, [ordini, ricerca, includeDrafts]);
+  // 26/11/2026: prima gli ordini con righe da ricevere; quelli senza righe (non c'è niente da
+  // precompilare) in fondo, chiusi sotto un titolo. Prima la lista era fatta solo di «senza righe».
+  const conRighe = filtrati.filter((o) => !o.senzaRighe);
+  const senzaRighe = filtrati.filter((o) => o.senzaRighe);
+  const [mostraSenzaRighe, setMostraSenzaRighe] = useState(false);
+  const oggi = new Date().toISOString().slice(0, 10);
 
   const scegli = (odaId: string) => {
     onOpenChange(false);
@@ -143,7 +149,7 @@ export function ArrivoMerceEntryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent struttura="scorrevole" className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent struttura="scorrevole" className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ArrowDownToLine className="h-5 w-5" /> {t("Registra arrivo merce")}
@@ -153,19 +159,24 @@ export function ArrivoMerceEntryDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {ordini.length > 6 && (
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-9"
-              placeholder={t("Cerca per numero, fornitore o commessa")}
-              value={ricerca}
-              onChange={(e) => setRicerca(e.target.value)}
-            />
-          </div>
-        )}
-
-        {ordini.some((order) => order.status === "bozza") && <Button variant="ghost" size="sm" aria-pressed={includeDrafts} onClick={() => setIncludeDrafts((current) => !current)}>{includeDrafts ? t("Nascondi bozze") : t("Mostra anche le bozze ({n})", { n: ordini.filter((order) => order.status === "bozza").length })}</Button>}
+        {/* Ricerca, bozze e carico libero su una riga: il carico libero prima stava in fondo, sotto la lista. */}
+        <div className="flex flex-wrap items-center gap-2">
+          {ordini.length > 6 && (
+            <div className="relative min-w-[200px] flex-1">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="h-8 pl-8 text-xs"
+                placeholder={t("Cerca per numero, fornitore o commessa")}
+                value={ricerca}
+                onChange={(e) => setRicerca(e.target.value)}
+              />
+            </div>
+          )}
+          {ordini.some((order) => order.status === "bozza") && <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs aria-pressed:border-orange-200 aria-pressed:bg-orange-50 aria-pressed:text-orange-700" aria-pressed={includeDrafts} onClick={() => setIncludeDrafts((current) => !current)}>{includeDrafts ? t("Nascondi bozze") : t("Mostra anche le bozze ({n})", { n: ordini.filter((order) => order.status === "bozza").length })}</Button>}
+          <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={libero}>
+            {t("Non c'è un ordine — carico libero")}
+          </Button>
+        </div>
         {isLoading ? (
           <div className="flex justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -180,48 +191,80 @@ export function ArrivoMerceEntryDialog({
           </div>
         ) : (
           <div className="space-y-2">
-            {filtrati.map((o) => (
+            {conRighe.length > 0 && <div className="divide-y overflow-hidden rounded-lg border">{conRighe.map((o: typeof filtrati[number]) => {
+              const inRitardo = !!o.expected_delivery_date && o.expected_delivery_date.slice(0, 10) < oggi;
+              return (
               <button
                 key={o.id}
                 type="button"
                 onClick={() => scegli(o.id)}
-                className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:border-primary/40 hover:bg-muted/50"
+                className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/50"
               >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">
-                    {o.oda_number || t("Ordine senza numero")}
-                    {o.fornitore && <span className="text-muted-foreground"> · {o.fornitore}</span>}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {o.expected_delivery_date
-                      ? t("Attesa {valore}", { valore: format(new Date(o.expected_delivery_date), "d MMM yyyy", { locale: dateFnsCampo() }) })
-                      : t("Senza data attesa")}
-                    {o.commessa && <>{" "}{t("· Commessa {commessa}", { commessa: String(o.commessa ?? "") })}</>}
-                    {o.ticketId && <> {t("· Assistenza")}</>}
-                  </p>
-                </div>
+                <span className="w-32 shrink-0 truncate text-sm font-medium">{o.oda_number || t("Ordine senza numero")}</span>
+                <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+                  {o.fornitore || "—"}
+                  {o.commessa && <> · {t("Commessa {commessa}", { commessa: String(o.commessa ?? "") })}</>}
+                  {o.ticketId && <> {t("· Assistenza")}</>}
+                </span>
+                <span className={`shrink-0 text-xs tabular-nums ${inRitardo ? "font-medium text-red-600" : "text-muted-foreground"}`}>
+                  {o.expected_delivery_date
+                    ? t("Attesa {valore}", { valore: format(new Date(o.expected_delivery_date), "d MMM yyyy", { locale: dateFnsCampo() }) })
+                    : t("Senza data attesa")}
+                </span>
                 {o.senzaRighe ? (
-                  <Badge variant="outline" className="shrink-0 text-xs">
-                    {t("senza righe")}
-                  </Badge>
+                  <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[11px] font-normal text-muted-foreground">{t("senza righe")}</Badge>
                 ) : (
-                  <Badge
-                    className={`shrink-0 text-xs ${
-                      o.status === "parziale" ? "bg-red-100 text-red-800" : "bg-muted text-foreground"
-                    }`}
-                  >{t("{righeMancanti} da ricevere", { righeMancanti: String(o.righeMancanti ?? "") })}</Badge>
+                  <Badge variant="outline" className={`shrink-0 px-1.5 py-0 text-[11px] font-medium ${o.status === "parziale" ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                    {t("{righeMancanti} da ricevere", { righeMancanti: String(o.righeMancanti ?? "") })}
+                  </Badge>
                 )}
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
               </button>
+              );
+            })}</div>}
+            {senzaRighe.length > 0 && (conRighe.length === 0 || mostraSenzaRighe ? (
+              <div className="space-y-1">
+                {conRighe.length > 0 && <p className="px-1 text-xs text-muted-foreground">{t("senza righe")} · {senzaRighe.length}</p>}
+                <div className="divide-y overflow-hidden rounded-lg border">{senzaRighe.map((o: typeof filtrati[number]) => {
+              const inRitardo = !!o.expected_delivery_date && o.expected_delivery_date.slice(0, 10) < oggi;
+              return (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => scegli(o.id)}
+                className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/50"
+              >
+                <span className="w-32 shrink-0 truncate text-sm font-medium">{o.oda_number || t("Ordine senza numero")}</span>
+                <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+                  {o.fornitore || "—"}
+                  {o.commessa && <> · {t("Commessa {commessa}", { commessa: String(o.commessa ?? "") })}</>}
+                  {o.ticketId && <> {t("· Assistenza")}</>}
+                </span>
+                <span className={`shrink-0 text-xs tabular-nums ${inRitardo ? "font-medium text-red-600" : "text-muted-foreground"}`}>
+                  {o.expected_delivery_date
+                    ? t("Attesa {valore}", { valore: format(new Date(o.expected_delivery_date), "d MMM yyyy", { locale: dateFnsCampo() }) })
+                    : t("Senza data attesa")}
+                </span>
+                {o.senzaRighe ? (
+                  <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[11px] font-normal text-muted-foreground">{t("senza righe")}</Badge>
+                ) : (
+                  <Badge variant="outline" className={`shrink-0 px-1.5 py-0 text-[11px] font-medium ${o.status === "parziale" ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                    {t("{righeMancanti} da ricevere", { righeMancanti: String(o.righeMancanti ?? "") })}
+                  </Badge>
+                )}
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
+              );
+            })}</div>
+              </div>
+            ) : (
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => setMostraSenzaRighe(true)}>
+                {t("senza righe")} · {senzaRighe.length}
+              </Button>
             ))}
           </div>
         )}
 
-        <DialogFooter>
-        <Button variant="outline" className="w-full" onClick={libero}>
-          {t("Non c'è un ordine — carico libero")}
-        </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

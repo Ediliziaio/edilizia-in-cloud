@@ -28,7 +28,7 @@ beforeEach(() => { state.offices = [{ id: "technical", nome: "Tecnico", membri: 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 async function setup() {
   render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><OfficeWorkspace orderId="order-demo" /></QueryClientProvider>);
-  fireEvent.click(await screen.findByRole("button", { name: "Nuova attività d’ufficio" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Nuova attività" }));
   fireEvent.change(screen.getByRole("textbox", { name: "Titolo *" }), { target: { value: "Bozza demo" } });
   await waitFor(() => expect(screen.getByRole("button", { name: "Crea attività" })).toBeEnabled());
   return document.getElementById("nuova-attivita-ufficio")!;

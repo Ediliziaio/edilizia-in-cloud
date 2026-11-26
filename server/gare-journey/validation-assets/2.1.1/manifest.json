@@ -1,0 +1,193 @@
+{
+  "source": "OP-TED/ESPD-EDM",
+  "version": "2.1.1",
+  "commit": "0249cd6122629cee7680fd45e6eecf322e977bfa",
+  "files": [
+    {
+      "file": "val/schematron/ESPDResponse-2.1.1/xsl/03 ESPD Resp Criterion BR.xsl",
+      "sha256": "f42ae4d8b77e2ea316912926dbb1944f77cd234cf7b1a26aee9a291b63ba16f9",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDResponse-2.1.1/xsl/03%20ESPD%20Resp%20Criterion%20BR.xsl"
+    },
+    {
+      "file": "val/schematron/ESPDResponse-2.1.1/xsl/04 ESPD Common Other BR.xsl",
+      "sha256": "e7e559c48a3ef72f1cb38feeb1d16da7e070f76c0e88ac4e5c2bb7ef8c070823",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDResponse-2.1.1/xsl/04%20ESPD%20Common%20Other%20BR.xsl"
+    },
+    {
+      "file": "val/schematron/ESPDResponse-2.1.1/xsl/01 ESPD-codelist-values.xsl",
+      "sha256": "c135a76d39861f31b4ebbbbfeb047ae504cc5b5d4bbdd2a465256d732305d2bb",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDResponse-2.1.1/xsl/01%20ESPD-codelist-values.xsl"
+    },
+    {
+      "file": "val/schematron/ESPDResponse-2.1.1/xsl/05 ESPD Resp Role BR.xsl",
+      "sha256": "f203130854c7098875cec406c7d8bebad4f4dc4d36c77111bfa56660471cd03a",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDResponse-2.1.1/xsl/05%20ESPD%20Resp%20Role%20BR.xsl"
+    },
+    {
+      "file": "val/schematron/ESPDResponse-2.1.1/xsl/05 ESPD Resp EO BR.xsl",
+      "sha256": "e7a70cb3637b2677b25d34786a7d5d494d0d0bf05bc8d2a40ee438562676e10b",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDResponse-2.1.1/xsl/05%20ESPD%20Resp%20EO%20BR.xsl"
+    },
+    {
+      "file": "val/schematron/ESPDResponse-2.1.1/xsl/05 ESPD Resp Extended BR.xsl",
+      "sha256": "f12fb92ede9c17f7bf5f0f9424cab068db5febef8cae85a615f9e39969c15f3e",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDResponse-2.1.1/xsl/05%20ESPD%20Resp%20Extended%20BR.xsl"
+    },
+    {
+      "file": "val/schematron/ESPDResponse-2.1.1/xsl/02 ESPD Resp Cardinality BR.xsl",
+      "sha256": "e28a21c168ba5580bff6fc3cd618020cfec02076b4e67d5dec8f90449d8db529",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDResponse-2.1.1/xsl/02%20ESPD%20Resp%20Cardinality%20BR.xsl"
+    },
+    {
+      "file": "val/schematron/ESPDResponse-2.1.1/xsl/03 ESPD Common Criterion BR.xsl",
+      "sha256": "6363f0a545934cc308852ba6ac07d3e48c9e22c72e7fde96966cc727b921163b",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDResponse-2.1.1/xsl/03%20ESPD%20Common%20Criterion%20BR.xsl"
+    },
+    {
+      "file": "val/schematron/ESPDResponse-2.1.1/xsl/01 ESPD-codelist-values.sch.xsl",
+      "sha256": "17a37c1c85c61f5b4298f9616b3b935ef5723614508c0e92ca082c32fe5295bc",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDResponse-2.1.1/xsl/01%20ESPD-codelist-values.sch.xsl"
+    },
+    {
+      "file": "val/schematron/ESPDResponse-2.1.1/xsl/05 ESPD Resp Qualification BR.xsl",
+      "sha256": "fb26068e526086ae041ff7e750710f4b856245bbbb5c49d7e7c00b2fa5d073a7",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDResponse-2.1.1/xsl/05%20ESPD%20Resp%20Qualification%20BR.xsl"
+    },
+    {
+      "file": "val/schematron/ESPDResponse-2.1.1/xsl/ESPD-CriteriaTaxonomy-Extended.V2.1.1.xml",
+      "sha256": "07a16146af8f6ffd7b9901ebca9cccb38cdbae5984c3a11d46235c4e25570d8a",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDResponse-2.1.1/xsl/ESPD-CriteriaTaxonomy-Extended.V2.1.1.xml"
+    },
+    {
+      "file": "val/schematron/ESPDResponse-2.1.1/xsl/ESPD-CriteriaTaxonomy-Basic.V2.1.1.xml",
+      "sha256": "5c52058b6dfd2725f309a6106fc6d508789f1412a3ea7fe0ac1067f8fe05d5c2",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDResponse-2.1.1/xsl/ESPD-CriteriaTaxonomy-Basic.V2.1.1.xml"
+    },
+    {
+      "file": "val/schematron/ESPDResponse-2.1.1/xsl/01 ESPD Common CL Attributes.xsl",
+      "sha256": "a04266c30615de66e8c94fc9528756eb230b5fcb2b9fe78279420a5469dfd332",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDResponse-2.1.1/xsl/01%20ESPD%20Common%20CL%20Attributes.xsl"
+    },
+    {
+      "file": "val/schematron/ESPDResponse-2.1.1/xsl/04 ESPD Resp Other BR.xsl",
+      "sha256": "7b9ee7015f8a928e4d3d4f36442fef18becb0207e8748f636da135d19c621abd",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDResponse-2.1.1/xsl/04%20ESPD%20Resp%20Other%20BR.xsl"
+    },
+    {
+      "file": "val/schematron/ESPDResponse-2.1.1/xsl/01 ESPD Common CL Values Restrictions.xsl",
+      "sha256": "ba3f33679c01fc7cddb517b7a828706c03bb413d98d0f5cc064aa8e9c0380858",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDResponse-2.1.1/xsl/01%20ESPD%20Common%20CL%20Values%20Restrictions.xsl"
+    },
+    {
+      "file": "val/schematron/ESPDRequest-2.1.1/xsl/03 ESPD Req Criterion BR.xsl",
+      "sha256": "537c085fbc7a4e96914e6bf7b192dd207950a46a4e34b89653252449aed0f9c6",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDRequest-2.1.1/xsl/03%20ESPD%20Req%20Criterion%20BR.xsl"
+    },
+    {
+      "file": "val/schematron/ESPDRequest-2.1.1/xsl/04 ESPD Common Other BR.xsl",
+      "sha256": "e7e559c48a3ef72f1cb38feeb1d16da7e070f76c0e88ac4e5c2bb7ef8c070823",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDRequest-2.1.1/xsl/04%20ESPD%20Common%20Other%20BR.xsl"
+    },
+    {
+      "file": "val/schematron/ESPDRequest-2.1.1/xsl/01 ESPD-codelist-values.xsl",
+      "sha256": "c135a76d39861f31b4ebbbbfeb047ae504cc5b5d4bbdd2a465256d732305d2bb",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDRequest-2.1.1/xsl/01%20ESPD-codelist-values.xsl"
+    },
+    {
+      "file": "val/schematron/ESPDRequest-2.1.1/xsl/02 ESPD Req Cardinality BR.xsl",
+      "sha256": "116ac88cd308809b23c136274c953ea142b051dd84e003c7b62df4d9e2cd2b4a",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDRequest-2.1.1/xsl/02%20ESPD%20Req%20Cardinality%20BR.xsl"
+    },
+    {
+      "file": "val/schematron/ESPDRequest-2.1.1/xsl/04 ESPD Req Other BR.xsl",
+      "sha256": "c62fe289f3c62ecd9b392b283d36b3b76e308f45a225ed196ae9945391d63ac8",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDRequest-2.1.1/xsl/04%20ESPD%20Req%20Other%20BR.xsl"
+    },
+    {
+      "file": "val/schematron/ESPDRequest-2.1.1/xsl/03 ESPD Common Criterion BR.xsl",
+      "sha256": "6363f0a545934cc308852ba6ac07d3e48c9e22c72e7fde96966cc727b921163b",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDRequest-2.1.1/xsl/03%20ESPD%20Common%20Criterion%20BR.xsl"
+    },
+    {
+      "file": "val/schematron/ESPDRequest-2.1.1/xsl/05 ESPD Req Procurer BR.xsl",
+      "sha256": "aa58cc8df1e8e831ab0ffc6a1d5097c2a0dd8dda3189a1c830a52d1fbec68b15",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDRequest-2.1.1/xsl/05%20ESPD%20Req%20Procurer%20BR.xsl"
+    },
+    {
+      "file": "val/schematron/ESPDRequest-2.1.1/xsl/ESPD-CriteriaTaxonomy-Extended.V2.1.1.xml",
+      "sha256": "07a16146af8f6ffd7b9901ebca9cccb38cdbae5984c3a11d46235c4e25570d8a",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDRequest-2.1.1/xsl/ESPD-CriteriaTaxonomy-Extended.V2.1.1.xml"
+    },
+    {
+      "file": "val/schematron/ESPDRequest-2.1.1/xsl/ESPD-CriteriaTaxonomy-Basic.V2.1.1.xml",
+      "sha256": "5c52058b6dfd2725f309a6106fc6d508789f1412a3ea7fe0ac1067f8fe05d5c2",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDRequest-2.1.1/xsl/ESPD-CriteriaTaxonomy-Basic.V2.1.1.xml"
+    },
+    {
+      "file": "val/schematron/ESPDRequest-2.1.1/xsl/01 ESPD Common CL Attributes.xsl",
+      "sha256": "a04266c30615de66e8c94fc9528756eb230b5fcb2b9fe78279420a5469dfd332",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDRequest-2.1.1/xsl/01%20ESPD%20Common%20CL%20Attributes.xsl"
+    },
+    {
+      "file": "val/schematron/ESPDRequest-2.1.1/xsl/05 ESPD Req Extended BR.xsl",
+      "sha256": "a342625f83ec14705f5aae623db23d1b8756e1eff24f695eafc082c8d9d75906",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDRequest-2.1.1/xsl/05%20ESPD%20Req%20Extended%20BR.xsl"
+    },
+    {
+      "file": "val/schematron/ESPDRequest-2.1.1/xsl/01 ESPD Common CL Values Restrictions.xsl",
+      "sha256": "ba3f33679c01fc7cddb517b7a828706c03bb413d98d0f5cc064aa8e9c0380858",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/val/schematron/ESPDRequest-2.1.1/xsl/01%20ESPD%20Common%20CL%20Values%20Restrictions.xsl"
+    },
+    {
+      "file": "cl/gc/ResponseDataType.gc",
+      "sha256": "7028e958d9b7007c255a8926819e9e66331339418946be5fc99783ff59703b50",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/cl/gc/ResponseDataType.gc"
+    },
+    {
+      "file": "cl/gc/QualificationApplicationType.gc",
+      "sha256": "ef796ee23a70cb37b590cde7841bf6049aeec5636214cacf3d9d27c4291f4897",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/cl/gc/QualificationApplicationType.gc"
+    },
+    {
+      "file": "cl/gc/CPVCodes.gc",
+      "sha256": "4acde0e0503e5684117852f0922a5872d04dfab30417b11164cfc69c6745d609",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/cl/gc/CPVCodes.gc"
+    },
+    {
+      "file": "cl/gc/BooleanGUIControlType.gc",
+      "sha256": "71759941319e49b5a34496fde78a517416e0cc615b6989c557bab9f9b9a8d2a9",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/cl/gc/BooleanGUIControlType.gc"
+    },
+    {
+      "file": "cl/gc/EORoleType.gc",
+      "sha256": "7c6b00b76e7c920326988294c55f120573e0ea2ebd57be42c587a184703e03eb",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/cl/gc/EORoleType.gc"
+    },
+    {
+      "file": "cl/gc/ESPD-CriteriaTaxonomy_V2.1.1.gc",
+      "sha256": "dd29665bcbd9a7cb1910b923bede8f661cc064bf7f1d57418e877b34b58c1642",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/cl/gc/ESPD-CriteriaTaxonomy_V2.1.1.gc"
+    },
+    {
+      "file": "cl/gc/WeightingType.gc",
+      "sha256": "473ec10e49a2de7d7716ac13abed35a447ceb3959c9063d791748cc8436b0a21",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/cl/gc/WeightingType.gc"
+    },
+    {
+      "file": "cl/gc/EvaluationMethodType.gc",
+      "sha256": "c7e7bf1c6833043e233f4c6b11e7699ed47cf244a73e0cb3f5e54767aae15484",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/cl/gc/EvaluationMethodType.gc"
+    },
+    {
+      "file": "cl/gc/CountryCodeIdentifier.gc",
+      "sha256": "6b758247356f9e66821380ec85e010f4d2149e4ae22b9ba1ff0351566da10653",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/cl/gc/CountryCodeIdentifier.gc"
+    },
+    {
+      "file": "cl/gc/CurrencyCode.gc",
+      "sha256": "51ec864d5e161198333270b6b14574df26c228eebe06d56fea3dc02a18a92d91",
+      "url": "https://raw.githubusercontent.com/OP-TED/ESPD-EDM/0249cd6122629cee7680fd45e6eecf322e977bfa/docs/src/main/asciidoc/modules/ROOT/dist/cl/gc/CurrencyCode.gc"
+    }
+  ],
+  "license_reference": "https://github.com/OP-TED/ESPD-EDM#licence"
+}

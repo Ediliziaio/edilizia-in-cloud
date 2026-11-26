@@ -54,6 +54,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { BOTTONE_NUOVO } from "@/components/orders/TestataScheda";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -583,7 +584,7 @@ function PlatformStatusRibbon({
           <span className="block text-[11px] font-normal text-amber-800/80 sm:hidden">{t("si collega da computer o tablet")}</span>
         </span>
         <Button size="sm" variant="outline" onClick={onGoToSettings}
-          className="shrink-0 gap-1.5 border-amber-300 bg-white text-amber-800 hover:bg-amber-50 max-sm:hidden">
+          className="h-8 shrink-0 gap-1.5 border-amber-300 bg-white text-xs text-amber-800 hover:bg-amber-50 max-sm:hidden">
           <Settings className="h-3.5 w-3.5" /> {t("Collega Meta")}
           <ArrowRight className="h-3 w-3" />
         </Button>
@@ -4564,7 +4565,7 @@ function GestioneSocial({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-bold text-slate-900 max-sm:text-lg">{t("Gestione social")}</h1>
+              <h1 className="text-xl font-bold text-slate-900 max-sm:text-lg">{t("Gestione social")}</h1>
               <Badge className="border-0 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white max-sm:px-1.5 max-sm:py-0 max-sm:text-[11px]">Beta</Badge>
             </div>
           </div>
@@ -4573,8 +4574,8 @@ function GestioneSocial({
           <div className="flex flex-wrap gap-2 max-sm:hidden">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="h-9 w-9" aria-label={t("Altre azioni")} title={t("Altre azioni")}>
-                  <MoreHorizontal className="h-4 w-4" />
+                <Button variant="outline" size="icon" className="h-8 w-8" aria-label={t("Altre azioni")} title={t("Altre azioni")}>
+                  <MoreHorizontal className="h-3.5 w-3.5" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -4586,9 +4587,9 @@ function GestioneSocial({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button size="sm" className="gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong hover:from-orange-600 hover:to-amber-600 text-white shadow-sm"
+            <Button size="sm" className={BOTTONE_NUOVO}
               onClick={() => setTab("crea-post")}>
-              <Plus className="h-3.5 w-3.5" /> {t("Crea post")}
+              <Plus /> {t("Crea post")}
             </Button>
           </div>
         </div>
@@ -4646,11 +4647,11 @@ function GestioneSocial({
               <button key={id} type="button" onClick={() => setTab(id)} aria-pressed={activeTab === id}
                 // Icone e spaziatura larga da 1280: a 1024 le linguette uscivano
                 // dalla riga (814px in 686).
-                className={cn("flex shrink-0 items-center gap-2 border-b-2 px-4 py-3.5 text-sm font-semibold transition-colors md:py-4 xl:px-5",
-                  "max-sm:flex-1 max-sm:justify-center max-sm:gap-1 max-sm:px-1 max-sm:py-2.5 max-sm:text-[13px]",
+                className={cn("flex h-8 shrink-0 items-center gap-1.5 border-b-2 px-4 text-xs font-semibold transition-colors xl:px-5",
+                  "max-sm:h-auto max-sm:flex-1 max-sm:justify-center max-sm:gap-1 max-sm:px-1 max-sm:py-2.5 max-sm:text-[13px]",
                   !SCHEDE_TELEFONO.includes(id) && "max-sm:hidden",
                   activeTab === id ? "border-orange-500 text-orange-700" : "border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700")}>
-                <Icon className="h-4 w-4 max-xl:hidden" />
+                <Icon className="h-3.5 w-3.5 max-xl:hidden" />
                 {label}
                 {badge != null && (
                   <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-bold",

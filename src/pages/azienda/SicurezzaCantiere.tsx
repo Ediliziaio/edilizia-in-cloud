@@ -1,4 +1,5 @@
 import {PulsanteProfiliRequisiti} from "@/components/sicurezza/ProfiliRequisitiDialog";
+import { BriefingSicurezzaUfficio } from "@/components/sicurezza/BriefingSicurezzaUfficio";
 import { readAllPages } from "@/lib/personale/readAllPages";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
@@ -22,6 +23,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { BOTTONE_NUOVO, BOTTONE_SECONDARIO } from "@/components/orders/TestataScheda";
 import {
   Dialog,
   DialogContent,
@@ -56,6 +59,7 @@ import {
   UserCheck,
   FileText,
   HeartPulse,
+  ShieldCheck,
 } from "lucide-react";
 import { RegistroEventiSicurezza } from "@/components/sicurezza/RegistroEventiSicurezza";
 import {
@@ -69,7 +73,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
-import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
+import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
 import { KpiMobili } from "@/components/mobile/FiltriMobile";
 import { format } from "date-fns";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
@@ -319,6 +323,7 @@ export default function SicurezzaCantiere() {
 
     return [
       {
+        tab: "pos",
         label: "POS",
         value: posDocs.length,
         helper: t("{n} bozze", { n: posDocs.filter((d) => d.status === "bozza").length }),
@@ -326,6 +331,7 @@ export default function SicurezzaCantiere() {
         icon: HardHat,
       },
       {
+        tab: "duvri",
         label: "DUVRI",
         value: duvriDocs.length,
         helper: t("{n} bozze", { n: duvriDocs.filter((d) => d.status === "bozza").length }),
@@ -333,6 +339,7 @@ export default function SicurezzaCantiere() {
         icon: Users,
       },
       {
+        tab: "subappaltatori",
         label: t("Subappaltatori"),
         value: subappaltatori.length,
         helper: durcScaduti
@@ -342,6 +349,7 @@ export default function SicurezzaCantiere() {
         icon: Building2,
       },
       {
+        tab: "scadenzario",
         label: t("Scadenze aperte"),
         value: adempimentiDaFare,
         helper: adempimentiScaduti
@@ -887,14 +895,21 @@ export default function SicurezzaCantiere() {
       </Button>
     </>
   );
+  // Il «nuovo» di ogni scheda sta nella barra dei filtri, come «Nuovo POS» (25/11/2026).
+  const bottoneNuovo = (etichetta: string, onClick: () => void) => (
+    <Button size="sm" disabled={!canWrite} onClick={onClick} className={BOTTONE_NUOVO}>
+      <Plus />
+      {etichetta}
+    </Button>
+  );
   if (isScopriPlan) return <UpgradeScopriWall type="generic" inline />;
 
   return (
-    <div className="space-y-6 max-sm:space-y-3">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3"><div>
-        <h1 className="text-2xl font-bold tracking-tight">{t("Sicurezza cantiere")}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{t("Documenti, verifiche e scadenze collegati alle commesse.")}</p>
-      </div>{companyId&&<PulsanteProfiliRequisiti companyId={companyId}/>}</div>
+        <h1 className="text-xl font-bold leading-tight tracking-tight">{t("Sicurezza cantiere")}</h1>
+        <p className="sr-only">{t("Documenti, verifiche e scadenze collegati alle commesse.")}</p>
+      </div>{companyId&&<PulsanteProfiliRequisiti companyId={companyId} className={BOTTONE_SECONDARIO}/>}</div>
       {/* Niente fascia gialla col testo normativo: era un avviso fisso, non
           un'azione, e ripeteva a ogni visita cosa sono POS e DUVRI. */}
 
@@ -925,44 +940,30 @@ export default function SicurezzaCantiere() {
         ]}
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4 max-sm:hidden">
+      {/* Riepilogo basso come nelle schede di Commesse (25/11/2026): prima quattro card da 82px. */}
+      <div className="max-sm:hidden">
+      <OperationalSummary compatto label={t("Riepilogo")} title={t("Documenti e scadenze")} icon={ShieldCheck}>
         {safetyStats.map((stat) => (
-          <OperationalKpiCard
-            key={stat.label}
-            icon={stat.icon}
+          <OperationalSummaryMetric
+            key={stat.tab}
             label={stat.label}
-            value={stat.value}
-            hint={stat.helper}
+            // La nota accanto alla cifra, non sotto: la fascia resta bassa come in DDT e Acquisti.
+            value={<>{stat.value}<span className={cn("ml-2 text-[11px] font-normal leading-none tracking-normal", stat.tone === "red" ? "text-amber-300" : "text-blue-100/80")}>{stat.helper}</span></>}
+            tone={stat.tone === "red" ? "red" : undefined}
+            active={schedaAttiva === stat.tab}
             onClick={() =>
               setSearchParams(
                 (p) => {
                   const n = new URLSearchParams(p);
-                  n.set(
-                    "tab",
-                    stat.label === "POS"
-                      ? "pos"
-                      : stat.label === "DUVRI"
-                        ? "duvri"
-                        : stat.label === "Subappaltatori"
-                          ? "subappaltatori"
-                          : "scadenzario",
-                  );
+                  n.set("tab", stat.tab);
                   return n;
                 },
                 { replace: true },
               )
             }
-            tone={
-              stat.tone === "green"
-                ? "green"
-                : stat.tone === "red"
-                  ? "red"
-                  : stat.tone === "amber"
-                    ? "amber"
-                    : "blue"
-            }
           />
         ))}
+      </OperationalSummary>
       </div>
 
       {/* Tabs POS / DUVRI */}
@@ -984,43 +985,43 @@ export default function SicurezzaCantiere() {
       >
         {/* Da 640 le schede stanno a sinistra, larghe quanto servono: su tutta
             la riga restavano sei voci centrate in una fascia grigia. */}
-        <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-xl border bg-white p-1.5 shadow-sm">
-          <TabsTrigger value="pos" className="shrink-0 gap-1.5">
-            <HardHat className="h-4 w-4" /> POS
+        <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-xl border bg-white p-1 shadow-sm">
+          <TabsTrigger value="pos" className="h-8 shrink-0 gap-1.5 px-3 text-[13px]">
+            <HardHat className="h-3.5 w-3.5" /> POS
           </TabsTrigger>
-          <TabsTrigger value="documenti" className="shrink-0 gap-1.5">
-            <FileText className="h-4 w-4" /> {t("Documenti")}
+          <TabsTrigger value="documenti" className="h-8 shrink-0 gap-1.5 px-3 text-[13px]">
+            <FileText className="h-3.5 w-3.5" /> {t("Documenti")}
           </TabsTrigger>
-          <TabsTrigger value="sds" className="shrink-0 gap-1.5"><FileText className="h-4 w-4" /> {t("SDS prodotti")}</TabsTrigger>
+          <TabsTrigger value="sds" className="h-8 shrink-0 gap-1.5 px-3 text-[13px]"><FileText className="h-3.5 w-3.5" /> {t("SDS prodotti")}</TabsTrigger>
           <TabsTrigger
             value="figure"
-            className="shrink-0 gap-1.5 max-sm:hidden"
+            className="h-8 shrink-0 gap-1.5 px-3 text-[13px] max-sm:hidden"
           >
-            <UserCheck className="h-4 w-4" /> {t("Figure")}
+            <UserCheck className="h-3.5 w-3.5" /> {t("Figure")}
           </TabsTrigger>
-          <TabsTrigger value="duvri" className="shrink-0 gap-1.5 max-sm:hidden">
-            <Users className="h-4 w-4" /> DUVRI
+          <TabsTrigger value="duvri" className="h-8 shrink-0 gap-1.5 px-3 text-[13px] max-sm:hidden">
+            <Users className="h-3.5 w-3.5" /> DUVRI
           </TabsTrigger>
-          <TabsTrigger value="verbali" className="shrink-0 gap-1.5">
-            <ClipboardList className="h-4 w-4" /> {t("Verbali")}
+          <TabsTrigger value="verbali" className="h-8 shrink-0 gap-1.5 px-3 text-[13px]">
+            <ClipboardList className="h-3.5 w-3.5" /> {t("Verbali")}
           </TabsTrigger>
           <TabsTrigger
             value="subappaltatori"
-            className="shrink-0 gap-1.5 max-sm:hidden"
+            className="h-8 shrink-0 gap-1.5 px-3 text-[13px] max-sm:hidden"
           >
-            <Building2 className="h-4 w-4" /> {t("Subappaltatori")}
+            <Building2 className="h-3.5 w-3.5" /> {t("Subappaltatori")}
           </TabsTrigger>
-          <TabsTrigger value="scadenzario" className="shrink-0 gap-1.5">
-            <CalendarClock className="h-4 w-4" /> {t("Scadenze")}
+          <TabsTrigger value="scadenzario" className="h-8 shrink-0 gap-1.5 px-3 text-[13px]">
+            <CalendarClock className="h-3.5 w-3.5" /> {t("Scadenze")}
           </TabsTrigger>
           {/* Infortuni e quasi-incidenti segnalati dagli operai (23/11/2026). */}
-          <TabsTrigger value="eventi" className="shrink-0 gap-1.5">
-            <HeartPulse className="h-4 w-4" /> {t("Infortuni")}
+          <TabsTrigger value="eventi" className="h-8 shrink-0 gap-1.5 px-3 text-[13px]">
+            <HeartPulse className="h-3.5 w-3.5" /> {t("Infortuni")}
           </TabsTrigger>
         </TabsList>
 
         {/* ───── DOCUMENTI: archivio di tutti i cantieri (PSC, notifica, PiMUS, DURC…) ───── */}
-        <TabsContent value="documenti" className="mt-4 max-sm:mt-3">
+        <TabsContent value="documenti" className="mt-3">
           {companyId && (
             <DocumentiSicurezza
               companyId={companyId}
@@ -1030,12 +1031,12 @@ export default function SicurezzaCantiere() {
           )}
         </TabsContent>
 
-        <TabsContent value="sds" className="mt-4">{companyId && <SdsAziendali companyId={companyId} />}</TabsContent>
+        <TabsContent value="sds" className="mt-3">{companyId && <SdsAziendali companyId={companyId} />}</TabsContent>
 
         {/* ───── POS TAB: modello ufficiale (DI 9/9/2014) ───── */}
         <TabsContent
           value="pos"
-          className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-2"
+          className="space-y-4 mt-3 max-sm:space-y-2"
         >
           <PosElencoTab orders={orders} />
         </TabsContent>
@@ -1043,24 +1044,14 @@ export default function SicurezzaCantiere() {
         {/* ───── FIGURE DELLA SICUREZZA ───── */}
         <TabsContent
           value="figure"
-          className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-2"
+          className="space-y-4 mt-3 max-sm:space-y-2"
         >
           <FigureSicurezzaTab />
         </TabsContent>
 
         {/* ───── DUVRI TAB ───── */}
-        <TabsContent value="duvri" className="mt-4 space-y-4">
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              disabled={!canWrite}
-              onClick={() => setDuvriDialogOpen(true)}
-              className="bg-orange-500 text-white hover:bg-orange-600"
-            >
-              <Plus className="mr-1 h-4 w-4" />
-              {t("Genera DUVRI")}
-            </Button>
-          </div>
+        <TabsContent value="duvri" className="mt-3 space-y-3">
+          {(duvriLoading || duvriError || ordersError) && <div className="flex justify-end">{bottoneNuovo(t("Genera DUVRI"), () => setDuvriDialogOpen(true))}</div>}
           {duvriLoading ? (
             <Skeleton className="h-40 w-full" />
           ) : duvriError || ordersError ? (
@@ -1069,6 +1060,7 @@ export default function SicurezzaCantiere() {
             </p>
           ) : (
             <SafetyWorkflow<DuvriDocument>
+              toolbarAction={bottoneNuovo(t("Genera DUVRI"), () => setDuvriDialogOpen(true))}
               namespace="duvri"
               onOpen={(d) => setExpandedDuvri(d.id)}
               label="DUVRI"
@@ -1238,18 +1230,8 @@ export default function SicurezzaCantiere() {
         </TabsContent>
 
         {/* ───── VERBALI TAB ───── */}
-        <TabsContent value="verbali" className="mt-4 space-y-4">
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              disabled={!canWrite}
-              onClick={nuovoVerbale}
-              className="bg-orange-500 text-white hover:bg-orange-600"
-            >
-              <Plus className="mr-1 h-4 w-4" />
-              {t("Nuovo verbale")}
-            </Button>
-          </div>
+        <TabsContent value="verbali" className="mt-3 space-y-3">
+          {(verbaliLoading || verbaliError) && <div className="flex justify-end">{bottoneNuovo(t("Nuovo verbale"), nuovoVerbale)}</div>}
           {verbaliLoading ? (
             <Skeleton className="h-40 w-full" />
           ) : verbaliError ? (
@@ -1258,6 +1240,7 @@ export default function SicurezzaCantiere() {
             </p>
           ) : (
             <SafetyWorkflow<VerbaleSicurezza>
+              toolbarAction={bottoneNuovo(t("Nuovo verbale"), nuovoVerbale)}
               namespace="verbali"
               label={t("Verbali")}
               items={verbali}
@@ -1353,18 +1336,8 @@ export default function SicurezzaCantiere() {
         </TabsContent>
 
         {/* ───── SUBAPPALTATORI TAB ───── */}
-        <TabsContent value="subappaltatori" className="mt-4 space-y-4">
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              disabled={!canWrite}
-              onClick={nuovoSubappaltatore}
-              className="bg-orange-500 text-white hover:bg-orange-600"
-            >
-              <Plus className="mr-1 h-4 w-4" />
-              {t("Aggiungi subappaltatore")}
-            </Button>
-          </div>
+        <TabsContent value="subappaltatori" className="mt-3 space-y-3">
+          {(subappaltatoriLoading || subappaltatoriError) && <div className="flex justify-end">{bottoneNuovo(t("Aggiungi subappaltatore"), nuovoSubappaltatore)}</div>}
           {subappaltatoriLoading ? (
             <Skeleton className="h-40 w-full" />
           ) : subappaltatoriError ? (
@@ -1373,6 +1346,7 @@ export default function SicurezzaCantiere() {
             </p>
           ) : (
             <SafetyWorkflow<SubappaltatoreSicurezza>
+              toolbarAction={bottoneNuovo(t("Aggiungi subappaltatore"), nuovoSubappaltatore)}
               namespace="subappaltatori"
               defaultView="elenco"
               label={t("Subappaltatori")}
@@ -1484,18 +1458,8 @@ export default function SicurezzaCantiere() {
         </TabsContent>
 
         {/* ───── SCADENZARIO TAB ───── */}
-        <TabsContent value="scadenzario" className="mt-4 space-y-4">
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              disabled={!canWrite}
-              onClick={nuovoAdempimento}
-              className="bg-orange-500 text-white hover:bg-orange-600"
-            >
-              <Plus className="mr-1 h-4 w-4" />
-              {t("Aggiungi adempimento")}
-            </Button>
-          </div>
+        <TabsContent value="scadenzario" className="mt-3 space-y-3">
+          {(adempimentiLoading || adempimentiError) && <div className="flex justify-end">{bottoneNuovo(t("Aggiungi adempimento"), nuovoAdempimento)}</div>}
           {adempimentiLoading ? (
             <Skeleton className="h-40 w-full" />
           ) : adempimentiError ? (
@@ -1504,6 +1468,7 @@ export default function SicurezzaCantiere() {
             </p>
           ) : (
             <SafetyWorkflow<AdempimentoSicurezza>
+              toolbarAction={bottoneNuovo(t("Aggiungi adempimento"), nuovoAdempimento)}
               namespace="scadenze"
               defaultView="elenco"
               label={t("Adempimenti")}
@@ -1618,8 +1583,10 @@ export default function SicurezzaCantiere() {
           )}
         </TabsContent>
 
-        <TabsContent value="eventi" className="mt-4 max-sm:mt-3">
+        <TabsContent value="eventi" className="mt-3">
           {companyId && <RegistroEventiSicurezza companyId={companyId} puoScrivere={canWrite} />}
+          {/* Formazione breve del mattino e ingressi controllati dall'app (piano campo completo 2.4 e 2.5). */}
+          {companyId && <BriefingSicurezzaUfficio companyId={companyId} />}
         </TabsContent>
       </Tabs>
 

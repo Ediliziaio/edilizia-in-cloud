@@ -8,6 +8,7 @@ import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { RecentRendersPanel } from "@/components/render/RecentRendersPanel";
 import { Button } from "@/components/ui/button";
+import { BOTTONE_SECONDARIO } from "@/components/orders/TestataScheda";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
@@ -258,12 +259,12 @@ export default function RenderCategoryHub() {
   return <div className="mx-auto max-w-[96rem] space-y-6 sm:space-y-7">
     <header className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{t("Render AI")}</h1>
+        <h1 className="text-xl font-bold tracking-tight">{t("Render AI")}</h1>
         <div className="flex flex-wrap items-center gap-1 sm:gap-3">
           {(permessi.isAdmin || permessi.canViewSettingsCustomization) && (
-            <Button asChild variant="ghost" size="sm">
+            <Button asChild variant="ghost" size="sm" className={BOTTONE_SECONDARIO}>
               <Link to="/azienda/impostazioni/catalogo-render" aria-label={t("Catalogo render")} title={t("Catalogo render")}>
-                <Image className="h-4 w-4 sm:mr-1.5" aria-hidden="true" />
+                <Image aria-hidden="true" />
                 <span className="hidden sm:inline">{t("Catalogo render")}</span>
               </Link>
             </Button>

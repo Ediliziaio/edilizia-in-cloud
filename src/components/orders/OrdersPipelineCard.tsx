@@ -123,16 +123,16 @@ const TONO_TESTO: Record<Tono, string> = {
   neutro: "text-foreground",
 };
 
-const ACTION_CLASS = "grid min-h-9 min-w-0 flex-1 place-items-center rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:min-h-8";
+const ACTION_CLASS = "grid min-h-9 min-w-0 flex-1 place-items-center rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:min-h-7";
 const PIANIFICAZIONE = { tab: "cantiere", cantiereView: "cronoprogramma" } satisfies OrderDetailDestination;
 const PAGAMENTI = { tab: "finanza", economiaView: "pagamenti" } satisfies OrderDetailDestination;
 
 function RigaInfo({ label, value, icon, tone }: { label: string; value: string; icon: ReactNode; tone: Tono }) {
   const t = useT();
   return (
-    <div className="grid min-w-0 grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-1.5 text-xs">
+    <div className="grid min-w-0 grid-cols-[4.25rem_minmax(0,1fr)] items-center gap-1 text-[11px] leading-4">
       <dt className="text-muted-foreground">{t(label)}</dt>
-      <dd className={cn("flex min-w-0 items-center gap-1.5 font-medium [&>svg]:size-3.5 [&>svg]:shrink-0", TONO_TESTO[tone])}>
+      <dd className={cn("flex min-w-0 items-center gap-1 font-medium [&>svg]:size-3 [&>svg]:shrink-0", TONO_TESTO[tone])}>
         {icon}
         <span className="truncate">{t(value)}</span>
       </dd>
@@ -220,31 +220,31 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
   );
 
   const dettagli = (
-    <div className="space-y-2 px-3 pb-2 pt-2.5">
+    <div className="space-y-1.5 px-2.5 pb-1.5 pt-2">
       <div>
         <div className="flex min-w-0 items-baseline gap-1.5">
-          <p dir="auto" className="min-w-0 truncate text-sm font-semibold leading-tight">{customerName}</p>
+          <p dir="auto" className="min-w-0 truncate text-[13px] font-semibold leading-tight">{customerName}</p>
           {codice && <span className="shrink-0 text-[10px] font-medium tabular-nums text-muted-foreground">{codice}</span>}
         </div>
-        <p dir="auto" className="mt-1 truncate text-xs text-muted-foreground">{descrizione}</p>
+        <p dir="auto" className="mt-0.5 truncate text-[11px] text-muted-foreground">{descrizione}</p>
       </div>
       {valore && (
         <dl className="flex items-baseline justify-between gap-2">
-          <dt className="text-xs text-muted-foreground">{aMisura ? t("Fatturato") : t("Importo contratto")}</dt>
-          <dd className="text-right text-sm font-bold tabular-nums" title={t("IVA inclusa")}>{valore}</dd>
+          <dt className="text-[11px] text-muted-foreground">{aMisura ? t("Fatturato") : t("Importo contratto")}</dt>
+          <dd className="text-right text-[13px] font-bold tabular-nums" title={t("IVA inclusa")}>{valore}</dd>
         </dl>
       )}
-      {ritardo > 0 && <div className={cn("flex items-center gap-1 text-xs", TONO_TESTO.critico)}><AlertTriangle className="size-3.5 shrink-0" aria-hidden />{ritardoTesto}</div>}
-      <dl className="grid gap-1.5 border-t pt-2">
+      {ritardo > 0 && <div className={cn("flex items-center gap-1 text-[11px]", TONO_TESTO.critico)}><AlertTriangle className="size-3 shrink-0" aria-hidden />{ritardoTesto}</div>}
+      <dl className="grid gap-1 border-t pt-1.5">
         {fasiRiga}
         <RigaInfo label="Materiali" value={materiali.testo} tone={materiali.tono} icon={<PackageCheck aria-hidden />} />
         <RigaInfo label="Squadra" value={squadra.testo} tone={squadra.tono} icon={<Users aria-hidden />} />
         {ufficioRiga}
       </dl>
       <Link to={linkPasso} data-no-drag
-        className={cn("flex w-fit max-w-full items-center gap-1 rounded-sm text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary hover:underline",
+        className={cn("flex w-fit max-w-full items-center gap-1 rounded-sm text-[11px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary hover:underline",
           passo.tipo === "pronto" ? TONO_TESTO.ok : "text-primary")}>
-        <ArrowRight className="size-3.5 shrink-0" aria-hidden />
+        <ArrowRight className="size-3 shrink-0" aria-hidden />
         <span className="truncate">{t(passo.testo)}</span>
       </Link>
     </div>
@@ -255,11 +255,11 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
     <div className={aspetto}>
       {dettagli}
       <div className="flex items-center gap-0.5 border-t bg-muted/20 px-1.5 py-0.5">
-        <span className={ACTION_CLASS}><Eye className="size-4" /></span>
-        {hrefEmail && <span className={ACTION_CLASS}><Mail className="size-4" /></span>}
-        {azioni.map(({ label: nome, icon: Icon }) => <span key={nome} className={ACTION_CLASS}><Icon className="size-4" /></span>)}
-        {canEdit && <span className={ACTION_CLASS}><Pencil className="size-4" /></span>}
-        {(onMove || (onPhaseChange && fasi.length > 0)) && <span className={ACTION_CLASS}><ArrowRightLeft className="size-4" /></span>}
+        <span className={ACTION_CLASS}><Eye className="size-3.5" /></span>
+        {hrefEmail && <span className={ACTION_CLASS}><Mail className="size-3.5" /></span>}
+        {azioni.map(({ label: nome, icon: Icon }) => <span key={nome} className={ACTION_CLASS}><Icon className="size-3.5" /></span>)}
+        {canEdit && <span className={ACTION_CLASS}><Pencil className="size-3.5" /></span>}
+        {(onMove || (onPhaseChange && fasi.length > 0)) && <span className={ACTION_CLASS}><ArrowRightLeft className="size-3.5" /></span>}
       </div>
     </div>
   );
@@ -335,27 +335,27 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
             <button ref={previewButton} type="button" title={t("Anteprima")} aria-label={t("Anteprima commessa {commessa}", { commessa: label })}
               aria-haspopup="dialog" aria-expanded={preview !== null} className={ACTION_CLASS}
               onClick={() => { cancelTimer(); setPreview(preview === "pinned" ? null : "pinned"); }}>
-              <Eye className="size-4" aria-hidden />
+              <Eye className="size-3.5" aria-hidden />
             </button>
             {hrefEmail && (
               <a href={hrefEmail} data-no-drag title={t("Scrivi al cliente")} aria-label={t("Scrivi al cliente · {commessa}", { commessa: label })} className={ACTION_CLASS}
                 onClick={chiudiAnteprima}>
-                <Mail className="size-4" aria-hidden />
+                <Mail className="size-3.5" aria-hidden />
               </a>
             )}
             {azioni.map(({ label: nome, icon: Icon, destination }) => (
               <Link key={nome} to={apriSezione(destination)} data-no-drag title={nome} aria-label={`${nome} · ${label}`} className={ACTION_CLASS}>
-                <Icon className="size-4" aria-hidden />
+                <Icon className="size-3.5" aria-hidden />
               </Link>
             ))}
             {canEdit && (
               <Link to={`${urlCommessa}/modifica`} data-no-drag title={t("Modifica commessa")} aria-label={t("Modifica commessa {commessa}", { commessa: label })} className={ACTION_CLASS}>
-                <Pencil className="size-4" aria-hidden />
+                <Pencil className="size-3.5" aria-hidden />
               </Link>
             )}
             {mostraSpostamento ? (
               <DropdownMenu>
-                <DropdownMenuTrigger asChild><button type="button" {...spostaProps}><ArrowRightLeft className="size-4" aria-hidden /></button></DropdownMenuTrigger>
+                <DropdownMenuTrigger asChild><button type="button" {...spostaProps}><ArrowRightLeft className="size-3.5" aria-hidden /></button></DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel>{t("Sposta nella fase")}</DropdownMenuLabel>
                   {fasi.map(fase => (
@@ -370,7 +370,7 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : onMove && (
-              <button type="button" {...spostaProps} onClick={() => { chiudiAnteprima(); onMove(order); }}><ArrowRightLeft className="size-4" aria-hidden /></button>
+              <button type="button" {...spostaProps} onClick={() => { chiudiAnteprima(); onMove(order); }}><ArrowRightLeft className="size-3.5" aria-hidden /></button>
             )}
           </div>
         </div>

@@ -57,16 +57,21 @@ function RimandoFatturaImportata() {
 
 /** Un indirizzo vecchio che porta al nuovo tenendo i parametri (?tab, ?q…) e l'ancora. */
 /** Il vecchio «Calendario CRM»: ora è il calendario unico, scheda «Commerciali». */
-function RimandoCalendarioCommerciale() {
-  const location = useLocation();
-  const params = new URLSearchParams(location.search);
-  params.set("tipo", "commerciali");
-  return <Navigate to={`/azienda/calendario?${params.toString()}${location.hash}`} replace />;
-}
-
 function RimandoConParametri({ to }: { to: string }) {
   const location = useLocation();
   return <Navigate to={`${to}${location.search}${location.hash}`} replace />;
+}
+
+/** Sales OS è la scheda «Oggi» di Reportistica (25/11/2026). Il vecchio «?tab=» era la
+ *  scheda interna di Sales OS: diventa «?vista=»; periodo e pipeline restano. */
+function RimandoSalesOs() {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const vista = params.get("tab");
+  params.delete("tab");
+  if (vista) params.set("vista", vista);
+  const resto = params.toString();
+  return <Navigate to={`/azienda/marketing/reportistica?tab=oggi${resto ? `&${resto}` : ""}${location.hash}`} replace />;
 }
 
 /** Commesse e acquisti: ci entra anche chi ha solo il permesso «Ufficio acquisti». */
@@ -158,6 +163,7 @@ import { SoloTabletDesktop } from "@/components/layouts/SoloTabletDesktop";
 
 // Company pages
 const SettingsLayout = lazy(() => import("@/components/layouts/SettingsLayout"));
+const GareAppalti = lazy(() => import("@/pages/azienda/GareAppalti"));
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
 const UpgradePage = lazy(() => import("@/pages/azienda/UpgradePage"));
 const DemoPreviewShowcase = lazy(() => import("@/pages/azienda/DemoPreviewShowcase"));
@@ -499,13 +505,10 @@ const WANumberDetailPage = lazy(() => import("@/pages/azienda/whatsapp/WANumberD
 const SmsPage = lazy(() => import("@/pages/azienda/sms/index"));
 const OnboardingVertical = lazy(() => import("@/pages/azienda/onboarding/OnboardingVertical"));
 const ReportisticaPage = lazy(() => import("@/pages/azienda/ReportisticaPage"));
-const SalesOSDashboard = lazy(() => import("@/pages/azienda/marketing/SalesOSDashboard"));
 const FacebookFormsPage = lazy(() => import("@/pages/azienda/marketing/FacebookFormsPage"));
 const AdsManagerBeta = lazy(() => import("@/pages/azienda/marketing/AdsManagerBeta"));
 const SocialManagerBeta = lazy(() => import("@/pages/azienda/marketing/SocialManagerBeta"));
 const Preventivi = lazy(() => import("@/pages/azienda/marketing/Preventivi"));
-const SimulatoreIndex = lazy(() => import("@/pages/azienda/marketing/simulatore/SimulatoreIndex"));
-const SimulatoreEditor = lazy(() => import("@/pages/azienda/marketing/simulatore/SimulatoreEditor"));
 const QuoteBuilder = lazy(() => import("@/pages/azienda/marketing/QuoteBuilder"));
 const ComputoPreventivo = lazy(() => import("@/pages/azienda/marketing/ComputoPreventivo"));
 const QuoteAiSimulationPage = import.meta.env.DEV ? lazy(() => import("@/pages/azienda/marketing/QuoteAiSimulationPage")) : null;
@@ -694,6 +697,7 @@ export default function CompanyRoutesContainer() {
         <Route path="dashboards/nuova" element={withCompanyPermission("canViewCruscotto", <FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary></FeatureRoute>)} />
         <Route path="dashboards/:id" element={withCompanyPermission("canViewCruscotto", <FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore dashboard"><DashboardView /></ErrorBoundary></FeatureRoute>)} />
         <Route path="dashboards/:id/modifica" element={withCompanyPermission("canViewCruscotto", <FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary></FeatureRoute>)} />
+        <Route path="gare/*" element={<ErrorBoundary title="Errore Gare e appalti"><GareAppalti /></ErrorBoundary>} />
         <Route path="commesse" element={<Navigate to="/azienda/ordini" replace />} />
         <Route path="commesse/:id" element={<LegacyCommessaRedirect />} />
         <Route path="commesse/:id/diario" element={<LegacyCommessaDiaryRedirect />} />
@@ -1002,7 +1006,9 @@ export default function CompanyRoutesContainer() {
         <Route path="marketing/contatti/:id" element={withCompanyPermission("canViewMarketingContacts", <FeatureRoute featureKey="crm_modulo"><MarketingContactDetail /></FeatureRoute>)} />
         <Route path="marketing/opportunita" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="crm_modulo"><MarketingOpportunities /></FeatureRoute>)} />
         <Route path="marketing/attivita" element={<Navigate to="/azienda/attivita?fonte=marketing" replace />} />
-        <Route path="marketing/calendario" element={withCompanyPermission("canViewMarketingAppointments", <RimandoCalendarioCommerciale />)} />
+        {/* Calendario commerciale con indirizzo proprio (25/11/2026): prima rimandava a /azienda/calendario?tipo=commerciali,
+            e il menu accendeva «Calendario» di Cantieri & Lavori. */}
+        <Route path="marketing/calendario" element={withCompanyPermission("canViewMarketingAppointments", <CalendarioUnico fisso="commerciali" />)} />
         
         {/* Backward-compatible redirects for old marketing automation/agent routes */}
         <Route path="marketing/automazioni" element={<Navigate to="/azienda/automazioni" replace />} />
@@ -1024,7 +1030,10 @@ export default function CompanyRoutesContainer() {
         {/* MP05-FIX — rotta azienda /ai-modelli RIMOSSA (config ora SuperAdmin-only) */}
         <Route path="marketing/lead-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
         <Route path="marketing/facebook-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
-        <Route path="marketing/reportistica" element={withCompanyPermission("canViewMarketingReports", <FeatureRoute featureKey="marketing_reporting"><ReportisticaPage /></FeatureRoute>)} />
+        {/* Dal 25/11/2026 dentro c'è anche Sales OS (scheda «Oggi»): entra chi ha l'uno o
+            l'altro permesso, e la pagina mostra a ciascuno le sue schede. Le due funzioni di
+            piano (marketing_reporting, sales_os) hanno gli stessi valori in ogni piano. */}
+        <Route path="marketing/reportistica" element={withCompanyPermission("canViewMarketingReports", <FeatureRoute featureKey="marketing_reporting"><ReportisticaPage /></FeatureRoute>, (p) => p.canViewMarketingReports || p.canViewSalesOs)} />
         <Route path="marketing/google-ads" element={<Navigate to="/azienda/marketing/reportistica?tab=google-ads" replace />} />
         <Route path="marketing/pubblicita" element={withCompanyPermission("canViewMarketingDashboard", <ErrorBoundary title="Errore nel caricamento pubblicità"><AdsManagerBeta /></ErrorBoundary>)} />
         <Route path="marketing/social" element={withCompanyPermission("canViewMarketingDashboard", <SocialManagerBeta />)} />
@@ -1043,7 +1052,7 @@ export default function CompanyRoutesContainer() {
         <Route path="sms-marketing/contatti" element={<Navigate to="/azienda/sms?tab=contatti" replace />} />
         <Route path="sms-marketing/template" element={<Navigate to="/azienda/sms?tab=template" replace />} />
         <Route path="marketing/analisi-preventivi" element={<Navigate to="/azienda/marketing/preventivi?tab=analisi" replace />} />
-        <Route path="marketing/sales-os" element={withCompanyPermission("canViewSalesOs", <FeatureRoute featureKey="sales_os"><SalesOSDashboard /></FeatureRoute>)} />
+        <Route path="marketing/sales-os" element={<RimandoSalesOs />} />
         {/* Modulo Fotovoltaico — permesso del ruolo, come gli altri moduli di
             vendita (prima solo il flag: elenco e dettaglio dei preventivi FV,
             con clienti e importi, erano aperti a tutto lo staff), più la
@@ -1319,8 +1328,9 @@ export default function CompanyRoutesContainer() {
         {QuoteAiSimulationPage && <Route path="marketing/preventivi/simulazione-ai" element={withCompanyPermission("canEditPreventivi", <QuoteAiSimulationPage />)} />}
         <Route path="marketing/preventivi/:id" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="preventivi_crm"><QuoteDetail /></FeatureRoute>)} />
         <Route path="marketing/preventivi/:id/modifica" element={withCompanyPermission("canEditPreventivi", <FeatureRoute featureKey="preventivi_crm"><QuoteBuilder /></FeatureRoute>)} />
-        <Route path="marketing/simulatore" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="simulatore"><SimulatoreIndex /></FeatureRoute>)} />
-        <Route path="marketing/simulatore/:id" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="simulatore"><SimulatoreEditor /></FeatureRoute>)} />
+        {/* Il Simulatore contratti è stato tolto il 25/11/2026 (9 simulazioni in tutto, tutte bozze, nessuna trasformata in
+            preventivo): i vecchi link portano alle Opportunità. */}
+        <Route path="marketing/simulatore/*" element={<Navigate to="/azienda/marketing/opportunita" replace />} />
         {/* Route legacy consolidata: la pagina reale vive su /azienda/firma-elettronica.
             Redirect per non rompere vecchi link/segnalibri. */}
         <Route path="marketing/firma-elettronica" element={<Navigate to="/azienda/firma-elettronica" replace />} />

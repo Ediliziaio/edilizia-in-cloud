@@ -34,6 +34,8 @@ interface Props {
   contractsWon: number;
   contractsLost: number;
   closeRate: number;
+  /** Le tre azioni affiancate su una riga (da 1024px), con l'intestazione su una riga sola. */
+  inRiga?: boolean;
 }
 
 // Le rotte erano «/azienda/contatti-crm», «/azienda/opportunita» e
@@ -172,13 +174,13 @@ export function AzioniCommerciali(props: Props) {
   }
 
   return (
-    <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm max-sm:space-y-2 max-sm:p-3">
-      <div className="flex items-start gap-3">
+    <div className={cn("rounded-2xl border border-border bg-card shadow-sm max-sm:space-y-2 max-sm:p-3", props.inRiga ? "space-y-2 p-3" : "space-y-3 p-4")}>
+      <div className={cn("flex gap-3", props.inRiga ? "items-center" : "items-start")}>
         {/* Telefono: il titolo basta; righe senza la spiegazione sotto. */}
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-700 max-sm:hidden">
+        <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-700 max-sm:hidden", props.inRiga && "hidden")}>
           <Zap className="h-4 w-4" />
         </div>
-        <div className="min-w-0 flex-1">
+        <div className={cn("min-w-0 flex-1", props.inRiga && "flex items-baseline gap-2")}>
           <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground max-sm:hidden">{t("Priorità operative")}</p>
           <h3 className="text-sm font-bold text-foreground">{t("Cosa muovere ora")}</h3>
         </div>
@@ -189,7 +191,7 @@ export function AzioniCommerciali(props: Props) {
         )}
       </div>
 
-      <div className="space-y-2">
+      <div className={props.inRiga ? "grid gap-2 lg:grid-cols-3" : "space-y-2"}>
         {topActions.map((action, i) => {
           const styles = severityStyles[action.severity];
           const Icon = action.icon;

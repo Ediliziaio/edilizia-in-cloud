@@ -14,20 +14,33 @@ import { type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanzia
  * Sparisce da sola (null) finché non c'è nessun movimento: sulle commesse
  * appena aperte parla la previsione, non il consuntivo.
  */
-import { useMemo } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import {
   Area, Bar, CartesianGrid, ComposedChart, ReferenceLine, ResponsiveContainer,
   Tooltip as RechartsTooltip, XAxis, YAxis,
 } from "recharts";
-import { Banknote, CalendarClock, HandCoins, TrendingDown } from "lucide-react";
+import { Banknote, CalendarClock, ChevronDown, ChevronRight, HandCoins, TrendingDown } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { NavyStatCard } from "@/components/costi/KpiCard";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { useEsposizioneCommessa, type RataEsposizione } from "@/hooks/useEsposizioneCommessa";
+import type { VoceCassa } from "@/lib/orders/cashExposureTimeline";
 import type { VarianteDatata } from "@/lib/commissions";
+import { cassaLiberaCommessa } from "@/lib/orders/cassaLibera";
+import { useCostoPrevistoCommessa } from "@/hooks/useCostoPrevistoCommessa";
 import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
+
+/** Da dove arriva ogni movimento: la chiave la mette il calcolo, la frase sta qui. */
+const VOCE_CASSA: Record<VoceCassa, string> = {
+  rata: "Rata incassata",
+  incasso: "Incasso registrato",
+  costo: "Fattura fornitore",
+  manodopera: "Manodopera interna",
+  ditta: "Ditta esterna",
+  provvigione: "Provvigione",
+};
 
 /** "al 50%" ma "all'80%" / "all'8%" / "all'11%". */
 const alPct = (n: number, t: (testo: string, valori?: Readonly<Record<string, string | number>>) => string) => {
@@ -171,6 +184,7 @@ export function EsposizioneCommessa({
   cashTotalGross,
   avanzamentoPct,
   anchorId,
+  scenarioMateriali,
 }: {
   orderId: string;
   totalAmount: number;
@@ -187,6 +201,11 @@ export function EsposizioneCommessa({
   /** id DOM per lo scroll dalla fascia verdetto (solo sul mount desktop:
    *  mobile e desktop sono entrambi nel DOM, un id doppio punterebbe al nodo nascosto). */
   anchorId?: string;
+  /** Lo scenario «e se pago i materiali prima di incassare?»: sta qui dentro,
+   *  chiuso, perché è un'ipotesi sugli stessi soldi di cui parla questa card.
+   *  Era un secondo riquadro subito sotto, con un suo picco e un suo verdetto:
+   *  due storie di cassa una sotto l'altra, e nessuna delle due si fidava. */
+  scenarioMateriali?: ReactNode;
 }) {
   const t = useT();
   const { esposizione, isLoading, isError, recorded } = useEsposizioneCommessa({
@@ -199,6 +218,10 @@ export function EsposizioneCommessa({
     varianti,
   });
 
+  // Il costo previsto serve a dire quanto manca ancora da spendere: resta una
+  // stima dichiarata, mai sottratta dalla cassa (lorda contro senza IVA).
+  const previsto = useCostoPrevistoCommessa(orderId, true);
+  const [meseAperto, setMeseAperto] = useState<string | null>(null);
   const incassataPct = cashTotalGross > 0 ? Math.min(100, (esposizione.incassato / cashTotalGross) * 100) : 0;
   const maturatoNonIncassato = useMemo(() => {
     if (avanzamentoPct == null || avanzamentoPct <= 0 || cashTotalGross <= 0) return 0;
@@ -213,9 +236,10 @@ export function EsposizioneCommessa({
 
   const { incassato, uscite, saldoOggi, picco, daPagare, serieMensile } = esposizione;
   const clienteFinanzia = saldoOggi >= 0;
+  const cassa = cassaLiberaCommessa({ saldoOggi, daPagare, costoPrevisto: previsto.costo, avanzamentoPct });
 
   return (
-    <Card id={anchorId} className={`scroll-mt-24 border-l-4 ${clienteFinanzia ? "border-l-emerald-500" : "border-l-red-500"}`}>
+    <Card id={anchorId} className={`scroll-mt-24 ${clienteFinanzia ? "" : "border-l-4 border-l-red-500"}`}>
       {/* In testa il verdetto, grande (01/11/2026): chi sta mettendo i soldi in questo cantiere, e quanti. */}
       <CardHeader className="space-y-2 pb-3 max-sm:p-3 max-sm:pb-2">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -290,6 +314,77 @@ export function EsposizioneCommessa({
           </div>
         )}
 
+        {/* Il grafico fa vedere l'andamento, la tabella fa leggere i numeri: chiusa
+            di default, perché la cassa mese per mese si guarda quando serve. */}
+        {serieMensile.length >= 2 && (
+          <details className="rounded-lg border" open={serieMensile.length <= 12}>
+            <summary className="cursor-pointer list-none px-3 py-2 text-[13px] font-medium marker:hidden">
+              {t("Cash flow mese per mese")}
+              <span className="ml-1.5 font-normal text-muted-foreground">{t("apri un mese per vedere i movimenti")}</span>
+            </summary>
+            <div className="overflow-x-auto border-t px-3 pb-2">
+              <table className="w-full min-w-[420px] text-[13px]">
+                <thead>
+                  <tr className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    <th scope="col" className="py-1.5 text-left font-medium">{t("Mese")}</th>
+                    <th scope="col" className="py-1.5 pl-3 text-right font-medium">{t("Incassi")}</th>
+                    <th scope="col" className="py-1.5 pl-3 text-right font-medium">{t("Uscite")}</th>
+                    <th scope="col" className="py-1.5 pl-3 text-right font-medium">{t("Cassa a fine mese")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {serieMensile.map((m) => {
+                    const apribile = m.movimenti.length > 0;
+                    const aperto = meseAperto === m.ym;
+                    return (
+                      <Fragment key={m.ym}>
+                        <tr className="border-t">
+                          <th scope="row" className="py-1.5 text-left font-normal">
+                            {apribile ? (
+                              <button type="button" className="flex items-center gap-1" aria-expanded={aperto} onClick={() => setMeseAperto(aperto ? null : m.ym)}>
+                                {aperto ? <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />}
+                                {m.label}
+                              </button>
+                            ) : m.label}
+                          </th>
+                          <td className="py-1.5 pl-3 text-right tabular-nums">{m.entrate > 0 ? formatCurrency(m.entrate) : "—"}</td>
+                          <td className="py-1.5 pl-3 text-right tabular-nums">{m.uscite > 0 ? formatCurrency(m.uscite) : "—"}</td>
+                          <td className={`py-1.5 pl-3 text-right font-medium tabular-nums ${m.saldo < 0 ? "text-red-700" : "text-foreground"}`}>
+                            {m.saldo < 0 ? "−" : ""}{formatCurrency(Math.abs(m.saldo))}
+                          </td>
+                        </tr>
+                        {aperto && m.movimenti.map((mov, i) => (
+                          <tr key={`${m.ym}-${i}`} className="border-t bg-slate-50/60 text-[12px] dark:bg-muted/20">
+                            <th scope="row" className="py-1 pl-5 text-left font-normal text-muted-foreground">
+                              {fmtData(mov.date)} · {t(VOCE_CASSA[mov.voce])}
+                            </th>
+                            <td className="py-1 pl-3 text-right tabular-nums text-emerald-700">{mov.in > 0 ? formatCurrency(mov.in) : ""}</td>
+                            <td className="py-1 pl-3 text-right tabular-nums text-rose-700">{mov.out > 0 ? formatCurrency(mov.out) : ""}</td>
+                            <td />
+                          </tr>
+                        ))}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {t("Cassa a fine mese: il cumulato di quello che è entrato meno quello che è uscito, mese dopo mese. Sotto zero il cantiere lo stai finanziando tu.")}
+              </p>
+            </div>
+          </details>
+        )}
+
+        {scenarioMateriali && (
+          <details className="rounded-lg border">
+            <summary className="cursor-pointer list-none px-3 py-2 text-[13px] font-medium marker:hidden">
+              {t("E se paghi i materiali prima di incassare?")}
+              <span className="ml-1.5 font-normal text-muted-foreground">{t("scenario sui soli materiali")}</span>
+            </summary>
+            <div className="border-t px-3 py-2">{scenarioMateriali}</div>
+          </details>
+        )}
+
         {/* Telefono: la frase sopra dice già incassato e pagato; qui solo quello che manca, in
             una riga (prima quattro riquadri che ripetevano la frase). */}
         {(daPagare > 0 || (picco && picco.value < 0)) && (
@@ -299,6 +394,35 @@ export function EsposizioneCommessa({
             {picco && picco.value < 0 && <>{t("picco")} <strong className="text-red-600">−{formatCurrencyCompact(Math.abs(picco.value))}</strong> {t("il {data}", { data: fmtData(picco.date) })}</>}
           </p>
         )}
+        {/* Cassa libera: quanto dei soldi in mano è davvero tuo. L'acconto che sembra
+            utile è il modo più comune di finanziare un cantiere con un altro.
+            Senza fatture in attesa la cifra sarebbe identica a quella della fascia qui
+            sopra: in quel caso resta solo l'avviso sui costi che devono ancora arrivare. */}
+        {(cassa.daPagare > 0 || cassa.daSostenere != null) && (
+          <div className="rounded-lg border bg-slate-50/70 p-3 dark:bg-muted/20">
+            {cassa.daPagare > 0 && (
+              <>
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <span className="text-sm font-medium">{t("Cassa libera")}</span>
+                  <strong className={`text-lg tabular-nums ${cassa.libera >= 0 ? "text-emerald-700" : "text-red-700"}`}>
+                    {cassa.libera < 0 ? "−" : ""}{formatCurrency(Math.abs(cassa.libera))}
+                  </strong>
+                </div>
+                <p className="mt-1 text-[13px] text-muted-foreground">
+                  {t("Incassato meno pagato, meno le fatture già arrivate e non ancora pagate.")}
+                </p>
+              </>
+            )}
+            {cassa.daSostenere != null && (
+              <p className={`text-[13px] ${cassa.copre ? "text-muted-foreground" : "text-amber-800"} ${cassa.daPagare > 0 ? "mt-1" : ""}`}>
+                {cassa.copre
+                  ? t("Dal preventivo mancano ancora {costi} di costi, e la cassa li copre.", { costi: formatCurrency(cassa.daSostenere) })
+                  : t("Dal preventivo mancano ancora {costi} di costi: la cassa non basta, la differenza la metti tu.", { costi: formatCurrency(cassa.daSostenere) })}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Numeri chiave */}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3 max-sm:hidden">
           <Mini label={t("Incassato")} value={formatCurrencyCompact(incassato)} valueClass="text-emerald-600" />

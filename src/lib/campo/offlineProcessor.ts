@@ -4,6 +4,7 @@ import { salvaChecklistSicurezza, type ChecklistDaSalvare } from "./salvaCheckli
 import { inviaPrelievoInCoda, type PrelievoInCoda } from "./prelievoInCoda";
 import { inviaRapportoInCoda, type RapportoInCoda } from "./rapportoInCoda";
 import { inviaTecnicaInCoda } from "./tecnicaInCoda";
+import type { RigaConFotoInCoda, SegnalazioneInCoda, SpesaInCoda } from "./spese";
 import type { DatiBozzaTecnica } from "./bozzaTecnica";
 import {
   SyncDeferredError,
@@ -107,6 +108,69 @@ export async function processCampoOffline(item: SyncItem) {
     throw new SyncPermanentError(
       "Operazione non supportata: contatta l’assistenza. I dati locali sono conservati.",
     );
+  if (item.type === "sicurezza" || item.type === "segnalazione_mezzo") {
+    // Infortunio o segnalazione del mezzo fatti senza rete (piano campo completo 1.7): prima le foto, poi la riga
+    // con l'id nato sul telefono. Ripetere non raddoppia: foto già caricate e riga già scritta vanno bene.
+    const r = payload as unknown as RigaConFotoInCoda;
+    for (const f of r.foto) {
+      const { error: up } = await supabase.storage.from(r.bucket).upload(f.path, f.blob, { contentType: f.contentType, upsert: false });
+      const esiste = up && ((up as { statusCode?: string }).statusCode === "409" || /exists|duplicate/i.test(up.message));
+      if (up && !esiste) throw new Error(up.message);
+    }
+    if (item.type === "sicurezza") {
+      const { error } = await supabase.from("sicurezza_eventi").insert({ ...r.riga, foto: r.foto.map(f => f.path) } as never);
+      if (error && error.code !== "23505") throw databaseError(error);
+      return;
+    }
+    const { error } = await supabase.from("mezzi_segnalazioni").insert(r.riga as never);
+    if (error && error.code !== "23505") throw databaseError(error);
+    if (r.foto.length) {
+      const { data: gia } = await supabase.from("mezzi_foto").select("file_path").eq("segnalazione_id", r.riga.id);
+      const presenti = new Set((gia ?? []).map(g => g.file_path as string));
+      const nuove = r.foto.filter(f => !presenti.has(f.path));
+      if (nuove.length) {
+        const { error: e2 } = await supabase.from("mezzi_foto").insert(nuove.map(f => ({ file_path: f.path, mezzo_id: r.riga.mezzo_id, company_id: r.company_id, segnalazione_id: r.riga.id })) as never);
+        if (e2) throw databaseError(e2);
+      }
+    }
+    return;
+  }
+  if (item.type === "segnalazione") {
+    // Segnalazione fatta senza rete (piano campo completo 1.7): prima il ticket con l'id nato sul telefono,
+    // poi le foto. Ogni passo si può ripetere: ticket già c'è, foto già caricata, messaggio già scritto.
+    const s = payload as unknown as SegnalazioneInCoda;
+    const { error } = await supabase.from("tickets").insert(s.riga as never);
+    if (error && error.code !== "23505") throw databaseError(error);
+    for (const f of s.foto) {
+      const { error: up } = await supabase.storage.from("ticket-attachments").upload(f.path, f.blob, { contentType: f.contentType, upsert: false });
+      const esiste = up && ((up as { statusCode?: string }).statusCode === "409" || up.message.toLowerCase().includes("already exists"));
+      if (up && !esiste) throw new Error(up.message);
+      const { data: gia } = await supabase.from("ticket_messages").select("id").eq("ticket_id", s.riga.id).eq("attachment_url", f.path).maybeSingle();
+      if (gia) continue;
+      const { error: msg } = await supabase.from("ticket_messages").insert({ ticket_id: s.riga.id, sender_id: s.user_id, message: `📎 ${f.nome}`, attachment_url: f.path } as never);
+      if (msg) throw databaseError(msg);
+    }
+    return;
+  }
+  if (item.type === "spesa") {
+    // Spesa fatta senza rete (26/11/2026, piano campo completo 1.7): prima la foto dello scontrino, poi la riga,
+    // con l'id nato sul telefono. Se la risposta si era persa, la riga c'è già: va bene così.
+    const spesa = payload as unknown as SpesaInCoda;
+    if (spesa.foto) {
+      const { error } = await supabase.storage.from("campo-spese").upload(spesa.foto.path, spesa.foto.blob, {
+        contentType: spesa.foto.contentType, upsert: false,
+      });
+      const esiste = error && ((error as { statusCode?: string }).statusCode === "409" || error.message.toLowerCase().includes("already exists"));
+      if (error && !esiste) throw new Error(error.message);
+    }
+    const { error } = await supabase.from("campo_spese").insert({ ...spesa.riga, foto_path: spesa.foto?.path ?? null } as never);
+    if (!error) return;
+    if (error.code === "23505") {
+      const { data: giaInviata } = await supabase.from("campo_spese").select("id").eq("id", spesa.riga.id).maybeSingle();
+      if (giaInviata) return;
+    }
+    throw databaseError(error);
+  }
   if (item.type === "checklist") {
     const idChecklist = typeof payload.id === "string" ? payload.id : await syncOperationId(item);
     const error = await salvaChecklistSicurezza(payload as ChecklistDaSalvare, idChecklist);

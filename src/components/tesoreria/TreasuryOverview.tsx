@@ -1,5 +1,6 @@
 import { TreasuryDueSummary } from "./TreasuryDueSummary";
 import { usePermissions } from "@/hooks/usePermissions";
+import { CassaLiberaAzienda } from "@/components/tesoreria/CassaLiberaAzienda";
 import TransactionsFeed from "./TransactionsFeed";
 import { useEffect, useState, useRef, type ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -413,6 +414,11 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
           { label: t("Netto del mese"), valore: formatEur(netMese), tono: netMese >= 0 ? "text-sky-600" : "text-rose-600" },
         ]}
       />
+      {/* Quanto di quella liquidità è davvero suo: il saldo da solo non lo dice,
+          perché dentro ci sono gli acconti dei clienti e fuori le fatture già
+          arrivate. Legge sempre tutti i conti, anche col filtro su uno solo. */}
+      <div className="xl:col-span-2"><CassaLiberaAzienda /></div>
+
       {/* Alert liquidità */}
       {saldoNegativo && (
         <div className="flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/50 dark:bg-rose-950/30 max-sm:hidden xl:col-span-2">

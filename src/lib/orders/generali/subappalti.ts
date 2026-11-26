@@ -33,6 +33,8 @@ export const NOMI_DOCUMENTO: Record<string, string> = {
   iscrizione_albo: "Iscrizione all'albo",
   formazione_operai: "Formazione degli operai",
   iso_certificazione: "Certificazione ISO",
+  patente_crediti: "Patente a crediti",
+  documento_identita: "Documento d'identità",
   altro: "Altro",
 };
 

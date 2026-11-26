@@ -73,10 +73,12 @@ describe("piano Marketing (Ener Italia)", () => {
     }
   });
 
-  it("CRM, persone, integrazioni restano; i finanziamenti anche, per il simulatore", () => {
-    for (const sezione of ["sequenze", "campi-personalizzati", "tag", "persone", "integrazioni", "profilo", "finanziamenti", "whatsapp-bot"]) {
+  it("CRM, persone, integrazioni restano; i finanziamenti no, senza preventivi", () => {
+    for (const sezione of ["sequenze", "campi-personalizzati", "tag", "persone", "integrazioni", "profilo", "whatsapp-bot"]) {
       expect(impostazioneNelPiano(sezione, MARKETING), sezione).toBe(true);
     }
+    // Restavano per il Simulatore contratti, tolto il 25/11/2026: senza preventivi non servono.
+    expect(impostazioneNelPiano("finanziamenti", MARKETING)).toBe(false);
     expect(impostazioneNelPiano("/azienda/impostazioni/tariffe?tab=manutenzione", MARKETING)).toBe(false);
   });
 

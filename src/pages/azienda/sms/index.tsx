@@ -105,7 +105,7 @@ export default function SmsPage({ defaultTab = "panoramica", platformMode = fals
           c'erano icona e lo slogan «Campagne bulk, invii singoli, automazioni». */}
       <div className="flex items-start justify-between gap-4 flex-wrap max-md:items-center max-md:gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-foreground max-md:text-lg">SMS</h1>
+          <h1 className="text-xl font-bold tracking-tight text-foreground max-md:text-lg">SMS</h1>
         </div>
         {onboardingOk && <SmsWalletBadge onRicarica={() => setRicaricaOpen(true)} />}
       </div>

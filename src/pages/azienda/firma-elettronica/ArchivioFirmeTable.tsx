@@ -35,7 +35,7 @@ export function useColonneFirme(storageKey: string) {
 
 export function MenuColonneFirme({ visible, toggleColumn }: ReturnType<typeof useColonneFirme>) {
   const t = useT();
-  return (<DropdownMenu><DropdownMenuTrigger asChild><Button size="sm" variant="outline"><Columns3 className="mr-1 h-4 w-4" />{t("Colonne")}</Button></DropdownMenuTrigger>
+  return (<DropdownMenu><DropdownMenuTrigger asChild><Button size="sm" variant="outline" className="h-8 gap-1.5 px-2.5 text-xs"><Columns3 className="h-3.5 w-3.5" />{t("Colonne")}</Button></DropdownMenuTrigger>
         <DropdownMenuContent align="end" aria-label={t("Colonne visibili")}>{columns.map(c =>
           <DropdownMenuCheckboxItem key={c} checked={visible.includes(c)} disabled={c === "Documento"}
             onSelect={e => e.preventDefault()} onCheckedChange={() => toggleColumn(c)}>{t(c)}</DropdownMenuCheckboxItem>)}</DropdownMenuContent>

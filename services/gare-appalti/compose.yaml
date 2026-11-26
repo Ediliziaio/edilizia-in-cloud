@@ -1,0 +1,26 @@
+services:
+  worker:
+    build:
+      context: ../..
+      dockerfile: services/gare-appalti/Dockerfile
+    init: true
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    pids_limit: 192
+    mem_limit: 4g
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=1073741824,mode=1777
+    environment:
+      GARE_SUPABASE_URL: ${GARE_SUPABASE_URL:?}
+      GARE_SUPABASE_PUBLISHABLE_KEY: ${GARE_SUPABASE_PUBLISHABLE_KEY:?}
+      GARE_SUPABASE_SERVICE_KEY: ${GARE_SUPABASE_SERVICE_KEY:?}
+      GARE_PROXY_SECRET: ${GARE_PROXY_SECRET:?}
+      GARE_AI_BRIDGE_SECRET: ${GARE_AI_BRIDGE_SECRET:?}
+      GARE_BIND_ALL: "1"
+      GARE_AI_BACKEND: openrouter
+      GARE_AI_MODEL: ${GARE_AI_MODEL:-openrouter/free}
+    ports:
+      - "127.0.0.1:9081:8081"

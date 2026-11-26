@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Printer, Download, X } from "lucide-react";
+import { Printer, Download } from "lucide-react";
 import { toast } from "sonner";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
@@ -131,7 +131,9 @@ export function PrintPreviewModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 gap-0">
-        <DialogHeader className="flex flex-row items-center justify-between px-4 py-3 border-b shrink-0">
+        {/* La X la mette già DialogContent in alto a destra: qui ce n'era una seconda,
+            sovrapposta a quella. Resta la sua, e il padding le lascia il posto. */}
+        <DialogHeader className="flex flex-row items-center justify-between border-b px-4 py-3 pr-12 shrink-0">
           <DialogTitle className="text-base">{t(title)}</DialogTitle>
           <div className="flex items-center gap-2">
             {!soloPdf && <Button
@@ -152,15 +154,6 @@ export function PrintPreviewModal({
             >
               <Printer className="h-4 w-4 mr-1.5" aria-hidden="true" />
               {attesaImmagini ? t("Carico le foto…") : soloPdf ? t("Stampa o salva PDF") : t("Stampa")}
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8"
-              onClick={() => onOpenChange(false)}
-              aria-label={t("Chiudi anteprima")}
-            >
-              <X className="h-4 w-4" aria-hidden="true" />
             </Button>
           </div>
         </DialogHeader>

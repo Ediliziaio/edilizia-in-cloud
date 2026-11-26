@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Piani 2027 — Edilizia in Cloud</title>
+<style>
+@page { size: A4; margin: 13mm 14mm 13mm 14mm; }
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; color: #1c2321; font-size: 9.1pt; line-height: 1.4; margin: 0; }
+h1 { font-size: 26pt; line-height: 1.1; margin: 0 0 6pt; letter-spacing: -0.02em; }
+h2 { font-size: 15pt; margin: 0 0 8pt; letter-spacing: -0.01em; }
+h3 { font-size: 10.5pt; margin: 11pt 0 4pt; }
+p { margin: 0 0 7pt; }
+.page { page-break-after: always; }
+.page:last-child { page-break-after: auto; }
+.eyebrow { font-size: 8pt; color: #5b6b66; margin-bottom: 4pt; }
+.lead { font-size: 11pt; color: #34413d; max-width: 160mm; }
+.muted { color: #5b6b66; }
+.small { font-size: 8.2pt; }
+.riservato { display: inline-block; border: 1px solid #b4532a; color: #b4532a; border-radius: 3pt; padding: 1.5pt 6pt; font-size: 8pt; margin-bottom: 14pt; }
+table { width: 100%; border-collapse: collapse; margin: 4pt 0 8pt; }
+thead { display: table-header-group; }
+tr { page-break-inside: avoid; }
+th, td { padding: 3.2pt 6pt; text-align: left; vertical-align: top; border-bottom: 0.6pt solid #dde3e1; }
+th { font-weight: 600; font-size: 8.4pt; color: #45524e; border-bottom: 1pt solid #1c2321; }
+td.n, th.n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+td.c, th.c { text-align: center; }
+tr.tot td { font-weight: 700; border-top: 1pt solid #1c2321; border-bottom: none; }
+tr.grp td { font-weight: 700; background: #f2f5f4; color: #1f4d3f; font-size: 8.6pt; padding-top: 5pt; }
+.pro { background: #eef6f2; }
+th.pro { background: #1f4d3f; color: #fff; border-bottom-color: #1f4d3f; }
+.si { color: #1f6b4f; font-weight: 600; }
+.no { color: #9aa5a2; }
+.cons { color: #8a5a12; }
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8pt; margin: 14pt 0 16pt; }
+.kpi { border: 0.8pt solid #dde3e1; border-radius: 5pt; padding: 8pt 9pt; }
+.kpi b { display: block; font-size: 17pt; letter-spacing: -0.01em; color: #1f4d3f; }
+.kpi span { font-size: 8pt; color: #5b6b66; }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8pt; margin: 8pt 0 12pt; }
+.card { border: 0.8pt solid #dde3e1; border-radius: 6pt; padding: 10pt; }
+.card.hero { border: 1.6pt solid #1f4d3f; background: #f6faf8; }
+.card .name { font-weight: 700; font-size: 11.5pt; }
+.card .tag { color: #5b6b66; font-size: 8.4pt; margin-bottom: 6pt; }
+.card ul { margin: 6pt 0 0; padding-left: 12pt; }
+.card li { margin-bottom: 2pt; }
+.badge { display: inline-block; background: #1f4d3f; color: #fff; font-size: 7.6pt; border-radius: 3pt; padding: 1pt 5pt; margin-left: 4pt; vertical-align: 2pt; }
+.box { border-left: 3pt solid #1f4d3f; background: #f6faf8; padding: 8pt 11pt; margin: 8pt 0 10pt; }
+.box.warn { border-left-color: #b4532a; background: #fbf4f0; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 14pt; }
+ul, ol { margin: 3pt 0 8pt; padding-left: 14pt; }
+li { margin-bottom: 2.5pt; }
+.nowrap { white-space: nowrap; }
+.prezzo { font-size: 13pt; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<!-- 1 · SINTESI -->
+<section class="page">
+  <div class="eyebrow">Edilizia in Cloud · Piani e listino 2027 · aggiornato al 25/11/2026 (sera: crediti 20/50/100 €, moneta unica)</div>
+  <div class="riservato">Documento interno: contiene costi e margini, non va girato ai clienti</div>
+  <h1>Piani 2027<br>Gestionale, Business, Pro</h1>
+  <p class="lead">Obiettivo del 2027: vendere il <b>Pro</b>, o in alternativa il <b>Business</b>, con un incasso medio sopra i 400 € al mese per azienda. Ogni piano si paga in tre modi; il prezzo più basso va a chi paga l'anno in anticipo.</p>
+
+  <div class="kpis">
+    <div class="kpi"><b>447 €</b><span>Pro con l'annuale anticipato: l'offerta da spingere</span></div>
+    <div class="kpi"><b>547 €</b><span>Pro con l'annuale e il RID mensile: quello che firmeranno di più</span></div>
+    <div class="kpi"><b>79–84%</b><span>margine del Pro nelle tre modalità anche se il cliente usa tutti i 100 € di crediti AI</span></div>
+    <div class="kpi"><b>~537 €</b><span>incasso medio atteso per cliente Pro con il mix delle tre modalità</span></div>
+  </div>
+
+  <h3>In una frase per piano</h3>
+  <table>
+    <thead><tr><th>Piano</th><th>Il cliente compra</th><th>Frase di vendita</th></tr></thead>
+    <tr><td><b>Gestionale</b></td><td>vendite, preventivi, cantiere completo, fatture, margine diretto, assistente AI commerciale e di cantiere</td><td>«Controlli i lavori»</td></tr>
+    <tr><td><b>Business</b></td><td>tutto il Gestionale + banche, riconciliazione, prima nota, previsionale, cassetto fiscale + <b>ufficio tecnico e ufficio acquisti AI</b> (commesse, planimetrie, computo, POS, ordini)</td><td>«Controlli i soldi, e l'AI prepara il lavoro»</td></tr>
+    <tr class="pro"><td><b>Pro</b></td><td>tutto il Business + contabilità generale, controllo di gestione, utile vero di ogni commessa, pacchetto banca + <b>direttore finanziario AI</b>, assistente in ChatGPT e Claude</td><td>«Controlli l'impresa»</td></tr>
+    <tr><td><b>Enterprise</b></td><td>tutto il Pro + <b>gare d'appalto con l'AI</b>, centralino AI con 300 minuti, 150 € di crediti AI, dotazioni più alte, assistenza dedicata</td><td>«Tutto incluso, anche le gare»</td></tr>
+  </table>
+
+  <h3>Le scelte di fondo</h3>
+  <ul>
+    <li><b>Tre modi di pagare, tre prezzi.</b> Mensile con carta e disdetta libera; annuale con RID mensile; annuale anticipato con l'offerta killer. Il prezzo alto del mensile spinge verso l'annuale.</li>
+    <li><b>A 400 € nessuno ha detto di no:</b> il prezzo è sotto il valore percepito. Il listino fa da ancora, l'anticipato è l'affare.</li>
+    <li><b>Il margine non è il problema:</b> tutti i piani stanno sopra il 79% nel caso peggiore, con i crediti AI usati tutti. L'AI reale dei clienti oggi costa circa 15 € al mese in tutto.</li>
+    <li><b>L'AI si vende come uffici che lavorano per l'impresa.</b> L'AI d'ufficio (DDT, fatture, banca, email) è illimitata nel Business e nel Pro; il resto scala dai crediti AI inclusi, <b>20 / 50 / 100 €</b> al mese, in una moneta sola in euro.</li>
+    <li><b>Il controllo di gestione e la contabilità si vendono come risposta</b> («quanto ci hai guadagnato?») e si consegnano già configurati.</li>
+  </ul>
+
+
+</section>
+
+<!-- 2 · LISTINO -->
+<section class="page">
+  <div class="eyebrow">1 · Listino 2027</div>
+  <h2>Tre piani, tre modi di pagare</h2>
+  <p>Prezzi IVA esclusa, al mese.</p>
+
+  <table>
+    <thead><tr><th style="width:24%"></th><th class="c">Mensile con carta</th><th class="c">Annuale, RID mensile</th><th class="c pro">Annuale anticipato</th></tr></thead>
+    <tr><td>Impegno</td><td class="c">nessuno, disdici quando vuoi</td><td class="c">12 mesi</td><td class="c pro">12 mesi</td></tr>
+    <tr><td>Pagamento</td><td class="c">carta, ogni mese</td><td class="c">addebito SEPA in conto, ogni mese</td><td class="c pro">bonifico unico</td></tr>
+    <tr><td><b>Enterprise</b> <span class="small muted">(con le gare)</span></td><td class="c"><span class="prezzo">797 €</span></td><td class="c"><span class="prezzo">697 €</span></td><td class="c pro"><span class="prezzo">597 €</span><br><span class="small">7.164 € l'anno</span></td></tr>
+    <tr><td><b>Pro</b></td><td class="c"><span class="prezzo">647 €</span></td><td class="c"><span class="prezzo">547 €</span></td><td class="c pro"><span class="prezzo">447 €</span><br><span class="small">5.364 € l'anno</span></td></tr>
+    <tr><td><b>Business</b></td><td class="c"><span class="prezzo">497 €</span></td><td class="c"><span class="prezzo">447 €</span></td><td class="c pro"><span class="prezzo">397 €</span><br><span class="small">4.764 € l'anno</span></td></tr>
+    <tr><td><b>Gestionale</b> <span class="small muted">(solo sul sito)</span></td><td class="c"><span class="prezzo">347 €</span></td><td class="c"><span class="prezzo">297 €</span></td><td class="c pro no">non previsto</td></tr>
+    <tr><td><b>Gare d'appalto</b> <span class="small muted">(da sole o come extra)</span></td><td class="c"><span class="prezzo">450 €</span></td><td class="c"><span class="prezzo">400 €</span></td><td class="c pro"><span class="prezzo">350 €</span></td></tr>
+    <tr><td>Avvio</td><td class="c">990 € a parte</td><td class="c">490 €</td><td class="c pro si">incluso (valore 1.490 €)</td></tr>
+    <tr><td>Prezzo bloccato</td><td class="c no">no</td><td class="c si">sì, finché resta cliente</td><td class="c pro si">sì, finché resta cliente</td></tr>
+    <tr><td>Primo controllo dei conti fatto con lui</td><td class="c no">no</td><td class="c no">no</td><td class="c pro si">sì, dopo 30 giorni</td></tr>
+  </table>
+
+  <div class="cards">
+    <div class="card">
+      <div class="name">Mensile con carta</div>
+      <div class="tag">L'ancora e la porta d'ingresso</div>
+      Toglie l'obiezione «non mi voglio legare», ma costa 200 € in più del Pro anticipato: pochi lo sceglieranno. Dopo 2–3 mesi si propone il passaggio all'annuale, scalando l'avvio già pagato.
+    </div>
+    <div class="card">
+      <div class="name">Annuale con RID</div>
+      <div class="tag">Quello che firmeranno di più</div>
+      Per un'impresa edile 5.000 € anticipati sono tanti; 547 € al mese in conto no. Per te è un anno di incasso sicuro, con 0,35 € di commissione invece di circa 10 €.
+    </div>
+    <div class="card hero">
+      <div class="name">Annuale anticipato <span class="badge">offerta killer</span></div>
+      <div class="tag">Il prezzo più basso, con tutto incluso</div>
+      Prezzo bloccato, avvio regalato (import dei dati, storico del cassetto fiscale, costi di struttura configurati, formazione), primo controllo dei conti fatto insieme. Cassa subito.
+    </div>
+  </div>
+
+  <h3>Perché la differenza Business–Pro è piccola</h3>
+  <p>In ogni modalità il Pro costa 50–150 € al mese più del Business. Con quella differenza il cliente ottiene contabilità generale, controllo di gestione, utile vero di ogni commessa, direttore finanziario AI, il doppio dei conti e del cassetto fiscale. A noi il Pro costa circa 36 € al mese in più del Business: il Business serve a far sembrare il Pro la scelta ovvia.</p>
+
+  <h3>Chi c'è già</h3>
+  <ul>
+    <li><b>Aziende da 300 € di gennaio:</b> restano al loro prezzo, scritto nel contratto come «prezzo bloccato», con la modalità che hanno scelto.</li>
+    <li><b>Piani vecchi</b> (starter 127, pro 247, enterprise 547 e quelli su misura): restano finché ci sono clienti, ma non si vendono più.</li>
+    <li><b>Clienti regalati:</b> 33 aziende sono su Enterprise senza pagare. Va fissata una data di passaggio a una delle tre modalità, con 30 giorni di preavviso.</li>
+  </ul>
+</section>
+
+<!-- 1b · ENTERPRISE -->
+<section class="page">
+  <div class="eyebrow">1b · Enterprise e gare d'appalto</div>
+  <h2>Enterprise: tutto incluso, gare d'appalto comprese</h2>
+  <p>Le gare d'appalto con l'AI escono a gennaio e si vendono anche da sole. L'Enterprise costa <b>meno della somma</b> di un piano più le gare: chi vuole le gare sale da solo all'Enterprise.</p>
+
+  <table>
+    <thead><tr><th style="width:30%"></th><th class="c">Mensile con carta</th><th class="c">Annuale, RID mensile</th><th class="c pro">Annuale anticipato</th></tr></thead>
+    <tr><td><b>Gare d'appalto da sole</b> (o come extra su un piano)</td><td class="c"><span class="prezzo">450 €</span></td><td class="c"><span class="prezzo">400 €</span></td><td class="c pro"><span class="prezzo">350 €</span></td></tr>
+    <tr><td><b>Enterprise</b></td><td class="c"><span class="prezzo">797 €</span></td><td class="c"><span class="prezzo">697 €</span></td><td class="c pro"><span class="prezzo">597 €</span><br><span class="small">7.164 € l'anno</span></td></tr>
+  </table>
+
+  <h3>Il confronto che fa scegliere l'Enterprise (prezzi con RID)</h3>
+  <table>
+    <thead><tr><th>Il cliente vuole</th><th>Combinazione</th><th class="n">Costo</th><th>Con l'Enterprise</th></tr></thead>
+    <tr><td>Gestionale + gare</td><td>297 + 400 €</td><td class="n">697 €</td><td><b>stesso prezzo</b>, con tutto il Pro in più</td></tr>
+    <tr><td>Business + gare</td><td>447 + 400 €</td><td class="n">847 €</td><td><b>risparmia 150 €</b> al mese</td></tr>
+    <tr><td>Pro + gare</td><td>547 + 400 €</td><td class="n">947 €</td><td><b>risparmia 250 €</b> al mese</td></tr>
+  </table>
+  <p class="small muted">Chi ha già il Pro passa all'Enterprise con 150 € in più al mese per gare, centralino e dotazioni più alte: è l'upgrade più facile da vendere.</p>
+
+  <div class="two">
+    <div>
+      <h3>Cosa c'è nell'Enterprise</h3>
+      <ul>
+        <li>Tutto il Pro</li>
+        <li><b>Gare d'appalto con l'AI</b> (uso corretto circa 10 gare al mese)</li>
+        <li><b>Centralino AI con 300 minuti</b> al mese</li>
+        <li><b>150 € di crediti AI</b> al mese</li>
+        <li>6 conti correnti, 500 documenti dal cassetto fiscale, 30 utenti d'ufficio</li>
+        <li>Assistenza dedicata e avvio incluso</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Margine nel caso peggiore</h3>
+      <table>
+        <thead><tr><th>Enterprise</th><th class="n">Prezzo</th><th class="n">Costo nostro</th><th class="n">Margine</th></tr></thead>
+        <tr><td>Mensile con carta</td><td class="n">797 €</td><td class="n">~182 €</td><td class="n">~77%</td></tr>
+        <tr><td>Annuale, RID</td><td class="n">697 €</td><td class="n">~170 €</td><td class="n">~76%</td></tr>
+        <tr class="pro"><td>Annuale anticipato</td><td class="n">597 €</td><td class="n">~170 €</td><td class="n">~72%</td></tr>
+      </table>
+      <p class="small muted">Tutto usato al massimo: 150 € di crediti, 10 gare (stima ~3 € l'una), 300 minuti di centralino (~0,12 € al minuto), 6 conti. In un uso normale si va sopra l'85%.</p>
+    </div>
+  </div>
+
+  <h3>WhatsApp operativo e centralino AI</h3>
+  <table>
+    <thead><tr><th>Servizio</th><th>Gestionale</th><th>Business</th><th>Pro</th><th class="pro">Enterprise</th></tr></thead>
+    <tr><td><b>WhatsApp operativo</b>: il bot che lavora con titolare e operai (rapportini, promemoria)</td><td class="no">—</td><td class="si">incluso</td><td class="si">incluso</td><td class="si pro">incluso</td></tr>
+    <tr><td><b>Centralino AI</b>: 79 €/mese con 300 minuti, poi 0,25 € al minuto (costo ~0,10–0,15 € al minuto)</td><td class="cons">extra</td><td class="cons">extra</td><td class="cons">extra</td><td class="si pro">incluso, 300 minuti</td></tr>
+  </table>
+
+  <div class="box warn">
+    <b>Da sapere.</b> Il modulo gare non è in questo repository: i suoi costi sono stime, da misurare in produzione quando esce (lettura di bando e disciplinare, relazione tecnica) prima di fissare l'uso corretto. Lo slug «enterprise» esiste già (547 €, 33 aziende regalate): serve uno slug nuovo, <span class="nowrap">enterprise2027</span>. La voce AI del centralino è una stima da confermare.
+  </div>
+</section>
+
+<!-- 3 · INCASSO E CONTRATTO -->
+<section class="page">
+  <div class="eyebrow">2 · Incasso e contratto</div>
+  <h2>Quanto costa incassare, e cosa scrivere nel contratto</h2>
+
+  <table>
+    <thead><tr><th>Modalità</th><th>Commissione</th><th class="n">Sul Pro</th><th class="n">Sul Business</th></tr></thead>
+    <tr><td>Carta (Stripe)</td><td>~1,5% + 0,25 € a pagamento</td><td class="n">~10,0 € al mese</td><td class="n">~7,7 € al mese</td></tr>
+    <tr><td>RID / addebito SEPA (Stripe)</td><td>~0,35 € ad addebito</td><td class="n">0,35 € al mese</td><td class="n">0,35 € al mese</td></tr>
+    <tr><td>Bonifico anticipato</td><td>nessuna</td><td class="n">0 €</td><td class="n">0 €</td></tr>
+  </table>
+  <p class="small muted">L'anticipato si fa pagare con bonifico, non con carta: su 5.364 € la carta costerebbe circa 80 €.</p>
+
+  <h3>Le clausole da scrivere</h3>
+  <table>
+    <thead><tr><th style="width:30%">Tema</th><th>Cosa scrivere</th></tr></thead>
+    <tr><td><b>Rimborso del RID</b></td><td>Con il SEPA normale (Core) il cliente può farsi rimborsare un addebito dalla sua banca entro 8 settimane, senza motivo. Nel contratto: l'impegno è di 12 mesi, e se il RID viene revocato o rimborsato i canoni restanti restano dovuti. Il SEPA B2B non prevede il rimborso, ma la banca del cliente deve registrare il mandato: si può proporre, non imporre.</td></tr>
+    <tr><td><b>Addebito non riuscito</b></td><td>Sollecito automatico, nuovo tentativo dopo 5 giorni, poi accesso limitato (sola lettura), non sospeso. Il blocco di un'azienda esiste già: va collegato al mancato pagamento.</td></tr>
+    <tr><td><b>Rinnovo e disdetta</b></td><td>L'annuale si rinnova da solo, salvo disdetta almeno 60 giorni prima della scadenza. Il mensile si disdice in qualsiasi momento ed è valido fino alla fine del mese pagato.</td></tr>
+    <tr><td><b>Prezzo bloccato</b></td><td>Il prezzo resta quello firmato finché l'abbonamento non viene interrotto. Se il cliente esce e poi rientra, vale il listino del momento.</td></tr>
+    <tr><td><b>Passaggio di piano</b></td><td>Dal Business al Pro in qualsiasi momento, con la differenza calcolata sui mesi restanti. Dal Pro al Business solo alla scadenza.</td></tr>
+    <tr><td><b>Fatture</b></td><td>Una al mese per carta e RID, una sola anticipata per l'annuale. L'IVA si versa quando si incassa.</td></tr>
+    <tr><td><b>Documenti preparati dall'AI</b></td><td>POS, DUVRI, contratti e computi preparati dall'AI sono bozze: il cliente li controlla e ne resta responsabile. Il POS lo firma il datore di lavoro o il consulente della sicurezza.</td></tr>
+    <tr><td><b>Credito AI</b></td><td>La dotazione mensile non si accumula. Oltre la dotazione si ricarica; il credito ricaricato non scade finché l'abbonamento è attivo.</td></tr>
+  </table>
+
+  <div class="box">
+    <b>Cassa di gennaio:</b> con 8 clienti Pro anticipati entrano subito circa <b>43.000 €</b>, prima ancora di aver erogato il servizio. Con il RID il resto arriva ogni mese, per 12 mesi.
+  </div>
+</section>
+
+<!-- 4 · COSA È COMPRESO -->
+<section class="page">
+  <div class="eyebrow">3 · Cosa è compreso</div>
+  <h2>Tutte le funzioni, piano per piano</h2>
+  <p class="small muted">Regola: il cantiere resta completo in tutti i piani (non si tolgono attrezzi per lavorare); le funzioni che fanno dire «wow» stanno almeno nel Business; quelle che sostituiscono commercialista e controller stanno nel Pro.</p>
+
+  <table>
+    <thead><tr><th style="width:55%">Funzione</th><th>Gestionale</th><th>Business</th><th class="pro">Pro</th></tr></thead>
+    <tr class="grp"><td colspan="4">Vendita</td></tr>
+    <tr><td>CRM, contatti, opportunità, calendario commerciale, provvigioni</td><td class="si">incluso</td><td class="si">incluso</td><td class="si pro">incluso</td></tr>
+    <tr><td>Preventivi e preventivatori di settore, listini, configuratori, simulatore</td><td class="si">incluso</td><td class="si">incluso</td><td class="si pro">incluso</td></tr>
+    <tr><td>Sales OS, reportistica commerciale</td><td class="no">—</td><td class="si">incluso</td><td class="si pro">incluso</td></tr>
+    <tr class="grp"><td colspan="4">Progetto</td></tr>
+    <tr><td>Planimetrie, anche da file DWG, con conteggio dei simboli</td><td class="cons">a consumo</td><td class="si">con dotazione</td><td class="si pro">dotazione doppia</td></tr>
+    <tr><td>Computo metrico con import da PriMus, prezzari</td><td class="si">incluso</td><td class="si">incluso</td><td class="si pro">incluso</td></tr>
+    <tr><td>Render AI: bagni, stanze, facciate, tetti, pavimenti, pergole, persiane, piscine</td><td class="cons">a consumo</td><td class="si">con dotazione</td><td class="si pro">dotazione doppia</td></tr>
+    <tr class="grp"><td colspan="4">Cantiere</td></tr>
+    <tr><td>Commesse, fasi e sottofasi, cronoprogramma, SAL e verbali, varianti</td><td class="si">incluso</td><td class="si">incluso</td><td class="si pro">incluso</td></tr>
+    <tr><td>Giornale dei lavori, sopralluoghi, foto, documenti, sicurezza di cantiere</td><td class="si">incluso</td><td class="si">incluso</td><td class="si pro">incluso</td></tr>
+    <tr><td>Rapportini, app Campo per gli operai (illimitati), squadre, mezzi e viaggi</td><td class="si">incluso</td><td class="si">incluso</td><td class="si pro">incluso</td></tr>
+    <tr><td>Acquisti: RDO, ordini fornitore, DDT, fabbisogno materiali, magazzino</td><td class="si">incluso</td><td class="si">incluso</td><td class="si pro">incluso</td></tr>
+    <tr><td>Assistenza e manutenzioni, margine diretto della commessa, rendiconto</td><td class="si">incluso</td><td class="si">incluso</td><td class="si pro">incluso</td></tr>
+    <tr><td>Subappalti dal computo, listino del committente, ritenute a garanzia</td><td class="no">—</td><td class="si">incluso</td><td class="si pro">incluso</td></tr>
+    <tr class="grp"><td colspan="4">Fatture</td></tr>
+    <tr><td>Fatture emesse con invio SDI, fatture ricevute, scadenzario, firma elettronica</td><td class="si">incluso</td><td class="si">incluso</td><td class="si pro">incluso</td></tr>
+    <tr><td>Recupero delle fatture dal cassetto fiscale</td><td class="no">—</td><td class="si">incluso</td><td class="si pro">incluso</td></tr>
+    <tr class="grp"><td colspan="4">Soldi — il Business</td></tr>
+    <tr><td>Conti correnti collegati, movimenti automatici, riconciliazione con le fatture</td><td class="no">—</td><td class="si">incluso</td><td class="si pro">incluso</td></tr>
+    <tr><td>Prima nota, tesoreria, costi, analisi acquisti</td><td class="no">—</td><td class="si">incluso</td><td class="si pro">incluso</td></tr>
+    <tr><td>Previsionale di cassa</td><td class="no">—</td><td class="si">incluso</td><td class="si pro">incluso</td></tr>
+    <tr class="grp"><td colspan="4">Contabilità — il Pro</td></tr>
+    <tr><td>Contabilità generale in partita doppia, registro e liquidazione IVA, file LIPE, F24</td><td class="no">—</td><td class="no">—</td><td class="si pro">incluso</td></tr>
+    <tr><td>Bilancio di verifica e CEE, ratei e risconti, chiusura di fine anno, archivio sostitutivo</td><td class="no">—</td><td class="no">—</td><td class="si pro">incluso</td></tr>
+    <tr class="grp"><td colspan="4">Impresa — il Pro</td></tr>
+    <tr><td><b>Utile vero di ogni commessa</b>, dopo i costi generali</td><td class="no">—</td><td class="no">—</td><td class="si pro">incluso</td></tr>
+    <tr><td>Controllo di gestione: cruscotto, conto economico, stato patrimoniale, cash flow, debiti, commesse, prodotti</td><td class="no">—</td><td class="no">—</td><td class="si pro">incluso</td></tr>
+    <tr><td>Budget, indici, health-check, piano, rating, pacchetto per la banca</td><td class="no">—</td><td class="no">—</td><td class="si pro">incluso</td></tr>
+    <tr><td>Simulatore delle operazioni immobiliari, dashboard personalizzate</td><td class="no">—</td><td class="no">—</td><td class="si pro">incluso</td></tr>
+    <tr class="grp"><td colspan="4">Persone</td></tr>
+    <tr><td>Personale, timbrature, ferie, cedolini</td><td class="si">incluso</td><td class="si">incluso</td><td class="si pro">incluso</td></tr>
+    <tr><td>Organigramma, candidati, portale formazione e corsi interni</td><td class="no">—</td><td class="no">—</td><td class="si pro">incluso</td></tr>
+    <tr class="grp"><td colspan="4">Comunicazione e marketing</td></tr>
+    <tr><td>WhatsApp, caselle email collegate, email marketing, SMS, social, reputazione, automazioni</td><td class="si">incluso</td><td class="si">incluso</td><td class="si pro">incluso</td></tr>
+    <tr><td><b>WhatsApp operativo</b> con titolare e operai (rapportini, promemoria)</td><td class="no">—</td><td class="si">incluso</td><td class="si pro">incluso</td></tr>
+    <tr><td>Pubblicità Meta e Google, messaggi WhatsApp marketing, SMS</td><td class="cons">a consumo</td><td class="cons">a consumo</td><td class="cons pro">a consumo</td></tr>
+    <tr><td>Centralino AI (79 €/mese con 300 minuti; incluso nell'Enterprise)</td><td class="cons">extra</td><td class="cons">extra</td><td class="cons pro">extra</td></tr>
+    <tr><td>Gare d'appalto con l'AI (400 €/mese; incluse nell'Enterprise)</td><td class="cons">extra</td><td class="cons">extra</td><td class="cons pro">extra</td></tr>
+    <tr class="grp"><td colspan="4">AI — dettaglio nella pagina degli uffici AI</td></tr>
+    <tr><td>Assistente commerciale e di cantiere</td><td class="si">incluso</td><td class="si">incluso</td><td class="si pro">incluso</td></tr>
+    <tr><td>Ufficio tecnico e ufficio acquisti AI</td><td class="no">—</td><td class="si">incluso</td><td class="si pro">incluso</td></tr>
+    <tr><td>Direttore finanziario AI, assistente in ChatGPT e Claude</td><td class="no">—</td><td class="no">—</td><td class="si pro">incluso</td></tr>
+  </table>
+</section>
+
+<!-- 5 · UFFICI AI -->
+<section class="page">
+  <div class="eyebrow">4 · Gli uffici AI</div>
+  <h2>L'AI che prepara il lavoro, piano per piano</h2>
+  <p class="lead" style="font-size:10pt">«Col Business hai un ufficio tecnico e un ufficio acquisti che lavorano da soli. Col Pro hai anche il direttore finanziario.»</p>
+
+  <div class="cards">
+    <div class="card">
+      <div class="name">Gestionale</div>
+      <div class="tag">Assistente commerciale e di cantiere</div>
+      <ul>
+        <li>Preventivo preparato dall'AI da foto, appunti o conversazione</li>
+        <li>Controllo dei preventivi</li>
+        <li>Contratto scritto dall'AI, import delle condizioni</li>
+        <li>Rapportini da foto, documento o voce</li>
+        <li>Giornale dei lavori compilato da solo</li>
+        <li>Email smistate e risposte proposte</li>
+        <li>Biglietti da visita letti, punteggio dei contatti</li>
+        <li>Silvio su vendite e cantieri</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="name">Business</div>
+      <div class="tag">+ Ufficio tecnico e ufficio acquisti AI</div>
+      <ul>
+        <li><b>Prepara la commessa</b> dal preventivo o dal computo: fasi, cronoprogramma, materiali, squadra; anche dalla chat di Silvio</li>
+        <li><b>Planimetrie</b> disegnate dall'AI, lette dai DWG, simboli contati e passati al computo</li>
+        <li>Computo e prezzari letti dai PDF, voci scomposte e abbinate al listino</li>
+        <li><b>Bozza di POS e DUVRI</b> del cantiere</li>
+        <li><b>Prepara gli ordini:</b> fabbisogno materiali, offerte dei fornitori lette, bolle confrontate con gli ordini, listini letti dai PDF</li>
+        <li>SAL proposto dall'AI, verbale per i subappaltatori</li>
+        <li>Fatture ricevute lette e classificate, abbinate ai movimenti; estratti conto letti; movimenti categorizzati</li>
+        <li>Silvio sui soldi</li>
+      </ul>
+    </div>
+    <div class="card hero">
+      <div class="name">Pro <span class="badge">da proporre</span></div>
+      <div class="tag">+ Direttore finanziario AI</div>
+      <ul>
+        <li>Rapporto quotidiano sui conti</li>
+        <li>Previsionale di cassa costruito dall'AI</li>
+        <li>Silvio sull'impresa: «quanto abbiamo guadagnato a ottobre?», «quale commessa ci fa perdere?»</li>
+        <li>Rapporto di fine mese</li>
+        <li>Proposte di azione ogni giorno</li>
+        <li><b>Assistente dentro ChatGPT e Claude:</b> si lavora su Edilizia in Cloud dalla propria chat AI</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Come si paga l'AI</h3>
+  <ul>
+    <li><b>Ogni uso scala dal credito AI</b>, con un ricarico di almeno 3× sul costo vero. Più il cliente usa l'AI, più incassi: la dotazione inclusa è l'assaggio.</li>
+    <li><b>Costi veri piccoli:</b> una planimetria o un preventivo costano qualche centesimo, un messaggio a Silvio circa 2 centesimi, un render circa 5 centesimi.</li>
+    <li><b>Crediti AI inclusi: 20 € nel Gestionale, 50 € nel Business, 100 € nel Pro</b> (decisione del 25/11), non accumulabili da un mese all'altro. Una moneta sola in euro: render, render 3D e planimetrie AI 0,50 €; Silvio, preventivi AI e chat sul progetto 0,10 €. Il costo vero resta sotto il 30% del prezzo.</li>
+    <li><b>AI d'ufficio illimitata nel Business e nel Pro</b> (uso corretto 1.000 documenti al mese; Gestionale 100): DDT, fatture, riconciliazione, email, rapportini, POS costano frazioni di centesimo.</li>
+  </ul>
+
+  <div class="box warn">
+    <b>Due cautele.</b> POS e DUVRI li prepara l'AI ma li firma il datore di lavoro o il consulente della sicurezza: nel listino si scrive «bozza preparata dall'AI», mai «POS a norma garantito». E nel listino va solo ciò che almeno 2–3 aziende hanno usato per un mese: alcune di queste funzioni sono uscite da poche settimane.
+  </div>
+</section>
+
+<!-- 6 · QUANTITÀ -->
+<section class="page">
+  <div class="eyebrow">5 · Quantità incluse</div>
+  <h2>Cosa è incluso ogni mese</h2>
+  <table>
+    <thead><tr><th style="width:52%">Dotazione</th><th class="n">Gestionale</th><th class="n">Business</th><th class="n pro">Pro</th></tr></thead>
+    <tr><td>Conti correnti collegati</td><td class="n">—</td><td class="n">2</td><td class="n pro">4</td></tr>
+    <tr><td>Crediti AI inclusi (moneta unica in euro)</td><td class="n">20 €</td><td class="n">50 €</td><td class="n pro">100 €</td></tr>
+    <tr><td>AI d'ufficio (DDT, fatture, banca, email, rapportini, POS)</td><td class="n">100 documenti</td><td class="n">illimitata</td><td class="n pro">illimitata</td></tr>
+    <tr><td>Render e planimetrie AI (0,50 € l'uno dai crediti)</td><td class="n">fino a 40</td><td class="n">fino a 100</td><td class="n pro">fino a 200</td></tr>
+    <tr><td>Spazio</td><td class="n">50 GB</td><td class="n">75 GB</td><td class="n pro">150 GB</td></tr>
+    <tr><td>Numeri WhatsApp</td><td class="n">1</td><td class="n">1</td><td class="n pro">2</td></tr>
+    <tr><td>Fatture emesse inviate allo SDI (le ricevute sono illimitate)</td><td class="n">50</td><td class="n">60</td><td class="n pro">100</td></tr>
+    <tr><td>Documenti dal cassetto fiscale (emessi + ricevuti)</td><td class="n">—</td><td class="n">150</td><td class="n pro">300</td></tr>
+    <tr><td>Utenti d'ufficio (operai del Campo illimitati)</td><td class="n">5</td><td class="n">8</td><td class="n pro">15</td></tr>
+    <tr><td>Email marketing</td><td class="n">2.000</td><td class="n">5.000</td><td class="n pro">10.000</td></tr>
+  </table>
+  <p class="small muted">Spazio e utenti a noi costano quasi niente: si possono alzare per rendere i piani più generosi senza perdere margine. Le quantità che costano davvero sono conti, cassetto fiscale e credito AI.</p>
+
+  <h3>Cosa succede oltre la dotazione</h3>
+  <ul>
+    <li><b>Una fattura non si blocca mai:</b> oltre la dotazione parte comunque e si scala dal portafoglio.</li>
+    <li><b>Il credito AI si ricarica</b>; avviso al titolare all'80% e al 100% della dotazione.</li>
+    <li><b>Conti, utenti, caselle e numeri WhatsApp oltre il tetto</b> si comprano come extra (sezione 7).</li>
+  </ul>
+</section>
+
+<!-- 7 · COSTI E MARGINI -->
+<section class="page">
+  <div class="eyebrow">6 · Costi e margini</div>
+  <h2>Quanto ci costa ogni piano, al mese per azienda</h2>
+  <p>Caso peggiore: il cliente usa <b>tutta</b> la dotazione ogni mese. Un cliente vero ne usa forse la metà; oggi il consumo AI reale di tutti i clienti insieme è circa 15 € al mese.</p>
+
+  <table>
+    <thead><tr><th style="width:46%">Voce di costo</th><th class="n">Gestionale</th><th class="n">Business</th><th class="n pro">Pro</th></tr></thead>
+    <tr><td>Conti collegati (Distyra, 5 € a conto)</td><td class="n">0,0</td><td class="n">10,0</td><td class="n pro">20,0</td></tr>
+    <tr><td>Crediti AI usati tutti (costo vero al massimo il 30%)</td><td class="n">6,0</td><td class="n">15,0</td><td class="n pro">30,0</td></tr>
+    <tr><td>AI d'ufficio al massimo dell'uso corretto</td><td class="n">1,3</td><td class="n">13,0</td><td class="n pro">13,0</td></tr>
+    <tr><td>Fatture inviate allo SDI (openapi, 0,049 €)</td><td class="n">2,5</td><td class="n">2,9</td><td class="n pro">4,9</td></tr>
+    <tr><td>Cassetto fiscale (ITALA, 0,03 € a documento)</td><td class="n">0,0</td><td class="n">4,5</td><td class="n pro">9,0</td></tr>
+    <tr><td>Spazio</td><td class="n">1,0</td><td class="n">1,5</td><td class="n pro">3,0</td></tr>
+    <tr><td>Briefing di Silvio per utente (0,33 €)</td><td class="n">1,7</td><td class="n">2,6</td><td class="n pro">5,0</td></tr>
+    <tr><td>Email marketing</td><td class="n">0,2</td><td class="n">0,5</td><td class="n pro">1,0</td></tr>
+    <tr><td>Quota dei costi fissi (~130 € su 25 aziende)</td><td class="n">5,0</td><td class="n">5,0</td><td class="n pro">5,0</td></tr>
+    <tr class="tot"><td>Costo prima della commissione d'incasso</td><td class="n">17,7</td><td class="n">55,0</td><td class="n pro">90,9</td></tr>
+  </table>
+
+  <h3>Margine per modalità di pagamento</h3>
+  <table>
+    <thead><tr><th>Piano e modalità</th><th class="n">Prezzo</th><th class="n">Costo nostro</th><th class="n">Guadagno al mese</th><th class="n">Guadagno all'anno</th><th class="n">Margine</th></tr></thead>
+    <tr class="grp"><td colspan="6">Pro</td></tr>
+    <tr class="pro"><td>Mensile con carta</td><td class="n">647 €</td><td class="n">100,9 €</td><td class="n">546 €</td><td class="n">6.554 €</td><td class="n">84,4%</td></tr>
+    <tr class="pro"><td>Annuale, RID mensile</td><td class="n">547 €</td><td class="n">91,3 €</td><td class="n">456 €</td><td class="n">5.469 €</td><td class="n">83,3%</td></tr>
+    <tr class="pro"><td><b>Annuale anticipato</b></td><td class="n"><b>447 €</b></td><td class="n">90,9 €</td><td class="n"><b>356 €</b></td><td class="n"><b>4.273 €</b></td><td class="n"><b>79,7%</b></td></tr>
+    <tr class="grp"><td colspan="6">Business</td></tr>
+    <tr><td>Mensile con carta</td><td class="n">497 €</td><td class="n">62,7 €</td><td class="n">434 €</td><td class="n">5.212 €</td><td class="n">87,4%</td></tr>
+    <tr><td>Annuale, RID mensile</td><td class="n">447 €</td><td class="n">55,4 €</td><td class="n">392 €</td><td class="n">4.700 €</td><td class="n">87,6%</td></tr>
+    <tr><td><b>Annuale anticipato</b></td><td class="n"><b>397 €</b></td><td class="n">55,0 €</td><td class="n"><b>342 €</b></td><td class="n"><b>4.104 €</b></td><td class="n"><b>86,1%</b></td></tr>
+    <tr class="grp"><td colspan="6">Gestionale</td></tr>
+    <tr><td>Mensile con carta</td><td class="n">347 €</td><td class="n">23,2 €</td><td class="n">324 €</td><td class="n">3.886 €</td><td class="n">93,3%</td></tr>
+    <tr><td>Annuale, RID mensile</td><td class="n">297 €</td><td class="n">18,1 €</td><td class="n">279 €</td><td class="n">3.347 €</td><td class="n">93,9%</td></tr>
+  </table>
+
+  <h3>Da dove vengono i numeri</h3>
+  <ul class="small">
+    <li><b>Misurati in produzione:</b> costo dell'AI per chiamata, render, briefing di Silvio, email.</li>
+    <li><b>Listini dei fornitori:</b> openapi (invio SDI), ITALA con la ricarica da 10.000 crediti, Stripe per carta e addebito SEPA.</li>
+    <li><b>Tuoi:</b> Distyra a 5 € per conto.</li>
+    <li><b>Costi fissi:</b> Supabase circa 68 € (fattura del 12/10: 73,39 $), domini circa 5 €; da confermare con le fatture Resend, server WhatsApp, Telnyx e altro. Insieme circa 130 € al mese.</li>
+    <li><b>Uso realistico:</b> con il 10–30% dei crediti usato (oggi tutti i clienti insieme spendono circa 15 € di AI al mese) i margini salgono di 3–5 punti.</li>
+  </ul>
+</section>
+
+<!-- 8 · EXTRA E INCASSI -->
+<section class="page">
+  <div class="eyebrow">7 · Extra e incassi</div>
+  <h2>Come si sale sopra i 400 € di media</h2>
+
+  <h3>Gli extra in vetrina (quattro, non di più)</h3>
+  <table>
+    <thead><tr><th>Extra</th><th class="n">Prezzo</th><th class="n">Costo nostro</th><th>Chi lo compra</th></tr></thead>
+    <tr><td>Conto corrente in più</td><td class="n">15 €/mese</td><td class="n">5 €</td><td>imprese con più banche</td></tr>
+    <tr><td>Utente d'ufficio o casella email in più</td><td class="n">15 € / 5 € al mese</td><td class="n">0–2 €</td><td>uffici grandi</td></tr>
+    <tr><td>Ricarica del credito AI e dei render</td><td class="n">a ricarico 3×</td><td class="n">1/3 del prezzo</td><td>chi usa Silvio, planimetrie e render ogni giorno</td></tr>
+    <tr><td>Recupero dello storico dal cassetto (1.000 documenti)</td><td class="n">99 € una tantum</td><td class="n">60 €</td><td>chi non ha l'anticipato</td></tr>
+  </table>
+
+  <h3>Gli extra che alzano davvero la media</h3>
+  <table>
+    <thead><tr><th>Servizio</th><th class="n">Prezzo</th><th>Nota</th></tr></thead>
+    <tr><td><b>Revisione mensile dei conti</b> con il titolare</td><td class="n">150–250 €/mese</td><td>per chi ha il Pro e vuole qualcuno che legga i numeri con lui; da decidere chi la fa</td></tr>
+    <tr><td>Centralino AI e agente vocale</td><td class="n">79 €/mese, 300 min</td><td>chi perde chiamate; poi 0,25 € al minuto; incluso nell'Enterprise</td></tr>
+    <tr><td><b>Gare d'appalto con l'AI</b></td><td class="n">400 €/mese</td><td>da sole o come extra; chi le vuole con un piano conviene che prenda l'Enterprise</td></tr>
+    <tr><td>Pacchetti render</td><td class="n">0,40 € a render</td><td>serramentisti, bagni, facciate; costo nostro 0,05 €</td></tr>
+  </table>
+  <p class="small muted">Tutto il resto (fatture verso la PA, conservazione sostitutiva, pacchetti di fatture, WhatsApp marketing) va nelle condizioni, non nella vetrina.</p>
+
+  <h3>Incassi attesi nel 2027</h3>
+  <p class="small">Mix ipotizzato delle modalità: su 30 clienti, 5 mensili con carta, 17 annuali con RID, 8 annuali anticipati.</p>
+  <table>
+    <thead><tr><th>Scenario</th><th class="n">Aziende</th><th class="n">Media</th><th class="n">Incasso al mese</th><th class="n">Costi al mese</th><th class="n">Guadagno all'anno</th></tr></thead>
+    <tr><td>30 clienti, tutti Business</td><td class="n">30</td><td class="n">442 €</td><td class="n">13.260 €</td><td class="n">~1.690 €</td><td class="n">~139.000 €</td></tr>
+    <tr><td>30 clienti, metà Business e metà Pro</td><td class="n">30</td><td class="n">490 €</td><td class="n">14.685 €</td><td class="n">~2.240 €</td><td class="n">~149.000 €</td></tr>
+    <tr class="pro"><td>30 clienti, tutti Pro</td><td class="n">30</td><td class="n">537 €</td><td class="n">16.110 €</td><td class="n">~2.780 €</td><td class="n">~160.000 €</td></tr>
+    <tr><td>Fine 2027: i 30 «metà e metà» + 20 nuovi Pro con RID a 547 €</td><td class="n">50</td><td class="n">513 €</td><td class="n">25.625 €</td><td class="n">~4.060 €</td><td class="n">~259.000 €</td></tr>
+  </table>
+  <p class="small muted">Costi nel caso peggiore: crediti AI e dotazioni usati tutti, commissioni d'incasso e quota dei costi fissi comprese. Esclusi gli extra e il tempo per avvio e assistenza. Con 50 aziende la quota dei costi fissi scende a circa 4 € per azienda.</p>
+
+  <div class="box">
+    <b>Dove sta il rischio vero:</b> non nei costi delle API, ma nel tempo speso su avvio, import dei dati e assistenza. Per questo l'avvio si fa pagare a chi sceglie carta o RID, e a chi paga anticipato si consegna con una procedura fissa.
+  </div>
+</section>
+
+<!-- 9 · VENDITA E LANCIO -->
+<section class="page">
+  <div class="eyebrow">8 · Vendita e lancio</div>
+  <h2>Come vendere il Pro, e cosa chiudere prima</h2>
+
+  <div class="two">
+    <div>
+      <h3>In trattativa</h3>
+      <ul>
+        <li><b>Proponi solo Business e Pro</b>, con il Pro raccomandato. Il Gestionale esiste solo sul sito.</li>
+        <li><b>Parti dalla domanda:</b> «Sull'ultima commessa quanto ci hai guadagnato, dopo l'affitto, i furgoni e l'ufficio?». Quasi nessuno lo sa.</li>
+        <li><b>Fai vedere l'AI che prepara il lavoro:</b> dal preventivo alla commessa con fasi, ordini e POS in pochi minuti.</li>
+        <li><b>Mostra prima il mensile, poi l'annuale con RID, infine l'anticipato</b> con tutto incluso e la scadenza vera.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Perché oggi il controllo di gestione non si capisce</h3>
+      <ul>
+        <li><b>Il nome:</b> per un'impresa edile è roba da commercialista. Va chiamato «Quanto guadagno» o «Utile e conti dell'impresa».</li>
+        <li><b>Parte vuoto:</b> senza i costi di struttura non mostra niente. Con l'anticipato si consegna già configurato.</li>
+        <li><b>Sta lontano dal lavoro:</b> va mostrato dentro la commessa, dove il cliente lavora ogni giorno.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Come si vende il Pro dentro il prodotto</h3>
+  <ul>
+    <li>Nella commessa del Business compare la riga <b>«Utile dopo i costi generali: disponibile nel Pro»</b>, con il numero sfocato.</li>
+    <li>Le aree del Pro si vedono in anteprima con il pulsante per passare al piano superiore, invece di sparire.</li>
+    <li>Il <b>primo rapporto di fine mese</b> del direttore finanziario AI arriva anche ai Business, una volta sola.</li>
+  </ul>
+
+  <h3>Cosa va chiuso prima di vendere a prezzi diversi</h3>
+  <div class="box warn">
+    Oggi i confini tra i piani non tengono: un cliente Gestionale o Business arriva ai dati del Pro chiedendo a Silvio, usando l'assistente in ChatGPT/Claude o digitando l'indirizzo della pagina. Molte aree nuove non hanno ancora una chiave di piano propria.
+  </div>
+  <table>
+    <thead><tr><th>Lavoro</th><th class="n">Giorni</th></tr></thead>
+    <tr><td>Silvio e l'assistente in ChatGPT/Claude (MCP) rispettano il piano</td><td class="n">1–2</td></tr>
+    <tr><td>Chiavi separate: planimetrie e render, contabilità generale e prima nota, uffici AI, corsi e candidati</td><td class="n">2–3</td></tr>
+    <tr><td>Tetto sul numero di conti collegati, caselle, calendari, numeri WhatsApp</td><td class="n">1</td></tr>
+    <tr><td>Pagine chiuse anche se si digita l'indirizzo; niente apertura se il controllo fallisce</td><td class="n">1</td></tr>
+    <tr><td>Quota di struttura tolta dalla commessa del Gestionale e del Business</td><td class="n">0,5</td></tr>
+    <tr><td>Piani nuovi nel database e in Stripe: carta, addebito SEPA, anticipato, extra; mancato pagamento → accesso limitato</td><td class="n">3–4</td></tr>
+    <tr><td>Configurazione guidata dei costi di struttura (5 domande)</td><td class="n">1–2</td></tr>
+    <tr><td>Collaudo con un'azienda di prova per piano</td><td class="n">2</td></tr>
+    <tr><td>Chiavi nuove <span class="nowrap">whatsapp_operativo</span>, centralino e gare; piano <span class="nowrap">enterprise2027</span></td><td class="n">1</td></tr>
+    <tr class="tot"><td>Totale fino al lancio</td><td class="n">13–17</td></tr>
+  </table>
+  <p class="small muted">Le aziende già avviate non vengono toccate: i blocchi nuovi valgono solo per i piani nuovi.</p>
+
+  <h3>Decisioni da prendere</h3>
+  <ol>
+    <li>Prezzi finali delle tre modalità e dell'avvio (990 € con carta, 490 € con RID).</li>
+    <li>Scadenza dell'offerta anticipata e numero di posti (proposta: 30 aziende o 31 marzo 2027).</li>
+    <li>Data in cui i clienti regalati passano a pagamento.</li>
+    <li>Chi fa la revisione mensile dei conti: tu, un consulente a percentuale o un commercialista partner.</li>
+    <li>Testo del contratto con le clausole del RID, da far rivedere a un legale.</li>
+    <li>Nome dell'area del controllo di gestione nel prodotto.</li>
+    <li>Prezzi di Enterprise (797 / 697 / 597 €) e gare (450 / 400 / 350 €), dopo aver misurato il costo di una gara.</li>
+  </ol>
+</section>
+
+</body>
+</html>

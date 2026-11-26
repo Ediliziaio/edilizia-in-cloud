@@ -1,4 +1,5 @@
 import { UniformSelect } from "@/components/ui/uniform-select";
+import { OrdiniServizioUfficio } from "@/components/subappaltatori/OrdiniServizioUfficio";
 import { SalPaymentDialog } from "@/components/subappaltatori/SalPaymentDialog";
 import { ListinoDitta } from "@/components/subappaltatori/ListinoDitta";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
@@ -214,7 +215,8 @@ export default function SubappaltatoreDetail() {
     durc: 'DURC', visura: 'Visura camerale', dvr: 'DVR', pos: 'POS',
     soa: 'Attestazione SOA', polizza_rc: 'Polizza RC', cassa_edile: 'Cassa Edile',
     antimafia: 'Antimafia', iscrizione_albo: 'Iscrizione Albo',
-    formazione_operai: 'Formazione operai', altro: 'Altro',
+    formazione_operai: 'Formazione operai', patente_crediti: 'Patente a crediti',
+    documento_identita: "Documento d'identità", altro: 'Altro',
   };
   const { data: documentiCompliance = [] } = useQuery({
     queryKey: ['sub-doc-compliance', sub?.campo_subappaltatore_id],
@@ -906,6 +908,8 @@ export default function SubappaltatoreDetail() {
           <OperaiSubappaltatore key={`${companyId}:${id}`} companyId={companyId} subId={id!} />
         </TabsContent>
         <TabsContent value="documenti" className="mt-4 space-y-4">
+          {/* Ordini di servizio e contestazioni alla ditta che usa l'app (piano campo completo 3.4). */}
+          {sub?.campo_subappaltatore_id && companyId && <OrdiniServizioUfficio companyId={companyId} dittaId={sub.campo_subappaltatore_id} />}
           <FascicoloDocumenti key={`${companyId}:${id}`} companyId={companyId} subId={id!} />
           <details className="rounded-xl border bg-muted/20 p-3">
             <summary className="cursor-pointer text-sm font-semibold">

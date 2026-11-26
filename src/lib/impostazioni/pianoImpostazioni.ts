@@ -56,7 +56,7 @@ export const REQUISITI_IMPOSTAZIONI: Record<string, RequisitoPiano> = {
   banca: { funzioni: ["tesoreria", "prima_nota"] },
   "fatturazione-nativa": FATTURE,
   // Preventivi. Il listino serve anche a commesse e magazzino; manodopera e
-  // servizi anche alla manutenzione; i finanziamenti anche al simulatore.
+  // servizi anche alla manutenzione.
   listino: { funzioni: ["preventivi_crm"], moduli: ["orders", "warehouse"] },
   tariffe: { funzioni: ["preventivi_crm", "manutenzione_modulo"], moduli: ["orders"] },
   "listino-manutenzione": { funzioni: ["preventivi_crm", "manutenzione_modulo"], moduli: ["orders"] },
@@ -67,7 +67,7 @@ export const REQUISITI_IMPOSTAZIONI: Record<string, RequisitoPiano> = {
   approvazioni: PREVENTIVI,
   "template-preventivi": PREVENTIVI,
   "condizioni-firma": PREVENTIVI,
-  finanziamenti: { funzioni: ["preventivi_crm", "simulatore"] },
+  finanziamenti: { funzioni: ["preventivi_crm"] },
   "firma-elettronica": { funzioni: ["firma_fea"] },
   "catalogo-render": { funzioni: ["render_ai"] },
   "whatsapp-bot": { funzioni: ["whatsapp_bot_ai", "whatsapp"] },
@@ -143,7 +143,6 @@ const NOMI_MODULI: Record<ModuloPiano, string> = {
 
 const NOMI_FUNZIONI: Record<string, string> = {
   preventivi_crm: "Preventivi",
-  simulatore: "Simulatore",
   manutenzione_modulo: "Manutenzione",
   firma_fea: "Firma elettronica",
   render_ai: "Render AI",

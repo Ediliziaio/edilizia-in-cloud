@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { BOTTONE_NUOVO, BOTTONE_SECONDARIO } from "@/components/orders/TestataScheda";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -280,9 +281,9 @@ const channelIcon: Record<Channel, ComponentType<{ className?: string }>> = {
 };
 
 // Telefono: i quattro numeri 2×2, nome e cifra senza icona.
-const KPI_CONTENUTO = "flex items-center gap-3 p-4 max-sm:px-2.5 max-sm:py-2";
+const KPI_CONTENUTO = "flex items-center gap-3 px-3 py-2.5 max-sm:px-2.5 max-sm:py-2";
 const KPI_NOME = "text-xs text-muted-foreground max-sm:truncate max-sm:text-[11px]";
-const KPI_CIFRA = "text-2xl font-semibold max-sm:text-base";
+const KPI_CIFRA = "text-lg font-semibold max-sm:text-base";
 
 function isReputationTab(value: string | null): value is ReputationTab {
   return value === "dashboard" || value === "richieste" || value === "recensioni" || value === "automazioni" || value === "integrazioni";
@@ -1275,7 +1276,7 @@ export default function ReputationManager() {
           <div className="flex items-start gap-3">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-bold text-slate-950 max-sm:text-lg">{tr("Reputazione")}</h1>
+                <h1 className="text-xl font-bold text-slate-950 max-sm:text-lg">{tr("Reputazione")}</h1>
                 {isHydrating && (
                   <Badge variant="outline" className="gap-1.5 border-blue-200 bg-blue-50 text-blue-700">
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -1286,22 +1287,23 @@ export default function ReputationManager() {
             </div>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Button variant="outline" onClick={() => navigate("/azienda/impostazioni/integrazioni")} className="max-sm:hidden">
-              <Settings className="mr-2 h-4 w-4" />
+            <Button variant="outline" size="sm" onClick={() => navigate("/azienda/impostazioni/integrazioni")} className={cn(BOTTONE_SECONDARIO, "max-sm:hidden")}>
+              <Settings />
               {tr("Integrazioni")}
             </Button>
-            <Button onClick={() => handleTabChange("richieste")} className="max-sm:h-9 max-sm:px-3 max-sm:text-[13px]">
-              <Send className="mr-2 h-4 w-4" />
+            <Button size="sm" onClick={() => handleTabChange("richieste")} className={cn(BOTTONE_NUOVO, "max-sm:h-9 max-sm:px-3 max-sm:text-[13px]")}>
+              <Send />
               {tr("Chiedi recensioni")}
             </Button>
           </div>
         </div>
       </div>
 
-      <Alert className="border-amber-200 bg-amber-50 max-sm:px-3 max-sm:py-2 max-sm:[&>svg~*]:pl-0">
+      {/* 26/11/2026: titolo e spiegazione sulla stessa riga, come gli avvisi delle altre pagine. */}
+      <Alert className="border-amber-200 bg-amber-50 py-2.5 max-sm:px-3 max-sm:py-2 max-sm:[&>svg~*]:pl-0 sm:[&>svg]:top-3">
         <ShieldCheck className="h-4 w-4 text-amber-700 max-sm:hidden" />
-        <AlertTitle className="max-sm:mb-0 max-sm:text-[13px]">{tr("Reputazione in configurazione")}</AlertTitle>
-        <AlertDescription className="max-sm:hidden">
+        <AlertTitle className="max-sm:mb-0 max-sm:text-[13px] sm:mb-0 sm:mr-1.5 sm:inline sm:text-sm">{tr("Reputazione in configurazione")}</AlertTitle>
+        <AlertDescription className="max-sm:hidden sm:inline sm:text-xs">
           {tr("Google e Facebook restano in setup finche non vengono collegati i permessi recensioni. Il link sito invece e gia testabile e salva feedback locale.")}
         </AlertDescription>
       </Alert>
@@ -1310,8 +1312,8 @@ export default function ReputationManager() {
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 max-sm:grid-cols-2 max-sm:gap-2">
         <Card>
           <CardContent className={KPI_CONTENUTO}>
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-amber-700 max-sm:hidden">
-              <Star className="h-5 w-5" />
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-1.5 text-amber-700 max-sm:hidden">
+              <Star className="h-4 w-4" />
             </div>
             <div>
               <p className={KPI_NOME}>{tr("Rating medio")}</p>
@@ -1324,8 +1326,8 @@ export default function ReputationManager() {
         </Card>
         <Card>
           <CardContent className={KPI_CONTENUTO}>
-            <div className="rounded-lg border border-sky-200 bg-sky-50 p-2 text-sky-700 max-sm:hidden">
-              <MessageSquare className="h-5 w-5" />
+            <div className="rounded-lg border border-sky-200 bg-sky-50 p-1.5 text-sky-700 max-sm:hidden">
+              <MessageSquare className="h-4 w-4" />
             </div>
             <div>
               <p className={KPI_NOME}>{tr("Recensioni recenti")}</p>
@@ -1335,8 +1337,8 @@ export default function ReputationManager() {
         </Card>
         <Card>
           <CardContent className={KPI_CONTENUTO}>
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-emerald-700 max-sm:hidden">
-              <TrendingUp className="h-5 w-5" />
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-1.5 text-emerald-700 max-sm:hidden">
+              <TrendingUp className="h-4 w-4" />
             </div>
             <div>
               <p className={KPI_NOME}>{tr("Conversione richieste")}</p>
@@ -1346,8 +1348,8 @@ export default function ReputationManager() {
         </Card>
         <Card>
           <CardContent className={KPI_CONTENUTO}>
-            <div className="rounded-lg border border-rose-200 bg-rose-50 p-2 text-rose-700 max-sm:hidden">
-              <AlertTriangle className="h-5 w-5" />
+            <div className="rounded-lg border border-rose-200 bg-rose-50 p-1.5 text-rose-700 max-sm:hidden">
+              <AlertTriangle className="h-4 w-4" />
             </div>
             <div>
               <p className={KPI_NOME}>{tr("Da gestire")}</p>
@@ -1358,7 +1360,7 @@ export default function ReputationManager() {
       </div>
 
       <Tabs value={schedaVisibile} onValueChange={handleTabChange} className="space-y-4 max-sm:space-y-3">
-        <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-lg border bg-white p-1.5 shadow-sm max-sm:p-1 max-sm:shadow-none">
+        <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-lg border bg-white p-0.5 shadow-sm max-sm:p-1 max-sm:shadow-none">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -1366,11 +1368,11 @@ export default function ReputationManager() {
                 key={tab.value}
                 value={tab.value}
                 className={cn(
-                  "shrink-0 gap-1.5 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-800 max-sm:flex-1 max-sm:text-[13px]",
+                  "h-7 shrink-0 gap-1.5 text-xs data-[state=active]:bg-amber-50 data-[state=active]:text-amber-800 max-sm:flex-1 max-sm:text-[13px]",
                   tab.soloComputer && "max-sm:hidden",
                 )}
               >
-                <Icon className="h-4 w-4 max-sm:hidden" />
+                <Icon className="h-3.5 w-3.5 max-sm:hidden" />
                 {tr(tab.label)}
               </TabsTrigger>
             );
@@ -1382,7 +1384,7 @@ export default function ReputationManager() {
             {/* Telefono: fonti su due righe (nome e stato, recensioni e voto), niente spiegazioni. */}
             <Card>
               <CardHeader className="max-sm:p-3 max-sm:pb-2">
-                <CardTitle className="max-sm:text-sm">{tr("Stato reputazione")}</CardTitle>
+                <CardTitle className="text-base max-sm:text-sm">{tr("Stato reputazione")}</CardTitle>
                 <CardDescription className="max-sm:hidden">{tr("Andamento sintetico da recensioni pubbliche, feedback privati e campagne.")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5 max-sm:space-y-2 max-sm:p-3 max-sm:pt-0">
@@ -1443,7 +1445,7 @@ export default function ReputationManager() {
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Bot className="h-5 w-5 text-violet-700" />
-                  <CardTitle>{tr("Regia AI")}</CardTitle>
+                  <CardTitle className="text-base">{tr("Regia AI")}</CardTitle>
                 </div>
                 <CardDescription>{tr("Azioni consigliate per aumentare rating e volume recensioni.")}</CardDescription>
               </CardHeader>
@@ -1480,7 +1482,7 @@ export default function ReputationManager() {
           <Card>
             <CardHeader className="max-sm:p-3 max-sm:pb-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <CardTitle className="max-sm:text-sm">{tr("Nuova richiesta recensioni")}</CardTitle>
+                  <CardTitle className="text-base max-sm:text-sm">{tr("Nuova richiesta recensioni")}</CardTitle>
                   <Badge variant={persistenceMode === "database" ? "default" : "outline"} className={cn(persistenceMode === "database" ? "bg-emerald-600 hover:bg-emerald-600" : "", "max-sm:hidden")}>
                     {persistenceMode === "database" ? tr("Database attivo") : tr("Cache locale")}
                   </Badge>
@@ -1587,7 +1589,7 @@ export default function ReputationManager() {
 
             <Card>
               <CardHeader className="max-sm:p-3 max-sm:pb-2">
-                <CardTitle className="max-sm:text-sm">{tr("Campagne recensioni")}</CardTitle>
+                <CardTitle className="text-base max-sm:text-sm">{tr("Campagne recensioni")}</CardTitle>
                 <CardDescription className="max-sm:hidden">{tr("Richieste attive, performance e conversione in recensioni pubblicate.")}</CardDescription>
               </CardHeader>
               <CardContent className="max-sm:p-0">
@@ -1678,7 +1680,7 @@ export default function ReputationManager() {
                 «Rispondi» prende la riga, Apri e Silvio restano a icona. */}
             <CardHeader className="gap-3 lg:flex-row lg:items-center lg:justify-between max-sm:gap-2 max-sm:p-3 max-sm:pb-2">
               <div>
-                <CardTitle className="max-sm:text-sm">{tr("Recensioni pubblicate")}</CardTitle>
+                <CardTitle className="text-base max-sm:text-sm">{tr("Recensioni pubblicate")}</CardTitle>
                 <CardDescription className="max-sm:hidden">{tr("Vista unica da Google, Facebook e moduli proprietari.")}</CardDescription>
               </div>
               <div className="flex flex-wrap gap-2 max-sm:flex-nowrap max-sm:gap-1.5">
@@ -1786,7 +1788,7 @@ export default function ReputationManager() {
           <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
             <Card>
               <CardHeader>
-                <CardTitle>{tr("Flusso automatico recensioni")}</CardTitle>
+                <CardTitle className="text-base">{tr("Flusso automatico recensioni")}</CardTitle>
                 <CardDescription>{tr("Invio richiesta, follow-up e alert su feedback critici.")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
@@ -1871,7 +1873,7 @@ export default function ReputationManager() {
 
             <Card>
               <CardHeader>
-                <CardTitle>{tr("Registro automazioni")}</CardTitle>
+                <CardTitle className="text-base">{tr("Registro automazioni")}</CardTitle>
               <CardDescription>{tr("Audit operativo: richieste, risposte, cambi automazione e alert.")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -1968,7 +1970,7 @@ export default function ReputationManager() {
 
           <Card>
             <CardHeader>
-              <CardTitle>{tr("Link recensione pubblico")}</CardTitle>
+              <CardTitle className="text-base">{tr("Link recensione pubblico")}</CardTitle>
               <CardDescription>{tr("Da usare in firma email, QR code, WhatsApp e post-cantiere. Slug: {publicReviewSlug}", { publicReviewSlug: String(publicReviewSlug ?? "") })}</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 lg:grid-cols-[1fr_auto]">

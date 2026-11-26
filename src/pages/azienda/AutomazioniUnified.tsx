@@ -27,6 +27,7 @@ import { CreaAutomazioneAIDialog } from "@/components/automazioni/CreaAutomazion
 import { CalendarClock } from "lucide-react";
 import type { ReactNode } from "react";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { BOTTONE_NUOVO, BOTTONE_SECONDARIO, RICERCA_BARRA, TENDINA_STATO_BARRA } from "@/components/orders/TestataScheda";
 
 type CategoriaFiltro = "tutte" | "crm" | "marketing" | "cantieri" | "task" | "generale" | "notifiche" | "preventivi" | "fatturazione" | "assistenza" | "ordini" | "magazzino" | "hr";
 
@@ -100,24 +101,27 @@ export default function AutomazioniUnified() {
               conteggio non valgono lo spazio, resta la descrizione. */}
           {/* 25/09/2026 — Telefono: le automazioni si guardano, non si creano né si
               modificano (regola dell'utente). Al posto della descrizione, dove si fanno. */}
+          {/* 25/11/2026 — Testata come Commesse: da computer niente frase sotto il titolo
+              (resta per i lettori di schermo). */}
           {effectiveCompany?.id && !isMobile ? (
+            // I numeri e l'avviso di allarme restano in vista: sono informazioni, non una descrizione.
             <AutomationOverviewStats companyId={effectiveCompany.id} />
           ) : isMobile ? (
             <p className="mt-0.5 text-[11px] text-muted-foreground">{t("si creano e si modificano da computer o tablet")}</p>
           ) : (
-            <p className="mt-0.5 text-sm text-muted-foreground">
+            <p className="sr-only">
               {t("Automazioni per CRM, cantieri, preventivi e notifiche.")}
             </p>
           )}
         </div>
-        <div className={cn("flex shrink-0 items-center gap-2", isMobile && "hidden")}>
-          <Button size="sm" onClick={() => navigate(`${routePrefix}/automazioni/nuova`)}>
-            <Plus className="mr-1.5 h-4 w-4" />
+        <div className={cn("flex shrink-0 items-center gap-1.5", isMobile && "hidden")}>
+          <Button size="sm" className={BOTTONE_NUOVO} onClick={() => navigate(`${routePrefix}/automazioni/nuova`)}>
+            <Plus />
             {t("Crea flusso")}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline" className="px-2" aria-label={t("Altre azioni")} disabled={!effectiveCompany?.id}>
+              <Button size="sm" variant="outline" className="h-8 w-8 px-0" aria-label={t("Altre azioni")} disabled={!effectiveCompany?.id}>
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -143,12 +147,12 @@ export default function AutomazioniUnified() {
           stanno in questa riga. Prima la galleria aggiungeva sotto un secondo
           titolo, una frase e un'altra casella di ricerca. */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <div className="relative w-full max-w-xs max-md:max-w-none">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-label={vistaTemplates ? t("Cerca template") : t("Cerca flusso")}
             placeholder={vistaTemplates ? t("Cerca template...") : t("Cerca flusso...")}
-            className="h-9 pl-9"
+            className="h-8 pl-8 text-xs"
             value={vistaTemplates ? cercaTemplate : searchQuery}
             onChange={(e) => (vistaTemplates ? setCercaTemplate : setSearchQuery)(e.target.value)}
           />
@@ -158,7 +162,7 @@ export default function AutomazioniUnified() {
           value={categoriaAttiva}
           onValueChange={(v) => setCategoriaAttiva(v as CategoriaFiltro)}
         >
-          <SelectTrigger aria-label={t("Categoria automazioni")} className="h-9 w-full shrink-0 sm:w-[190px] max-md:hidden">
+          <SelectTrigger aria-label={t("Categoria automazioni")} className={cn(TENDINA_STATO_BARRA, "max-md:hidden")}>
             <SelectValue placeholder={t("Categoria")} />
           </SelectTrigger>
           <SelectContent>
@@ -175,7 +179,7 @@ export default function AutomazioniUnified() {
 
         {vistaTemplates && (
           <Select value={livelloTemplate} onValueChange={setLivelloTemplate}>
-            <SelectTrigger className="h-9 w-[150px] shrink-0 max-md:hidden" aria-label={t("Livello")}>
+            <SelectTrigger className="h-8 w-[150px] shrink-0 text-xs max-md:hidden" aria-label={t("Livello")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -188,21 +192,21 @@ export default function AutomazioniUnified() {
         )}
 
         {(categoriaAttiva !== "tutte" || (vistaTemplates ? cercaTemplate.trim() || livelloTemplate !== "tutti" : searchQuery.trim())) && (
-          <Button variant="ghost" size="sm" onClick={() => { setCategoriaAttiva("tutte"); setSearchQuery(""); setCercaTemplate(""); setLivelloTemplate("tutti"); }}>{t("Azzera filtri")}</Button>
+          <Button variant="ghost" size="sm" className={BOTTONE_SECONDARIO} onClick={() => { setCategoriaAttiva("tutte"); setSearchQuery(""); setCercaTemplate(""); setLivelloTemplate("tutti"); }}>{t("Azzera filtri")}</Button>
         )}
         <div className="flex-1" />
 
         <button
           onClick={() => setVistaTemplates(!vistaTemplates)}
           className={`
-            flex h-9 items-center gap-1.5 px-3 rounded-lg text-sm border transition-colors flex-shrink-0 max-md:hidden
+            flex h-8 items-center gap-1.5 px-2.5 rounded-md text-xs border transition-colors flex-shrink-0 max-md:hidden
             ${vistaTemplates
               ? "border-primary/30 bg-primary/10 text-primary"
               : "border-border text-muted-foreground hover:bg-muted"
             }
           `}
         >
-          <LayoutTemplate className="w-4 h-4" />
+          <LayoutTemplate className="h-3.5 w-3.5" />
           {t("Template")}
         </button>
       </div>

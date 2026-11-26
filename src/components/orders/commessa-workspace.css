@@ -107,6 +107,28 @@
   outline: 2px solid var(--commessa-accent);
   outline-offset: 3px;
 }
+/*
+ * Le sotto-schede restano visibili come quelle principali. Lo sticky va sul
+ * contenitore, non sulla riga dentro: il contenitore è figlio diretto del
+ * pannello della scheda (alto come tutto il contenuto), mentre un wrapper alto
+ * quanto la riga non lascerebbe spazio per scorrere. `top` sta sotto la barra
+ * principale (`sticky top-0`: 51px da telefono, 55px da scrivania — misurati).
+ */
+.commessa-subnav-sticky {
+  position: sticky;
+  top: 51px;
+  z-index: 10;
+  margin: 0 -12px;
+  padding: 6px 12px;
+  background: hsl(210 40% 98% / .96);
+  backdrop-filter: blur(6px);
+}
+@media (min-width: 640px) {
+  .commessa-subnav-sticky { top: 55px; margin: 0 -24px; padding: 6px 24px; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .commessa-subnav-sticky { background: hsl(210 40% 98%); backdrop-filter: none; }
+}
 .commessa-section-toolbar {
   display: flex;
   flex-wrap: wrap;

@@ -210,8 +210,8 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
       {failed && <HrQueryError label={t("Controllo HR incompleto")} onRetry={() => Promise.all([profilesQuery.refetch(), requestsQuery.refetch(), liveQuery.refetch(), sitesQuery.refetch()])} />}
       {/* Testata navy famiglia (come Costi/Commesse): i quattro numeri di
           controllo HR, cliccabili → portano al tab che li gestisce. */}
-      <div className="rounded-2xl bg-eic-navy-deep p-3 sm:p-4">
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-orange-100">{t("Regia HR")}</p>
+      <div className="rounded-2xl bg-eic-navy-deep px-3 py-2 max-sm:p-3">
+        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-orange-100">{t("Regia HR")}</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
           <NavyStatCard
             label={t("Profili attivi")}

@@ -9,6 +9,9 @@ describe("struttura aziendale: costi fissi già finiti", () => {
     const margini = readFileSync(resolve(process.cwd(), "src/hooks/useMarginData.ts"), "utf8");
     expect(margini).toContain(filtro);
     expect(struttura).toContain(filtro);
-    expect(struttura).toContain('.select("amount, recurrence, recurrence_end_date, allocations, quota_magazzino", { count: "exact" })');
+    expect(struttura).toContain('.select("amount, recurrence, recurrence_end_date, allocations, quota_magazzino, category, cost_type, purchase_order_id", { count: "exact" })');
+    // I variabili senza commessa devono arrivare lo stesso: non entrano nella quota
+    // mensile, ma vanno contati fra quelli da attribuire o spariscono dal conto economico.
+    expect(struttura).not.toContain('.eq("cost_type", "fixed")');
   });
 });
