@@ -69243,5 +69243,8 @@ const dizionario: Dizionario = {
   "Senza rete: quello che scrivi resta sul telefono. Per il PDF e la firma serve il segnale.": "Fără semnal: ce scrii rămâne pe telefon. Pentru PDF și semnătură e nevoie de semnal.",
   "Cantiere tolto dall'ufficio": "Șantier scos de birou",
   "{codice} non è più tra i lavori: non si possono mandare rapportini, foto o bolle. Se ci stai ancora lavorando, avvisa l'ufficio.": "{codice} nu mai e printre lucrări: nu se pot trimite rapoarte, poze sau avize. Dacă încă lucrezi acolo, anunță biroul.",
+  "Cambia azienda o area": "Schimbă firma sau zona",
+  "Le tue aziende": "Firmele tale",
+  "Vai alla Home": "Mergi la pagina principală",
 };
 export default dizionario;

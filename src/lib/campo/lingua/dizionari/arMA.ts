@@ -69200,5 +69200,8 @@ const dizionario: Dizionario = {
   "Senza rete: quello che scrivi resta sul telefono. Per il PDF e la firma serve il segnale.": "ما كاينش الريزو: داكشي اللي كتكتب كيبقى ف التيليفون. البي دي إف والتوقيع خاصهم الريزو.",
   "Cantiere tolto dall'ufficio": "البيرو حيد الشانطي",
   "{codice} non è più tra i lavori: non si possono mandare rapportini, foto o bolle. Se ci stai ancora lavorando, avvisa l'ufficio.": "{codice} ما بقاش من الخدمات: ما يمكنش تصيفط الرابور، التصاور ولا البونات. إلا مازال خدام تما، علم البيرو.",
+  "Cambia azienda o area": "بدل الشركة ولا البلاصة",
+  "Le tue aziende": "الشركات ديالك",
+  "Vai alla Home": "سير للصفحة الرئيسية",
 };
 export default dizionario;

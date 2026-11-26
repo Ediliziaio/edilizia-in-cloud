@@ -69200,5 +69200,8 @@ const dizionario: Dizionario = {
   "Senza rete: quello che scrivi resta sul telefono. Per il PDF e la firma serve il segnale.": "Sin cobertura: lo que escribes se queda en el móvil. Para el PDF y la firma hace falta señal.",
   "Cantiere tolto dall'ufficio": "Obra quitada por la oficina",
   "{codice} non è più tra i lavori: non si possono mandare rapportini, foto o bolle. Se ci stai ancora lavorando, avvisa l'ufficio.": "{codice} ya no está entre los trabajos: no se pueden enviar partes, fotos ni albaranes. Si sigues trabajando allí, avisa a la oficina.",
+  "Cambia azienda o area": "Cambiar de empresa o de área",
+  "Le tue aziende": "Tus empresas",
+  "Vai alla Home": "Ir al inicio",
 };
 export default dizionario;

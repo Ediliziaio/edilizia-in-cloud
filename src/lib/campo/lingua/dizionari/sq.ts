@@ -69243,5 +69243,8 @@ const dizionario: Dizionario = {
   "Senza rete: quello che scrivi resta sul telefono. Per il PDF e la firma serve il segnale.": "Pa rrjet: ajo që shkruan mbetet në telefon. Për PDF-në dhe firmën duhet sinjal.",
   "Cantiere tolto dall'ufficio": "Kantier i hequr nga zyra",
   "{codice} non è più tra i lavori: non si possono mandare rapportini, foto o bolle. Se ci stai ancora lavorando, avvisa l'ufficio.": "{codice} nuk është më mes punëve: nuk mund të dërgohen raporte, foto apo fletëdërgesa. Nëse po punon ende atje, njofto zyrën.",
+  "Cambia azienda o area": "Ndrysho firmën ose zonën",
+  "Le tue aziende": "Firmat e tua",
+  "Vai alla Home": "Shko te faqja kryesore",
 };
 export default dizionario;

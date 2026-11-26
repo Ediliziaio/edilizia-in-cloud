@@ -69200,5 +69200,8 @@ const dizionario: Dizionario = {
   "Senza rete: quello che scrivi resta sul telefono. Per il PDF e la firma serve il segnale.": "مفيش شبكة: اللي بتكتبه بيفضل على الموبايل. الـPDF والتوقيع محتاجين شبكة.",
   "Cantiere tolto dall'ufficio": "المكتب شال الموقع",
   "{codice} non è più tra i lavori: non si possono mandare rapportini, foto o bolle. Se ci stai ancora lavorando, avvisa l'ufficio.": "{codice} مبقاش من الشغل: مينفعش تبعت تقارير أو صور أو بونات. لو لسه شغال هناك، بلّغ المكتب.",
+  "Cambia azienda o area": "غيّر الشركة أو القسم",
+  "Le tue aziende": "شركاتك",
+  "Vai alla Home": "روح للصفحة الرئيسية",
 };
 export default dizionario;
