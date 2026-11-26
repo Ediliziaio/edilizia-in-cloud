@@ -20,12 +20,12 @@ import type { OrderControlCheck } from "@/lib/orders/controlWorkflow";
 import { materialCostVariance } from "@/lib/orders/materialCostVariance";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
-import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DonutChart, type DonutChartSegment } from "@/components/ui/donut-chart";
-import { TrendingUp, TrendingDown, AlertTriangle, Truck, CheckCircle2, Circle, ArrowRight, ListChecks, Loader2, Download } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Circle, ArrowRight, ListChecks, Loader2, Download } from "lucide-react";
 
 /**
  * OrderEconomicsSummary — conto economico "a colpo d'occhio" in cima alla commessa.
