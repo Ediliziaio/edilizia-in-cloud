@@ -13,7 +13,8 @@ const stato = vi.hoisted(() => ({
 vi.mock("@/lib/campo/lingua/LinguaCampo", () => ({ useT: () => (s: string) => s }));
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({
-    effectiveCompany: { name: "Edil Rossi Srl", logo_url: stato.logo }, company: null,
+    // `null as null`: il progetto ha strictNullChecks spento, e lì un `null` nudo vale `any` (TS7018).
+    effectiveCompany: { name: "Edil Rossi Srl", logo_url: stato.logo }, company: null as null,
     multiCompanyAccesses: stato.accessi, selectedMultiCompanyId: stato.selezionata,
     switchMultiCompany: stato.cambia, puoCambiareArea: stato.area,
   }),
