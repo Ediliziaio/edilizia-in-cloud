@@ -1,11 +1,13 @@
 import { BOTTONE_SECONDARIO, BOTTONE_NUOVO, RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { corrispondeTestoPronto, terminiRicercaRicevute, testoRicercaRicevute, type TestoRicerca } from "@/lib/fatturazione/ricercaRicevute";
 import { leggiXmlRicevuta, scaricaOriginaleRicevuta } from "@/lib/fatturazione/originaleRicevuta";
-import { useState, useMemo, useCallback, useDeferredValue, type ComponentProps, type ReactNode } from "react";
+import { useState, useMemo, useCallback, useEffect, useDeferredValue, type ComponentProps, type ReactNode } from "react";
 import { useTestoCheSegue } from "@/hooks/useTestoCheSegue";
 import { cn } from "@/lib/utils";
 import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { Link, useSearchParams } from "react-router-dom";
+import { useFiltriUrl } from "@/hooks/useFiltriUrl";
+import { useDebounce } from "@/hooks/useDebounce";
 import { idAttivitaValido } from "../../../../shared/aiAttivita";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -371,16 +373,57 @@ export default function FattureRicevutePage() {
   const [parametri, setParametri] = useSearchParams();
   const fatturaDaAprire = parametri.get("fattura");
   const analisiDaAprire = parametri.get("analisi");
-  const [searchQuery, setSearchQuery] = useState(() => parametri.get("cerca") ?? "");
-  const [statoFilter, setStatoFilter] = useState("all");
-  const [tipoFilter, setTipoFilter] = useState("all");
+  // I filtri stanno nell'indirizzo e si ricordano (26/11/2026). Prima vivevano in
+  // `useState`: «cerchiamo le fatture di un fornitore, entriamo in una fattura, usciamo e
+  // la ricerca è sparita». Ora il tasto indietro li ritrova nell'indirizzo, e chi torna
+  // all'elenco dal menu li ritrova nella memoria di sessione.
+  const filtriUrl = useFiltriUrl("ricevute", {
+    cerca: "", stato: "all", tipo: "all", categoria: "all", ordine: "all",
+    metodo: "all", allegati: "all", daverificare: "0", darettificare: "0",
+    contab: "all", pagamento: "all", mese: "",
+  });
+  /**
+   * I filtri si cambiano anche nella forma `set(prima => dopo)`, come i `useState` che
+   * queste scorciatoie hanno sostituito: i punti che la usano sono una dozzina e non
+   * valeva la pena riscriverli tutti.
+   */
+  type Aggiorna<V> = V | ((prima: V) => V);
+  const risolvi = <V,>(v: Aggiorna<V>, attuale: V): V =>
+    typeof v === "function" ? (v as (p: V) => V)(attuale) : v;
+  const cambiaFiltro = <V extends string>(
+    chiave: Parameters<typeof filtriUrl.imposta>[0], v: Aggiorna<V>, attuale: V,
+  ) => filtriUrl.imposta(chiave, risolvi(v, attuale));
+
+  // La ricerca si digita: l'indirizzo si scrive solo quando le dita si fermano, se no ogni
+  // lettera passerebbe dal router su un elenco di più di mille fatture.
+  const [searchQuery, setSearchQuery] = useState(() => filtriUrl.valori.cerca);
+  const ricercaFerma = useDebounce(searchQuery, 300);
+  useEffect(() => {
+    const testo = ricercaFerma.trim();
+    if (testo === filtriUrl.valori.cerca) return;
+    filtriUrl.imposta("cerca", testo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- si scrive quando cambia la ricerca, non quando cambiano gli altri filtri
+  }, [ricercaFerma]);
+
+  const statoFilter = filtriUrl.valori.stato;
+  const setStatoFilter = (v: Aggiorna<string>) => cambiaFiltro("stato", v, statoFilter);
+  const tipoFilter = filtriUrl.valori.tipo;
+  const setTipoFilter = (v: Aggiorna<string>) => cambiaFiltro("tipo", v, tipoFilter);
   // «__nessuna__» = mai classificata dall'AI.
-  const [categoriaFilter, setCategoriaFilter] = useState("all");
-  const [ordineFilter, setOrdineFilter] = useState<"all" | "con" | "senza">("all");
-  const [soloDaVerificare, setSoloDaVerificare] = useState(false);
-  const [soloDaRettificare, setSoloDaRettificare] = useState(false);
-  const [metodoFilter, setMetodoFilter] = useState("all");
-  const [allegatiFilter, setAllegatiFilter] = useState<"all" | "con" | "senza">("all");
+  const categoriaFilter = filtriUrl.valori.categoria;
+  const setCategoriaFilter = (v: Aggiorna<string>) => cambiaFiltro("categoria", v, categoriaFilter);
+  const ordineFilter = filtriUrl.valori.ordine as "all" | "con" | "senza";
+  const setOrdineFilter = (v: Aggiorna<"all" | "con" | "senza">) => cambiaFiltro("ordine", v, ordineFilter);
+  const soloDaVerificare = filtriUrl.valori.daverificare === "1";
+  const setSoloDaVerificare = (v: Aggiorna<boolean>) =>
+    filtriUrl.imposta("daverificare", risolvi(v, soloDaVerificare) ? "1" : "0");
+  const soloDaRettificare = filtriUrl.valori.darettificare === "1";
+  const setSoloDaRettificare = (v: Aggiorna<boolean>) =>
+    filtriUrl.imposta("darettificare", risolvi(v, soloDaRettificare) ? "1" : "0");
+  const metodoFilter = filtriUrl.valori.metodo;
+  const setMetodoFilter = (v: Aggiorna<string>) => cambiaFiltro("metodo", v, metodoFilter);
+  const allegatiFilter = filtriUrl.valori.allegati as "all" | "con" | "senza";
+  const setAllegatiFilter = (v: Aggiorna<"all" | "con" | "senza">) => cambiaFiltro("allegati", v, allegatiFilter);
   const [colonne, setColonne] = useState<Set<ColonnaRicevute>>(() => leggiColonne());
   const cambiaColonna = (c: ColonnaRicevute, attiva: boolean) => setColonne((prima) => {
     const dopo = new Set(prima);
@@ -392,8 +435,12 @@ export default function FattureRicevutePage() {
   const oggiIso = useMemo(() => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Rome" }), []);
   const [collegaCommesse, setCollegaCommesse] = useState<FatturaRicevuta | null>(null);
   // Dal Controllo di gestione si arriva con ?filtro=da_contabilizzare.
-  const [contabFilter, setContabFilter] = useState<"all" | "da_contabilizzare">(() =>
-    parametri.get("filtro") === "da_contabilizzare" ? "da_contabilizzare" : "all");
+  // Dal Controllo di gestione si arriva con «?filtro=da_contabilizzare»: resta un ingresso
+  // valido, e da lì in poi vale «?contab=» come per gli altri filtri.
+  const contabFilter = (parametri.get("filtro") === "da_contabilizzare" && filtriUrl.valori.contab === "all"
+    ? "da_contabilizzare"
+    : filtriUrl.valori.contab) as "all" | "da_contabilizzare";
+  const setContabFilter = (v: Aggiorna<"all" | "da_contabilizzare">) => cambiaFiltro("contab", v, contabFilter);
   const [ordinamento, setOrdinamento] = useState<{ campo: "data" | "fornitore" | "totale"; dir: "asc" | "desc" }>({
     campo: "data",
     dir: "desc",
@@ -405,7 +452,8 @@ export default function FattureRicevutePage() {
   const annoCorrente = String(new Date().getFullYear());
   const [annoFilter, salvaAnno] = useState(annoCorrente);
   // Il mese scelto nella striscia (16/11/2026): filtra l'elenco e i sei numeri; cambia anno = si toglie.
-  const [meseScelto, setMeseScelto] = useState<string | null>(null);
+  const meseScelto = filtriUrl.valori.mese || null;
+  const setMeseScelto = (v: string | null) => filtriUrl.imposta("mese", v ?? "");
   // La striscia dei mesi si apre col bottone «Mesi» (25/11/2026), come nelle emesse.
   const striscia = useStrisciaMesi("ricevute", meseScelto);
   // Il perché dell'avviso «Le fatture dei fornitori non stanno arrivando»: si apre a richiesta.
@@ -440,7 +488,8 @@ export default function FattureRicevutePage() {
   const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
   const [selezioneMobile, setDettaglioMobile] = useState<FatturaRicevuta | null>(null);
   // «Da pagare»: le fatture dei fornitori non ancora pagate (né a mano né con tutte le rate).
-  const [pagamentoFilter, setPagamentoFilter] = useState<"all" | "da_pagare">("all");
+  const pagamentoFilter = filtriUrl.valori.pagamento as "all" | "da_pagare";
+  const setPagamentoFilter = (v: Aggiorna<"all" | "da_pagare">) => cambiaFiltro("pagamento", v, pagamentoFilter);
   const { data: saldi, isError: erroreSaldi, refetch: rileggiSaldi } = useSaldiRicevute(companyId, annoFilter);
   const pagataIl = useCallback((id: string) => saldi?.get(id)?.pagata_il ?? null, [saldi]);
   const stornataDelTutto = useCallback((f: FatturaRicevuta) => {
@@ -750,19 +799,11 @@ export default function FattureRicevutePage() {
     (soloDaRettificare ? 1 : 0) +
     (metodoFilter !== "all" ? 1 : 0) +
     (allegatiFilter !== "all" ? 1 : 0);
+  // Una scrittura sola dell'indirizzo, non dodici di fila: dodici avrebbero fatto gara
+  // fra loro e l'ultima avrebbe vinto sulle altre.
   const azzeraFiltri = () => {
-    setMeseScelto(null);
-    setSoloDaVerificare(false);
-    setSoloDaRettificare(false);
-    setMetodoFilter("all");
-    setAllegatiFilter("all");
     setSearchQuery("");
-    setStatoFilter("all");
-    setTipoFilter("all");
-    setCategoriaFilter("all");
-    setOrdineFilter("all");
-    setContabFilter("all");
-    setPagamentoFilter("all");
+    filtriUrl.azzera();
   };
 
   const ordinaPer = (campo: "data" | "fornitore" | "totale") =>
