@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { FermiCantiereUfficio } from "@/components/personale/FermiCantiereUfficio";
 import { useLoadingTimeout } from "@/hooks/useLoadingTimeout";
 import { toast } from "sonner";
 import { useRichieste, useCreateRichiesta, useUpdateRichiestaStato, type RichiestaWithProfilo } from "@/hooks/useRichieste";
@@ -118,6 +119,7 @@ export function TabRichieste() {
     <div className="space-y-4 max-sm:space-y-3">
       {/* Gli scontrini mandati dal cantiere (24/11): si vedono solo se ce ne sono, e solo a chi approva. */}
       {canApprove && <SpeseCantiereUfficio />}
+      {canApprove && <FermiCantiereUfficio />}
       {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-sm:hidden">
         <KpiCard title={t("Totali")} value={kpis.totali} icon={Calendar} />

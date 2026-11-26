@@ -69044,5 +69044,18 @@ const dizionario: Dizionario = {
   "Hai tutti i documenti per entrare in cantiere.": "Tu as tous les documents pour entrer sur le chantier.",
   "da caricare": "à charger",
   "scade presto": "expire bientôt",
+  "Fermo segnato": "Arrêt enregistré",
+  "L'ufficio lo trova pronto per la cassa integrazione.": "Le bureau le trouve prêt pour le chômage intempéries (CIGO).",
+  "Fermo cantiere": "Arrêt de chantier",
+  "Maltempo": "Intempéries",
+  "Meteo di oggi: {meteo}, {mm} mm di pioggia": "Météo du jour : {meteo}, {mm} mm de pluie",
+  "Il meteo del giorno non è disponibile: scrivilo nelle note.": "La météo du jour n’est pas disponible : écris-la dans les notes.",
+  "Ore perse per persona": "Heures perdues par personne",
+  "Ore perse: {nome}": "Heures perdues : {nome}",
+  "Segna il fermo": "Enregistrer l’arrêt",
+  "Fermo per maltempo": "Arrêt pour intempéries",
+  "Fermi cantiere": "Arrêts de chantier",
+  "Non riesco a leggere i fermi.": "Je n’arrive pas à lire les arrêts.",
+  "{ore} ore perse": "{ore} heures perdues",
 };
 export default dizionario;

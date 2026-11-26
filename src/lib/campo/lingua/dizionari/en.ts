@@ -69044,5 +69044,18 @@ const dizionario: Dizionario = {
   "Hai tutti i documenti per entrare in cantiere.": "You have all the documents to enter the site.",
   "da caricare": "to upload",
   "scade presto": "expires soon",
+  "Fermo segnato": "Stoppage recorded",
+  "L'ufficio lo trova pronto per la cassa integrazione.": "The office finds it ready for the wage guarantee fund (CIGO).",
+  "Fermo cantiere": "Site stoppage",
+  "Maltempo": "Bad weather",
+  "Meteo di oggi: {meteo}, {mm} mm di pioggia": "Today's weather: {meteo}, {mm} mm of rain",
+  "Il meteo del giorno non è disponibile: scrivilo nelle note.": "The day's weather isn't available: write it in the notes.",
+  "Ore perse per persona": "Hours lost per person",
+  "Ore perse: {nome}": "Hours lost: {nome}",
+  "Segna il fermo": "Record the stoppage",
+  "Fermo per maltempo": "Stoppage for bad weather",
+  "Fermi cantiere": "Site stoppages",
+  "Non riesco a leggere i fermi.": "I can't read the stoppages.",
+  "{ore} ore perse": "{ore} hours lost",
 };
 export default dizionario;

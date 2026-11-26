@@ -69044,5 +69044,18 @@ const dizionario: Dizionario = {
   "Hai tutti i documenti per entrare in cantiere.": "عندك جميع الوثائق باش تدخل للشانطي.",
   "da caricare": "خاصها تطلع",
   "scade presto": "غادي تسالي قريب",
+  "Fermo segnato": "التوقف تسجل",
+  "L'ufficio lo trova pronto per la cassa integrazione.": "البيرو غادي يلقاه واجد للتعويض (CIGO).",
+  "Fermo cantiere": "توقف الشانطي",
+  "Maltempo": "الجو خايب",
+  "Meteo di oggi: {meteo}, {mm} mm di pioggia": "الجو ديال اليوم: {meteo}، {mm} ملم ديال الشتا",
+  "Il meteo del giorno non è disponibile: scrivilo nelle note.": "الجو ديال النهار ما كاينش: كتبو ف الملاحظات.",
+  "Ore perse per persona": "السوايع اللي ضاعو لكل واحد",
+  "Ore perse: {nome}": "السوايع اللي ضاعو: {nome}",
+  "Segna il fermo": "سجل التوقف",
+  "Fermo per maltempo": "توقف بسبب الجو",
+  "Fermi cantiere": "توقفات الشانطي",
+  "Non riesco a leggere i fermi.": "ما قدرتش نقرا التوقفات.",
+  "{ore} ore perse": "{ore} ساعة ضاعت",
 };
 export default dizionario;

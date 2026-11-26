@@ -69081,5 +69081,18 @@ const dizionario: Dizionario = {
   "Hai tutti i documenti per entrare in cantiere.": "Ke të gjitha dokumentet për të hyrë në kantier.",
   "da caricare": "për t'u ngarkuar",
   "scade presto": "skadon së shpejti",
+  "Fermo segnato": "Ndalesa u shënua",
+  "L'ufficio lo trova pronto per la cassa integrazione.": "Zyra e gjen gati për arkën e integrimit (CIGO).",
+  "Fermo cantiere": "Ndalesë kantieri",
+  "Maltempo": "Mot i keq",
+  "Meteo di oggi: {meteo}, {mm} mm di pioggia": "Moti i sotëm: {meteo}, {mm} mm shi",
+  "Il meteo del giorno non è disponibile: scrivilo nelle note.": "Moti i ditës nuk është i disponueshëm: shkruaje te shënimet.",
+  "Ore perse per persona": "Orë të humbura për person",
+  "Ore perse: {nome}": "Orë të humbura: {nome}",
+  "Segna il fermo": "Shëno ndalesën",
+  "Fermo per maltempo": "Ndalesë për mot të keq",
+  "Fermi cantiere": "Ndalesa kantieri",
+  "Non riesco a leggere i fermi.": "Nuk i lexoj dot ndalesat.",
+  "{ore} ore perse": "{ore} orë të humbura",
 };
 export default dizionario;

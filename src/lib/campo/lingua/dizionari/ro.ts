@@ -69081,5 +69081,18 @@ const dizionario: Dizionario = {
   "Hai tutti i documenti per entrare in cantiere.": "Ai toate documentele ca să intri pe șantier.",
   "da caricare": "de încărcat",
   "scade presto": "expiră curând",
+  "Fermo segnato": "Oprire înregistrată",
+  "L'ufficio lo trova pronto per la cassa integrazione.": "Biroul o găsește pregătită pentru șomajul tehnic (CIGO).",
+  "Fermo cantiere": "Oprire șantier",
+  "Maltempo": "Vreme rea",
+  "Meteo di oggi: {meteo}, {mm} mm di pioggia": "Vremea de azi: {meteo}, {mm} mm de ploaie",
+  "Il meteo del giorno non è disponibile: scrivilo nelle note.": "Vremea zilei nu e disponibilă: scrie-o în note.",
+  "Ore perse per persona": "Ore pierdute pe persoană",
+  "Ore perse: {nome}": "Ore pierdute: {nome}",
+  "Segna il fermo": "Înregistrează oprirea",
+  "Fermo per maltempo": "Oprire pentru vreme rea",
+  "Fermi cantiere": "Opriri de șantier",
+  "Non riesco a leggere i fermi.": "Nu pot citi opririle.",
+  "{ore} ore perse": "{ore} ore pierdute",
 };
 export default dizionario;
