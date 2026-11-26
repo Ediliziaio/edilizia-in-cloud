@@ -142,47 +142,91 @@ Due cose rendono questo giro meno rischioso di quanto sembri:
 
 ---
 
-## 4. Come diventa la scheda
+## 4. Come diventa la scheda, schermata per schermata
 
-Oggi è un rotolo unico. Diventa **a schede, come la commessa**, con lo stesso disegno già collaudato (su computer le schede in alto, su telefono la stessa barra ma stretta, e l'indirizzo si ricorda la scheda aperta, così le notifiche e i link salvati aprono quella giusta).
+Il problema di oggi, detto chiaro: **è un rotolo unico**. Tutto quello che esiste su quella manutenzione sta incolonnato uno sotto l'altro, quindi per sapere se il cliente ha pagato bisogna scorrere fino in fondo, e sul telefono il contratto arriva dopo tre schermate di scorrimento. E insieme manca la metà delle cose (soldi, materiali, lavorazioni), quindi anche scorrendo tutto non si vede tutto.
 
-### Testata (sempre visibile)
-`MAN-0014 · Cappotto Termico — Weber Saint-Gobain` · nome del cliente · stato (In regola / Scadenza imminente / Scaduta / Senza ricorrenza) · chi è l'incaricato · prossima visita.
-Pulsanti: WhatsApp al cliente, Email, Storico, Archivia, Modifica. (Sono già tutti lì: cambia solo che sopra compare il codice.)
+Si risolve nello stesso modo in cui è già risolta la commessa: **quattro schede**, e ogni scheda risponde a una domanda sola.
 
-### Scheda 1 — Panoramica
-- **Che cosa manuteniamo**: tipo, marca, modello, matricola, data di installazione, garanzia con il semaforo dei giorni, note, foto. *(c'è già)*
-- **Cliente**: nome, telefono, email, indirizzo del posto dove si va. *(l'indirizzo è nuovo: oggi sta solo sul singolo intervento e va riscritto ogni volta)*
-- **Ogni quanto si torna**: ricorrenza, prossima scadenza, ultima visita, incaricato. *(c'è già, cambia solo nome e posto)*
-- **Chi se ne occupa**: persona **e** squadra, con il pulsante per cambiarle da qui. *(la persona c'è ma nascosta nel piano; la squadra è nuova)*
-- **Contratto**: nome, canone, periodicità, inizio, scadenza, rinnovo automatico. *(c'è già)*
-- **Note interne**: come in commessa, discussione con le menzioni che aprono un gruppo in chat. *(nuovo, si riusa il pezzo della commessa)*
+| Scheda | Risponde a |
+|---|---|
+| **Panoramica** | che cos'è, di chi è, quando si torna |
+| **Lavoro** | che cosa si fa, chi ci va, che cosa è stato fatto |
+| **Materiali** | che cosa è stato consumato e ordinato |
+| **Soldi** | quanto incassiamo, quanto ci costa, cosa manca da fatturare |
 
-### Scheda 2 — Lavoro
-- **Che cosa si fa ogni volta**: la lista delle lavorazioni della visita (controllo, pulizia, prova, ritocco…), con la spunta e chi l'ha fatta. Si definisce una volta sul contratto e si ripropone ad ogni visita. *(il contenitore esiste già sul piano, non si vede da nessuna parte: qui diventa visibile e compilabile)*
-- **Avanzamento della visita in corso**: quante lavorazioni su quante sono fatte, come il semaforo delle fasi in commessa.
-- **Interventi**: l'elenco di oggi, con stato, data, chi, e il pulsante «Nuovo intervento». *(c'è già)*
-- **Visite fatte**: lo storico delle esecuzioni con esito e note. *(c'è già)*
-- **Rapportini**: ore, foto, firma del cliente. *(c'è già)*
+### 4.1 La testata, che non si muove mai
 
-### Scheda 3 — Materiali
-- **Materiali usati**, sommati su tutti gli interventi di questa manutenzione: che cosa, quanto, quando, su quale intervento. *(i dati ci sono già dentro i rapportini e negli ordini della merce: qui si mettono insieme, non si crea niente di nuovo)*
+Resta in cima anche scorrendo, su computer e su telefono. Qui dentro c'è quello che serve a capire **in due secondi** di che manutenzione si parla, senza aprire niente:
+
+```
+MAN-0014   Cappotto Termico — Weber Saint-Gobain          [WhatsApp] [Email] [Storico] [Archivia] [Modifica]
+Florin Andriciuc · Via Garibaldi 15, Bologna
+● In regola    Prossima visita: 10 gen 2027    Incaricato: Marco Verdi    Canone 350 € / anno
+```
+
+Rispetto a oggi è nuovo: il **codice**, l'**indirizzo** (oggi sta solo sul singolo intervento), lo **stato** con il pallino colorato, la **prossima visita** e l'**incaricato** (oggi sepolti dentro il piano), il **canone** (oggi dentro il riquadro contratto in fondo a sinistra).
+
+La riga di stato cambia colore e parole secondo il caso: `● In regola` verde, `● Visita fra 12 giorni` ambra, `● Scaduta da 40 giorni` rosso, `● Senza ricorrenza` grigio con accanto il pulsante **«Stabilisci ogni quanto»**.
+
+### 4.2 Panoramica
+
+Due colonne su computer, una sul telefono. In alto, senza scorrere, le due cose che si guardano sempre: **che cosa** e **quando si torna**.
+
+- **Che cosa manuteniamo** — tipo, marca, modello, matricola, installato il, garanzia con i giorni che restano, note, foto. *(c'è già: è l'attuale «Scheda tecnica», cambia solo il nome)*
+- **Ogni quanto si torna** — ricorrenza, prossima visita, ultima visita, con il pulsante «Segna la visita fatta». *(c'è già, ma oggi sta nella colonna destra sotto gli interventi: sale in alto)*
+- **Chi se ne occupa** — persona e squadra, cambiabili da qui con due clic. *(la persona c'è ma è nascosta dentro il piano; la squadra è nuova)*
+- **Cliente** — nome, telefono, email, indirizzo, con i pulsanti per scrivergli. *(i pulsanti ci sono già in testata; il riquadro col recapito è nuovo)*
+- **Contratto** — nome, canone, periodicità, inizio, scadenza, rinnovo automatico, con «Modifica» e «Fattura il canone». *(c'è già)*
+- **Note interne** — la discussione fra colleghi, con le menzioni che aprono un gruppo in chat. *(nuovo, si riusa il pezzo della commessa)*
+
+Se manca qualcosa, il riquadro non sparisce: resta con scritto che cosa manca e il pulsante per aggiungerlo («Nessun contratto — Aggiungi contratto»). È il contrario di oggi, dove un riquadro vuoto non dice che cosa fare.
+
+### 4.3 Lavoro
+
+- **Che cosa si fa ogni volta** — la lista delle lavorazioni della visita, con le spunte e chi le ha fatte, e in cima la barra di avanzamento della visita in corso («4 di 7 fatte»). *(il contenitore esiste già nel database ma non si vede da nessuna schermata: qui diventa visibile e compilabile)*
+- **Interventi** — l'elenco, con stato, data, chi ci va, e «Nuovo intervento». *(c'è già)*
+- **Visite fatte** — lo storico delle esecuzioni, con esito, note e chi c'era. *(c'è già, oggi è una lista minuscola schiacciata sotto il piano)*
+- **Rapportini** — ore, foto, firma del cliente. *(c'è già)*
+
+### 4.4 Materiali
+
+- **Materiali usati**, sommati su tutti gli interventi: che cosa, quanto, quando, su quale intervento. *(i dati ci sono già dentro i rapportini: qui si mettono insieme)*
 - **Merce ordinata** per gli interventi aperti, con il suo stato. *(c'è già sul ticket)*
-- **Bolle e DDT** collegati. *(nuovo collegamento)*
+- **Bolle e DDT** collegati. *(collegamento nuovo)*
 
-### Scheda 4 — Soldi
-- **Canone**: quanto, ogni quanto, quanto è già stato fatturato quest'anno, quanto manca.
-- **Fatture emesse** collegate: canone e interventi a pagamento, con il loro stato di incasso. *(oggi la fattura del canone si crea e poi non torna più indietro: va messo il filo)*
-- **Fatture ricevute e altri costi** collegati alla manutenzione.
-- **Costi e margine** della manutenzione nel suo insieme: somma di ore, trasferte, materiali degli interventi, contro quello che si è incassato. Con il conto separato di **quanto costa la garanzia**, che è costo puro. *(il calcolo per il singolo intervento esiste già: qui si somma)*
-- **Incassi** e ritardi.
+La scheda compare solo se c'è stato almeno un materiale: a chi fa solo controlli non si mostra una pagina vuota.
+
+### 4.5 Soldi
+
+- **Canone** — quanto, ogni quanto, quanto è già stato fatturato quest'anno, quanto manca.
+- **Fatture emesse** collegate — canone e interventi a pagamento, con lo stato di incasso. *(oggi la fattura del canone si crea e poi si perde: va messo il filo)*
+- **Fatture ricevute e altri costi** collegati.
+- **Costi e margine** della manutenzione nel suo insieme — ore, trasferte, materiali di tutti gli interventi contro quello che si è incassato — con il conto separato di **quanto costa la garanzia**, che è costo puro. *(il calcolo del singolo intervento esiste già: qui si somma)*
 
 Chi non può vedere i prezzi non vede questa scheda, esattamente come in commessa.
 
-### Su telefono
-Stessa struttura, stesse quattro schede nella barra stretta in alto. Prima si vede sempre **Panoramica** (che cosa, chi, quando) e poi **Lavoro**. Niente tabelle larghe: righe che si possono toccare. La scheda **Soldi** su telefono mostra i numeri grandi e nasconde il dettaglio dietro un tocco.
+### 4.6 Sul telefono
 
----
+- Le quattro schede sono una barra stretta sotto la testata, come in commessa: si tocca, non si scorre.
+- La testata si accorcia a due righe (codice e nome, poi stato e prossima visita) e resta attaccata in alto.
+- Niente tabelle larghe: ogni riga diventa un blocco che si tocca per aprire.
+- La scheda **Soldi** mostra i tre numeri grandi (incassato, da fatturare, margine) e tiene il dettaglio dietro un tocco.
+- I pulsanti che si usano davvero in giro — «Nuovo intervento» e «Segna la visita fatta» — restano raggiungibili col pollice, in basso.
+
+### 4.7 Che cosa si vede senza scorrere
+
+È il metro con cui si verifica se il lavoro è riuscito. Aprendo una manutenzione, **prima di muovere il dito**, si deve vedere:
+
+| | Oggi | Dopo |
+|---|---|---|
+| Codice | — | sì |
+| Di chi è | sì | sì |
+| Dove si va | — | sì |
+| In regola o in ritardo | — | sì |
+| Quando si torna | no (va scorso) | sì |
+| Chi ci va | no (va scorso) | sì |
+| Quanto vale | no (va scorso) | sì |
 
 ## 5. Come diventano i popup
 
