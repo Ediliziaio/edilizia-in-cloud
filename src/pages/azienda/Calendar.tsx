@@ -2245,6 +2245,20 @@ function CalendarInner() {
           )}
         </p>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          {/* Calendario personale vuoto: l'avviso sta su questa riga (26/11/2026), prima era un riquadro sotto. */}
+          {!isStatsLoading &&
+            !isError &&
+            !calendarData.appointments.isError &&
+            calendarData.scope === "personal" &&
+            !scheduledOrders.length &&
+            !filteredAppointments.length &&
+            !search &&
+            !hasActiveFilters && (
+            <span className="inline-flex flex-wrap items-center gap-x-2">
+              <span className="text-foreground">{tr("Non hai commesse o appuntamenti assegnati in questo periodo.")}</span>
+              <Link to="/azienda/attivita" className="font-medium text-primary hover:underline">{tr("Apri le mie attività")}</Link>
+            </span>
+          )}
           {viewStats.unplanned > 0 && (
             <button
               type="button"
@@ -2276,24 +2290,6 @@ function CalendarInner() {
         </div>
       </div>
 
-      {!isStatsLoading &&
-        !isError &&
-        !calendarData.appointments.isError &&
-        calendarData.scope === "personal" &&
-        !scheduledOrders.length &&
-        !filteredAppointments.length &&
-        !search &&
-        !hasActiveFilters && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted/40 px-3 py-3 text-sm">
-            <p>{tr("Non hai commesse o appuntamenti assegnati in questo periodo.")}</p>
-            <Link
-              to="/azienda/attivita"
-              className="text-xs font-medium text-primary hover:underline"
-            >
-              {tr("Apri le mie attività")}
-            </Link>
-          </div>
-        )}
 
       {/* Mobile Layer Sheet */}
       {isMobile && (
