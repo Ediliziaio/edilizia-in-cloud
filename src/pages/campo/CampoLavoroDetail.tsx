@@ -930,9 +930,9 @@ export default function CampoLavoroDetail() {
           <span className="shrink-0 text-xs font-semibold text-muted-foreground">{t("avanzamento")}</span>
         </div>
 
-        {/* Una riga sola e compatta (26/11/2026, founder: «non deve essere invasivo»); va a capo solo se le
-            azioni non ci stanno (telefoni piccoli con 6-7 azioni). */}
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(52px,1fr))] gap-x-0.5 gap-y-1">
+        {/* Riquadri bassi, tre per fila (26/11/2026, founder: «non deve essere invasivo», ma la riga unica di
+            icone era troppo fitta). Con 4 azioni due per fila; sui telefoni molto stretti sempre due. */}
+        <div className="grid grid-cols-2 gap-1.5 min-[360px]:grid-cols-3 min-[360px]:[&:has(>:nth-child(4):last-child)]:grid-cols-2">
           {/* Le foto hanno casa loro: si scattano durante il lavoro, non la sera dentro al rapportino. */}
           <QuickAction icon={Camera} label={t("Foto")} onClick={() => navigate(`/campo/lavoro/${orderId}/foto`)} />
           {/* La bolla del cantiere si fa nella sua scheda, non nella pagina generale (24/11/2026). */}
@@ -1690,7 +1690,7 @@ function QuickAction({
       className={AZIONE_CANTIERE}
     >
       <span className={AZIONE_ICONA}><Icon className="size-[18px]" aria-hidden="true" /></span>
-      <span className="whitespace-nowrap">{label}</span>
+      <span className="min-w-0 truncate">{label}</span>
     </button>
   );
 }
