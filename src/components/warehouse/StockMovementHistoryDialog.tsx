@@ -15,7 +15,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { StockItemOverview } from "./StockItemOverview";
 import type { InArrivoArticolo } from "@/hooks/useMagazzinoRiepilogo";
-import type React from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -69,7 +69,7 @@ interface StockMovementHistoryDialogProps {
   inArrivo?: InArrivoArticolo;
   arriviUnavailable?: boolean;
   /** Comandi sull'articolo (carica, preleva, prenota, modifica) sotto il titolo. */
-  azioni?: React.ReactNode;
+  azioni?: ReactNode;
 }
 
 /** Una lettura in più della finestra: se manca la tabella o il permesso, la sezione non compare. */
@@ -206,7 +206,9 @@ export function StockMovementHistoryDialog({
   // Riepilogo dei movimenti: l'ultimo carico, l'ultimo prelievo e quanto è uscito negli ultimi 90 giorni.
   const ultimoCarico = movements.find((m) => m.movement_type === "carico" && !m.rientro_commessa);
   const ultimoScarico = movements.find((m) => m.movement_type !== "carico");
-  const da90 = Date.now() - 90 * 86400000;
+  // L'istante si fissa all'apertura: Date.now() durante il disegno cambierebbe a ogni render.
+  const [adesso] = useState(() => Date.now());
+  const da90 = adesso - 90 * 86400000;
   const uscito90 = movements.filter((m) => m.movement_type !== "carico" && new Date(m.created_at).getTime() >= da90).reduce((t, m) => t + Number(m.quantity), 0);
   const entrato90 = movements.filter((m) => m.movement_type === "carico" && new Date(m.created_at).getTime() >= da90).reduce((t, m) => t + Number(m.quantity), 0);
   const um = item?.unita_misura || "";
