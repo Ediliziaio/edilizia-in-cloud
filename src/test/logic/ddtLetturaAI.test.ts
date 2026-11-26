@@ -267,3 +267,31 @@ it("una nota senza codice, quantità, unità o prezzo resta nelle note e non div
   expect(letta.righe).toHaveLength(1);expect(letta.note).toContain("MATERIALE CARICATO DA SAURO");
   expect(leggiDDTdaAI({righe_merce:[{descrizione:"MATERIALE CARICATO DA SAURO",codice_articolo:"SERV",quantita:1}]}).righe).toHaveLength(1);
 });
+
+describe("La targa del mezzo che ha portato la merce", () => {
+  const con = (patch: Record<string, unknown>) => leggiDDTdaAI({ ...patch });
+
+  it("la prende dal campo dedicato, poi dalla nota del vettore", () => {
+    expect(con({ vettore: { targa: "AB 123 CD" } }).targaMezzo).toBe("AB 123 CD");
+    expect(con({ trasporto: { targa_mezzo: "EF456GH" } }).targaMezzo).toBe("EF456GH");
+    expect(con({ vettore: { note: "Targa FG 492 LT, rimorchio" } }).targaMezzo).toBe("FG492LT");
+    // Targa estera su un CMR: non la riconosciamo, si tiene com'è scritta.
+    expect(con({ vettore: { note: "B-MW 2451" } }).targaMezzo).toBe("B-MW 2451");
+  });
+
+  it("la trova nella nota libera, dove il modello la mette davvero", () => {
+    expect(con({ riferimenti: { note_libere: "Targa FG 492 LT" } }).targaMezzo).toBe("FG492LT");
+    expect(con({ riferimenti: { note_libere: "Autoveicolo: AB123CD" } }).targaMezzo).toBe("AB123CD");
+  });
+
+  it("nella nota libera senza la parola «targa» non indovina", () => {
+    // Regola 7a del prompt: lì finiscono le annotazioni a mano sulle quantità.
+    expect(con({ riferimenti: { note_libere: "5 sacchi lasciati in cantiere, resto in magazzino" } }).targaMezzo).toBeNull();
+    expect(con({ riferimenti: { note_libere: "Ordine OC 2026 4471 del 10/11" } }).targaMezzo).toBeNull();
+    expect(con({}).targaMezzo).toBeNull();
+  });
+
+  it("il campo dedicato vince sulle note", () => {
+    expect(con({ vettore: { targa: "AA111BB", note: "Targa CC222DD" }, riferimenti: { note_libere: "Targa EE333FF" } }).targaMezzo).toBe("AA111BB");
+  });
+});

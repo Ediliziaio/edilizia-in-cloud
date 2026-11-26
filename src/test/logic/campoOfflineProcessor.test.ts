@@ -4,6 +4,8 @@ import { processCampoOffline } from "@/lib/campo/offlineProcessor";
 import { SyncDeferredError, SyncPermanentError, type SyncItem } from "@/lib/campo/sync-queue";
 const state = vi.hoisted(() => ({ owner: "u", insert: vi.fn(), upsert: vi.fn(), update: vi.fn(), select: vi.fn(), filters: vi.fn(), upload: vi.fn(), download: vi.fn(), error: null as null | { code: string; message: string }, existing: null as null | { id: string } }));
 const rpc = vi.hoisted(() => vi.fn());
+const inviaDocumento = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/ddt/documentiPersistenti", () => ({ inviaDocumentoPersistente: inviaDocumento }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   rpc,
   auth: { getSession: async () => ({ data: { session: { user: { id: state.owner } } }, error: null as null }) },
@@ -149,5 +151,27 @@ describe("Sincronizzazione con API simulate", () => {
       riga: { uploaded_by: "u", company_id: "c", order_id: "o" },
     }}))).rejects.toBeInstanceOf(SyncPermanentError);
     expect(state.insert).not.toHaveBeenCalled();
+  });
+
+  // 25/11/2026 — Il gestore della coda non inoltrava i dati letti dal telefono:
+  // dal campo partivano, e si perdevano qui. Nessuno se ne accorgeva.
+  it("inoltra alla bolla i riferimenti, il conteggio e il testo delle righe letti dal telefono", async () => {
+    inviaDocumento.mockReset().mockResolvedValue(undefined);
+    await processCampoOffline(item({
+      type: "documento_ddt",
+      payload: {
+        files: [new ArrayBuffer(4)], fileNames: ["p1.jpg"], fileTypes: ["image/jpeg"],
+        user_id: "u", company_id: "c", order_id: "o", destinazione: "cantiere", source: "campo",
+        riferimenti_telefono: { numero: "4471/26", data: "2026-11-24" },
+        righe_telefono: 4,
+        righe_viste_telefono: ["GUA13 Isolante guaina 13mm m 60"],
+      },
+    }));
+    expect(inviaDocumento).toHaveBeenCalledWith(expect.objectContaining({
+      companyId: "c", orderId: "o", source: "campo",
+      riferimentiTelefono: { numero: "4471/26", data: "2026-11-24" },
+      righeTelefono: 4,
+      righeViste: ["GUA13 Isolante guaina 13mm m 60"],
+    }));
   });
 });

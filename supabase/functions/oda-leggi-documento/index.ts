@@ -21,6 +21,8 @@ import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
 import { leggiJsonDalModello } from "../_shared/rispostaModello.ts";
 import { erroreAiPerUtente, letturaNonRiuscita } from "../_shared/erroriAi.ts";
 import { ORDINE_FORNITORE_PROMPT, normalizzaOrdineFornitore } from "../_shared/estrazioneOrdineFornitore.ts";
+import { testoDentroIlPdf } from "../_shared/documentoTestoPrima.ts";
+import { base64ToBytes } from "../_shared/base64.ts";
 
 const MIME_AMMESSI = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/bmp"]);
 
@@ -47,7 +49,11 @@ Deno.serve(async (req) => {
     const dataUrl = `data:${mime};base64,${document_base64}`;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const contenuto: any[] = [{ type: "text", text: `Trascrivi questo ordine d'acquisto nel JSON richiesto. Nome file: "${nome}".` }];
-    if (mime.startsWith("image/")) contenuto.push({ type: "image_url", image_url: { url: dataUrl } });
+    // Un ordine uscito da un gestionale è un PDF col testo dentro: si manda il
+    // testo, non le pagine da guardare (vedi `_shared/documentoTestoPrima.ts`).
+    const testoPdf = mime === "application/pdf" ? await testoDentroIlPdf(base64ToBytes(document_base64)) : null;
+    if (testoPdf) contenuto.push({ type: "text", text: testoPdf });
+    else if (mime.startsWith("image/")) contenuto.push({ type: "image_url", image_url: { url: dataUrl } });
     else contenuto.push({ type: "file", file: { filename: nome, file_data: dataUrl } });
 
     const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(document_base64));
@@ -65,7 +71,7 @@ Deno.serve(async (req) => {
       responseFormat: { type: "json_object" },
       companyId: company_id,
       userId,
-      idempotencyKey: await buildStableAiIdempotencyKey("oda_leggi_documento", [company_id, userId, impronta, mime]),
+      idempotencyKey: await buildStableAiIdempotencyKey("oda_leggi_documento", [company_id, userId, impronta, mime, testoPdf ? "testo" : "file"]),
     });
 
     const letto = leggiJsonDalModello(ai.content);

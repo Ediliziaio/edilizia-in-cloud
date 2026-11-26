@@ -36,6 +36,8 @@ import {
   type DocumentoPersistente,
 } from "@/lib/ddt/documentiPersistenti";
 import { leggiDDTdaAI, quantitaTotale } from "@/lib/ddt/letturaAI";
+import { completaLetturaConTelefono, type RiferimentiTelefono } from "@/lib/ddt/riferimentiTelefono";
+import { righeNonRese, righeTelefonoValide, righeVisteValide, rigaDaRigaVista } from "@/lib/ddt/righeViste";
 import { abbinaFornitore, type FornitoreInRubrica } from "@/lib/ddt/abbinaFornitore";
 import type { TestataBolla } from "@/lib/ddt/righeBolla";
 import {
@@ -115,13 +117,18 @@ export function RevisioneBollaTelefono({
         if (error || !data) throw new Error("Originale non disponibile: riprova");
         files.push(new File([data], f.prepared_name ?? f.name, { type: f.prepared_mime ?? f.mime }));
       }
-      return { files, result: job.result ?? {} };
+      return {
+        files, result: job.result ?? {},
+        riferimenti: job.files[0]?.riferimenti_telefono,
+        righeTelefono: job.files[0]?.righe_telefono,
+        righeViste: job.files[0]?.righe_viste_telefono,
+      };
     },
   });
   // Quello che l'AI ha letto è il punto di partenza; le correzioni stanno sopra.
   const iniziale = useMemo(() => {
     if (!caricamento.data) return null;
-    const letta = leggiDDTdaAI(caricamento.data.result);
+    const letta = completaLetturaConTelefono(leggiDDTdaAI(caricamento.data.result), caricamento.data.riferimenti);
     return {
       testata: {
         numero: letta.numero ?? "",
@@ -137,8 +144,15 @@ export function RevisioneBollaTelefono({
   const [correzioni, setCorrezioni] = useState<Partial<TestataBolla>>({});
   const [righeCorrette, setRighe] = useState<DDTRigaNuova[] | null>(null);
   const testata = iniziale ? { ...iniziale.testata, ...correzioni } : null;
-  const righe = righeCorrette ?? iniziale?.righe ?? [];
+  const righe = useMemo(() => righeCorrette ?? iniziale?.righe ?? [], [righeCorrette, iniziale]);
   const fornitoreLetto = iniziale?.fornitoreLetto ?? null;
+  // 25/11/2026 — Una lettura su otto perdeva una riga di merce senza dirlo (warnings vuoto,
+  // confidenza 0,95). Il telefono aveva già contato le righe sul foglio: se sono di più, si avvisa.
+  const righeTelefono = righeTelefonoValide(caricamento.data?.righeTelefono);
+  // Il testo di quelle righe è già sul documento: quella che manca si aggiunge da lì,
+  // senza richiamare il modello. La riga nasce `manuale`, come ogni riga scritta a mano.
+  const viste = useMemo(() => righeVisteValide(caricamento.data?.righeViste), [caricamento.data?.righeViste]);
+  const nonRese = useMemo(() => (viste ? righeNonRese(viste, righe) : []), [viste, righe]);
   const [carica, setCarica] = useState(true);
   const [salvando, setSalvando] = useState(false);
 
@@ -206,11 +220,33 @@ export function RevisioneBollaTelefono({
       onRigheChange={setRighe}
       fornitoreLetto={testata.supplierId ? null : fornitoreLetto}
       commessaFissa={etichettaCantiere}
+      avvisi={righeTelefono && righe.length < righeTelefono
+        ? [t("Sul foglio si vedevano {viste} righe di merce, qui ce ne sono {lette}: controlla che non ne manchi una.", { viste: righeTelefono, lette: righe.length })]
+        : []}
       stato={
         <>
           <p className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
             {t("Controlla fornitore, numero e righe, poi conferma. Si corregge tutto toccando i campi.")}
           </p>
+          {nonRese.length > 0 && (
+            <div className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+              <p className="font-medium">{t("Sul foglio si vedevano anche queste righe")}</p>
+              <ul className="mt-1 space-y-1">
+                {nonRese.map((riga, i) => (
+                  <li key={`${i}-${riga}`} className="flex items-start gap-2">
+                    <span className="min-w-0 flex-1 break-words font-mono">{riga}</span>
+                    <button
+                      type="button"
+                      className="shrink-0 underline"
+                      onClick={() => setRighe([...righe, rigaDaRigaVista(riga, righe.length + 1)])}
+                    >
+                      {t("Aggiungi")}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {senzaMagazzino && (
             <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
               {t("L'azienda non ha ancora un magazzino: la bolla si registra e il carico resta in sospeso finché l'ufficio non ne sceglie uno.")}
@@ -235,6 +271,7 @@ export function CompilaBollaTelefono({
   files,
   companyId,
   orderId,
+  riferimenti,
   etichettaCantiere,
   onFatto,
   onChiudi,
@@ -242,6 +279,7 @@ export function CompilaBollaTelefono({
   files: File[];
   companyId: string;
   orderId: string | null;
+  riferimenti?: RiferimentiTelefono;
   etichettaCantiere: string;
   onFatto: () => void;
   onChiudi: () => void;
@@ -251,7 +289,9 @@ export function CompilaBollaTelefono({
   const { createDDT } = useDDTRicezioneMutations(null);
   const { uploadMainDDT, uploadAttachments } = useDDTAttachments();
   const destinazione: TestataBolla["destinazione"] = orderId ? "cantiere" : "magazzino";
-  const [testata, setTestata] = useState<TestataBolla>({ numero: "", data: oggi(), supplierId: null, orderId, destinazione });
+  const [testata, setTestata] = useState<TestataBolla>({
+    numero: riferimenti?.numero ?? "", data: riferimenti?.data ?? oggi(), supplierId: null, orderId, destinazione,
+  });
   const [righe, setRighe] = useState<DDTRigaNuova[]>([]);
   const [carica, setCarica] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -300,6 +340,7 @@ export function CompilaBollaTelefono({
       commessaFissa={etichettaCantiere}
       carico={{ visibile: spunta, valore: carica, onChange: setCarica }}
       conferma={{ etichetta: tr("Registra la bolla"), onConferma: () => void salva(), inCorso: salvando }}
+      fornitoreLetto={testata.supplierId ? null : riferimenti?.fornitore}
       etichettaChiudi="Indietro"
     />
   );

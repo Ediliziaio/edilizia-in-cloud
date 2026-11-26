@@ -36,6 +36,15 @@ export function estraiPagineTestoRapportoRumore(bytes: Uint8Array) {
   return leggiPagineTestoPdf(bytes, 70, 125_000, 1, true);
 }
 
+/**
+ * Come `estraiPagineTestoPdf`, ma con le colonne separate da tab: serve a chi
+ * legge tabelle (le righe di una bolla, di un ordine, di un computo), dove
+ * «120 ml» in due celle diverse non è la stessa cosa di «120 ml» in una.
+ */
+export function estraiPagineTestoTabella(bytes: Uint8Array, maxPages: number, maxChars: number) {
+  return leggiPagineTestoPdf(bytes, maxPages, maxChars, 80, true);
+}
+
 async function leggiPagineTestoPdf(bytes: Uint8Array, maxPages: number, maxChars: number, minCharsPerPage: number, conservaColonne = false) {
   const started = Date.now();
   const { pdfjs } = await pdfModules();

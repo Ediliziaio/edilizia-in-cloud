@@ -90,6 +90,10 @@ export async function processCampoOffline(item: SyncItem) {
           ? payload.destinazione
           : undefined,
       warehouseId: typeof payload.warehouse_id === "string" ? payload.warehouse_id : null,
+      // Letti dal telefono quando la bolla è stata scansionata: li ricontrolla `salvaDocumento`.
+      riferimentiTelefono: payload.riferimenti_telefono,
+      righeTelefono: payload.righe_telefono,
+      righeViste: payload.righe_viste_telefono,
       operationId: await syncOperationId(item),
     });
     return;

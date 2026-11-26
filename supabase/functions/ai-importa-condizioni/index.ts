@@ -19,6 +19,7 @@ import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { BUCKET_IMPORT_CONDIZIONI, valutaFile } from "../_shared/storageAmmesso.ts";
 import { conRegoleDocumento, incorniciaTestoDocumento } from "../_shared/documentoNonFidato.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
+import { testoDentroIlPdf } from "../_shared/documentoTestoPrima.ts";
 import { leggiJsonDalModello } from "../_shared/rispostaModello.ts";
 import { erroreAiPerUtente, letturaNonRiuscita } from "../_shared/erroriAi.ts";
 
@@ -62,6 +63,8 @@ Deno.serve(async (req) => {
 
     // eslint-disable-next-line no-explicit-any
     const userContent: any[] = [];
+    // Il testo del PDF, quando c'è, al posto delle pagine da guardare.
+    let lettoComeTesto = false;
     if (testo) {
       userContent.push({ type: "text", text: `Documento "${file_name ?? "testo"}" (testo estratto):\n\n${incorniciaTestoDocumento(testo)}` });
     } else {
@@ -72,14 +75,18 @@ Deno.serve(async (req) => {
       const base64 = bytesToBase64(buffer);
       const isImage = (mime_type ?? "").startsWith("image/");
       const dataUrl = `data:${mime_type ?? (isImage ? "image/jpeg" : "application/pdf")};base64,${base64}`;
+      const testoPdf = isImage ? null : await testoDentroIlPdf(new Uint8Array(buffer));
+      lettoComeTesto = !!testoPdf;
       userContent.push({ type: "text", text: `Leggi il documento allegato "${file_name ?? "documento"}" e produci il blocco condizioni.` });
-      if (isImage) userContent.push({ type: "image_url", image_url: { url: dataUrl } });
+      if (testoPdf) userContent.push({ type: "text", text: testoPdf });
+      else if (isImage) userContent.push({ type: "image_url", image_url: { url: dataUrl } });
       else userContent.push({ type: "file", file: { filename: file_name ?? "documento.pdf", file_data: dataUrl } });
     }
 
     const t0 = Date.now();
     const idempotencyKey = await buildStableAiIdempotencyKey("ai_importa_condizioni", [
       company_id, userId, storage_bucket ?? null, storage_path ?? null, file_name ?? null, testo ? testo.length : null, testo.slice(0, 200) || null,
+      lettoComeTesto ? "testo" : "file",
     ]);
     const aiResult = await aiRouterComplete({
       // eslint-disable-next-line no-explicit-any

@@ -20,7 +20,8 @@ import { BUCKET_ANALISI_DOCUMENTI, valutaFile } from "../_shared/storageAmmesso.
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
 import { leggiJsonDalModello } from "../_shared/rispostaModello.ts";
 import { controllaDocumento } from "../_shared/controlliDocumento.ts";
-import { bytesToBase64 } from "../_shared/base64.ts";
+import { base64ToBytes, bytesToBase64 } from "../_shared/base64.ts";
+import { testoDentroIlPdf } from "../_shared/documentoTestoPrima.ts";
 import { erroreAiPerUtente, letturaNonRiuscita } from "../_shared/erroriAi.ts";
 
 import { DDT_EXTRACTION_PROMPT, normalizeDdtPayload } from "../_shared/estrazioneDdt.ts";
@@ -109,7 +110,13 @@ Deno.serve(async (req) => {
     const userContent: any[] = [
       { type: "text", text: `Estrai i dati di questo DDT come JSON strutturato. Nome file: "${resolvedFileName}".` },
     ];
-    if (isImage) {
+    // Una bolla uscita dal gestionale del fornitore è un PDF col testo dentro:
+    // si manda il testo. Le foto dal telefono e le scansioni restano visione
+    // (vedi `_shared/documentoTestoPrima.ts`).
+    const testoPdf = isImage ? null : await testoDentroIlPdf(base64ToBytes(base64));
+    if (testoPdf) {
+      userContent.push({ type: "text", text: testoPdf });
+    } else if (isImage) {
       userContent.push({ type: "image_url", image_url: { url: dataUrl } });
     } else {
       userContent.push({ type: "file", file: { filename: resolvedFileName, file_data: dataUrl } });
@@ -122,6 +129,7 @@ Deno.serve(async (req) => {
       fingerprintInput,
       resolvedFileName,
       resolvedMimeType,
+      testoPdf ? "testo" : "file",
     ]);
     const aiResult = await aiRouterComplete({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

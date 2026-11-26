@@ -25,6 +25,7 @@ import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { BUCKET_LETTURA_GENERICA, valutaFile } from "../_shared/storageAmmesso.ts";
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
+import { testoDentroIlPdf } from "../_shared/documentoTestoPrima.ts";
 import { leggiJsonDalModello } from "../_shared/rispostaModello.ts";
 import { erroreAiPerUtente, letturaNonRiuscita } from "../_shared/erroriAi.ts";
 
@@ -334,6 +335,7 @@ Deno.serve(async (req) => {
             : ""),
       },
     ];
+    let lettoComeTesto = false;
     if ((mime_type ?? "").startsWith("text/")) {
       // Il testo incollato (una mail, un messaggio): si legge come testo, non come file (15/11/2026).
       const scritto = new TextDecoder().decode(buffer);
@@ -342,7 +344,14 @@ Deno.serve(async (req) => {
     } else if (isImage) {
       userContent.push({ type: "image_url", image_url: { url: dataUrl } });
     } else {
-      userContent.push({ type: "file", file: { filename: file_name, file_data: dataUrl } });
+      // Contratti, preventivi e computi usciti da un gestionale hanno il testo
+      // dentro: si manda quello, non le pagine da guardare. Il tetto è alto
+      // (un contratto di 76 pagine) ma il budget di caratteri decide: se non
+      // entra tutto, si torna al file (vedi `_shared/documentoTestoPrima.ts`).
+      const testoPdf = await testoDentroIlPdf(new Uint8Array(buffer), { maxPagine: 80, maxCaratteri: 125_000 });
+      lettoComeTesto = !!testoPdf;
+      if (testoPdf) userContent.push({ type: "text", text: testoPdf });
+      else userContent.push({ type: "file", file: { filename: file_name, file_data: dataUrl } });
     }
 
     const t0 = Date.now();
@@ -359,6 +368,7 @@ Deno.serve(async (req) => {
       // Anche le istruzioni (15/11/2026): con lo schema nuovo (es. fasi_lavoro) un documento già letto
       // tornava dalla cache coi campi di prima per 90 giorni. Si mette il prompt intero, che la chiave riduce a hash.
       systemPrompt,
+      lettoComeTesto ? "testo" : "file",
     ]);
     // Contratti, preventivi e computi (17/11/2026, banco work/banco-ai): Haiku 5.5 per i documenti brevi
     // e testuali, Sonnet 5.5 per i lunghi e le scansioni, e Sonnet quando Haiku non basta. Gli altri tipi
