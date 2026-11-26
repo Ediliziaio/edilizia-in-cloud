@@ -56,6 +56,9 @@ const CON_REGOLE_CONDIVISE = [
   "ai-tabella-finanziamento-extract",
   "ddt-ai-extract",
   "document-ai-router",
+  "fv-leggi-bolletta", // 26/11/2026: la bolletta elettrica che il cliente carica per il preventivo fotovoltaico
+  "genera-pos", // 26/11/2026: la trascrizione delle pagine del PSC del committente
+  "generale-documenti-leggi", // 26/11/2026: PSC, contratti e documenti generici letti per la commessa
   "generic-doc-ai-extract",
   "oda-leggi-documento",
   "parse-matrix-image",
