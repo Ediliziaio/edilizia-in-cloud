@@ -1799,19 +1799,18 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
       // Da 640: titolo e azioni su una riga, i quattro numeri in fila sotto.
       // Prima i numeri erano un 2×2 a destra e tra titolo e bottoni restava
       // un vuoto alto quanto loro (testata di 260px).
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-6 bg-gradient-to-br from-white via-blue-50/50 to-orange-50/70 px-3 py-2.5 sm:gap-2">
+      // 26/11/2026: testata come le altre pagine (niente riquadro sfumato né tessera blu col cappello),
+      // i quattro numeri su una fascia bassa: le schede partivano a 340px, ora sotto i 200.
+      <section>
+        <div className="grid gap-2">
           <div className="flex flex-col justify-between gap-5 sm:flex-row sm:flex-wrap sm:items-center">
             {!isAdminContext && (
               <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm shadow-blue-200">
-                  <GraduationCap className="h-6 w-6" />
-                </div>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     {/* Il titolo segue la voce di menu: in «Crea corsi» diceva «Portale». */}
                     <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-950">{mode === "builder" ? t("Crea corsi") : t("Portale")}</h1>
-                    <Badge className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-50">{t("Beta operativa")}</Badge>
+                    <Badge variant="outline" className="border-slate-200 bg-slate-50 font-medium text-slate-600">{t("Beta operativa")}</Badge>
                     {/* Lo stato si vede solo quando c'è qualcosa da sapere (caricamento,
                         salvataggio locale…): da sincronizzato mostrava «Sync Supabase»,
                         il nome del nostro fornitore, che al cliente non dice nulla. */}
@@ -2135,7 +2134,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             <StatCard label={t("Corsi pubblicati")} value={String(stats.published)} icon={BookMarked} tone="blue" />
             <StatCard label={t("Iscrizioni team")} value={usaIscrizioniReali ? totaliIscrizioni ? String(totaliIscrizioni.enrolled) : "—" : String(stats.totalEnrolled)} icon={Users} tone="orange" />
             <StatCard label={t("Completamento")} value={usaIscrizioniReali ? totaliIscrizioni ? `${totaliIscrizioni.completion}%` : "—" : `${stats.avgCompletion}%`} icon={CheckCircle2} tone="green" />
@@ -2154,13 +2153,13 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
 
       <Tabs value={effectiveTab} onValueChange={setActiveTab} className="space-y-5">
         {mode !== "library" && (
-        <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
-          <TabsTrigger value="corsi" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+        <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+          <TabsTrigger value="corsi" className="gap-2 h-8 px-2.5 text-xs data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none">
             <Library className="h-4 w-4" />
             {t("Corsi")}
           </TabsTrigger>
           {showBuilder && (
-            <TabsTrigger value="builder" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+            <TabsTrigger value="builder" className="gap-2 h-8 px-2.5 text-xs data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none">
               <LayoutTemplate className="h-4 w-4" />
               {t("Builder")}
             </TabsTrigger>
@@ -2170,26 +2169,26 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
               in admin la distribuzione cross-company è nella DistributionBar. */}
           {showAuthoringMgmt && (
             <>
-              <TabsTrigger value="procedure" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+              <TabsTrigger value="procedure" className="gap-2 h-8 px-2.5 text-xs data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none">
                 <ClipboardCheck className="h-4 w-4" />
                 {t("Procedure")}
               </TabsTrigger>
-              <TabsTrigger value="accessi" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+              <TabsTrigger value="accessi" className="gap-2 h-8 px-2.5 text-xs data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none">
                 <LockKeyhole className="h-4 w-4" />
                 {t("Accessi")}
               </TabsTrigger>
-              <TabsTrigger value="persone" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+              <TabsTrigger value="persone" className="gap-2 h-8 px-2.5 text-xs data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none">
                 <Users className="h-4 w-4" />
                 {t("Persone")}
               </TabsTrigger>
-              <TabsTrigger value="riepilogo" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+              <TabsTrigger value="riepilogo" className="gap-2 h-8 px-2.5 text-xs data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none">
                 <BarChart3 className="h-4 w-4" />
                 {t("Riepilogo")}
               </TabsTrigger>
             </>
           )}
           {showPreview && (
-            <TabsTrigger value="preview" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+            <TabsTrigger value="preview" className="gap-2 h-8 px-2.5 text-xs data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none">
               <UserRoundCheck className="h-4 w-4" />
               {t("Pagina utente")}
             </TabsTrigger>
@@ -2446,12 +2445,12 @@ function StatCard({
   }[tone];
 
   return (
-    <div className="rounded-2xl border border-white/70 bg-white/85 px-3 py-2 shadow-sm">
-      <div className={cn("mb-1 flex h-7 w-7 items-center justify-center rounded-lg border", toneClass)}>
+    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 shadow-sm">
+      <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border", toneClass)}>
         <Icon className="h-3.5 w-3.5" />
       </div>
-      <p className="text-lg font-bold leading-tight text-slate-950">{value}</p>
-      <p className="mt-0.5 text-xs font-medium text-slate-500">{label}</p>
+      <p className="text-base font-bold tabular-nums leading-tight text-slate-950">{value}</p>
+      <p className="min-w-0 truncate text-xs font-medium text-slate-500">{label}</p>
     </div>
   );
 }

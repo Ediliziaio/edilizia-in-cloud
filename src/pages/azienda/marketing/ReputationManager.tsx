@@ -1299,10 +1299,11 @@ export default function ReputationManager() {
         </div>
       </div>
 
-      <Alert className="border-amber-200 bg-amber-50 max-sm:px-3 max-sm:py-2 max-sm:[&>svg~*]:pl-0">
+      {/* 26/11/2026: titolo e spiegazione sulla stessa riga, come gli avvisi delle altre pagine. */}
+      <Alert className="border-amber-200 bg-amber-50 py-2.5 max-sm:px-3 max-sm:py-2 max-sm:[&>svg~*]:pl-0 sm:[&>svg]:top-3">
         <ShieldCheck className="h-4 w-4 text-amber-700 max-sm:hidden" />
-        <AlertTitle className="max-sm:mb-0 max-sm:text-[13px]">{tr("Reputazione in configurazione")}</AlertTitle>
-        <AlertDescription className="max-sm:hidden">
+        <AlertTitle className="max-sm:mb-0 max-sm:text-[13px] sm:mb-0 sm:mr-1.5 sm:inline sm:text-sm">{tr("Reputazione in configurazione")}</AlertTitle>
+        <AlertDescription className="max-sm:hidden sm:inline sm:text-xs">
           {tr("Google e Facebook restano in setup finche non vengono collegati i permessi recensioni. Il link sito invece e gia testabile e salva feedback locale.")}
         </AlertDescription>
       </Alert>
@@ -1383,7 +1384,7 @@ export default function ReputationManager() {
             {/* Telefono: fonti su due righe (nome e stato, recensioni e voto), niente spiegazioni. */}
             <Card>
               <CardHeader className="max-sm:p-3 max-sm:pb-2">
-                <CardTitle className="max-sm:text-sm">{tr("Stato reputazione")}</CardTitle>
+                <CardTitle className="text-base max-sm:text-sm">{tr("Stato reputazione")}</CardTitle>
                 <CardDescription className="max-sm:hidden">{tr("Andamento sintetico da recensioni pubbliche, feedback privati e campagne.")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5 max-sm:space-y-2 max-sm:p-3 max-sm:pt-0">
@@ -1444,7 +1445,7 @@ export default function ReputationManager() {
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Bot className="h-5 w-5 text-violet-700" />
-                  <CardTitle>{tr("Regia AI")}</CardTitle>
+                  <CardTitle className="text-base">{tr("Regia AI")}</CardTitle>
                 </div>
                 <CardDescription>{tr("Azioni consigliate per aumentare rating e volume recensioni.")}</CardDescription>
               </CardHeader>
@@ -1481,7 +1482,7 @@ export default function ReputationManager() {
           <Card>
             <CardHeader className="max-sm:p-3 max-sm:pb-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <CardTitle className="max-sm:text-sm">{tr("Nuova richiesta recensioni")}</CardTitle>
+                  <CardTitle className="text-base max-sm:text-sm">{tr("Nuova richiesta recensioni")}</CardTitle>
                   <Badge variant={persistenceMode === "database" ? "default" : "outline"} className={cn(persistenceMode === "database" ? "bg-emerald-600 hover:bg-emerald-600" : "", "max-sm:hidden")}>
                     {persistenceMode === "database" ? tr("Database attivo") : tr("Cache locale")}
                   </Badge>
@@ -1588,7 +1589,7 @@ export default function ReputationManager() {
 
             <Card>
               <CardHeader className="max-sm:p-3 max-sm:pb-2">
-                <CardTitle className="max-sm:text-sm">{tr("Campagne recensioni")}</CardTitle>
+                <CardTitle className="text-base max-sm:text-sm">{tr("Campagne recensioni")}</CardTitle>
                 <CardDescription className="max-sm:hidden">{tr("Richieste attive, performance e conversione in recensioni pubblicate.")}</CardDescription>
               </CardHeader>
               <CardContent className="max-sm:p-0">
@@ -1679,7 +1680,7 @@ export default function ReputationManager() {
                 «Rispondi» prende la riga, Apri e Silvio restano a icona. */}
             <CardHeader className="gap-3 lg:flex-row lg:items-center lg:justify-between max-sm:gap-2 max-sm:p-3 max-sm:pb-2">
               <div>
-                <CardTitle className="max-sm:text-sm">{tr("Recensioni pubblicate")}</CardTitle>
+                <CardTitle className="text-base max-sm:text-sm">{tr("Recensioni pubblicate")}</CardTitle>
                 <CardDescription className="max-sm:hidden">{tr("Vista unica da Google, Facebook e moduli proprietari.")}</CardDescription>
               </div>
               <div className="flex flex-wrap gap-2 max-sm:flex-nowrap max-sm:gap-1.5">
@@ -1787,7 +1788,7 @@ export default function ReputationManager() {
           <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
             <Card>
               <CardHeader>
-                <CardTitle>{tr("Flusso automatico recensioni")}</CardTitle>
+                <CardTitle className="text-base">{tr("Flusso automatico recensioni")}</CardTitle>
                 <CardDescription>{tr("Invio richiesta, follow-up e alert su feedback critici.")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
@@ -1872,7 +1873,7 @@ export default function ReputationManager() {
 
             <Card>
               <CardHeader>
-                <CardTitle>{tr("Registro automazioni")}</CardTitle>
+                <CardTitle className="text-base">{tr("Registro automazioni")}</CardTitle>
               <CardDescription>{tr("Audit operativo: richieste, risposte, cambi automazione e alert.")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -1969,7 +1970,7 @@ export default function ReputationManager() {
 
           <Card>
             <CardHeader>
-              <CardTitle>{tr("Link recensione pubblico")}</CardTitle>
+              <CardTitle className="text-base">{tr("Link recensione pubblico")}</CardTitle>
               <CardDescription>{tr("Da usare in firma email, QR code, WhatsApp e post-cantiere. Slug: {publicReviewSlug}", { publicReviewSlug: String(publicReviewSlug ?? "") })}</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 lg:grid-cols-[1fr_auto]">
