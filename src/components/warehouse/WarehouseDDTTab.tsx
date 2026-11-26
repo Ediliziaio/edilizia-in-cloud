@@ -158,7 +158,7 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
         </TabsTrigger>
         <TabsTrigger value="uscita" className="h-7 gap-1.5 text-xs [&_svg]:h-3.5 [&_svg]:w-3.5">
           <Truck className="h-4 w-4" />
-          {t("In uscita")}
+          {t("DDT emessi")}
           {uscite.length > 0 && (
             <Badge variant="secondary" className="ml-0.5 h-4 px-1 text-[10px]">{uscite.length}</Badge>
           )}

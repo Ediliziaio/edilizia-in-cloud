@@ -19,13 +19,14 @@ import { useWarehouseUscite, type UscitaRow } from "@/hooks/warehouse/useWarehou
 import { CreaDdtDaUscitaDialog } from "@/components/warehouse/CreaDdtDaUscitaDialog";
 import { destinatarioLabel, uscitaPerDdt, type UscitaPerDdt } from "@/lib/magazzino/usciteDdt";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { BOTTONE_NUOVO } from "@/components/orders/TestataScheda";
 
 type Filtro = "tutte" | "senza_ddt" | "con_ddt";
 
-const STATO_BADGE: Record<UscitaRow["stato"], { label: string; variant: "default" | "secondary" | "outline" }> = {
-  registrata: { label: "Registrata", variant: "secondary" },
-  ddt_creato: { label: "DDT creato", variant: "default" },
-  annullata: { label: "Annullata", variant: "outline" },
+const STATO_BADGE: Record<UscitaRow["stato"], { label: string; variant: "default" | "secondary" | "outline"; colore: string }> = {
+  registrata: { label: "Registrata", variant: "outline", colore: "border-amber-200 bg-amber-50 text-amber-800" },
+  ddt_creato: { label: "DDT creato", variant: "outline", colore: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+  annullata: { label: "Annullata", variant: "outline", colore: "border-slate-200 bg-slate-50 text-slate-500" },
 };
 
 const TIPO_ICON = { cliente: User, cantiere: HardHat, libero: PencilLine } as const;
@@ -53,15 +54,16 @@ export function WarehouseUsciteTab({ warehouseFilter, readOnly = false }: { ware
 
   return (
     <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <ArrowUpFromLine className="h-4 w-4 text-muted-foreground" /> {t("Uscite merce")}
-        </CardTitle>
-        <CardDescription>
+      {/* 26/11/2026: titolo, ricerca e filtri su una riga, la spiegazione nel tooltip del titolo. */}
+      <CardHeader className="space-y-2 px-3 py-2">
+        <CardDescription className="sr-only">
           {t("Le uscite registrate. Da qui crei il DDT quando vuoi (doppio controllo): prima registri l'uscita, poi generi il documento.")}
         </CardDescription>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Input className="max-w-xs" placeholder={t("Cerca per numero o destinatario…")} value={search} onChange={(e) => setSearch(e.target.value)} />
+        <div className="flex flex-wrap items-center gap-2">
+          <CardTitle className="flex items-center gap-1.5 text-sm" title={t("Le uscite registrate. Da qui crei il DDT quando vuoi (doppio controllo): prima registri l'uscita, poi generi il documento.")}>
+            <ArrowUpFromLine className="h-4 w-4 text-muted-foreground" /> {t("Uscite merce")}
+          </CardTitle>
+          <Input className="h-8 w-72 max-w-full text-xs" placeholder={t("Cerca per numero o destinatario…")} value={search} onChange={(e) => setSearch(e.target.value)} />
           <div role="group" aria-label={t("Filtra le uscite")} className="flex gap-1">
             {([
               ["tutte", `${t("Tutte")} · ${isLoading || isError ? "—" : uscite.length}`],
@@ -71,9 +73,9 @@ export function WarehouseUsciteTab({ warehouseFilter, readOnly = false }: { ware
               <Button
                 key={valore}
                 size="sm"
-                variant={filtro === valore ? "default" : "outline"}
+                variant="outline"
                 aria-pressed={filtro === valore}
-                className="h-8 text-xs"
+                className="h-8 text-xs aria-pressed:border-orange-200 aria-pressed:bg-orange-50 aria-pressed:text-orange-700"
                 onClick={() => setFiltro(valore)}
               >
                 {etichetta}
@@ -82,7 +84,7 @@ export function WarehouseUsciteTab({ warehouseFilter, readOnly = false }: { ware
           </div>
         </div>
         {!isLoading && !isError && senzaDdt > 0 && (
-          <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-900">
             {senzaDdt === 1
               ? t("1 uscita è partita senza DDT.")
               : t("{senzaDdt} uscite sono partite senza DDT.", { senzaDdt: String(senzaDdt ?? "") })}{" "}
@@ -108,11 +110,11 @@ export function WarehouseUsciteTab({ warehouseFilter, readOnly = false }: { ware
             const badge = STATO_BADGE[u.stato];
             const nRighe = Array.isArray(u.righe) ? u.righe.length : 0;
             return (
-              <div key={u.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40">
+              <div key={u.id} className="flex items-center gap-3 px-3 py-2 hover:bg-muted/40">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-mono text-sm font-medium">{u.numero}</span>
-                    <Badge variant={badge.variant} className="text-[10px]">{t(badge.label)}</Badge>
+                    <Badge variant={badge.variant} className={`px-1.5 py-0 text-[10px] font-medium ${badge.colore}`}>{t(badge.label)}</Badge>
                     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                       <Icon className="h-3 w-3" /> {destinatarioLabel(u)}
                     </span>
@@ -128,13 +130,13 @@ export function WarehouseUsciteTab({ warehouseFilter, readOnly = false }: { ware
                   </div>
                 </div>
                 {u.stato === "registrata" && canWrite ? (
-                  <Button size="sm" onClick={() => setPerDdt(uscitaPerDdt(u))}>
-                    <FileText className="h-4 w-4 mr-2" />
+                  <Button size="sm" className={BOTTONE_NUOVO} onClick={() => setPerDdt(uscitaPerDdt(u))}>
+                    <FileText className="h-3.5 w-3.5" />
                     {t("Crea DDT")}
                   </Button>
                 ) : u.documento_id ? (
-                  <Button size="sm" variant="outline" onClick={() => navigate(`/azienda/documenti/${u.documento_id}`)}>
-                    <ExternalLink className="h-4 w-4 mr-2" /> {t("Apri DDT")}
+                  <Button size="sm" variant="outline" className="h-8 px-2.5 text-xs" onClick={() => navigate(`/azienda/documenti/${u.documento_id}`)}>
+                    <ExternalLink className="h-3.5 w-3.5 mr-1" /> {t("Apri DDT")}
                   </Button>
                 ) : null}
               </div>

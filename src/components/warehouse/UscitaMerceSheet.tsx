@@ -65,6 +65,8 @@ import { OrderSelectCombobox, type OrderOption } from "./OrderSelectCombobox";
 import { ManualArticleAdder } from "./ManualArticleAdder";
 import { AnagraficaSelectCombobox, type AnagraficaOption, anagraficaDisplayName } from "./AnagraficaSelectCombobox";
 import { CreaDdtDaUscitaDialog } from "./CreaDdtDaUscitaDialog";
+import { cn } from "@/lib/utils";
+import { BOTTONE_NUOVO } from "@/components/orders/TestataScheda";
 import { validaRigheUscita } from "@/lib/magazzino/validaRigheUscita";
 import type { UscitaPerDdt } from "@/lib/magazzino/usciteDdt";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
@@ -539,14 +541,14 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
             {tr("Uscita merce")}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            {tr("Compili l'uscita e la registri. Il DDT lo crei dopo, come passo separato, dalla scheda Uscite (doppio controllo).")}
+            {tr("Registri l'uscita e la giacenza scende subito. Subito dopo ti proponiamo il DDT; se non serve ora, lo crei più tardi da Arrivi e uscite → Uscite.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4 space-y-3">
           {warehousesError && <Alert variant="destructive"><AlertDescription>{tr("Magazzini non disponibili.")} <Button variant="link" onClick={() => void refetchWarehouses()}>{tr("Riprova magazzini")}</Button></AlertDescription></Alert>}
           {/* 1 · Destinatario */}
-          <section className="rounded-xl border bg-card p-3 sm:p-4 space-y-3">
+          <section className="rounded-xl border bg-card p-3 space-y-2">
             <StepHead n={1} label={tr("A chi esce la merce")} />
             <div className="grid grid-cols-3 gap-1.5">
               {DEST_TABS.map(({ key, label, icon: Icon }) => (
@@ -555,9 +557,9 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
                   type="button"
                   onClick={() => handleDestTipoChange(key)}
                   aria-pressed={destTipo === key}
-                  className={`flex flex-col items-center justify-center gap-1 rounded-lg border px-1 py-2.5 text-xs font-medium transition-colors ${
+                  className={`flex flex-col items-center justify-center gap-1 rounded-lg border px-1 py-2.5 text-xs font-medium transition-colors sm:h-9 sm:flex-row sm:gap-2 sm:py-0 ${
                     destTipo === key
-                      ? "border-primary bg-primary text-primary-foreground"
+                      ? "border-orange-300 bg-orange-50 text-orange-700"
                       : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
                   }`}
                 >
@@ -625,7 +627,7 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
           </section>
 
           {/* 2 · Magazzino sorgente */}
-          <section className="rounded-xl border bg-card p-3 sm:p-4 space-y-2">
+          <section className="rounded-xl border bg-card p-3 space-y-2">
             <StepHead n={2} label={tr("Da quale magazzino")} />
             {warehousesLoading ? (
               <div className="h-10 border rounded-md flex items-center justify-center text-xs text-muted-foreground">
@@ -640,7 +642,7 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
               </Alert>
             ) : (
               <Select value={warehouseId} onValueChange={setWarehouseId} disabled={entries.length > 0}>
-                <SelectTrigger id="um-warehouse">
+                <SelectTrigger id="um-warehouse" className="h-9">
                   <SelectValue placeholder={tr("Scegli un magazzino...")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -662,7 +664,7 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
           {entries.length > 0 && <p className="text-xs text-muted-foreground">{tr("Per cambiare magazzino, rimuovi prima gli articoli selezionati: le giacenze e i seriali appartengono al magazzino di partenza.")}</p>}
 
           {/* 3 · Articoli */}
-          <section className="rounded-xl border bg-card p-3 sm:p-4 space-y-2.5">
+          <section className="rounded-xl border bg-card p-3 space-y-2">
             <div className="flex items-center justify-between gap-2">
               <StepHead n={3} label={tr("Cosa esce")} />
               {entries.length > 0 && (
@@ -735,9 +737,9 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
                         type="button"
                         onClick={() => { setVettoreTipo(t); setVettoreManuallyChanged(true); }}
                         aria-pressed={vettoreTipo === t}
-                        className={`rounded-lg border px-1 py-2 text-xs font-medium transition-colors ${
+                        className={`rounded-lg border px-1 py-2 text-xs font-medium transition-colors sm:h-8 sm:py-0 ${
                           vettoreTipo === t
-                            ? "border-primary bg-primary text-primary-foreground"
+                            ? "border-orange-300 bg-orange-50 text-orange-700"
                             : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
                         }`}
                       >
@@ -803,13 +805,13 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWare
             </p>
           )}
           <div className="flex w-full gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1 h-11">
+            <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1 h-11 sm:h-9">
               {tr("Annulla")}
             </Button>
             <Button
               onClick={requestReview}
               disabled={!canRegister || register.isPending}
-              className="flex-[2] h-11 gap-2"
+              className={cn(BOTTONE_NUOVO, "flex-[2] h-11 gap-2 text-sm sm:h-9")}
             >
               {register.isPending ? (
                 <>
