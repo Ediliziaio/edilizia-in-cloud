@@ -435,19 +435,55 @@ export function mapDbItemToOrderItem(item: OrderItemData): OrderItem {
   };
 }
 
-export async function deleteOrderCascading(orderId: string, companyId: string): Promise<void> {
+export async function deleteOrderCascading(orderId: string, companyId: string, scollega = false): Promise<void> {
   // Nome mantenuto per i chiamanti esistenti: l'azione ora sposta nel cestino.
   // Controlli azienda, permesso e movimenti effettivi sono atomici lato database.
   // Rate previste e righe restano conservate per il ripristino.
+  // scollega = seconda conferma: i documenti che esistono di per sé (fatture, DDT, costi,
+  // acquisti, prima nota) perdono il riferimento alla commessa e restano nei loro elenchi.
   const { error } = await (supabase as any).rpc("set_order_trashed", {
     p_order_id: orderId,
     p_company_id: companyId,
     p_trashed: true,
+    p_scollega: scollega,
   });
   // Un Error vero: chi lo mostra legge il motivo scritto dal database («ci sono SAL del cliente già emessi…»).
   if (error) throw new Error(error.message || "Commessa non spostata nel cestino.");
   dimenticaCommesseArchiviate(companyId);
 }
+
+/** Il rifiuto del database quando a tenere la commessa sono documenti collegati: si può insistere. */
+export function commessaTrattenutaDaiDocumenti(errore: unknown): boolean {
+  const messaggio = errore instanceof Error ? errore.message : typeof errore === "string" ? errore : "";
+  return messaggio.includes("Questa commessa non va nel cestino");
+}
+
+/** Conteggi di ciò che la seconda conferma scollegherebbe. Chiave → quanti; vuoto se non c'è nulla. */
+export async function commessaCosaSiScollega(orderId: string, companyId: string): Promise<Record<string, number>> {
+  const { data, error } = await (supabase as any).rpc("commessa_cosa_si_scollega", {
+    p_order_id: orderId,
+    p_company_id: companyId,
+  });
+  if (error) return {};
+  return (data && typeof data === "object" ? data : {}) as Record<string, number>;
+}
+
+/** Le etichette dei conteggi, nell'ordine in cui si leggono nella conferma. */
+export const ETICHETTE_SCOLLEGAMENTO: ReadonlyArray<[string, string]> = [
+  ["fatture_emesse", "fatture emesse"],
+  ["documenti_fiscali", "documenti fiscali"],
+  ["fatture_collegate_a_righe", "collegamenti fattura ↔ righe"],
+  ["rate_con_fattura", "rate con fattura"],
+  ["fatture_ricevute", "fatture ricevute"],
+  ["costi", "costi"],
+  ["costi_ripartiti", "costi ripartiti"],
+  ["ordini_acquisto", "ordini d\u2019acquisto"],
+  ["ddt", "DDT"],
+  ["materiali_magazzino", "materiali di magazzino"],
+  ["movimenti_magazzino", "movimenti di magazzino"],
+  ["prima_nota", "movimenti di prima nota"],
+  ["scadenze", "scadenze"],
+];
 
 /** Le colonne di ordini_variazione che servono a totale e incassi (nested select «variazioni» delle liste). */
 export interface VarianteDellaCommessa {

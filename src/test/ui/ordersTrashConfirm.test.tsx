@@ -18,3 +18,17 @@ it('durante il salvataggio impedisce doppie richieste e chiude soltanto al succe
  fireEvent.click(screen.getByRole('button',{name:'Spostamento…'}));expect(confirm).toHaveBeenCalledTimes(1);
  finish();await waitFor(()=>expect(close).toHaveBeenCalledWith(false));
 });
+it('il blocco per documenti collegati apre la seconda conferma, che scollega',async()=>{
+ const confirm=vi.fn()
+  .mockRejectedValueOnce(new Error('Questa commessa non va nel cestino: ci sono fatture collegate (Fatturazione). Mantienila nello storico…'))
+  .mockResolvedValueOnce(undefined);
+ const close=vi.fn();
+ render(<OrderTrashConfirmDialog open onOpenChange={close} label="C-3" onConfirm={confirm}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Sposta nel cestino'}));
+ expect(await screen.findByRole('alert')).toHaveTextContent('fatture collegate');
+ expect(confirm).toHaveBeenLastCalledWith(false);
+ const secondo=await screen.findByRole('button',{name:'Scollega e sposta nel cestino'});
+ fireEvent.click(secondo);
+ await waitFor(()=>expect(confirm).toHaveBeenLastCalledWith(true));
+ await waitFor(()=>expect(close).toHaveBeenCalledWith(false));
+});
