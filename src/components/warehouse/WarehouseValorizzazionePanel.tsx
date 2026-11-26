@@ -21,7 +21,7 @@ import {
 import { riepilogoValore } from "@/lib/magazzino/riepiloghiMagazzino";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
-import { Calculator, Package, TrendingUp, AlertCircle } from "lucide-react";
+import { Calculator, TrendingUp, AlertCircle } from "lucide-react";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
@@ -51,22 +51,22 @@ export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
   const summary = riepilogoValore(articoli);
 
   return (
-    <div className="space-y-4">
-      {/* Header con method toggle */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="flex items-center gap-2 text-lg font-semibold">
-            <Calculator className="h-4 w-4 text-muted-foreground" />
-            {t("Valorizzazione Magazzino")}
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            {t("Costo dei materiali in giacenza secondo il metodo selezionato. Confluisce nella voce \"Rimanenze\" dello Stato Patrimoniale.")}
-          </p>
-        </div>
+    <div className="space-y-2">
+      {/* 26/11/2026: titolo, spiegazione e metodo su una riga; i quattro numeri in una fascia bassa;
+          l'avviso sui lotti su una riga. Prima la tabella partiva a ~600px dalla barra. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold">
+          <Calculator className="h-4 w-4 text-muted-foreground" />
+          {t("Valorizzazione Magazzino")}
+        </h2>
+        <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title={t("Costo dei materiali in giacenza secondo il metodo selezionato. Confluisce nella voce \"Rimanenze\" dello Stato Patrimoniale.")}>
+          {t("Costo dei materiali in giacenza secondo il metodo selezionato. Confluisce nella voce \"Rimanenze\" dello Stato Patrimoniale.")}
+        </p>
         <ToggleGroup
           type="single"
           value={method}
           onValueChange={(v) => v && setMethod(v as ValorizzazioneMethod)}
+          className="gap-1 [&>button]:h-8 [&>button]:px-2.5 [&>button]:text-xs [&>button[data-state=on]]:border-orange-200 [&>button[data-state=on]]:bg-orange-50 [&>button[data-state=on]]:text-orange-700"
         >
           <ToggleGroupItem value="media" variant="outline" size="sm">
             {t("Costo medio")}
@@ -80,76 +80,49 @@ export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
         </ToggleGroup>
       </div>
 
-      {articoli.some(a=>a.copertura_lotti_incompleta)&&<p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">{t("Valore stimato per gli articoli con lotti incompleti: la quota senza lotto usa il costo medio registrato in magazzino.")}</p>}
-      {articoli.some(a=>a.prezzo_da_definire)&&<p role="status" className="rounded-lg border border-amber-200 p-3 text-sm">{t("Valore parziale: alcuni articoli hanno prezzi ancora da confermare.")}</p>}
-      {/* KPI grid */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Card className="rounded-2xl border-0 bg-blue-50">
-          <CardContent className="p-4">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              {t("Valore totale magazzino")}
-            </p>
-            <p className="mt-1 text-2xl font-bold tabular-nums">
-              {formatCurrency(kpi.valore_totale)}
-            </p>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {t("Metodo:")} <strong className="capitalize">{method}</strong>
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl border-0 bg-emerald-50">
-          <CardContent className="p-4">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              {t("Articoli a stock")}
-            </p>
-            <p className="mt-1 text-2xl font-bold tabular-nums">{summary.articoli}</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">{t("{conLotti} con tracciamento lotti", { conLotti: String(summary.conLotti ?? "") })}</p>
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl border-0 bg-violet-50">
-          <CardContent className="p-4">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              {t("Quantità per unità")}
-            </p>
-            <div className="mt-1 space-y-1 text-lg font-bold tabular-nums">{summary.quantita.map(([unit, quantity]) => <p key={unit}>{quantity.toLocaleString(intlCampo(), {maximumFractionDigits:6})} {unit}</p>)}</div>
-            {summary.unitaDaVerificare > 0 && <p className="text-xs text-amber-800">{t("{unitaDaVerificare} articoli con unità da verificare", { unitaDaVerificare: String(summary.unitaDaVerificare ?? "") })}</p>}
-            {summary.quantita.length === 0 && !summary.unitaDaVerificare && <p className="mt-1">—</p>}
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl border-0 bg-amber-50">
-          <CardContent className="p-4">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              {t("Valore senza lotti")}
-            </p>
-            <p className="mt-1 text-2xl font-bold tabular-nums">
-              {formatCurrency(summary.valoreSenzaLotti)}
-            </p>
-            <p className="mt-1 text-[11px] text-muted-foreground">{t("calcolato dal costo anagrafico")}</p>
-          </CardContent>
-        </Card>
+      {articoli.some(a=>a.copertura_lotti_incompleta)&&<p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs">{t("Valore stimato per gli articoli con lotti incompleti: la quota senza lotto usa il costo medio registrato in magazzino.")}</p>}
+      {articoli.some(a=>a.prezzo_da_definire)&&<p role="status" className="rounded-lg border border-amber-200 px-3 py-1.5 text-xs">{t("Valore parziale: alcuni articoli hanno prezzi ancora da confermare.")}</p>}
+      {/* Numeri */}
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <div className="rounded-xl border bg-card px-3 py-2">
+          <p className="text-[11px] text-muted-foreground">{t("Valore totale magazzino")}</p>
+          <p className="text-lg font-bold leading-tight tabular-nums">{formatCurrency(kpi.valore_totale)}</p>
+          <p className="text-[11px] text-muted-foreground">{t("Metodo:")} <strong className="capitalize">{method}</strong></p>
+        </div>
+        <div className="rounded-xl border bg-card px-3 py-2">
+          <p className="text-[11px] text-muted-foreground">{t("Articoli a stock")}</p>
+          <p className="text-lg font-bold leading-tight tabular-nums">{summary.articoli}</p>
+          <p className="text-[11px] text-muted-foreground">{t("{conLotti} con tracciamento lotti", { conLotti: String(summary.conLotti ?? "") })}</p>
+        </div>
+        <div className="rounded-xl border bg-card px-3 py-2">
+          <p className="text-[11px] text-muted-foreground">{t("Quantità per unità")}</p>
+          <div className="flex flex-wrap gap-x-2 text-sm font-bold leading-tight tabular-nums">{summary.quantita.map(([unit, quantity]) => <span key={unit}>{quantity.toLocaleString(intlCampo(), {maximumFractionDigits:6})} {unit}</span>)}</div>
+          {summary.unitaDaVerificare > 0 && <p className="text-[11px] text-amber-800">{t("{unitaDaVerificare} articoli con unità da verificare", { unitaDaVerificare: String(summary.unitaDaVerificare ?? "") })}</p>}
+          {summary.quantita.length === 0 && !summary.unitaDaVerificare && <p>—</p>}
+        </div>
+        <div className="rounded-xl border bg-card px-3 py-2">
+          <p className="text-[11px] text-muted-foreground">{t("Valore senza lotti")}</p>
+          <p className="text-lg font-bold leading-tight tabular-nums">{formatCurrency(summary.valoreSenzaLotti)}</p>
+          <p className="text-[11px] text-muted-foreground">{t("calcolato dal costo anagrafico")}</p>
+        </div>
       </div>
 
-      {/* Banner se mancano lotti */}
+      {/* Avviso se mancano lotti: una riga, la spiegazione intera nel tooltip. */}
       {kpi.n_articoli > 0 && kpi.n_articoli_con_lotti === 0 && (
-        <Card className="rounded-2xl border-amber-200 bg-amber-50">
-          <CardContent className="flex items-start gap-3 p-4">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-            <div className="text-sm text-amber-900">
-              <p className="font-semibold">{t("Nessun articolo ha lotti tracciati")}</p>
-              <p className="mt-1 text-xs">
-                {t("La valorizzazione usa il costo unitario dell'anagrafica articoli (fallback). Per un calcolo preciso FIFO/LIFO, registra i carichi via DDT ricezione con costo unitario. In quel modo ogni lotto entra a magazzino col suo prezzo storico.")}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <div role="status" className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-900"
+          title={t("La valorizzazione usa il costo unitario dell'anagrafica articoli (fallback). Per un calcolo preciso FIFO/LIFO, registra i carichi via DDT ricezione con costo unitario. In quel modo ogni lotto entra a magazzino col suo prezzo storico.")}>
+          <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+          <span className="shrink-0 whitespace-nowrap font-semibold">{t("Nessun articolo ha lotti tracciati")}</span>
+          <span className="min-w-0 truncate">{t("La valorizzazione usa il costo unitario dell'anagrafica articoli (fallback). Per un calcolo preciso FIFO/LIFO, registra i carichi via DDT ricezione con costo unitario. In quel modo ogni lotto entra a magazzino col suo prezzo storico.")}</span>
+        </div>
       )}
 
       {/* Tabella dettaglio */}
-      <Card className="rounded-2xl">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">{t("Dettaglio per articolo")}</CardTitle>
+      <Card className="rounded-xl">
+        <CardHeader className="px-3 py-2">
+          <CardTitle className="text-sm">{t("Dettaglio per articolo")}</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-3 pb-3">
           {articoli.length === 0 ? (
             <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
               {t("Nessun articolo a magazzino.")}
@@ -181,13 +154,8 @@ export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
                 </thead>
                 <tbody>
                   {articoli.map((a) => (
-                    <tr key={a.id} className="border-t hover:bg-muted/20">
-                      <td className="px-3 py-2">
-                        <div className="flex items-start gap-2">
-                          <Package className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                          <span className="font-medium">{a.name}</span>
-                        </div>
-                      </td>
+                    <tr key={a.id} className="border-t hover:bg-muted/20 [&>td]:whitespace-nowrap [&>td]:py-1.5">
+                      <td className="max-w-[320px] truncate px-3 py-1.5 font-medium" title={a.name}>{a.name}</td>
                       <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
                         {a.internal_code ?? "—"}
                       </td>
