@@ -69188,5 +69188,17 @@ const dizionario: Dizionario = {
   "1 ordine dall'impresa da chiudere": "1 Auftrag der Firma zu erledigen",
   "{n} ordini dall'impresa da chiudere": "{n} Aufträge der Firma zu erledigen",
   "Tutte le mie attività": "Alle meine Aufgaben",
+  "Senza rete. Il verbale resta sul telefono e si salva da solo appena torna il segnale. Per il PDF e la firma serve la rete.": "Kein Netz. Das Protokoll bleibt auf dem Handy und wird automatisch gespeichert, sobald das Signal zurück ist. Für PDF und Unterschrift braucht es Netz.",
+  "Per mostrare il PDF al cliente serve la rete. Il verbale intanto resta sul telefono.": "Um dem Kunden das PDF zu zeigen, braucht es Netz. Das Protokoll bleibt so lange auf dem Handy.",
+  "Tornata la rete: bozza del verbale salvata.": "Netz wieder da: Entwurf des Protokolls gespeichert.",
+  "Hai un verbale non ancora salvato": "Du hast ein noch nicht gespeichertes Protokoll",
+  "«{titolo}», compilato senza rete. Riprendilo: si salva appena c'è segnale.": "„{titolo}“, ohne Netz ausgefüllt. Öffne es wieder: es wird gespeichert, sobald Signal da ist.",
+  "Buttare il verbale non salvato?": "Nicht gespeichertes Protokoll verwerfen?",
+  "Quello che hai scritto si perde.": "Was du geschrieben hast, geht verloren.",
+  "Butta": "Verwerfen",
+  "Tieni": "Behalten",
+  "Senza rete: quello che scrivi resta sul telefono. Per il PDF e la firma serve il segnale.": "Kein Netz: was du schreibst, bleibt auf dem Handy. Für PDF und Unterschrift braucht es Signal.",
+  "Cantiere tolto dall'ufficio": "Baustelle vom Büro entfernt",
+  "{codice} non è più tra i lavori: non si possono mandare rapportini, foto o bolle. Se ci stai ancora lavorando, avvisa l'ufficio.": "{codice} ist nicht mehr bei den Aufträgen: Berichte, Fotos oder Lieferscheine können nicht gesendet werden. Wenn du dort noch arbeitest, sag dem Büro Bescheid.",
 };
 export default dizionario;

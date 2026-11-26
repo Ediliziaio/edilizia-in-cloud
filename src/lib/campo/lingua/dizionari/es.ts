@@ -69188,5 +69188,17 @@ const dizionario: Dizionario = {
   "1 ordine dall'impresa da chiudere": "1 orden de la empresa por cerrar",
   "{n} ordini dall'impresa da chiudere": "{n} órdenes de la empresa por cerrar",
   "Tutte le mie attività": "Todas mis tareas",
+  "Senza rete. Il verbale resta sul telefono e si salva da solo appena torna il segnale. Per il PDF e la firma serve la rete.": "Sin cobertura. El acta se queda en el móvil y se guarda sola en cuanto vuelva la señal. Para el PDF y la firma hace falta red.",
+  "Per mostrare il PDF al cliente serve la rete. Il verbale intanto resta sul telefono.": "Para enseñar el PDF al cliente hace falta red. Mientras tanto el acta se queda en el móvil.",
+  "Tornata la rete: bozza del verbale salvata.": "Ha vuelto la red: borrador del acta guardado.",
+  "Hai un verbale non ancora salvato": "Tienes un acta sin guardar",
+  "«{titolo}», compilato senza rete. Riprendilo: si salva appena c'è segnale.": "«{titolo}», rellenada sin cobertura. Retómala: se guarda en cuanto haya señal.",
+  "Buttare il verbale non salvato?": "¿Tirar el acta sin guardar?",
+  "Quello che hai scritto si perde.": "Lo que escribiste se pierde.",
+  "Butta": "Tirar",
+  "Tieni": "Mantener",
+  "Senza rete: quello che scrivi resta sul telefono. Per il PDF e la firma serve il segnale.": "Sin cobertura: lo que escribes se queda en el móvil. Para el PDF y la firma hace falta señal.",
+  "Cantiere tolto dall'ufficio": "Obra quitada por la oficina",
+  "{codice} non è più tra i lavori: non si possono mandare rapportini, foto o bolle. Se ci stai ancora lavorando, avvisa l'ufficio.": "{codice} ya no está entre los trabajos: no se pueden enviar partes, fotos ni albaranes. Si sigues trabajando allí, avisa a la oficina.",
 };
 export default dizionario;

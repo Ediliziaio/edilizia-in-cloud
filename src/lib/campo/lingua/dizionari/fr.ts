@@ -69188,5 +69188,17 @@ const dizionario: Dizionario = {
   "1 ordine dall'impresa da chiudere": "1 ordre de l’entreprise à clôturer",
   "{n} ordini dall'impresa da chiudere": "{n} ordres de l’entreprise à clôturer",
   "Tutte le mie attività": "Toutes mes tâches",
+  "Senza rete. Il verbale resta sul telefono e si salva da solo appena torna il segnale. Per il PDF e la firma serve la rete.": "Pas de réseau. Le procès-verbal reste sur le téléphone et s’enregistre tout seul dès que le signal revient. Le PDF et la signature demandent le réseau.",
+  "Per mostrare il PDF al cliente serve la rete. Il verbale intanto resta sul telefono.": "Pour montrer le PDF au client il faut le réseau. En attendant, le procès-verbal reste sur le téléphone.",
+  "Tornata la rete: bozza del verbale salvata.": "Le réseau est revenu : brouillon du procès-verbal enregistré.",
+  "Hai un verbale non ancora salvato": "Tu as un procès-verbal pas encore enregistré",
+  "«{titolo}», compilato senza rete. Riprendilo: si salva appena c'è segnale.": "« {titolo} », rempli sans réseau. Reprends-le : il s’enregistre dès qu’il y a du signal.",
+  "Buttare il verbale non salvato?": "Jeter le procès-verbal non enregistré ?",
+  "Quello che hai scritto si perde.": "Ce que tu as écrit sera perdu.",
+  "Butta": "Jeter",
+  "Tieni": "Garder",
+  "Senza rete: quello che scrivi resta sul telefono. Per il PDF e la firma serve il segnale.": "Pas de réseau : ce que tu écris reste sur le téléphone. Le PDF et la signature demandent du signal.",
+  "Cantiere tolto dall'ufficio": "Chantier retiré par le bureau",
+  "{codice} non è più tra i lavori: non si possono mandare rapportini, foto o bolle. Se ci stai ancora lavorando, avvisa l'ufficio.": "{codice} ne fait plus partie des travaux : on ne peut plus envoyer de rapports, photos ou bons de livraison. Si tu y travailles encore, préviens le bureau.",
 };
 export default dizionario;

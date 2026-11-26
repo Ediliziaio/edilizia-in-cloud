@@ -69188,5 +69188,17 @@ const dizionario: Dizionario = {
   "1 ordine dall'impresa da chiudere": "1 order from the company to close",
   "{n} ordini dall'impresa da chiudere": "{n} orders from the company to close",
   "Tutte le mie attività": "All my tasks",
+  "Senza rete. Il verbale resta sul telefono e si salva da solo appena torna il segnale. Per il PDF e la firma serve la rete.": "No network. The report stays on the phone and saves by itself as soon as the signal is back. The PDF and signature need the network.",
+  "Per mostrare il PDF al cliente serve la rete. Il verbale intanto resta sul telefono.": "You need the network to show the PDF to the client. Meanwhile the report stays on the phone.",
+  "Tornata la rete: bozza del verbale salvata.": "Network is back: report draft saved.",
+  "Hai un verbale non ancora salvato": "You have a report not saved yet",
+  "«{titolo}», compilato senza rete. Riprendilo: si salva appena c'è segnale.": "“{titolo}”, filled in without network. Open it again: it saves as soon as there is signal.",
+  "Buttare il verbale non salvato?": "Discard the unsaved report?",
+  "Quello che hai scritto si perde.": "What you wrote will be lost.",
+  "Butta": "Discard",
+  "Tieni": "Keep",
+  "Senza rete: quello che scrivi resta sul telefono. Per il PDF e la firma serve il segnale.": "No network: what you write stays on the phone. The PDF and signature need signal.",
+  "Cantiere tolto dall'ufficio": "Site removed by the office",
+  "{codice} non è più tra i lavori: non si possono mandare rapportini, foto o bolle. Se ci stai ancora lavorando, avvisa l'ufficio.": "{codice} is no longer among the jobs: you can't send reports, photos or delivery notes. If you're still working there, tell the office.",
 };
 export default dizionario;

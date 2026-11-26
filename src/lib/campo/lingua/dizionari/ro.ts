@@ -69228,5 +69228,17 @@ const dizionario: Dizionario = {
   "1 ordine dall'impresa da chiudere": "1 ordin de la firmă de închis",
   "{n} ordini dall'impresa da chiudere": "{n} ordine de la firmă de închis",
   "Tutte le mie attività": "Toate sarcinile mele",
+  "Senza rete. Il verbale resta sul telefono e si salva da solo appena torna il segnale. Per il PDF e la firma serve la rete.": "Fără semnal. Procesul-verbal rămâne pe telefon și se salvează singur când revine semnalul. Pentru PDF și semnătură e nevoie de rețea.",
+  "Per mostrare il PDF al cliente serve la rete. Il verbale intanto resta sul telefono.": "Ca să arăți PDF-ul clientului e nevoie de rețea. Între timp procesul-verbal rămâne pe telefon.",
+  "Tornata la rete: bozza del verbale salvata.": "A revenit rețeaua: ciorna procesului-verbal a fost salvată.",
+  "Hai un verbale non ancora salvato": "Ai un proces-verbal încă nesalvat",
+  "«{titolo}», compilato senza rete. Riprendilo: si salva appena c'è segnale.": "„{titolo}”, completat fără semnal. Redeschide-l: se salvează când e semnal.",
+  "Buttare il verbale non salvato?": "Arunci procesul-verbal nesalvat?",
+  "Quello che hai scritto si perde.": "Ce ai scris se pierde.",
+  "Butta": "Aruncă",
+  "Tieni": "Păstrează",
+  "Senza rete: quello che scrivi resta sul telefono. Per il PDF e la firma serve il segnale.": "Fără semnal: ce scrii rămâne pe telefon. Pentru PDF și semnătură e nevoie de semnal.",
+  "Cantiere tolto dall'ufficio": "Șantier scos de birou",
+  "{codice} non è più tra i lavori: non si possono mandare rapportini, foto o bolle. Se ci stai ancora lavorando, avvisa l'ufficio.": "{codice} nu mai e printre lucrări: nu se pot trimite rapoarte, poze sau avize. Dacă încă lucrezi acolo, anunță biroul.",
 };
 export default dizionario;

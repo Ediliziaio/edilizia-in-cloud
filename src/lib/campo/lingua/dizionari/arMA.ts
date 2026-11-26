@@ -69188,5 +69188,17 @@ const dizionario: Dizionario = {
   "1 ordine dall'impresa da chiudere": "أمر واحد من الشركة خاصو يتسالا",
   "{n} ordini dall'impresa da chiudere": "{n} أوامر من الشركة خاصهم يتسالاو",
   "Tutte le mie attività": "كاع الخدمات ديالي",
+  "Senza rete. Il verbale resta sul telefono e si salva da solo appena torna il segnale. Per il PDF e la firma serve la rete.": "ما كاينش الريزو. المحضر كيبقى ف التيليفون وكيتسجل بوحدو ملي يرجع الريزو. البي دي إف والتوقيع خاصهم الريزو.",
+  "Per mostrare il PDF al cliente serve la rete. Il verbale intanto resta sul telefono.": "باش توري البي دي إف للكليان خاص الريزو. دابا المحضر باقي ف التيليفون.",
+  "Tornata la rete: bozza del verbale salvata.": "رجع الريزو: المسودة ديال المحضر تسجلات.",
+  "Hai un verbale non ancora salvato": "عندك محضر مازال ما تسجلش",
+  "«{titolo}», compilato senza rete. Riprendilo: si salva appena c'è segnale.": "«{titolo}»، معمر بلا ريزو. رجع ليه: غادي يتسجل ملي يكون الريزو.",
+  "Buttare il verbale non salvato?": "نلوحو المحضر اللي ما تسجلش؟",
+  "Quello che hai scritto si perde.": "داكشي اللي كتبتي غادي يضيع.",
+  "Butta": "لوح",
+  "Tieni": "خلي",
+  "Senza rete: quello che scrivi resta sul telefono. Per il PDF e la firma serve il segnale.": "ما كاينش الريزو: داكشي اللي كتكتب كيبقى ف التيليفون. البي دي إف والتوقيع خاصهم الريزو.",
+  "Cantiere tolto dall'ufficio": "البيرو حيد الشانطي",
+  "{codice} non è più tra i lavori: non si possono mandare rapportini, foto o bolle. Se ci stai ancora lavorando, avvisa l'ufficio.": "{codice} ما بقاش من الخدمات: ما يمكنش تصيفط الرابور، التصاور ولا البونات. إلا مازال خدام تما، علم البيرو.",
 };
 export default dizionario;

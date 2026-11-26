@@ -69188,5 +69188,17 @@ const dizionario: Dizionario = {
   "1 ordine dall'impresa da chiudere": "أمر واحد من الشركة محتاج يتقفل",
   "{n} ordini dall'impresa da chiudere": "{n} أوامر من الشركة محتاجة تتقفل",
   "Tutte le mie attività": "كل مهامي",
+  "Senza rete. Il verbale resta sul telefono e si salva da solo appena torna il segnale. Per il PDF e la firma serve la rete.": "مفيش شبكة. المحضر هيفضل على الموبايل وهيتحفظ لوحده أول ما الشبكة ترجع. الـPDF والتوقيع محتاجين شبكة.",
+  "Per mostrare il PDF al cliente serve la rete. Il verbale intanto resta sul telefono.": "علشان توري الـPDF للعميل محتاج شبكة. لحد كده المحضر فاضل على الموبايل.",
+  "Tornata la rete: bozza del verbale salvata.": "الشبكة رجعت: مسودة المحضر اتحفظت.",
+  "Hai un verbale non ancora salvato": "عندك محضر لسه ما اتحفظش",
+  "«{titolo}», compilato senza rete. Riprendilo: si salva appena c'è segnale.": "«{titolo}»، اتملى من غير شبكة. افتحه تاني: هيتحفظ أول ما يبقى فيه شبكة.",
+  "Buttare il verbale non salvato?": "نرمي المحضر اللي ما اتحفظش؟",
+  "Quello che hai scritto si perde.": "اللي كتبته هيضيع.",
+  "Butta": "ارمي",
+  "Tieni": "سيبه",
+  "Senza rete: quello che scrivi resta sul telefono. Per il PDF e la firma serve il segnale.": "مفيش شبكة: اللي بتكتبه بيفضل على الموبايل. الـPDF والتوقيع محتاجين شبكة.",
+  "Cantiere tolto dall'ufficio": "المكتب شال الموقع",
+  "{codice} non è più tra i lavori: non si possono mandare rapportini, foto o bolle. Se ci stai ancora lavorando, avvisa l'ufficio.": "{codice} مبقاش من الشغل: مينفعش تبعت تقارير أو صور أو بونات. لو لسه شغال هناك، بلّغ المكتب.",
 };
 export default dizionario;

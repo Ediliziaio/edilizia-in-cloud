@@ -89,6 +89,8 @@ type CampoOrder = {
   work_start_date: string | null;
   work_end_date: string | null;
   customer: CampoCustomer | null;
+  /** Tolto dall'ufficio: la pagina si apre ancora da un vecchio link, ma non ci si lavora più (26/11/2026). */
+  deleted_at?: string | null;
 };
 
 type CampoAssignment = {
@@ -333,6 +335,7 @@ export default function CampoLavoroDetail() {
         percentuale_avanzamento,
         work_start_date,
         work_end_date,
+        deleted_at,
         customer:profiles!orders_customer_id_fkey(
           first_name, last_name, phone, email
         )
@@ -781,6 +784,24 @@ export default function CampoLavoroDetail() {
             {t("Torna indietro")}
           </button>
         </div>
+      </div>
+    );
+  }
+
+  // Cantiere tolto dall'ufficio (26/11/2026): prima la pagina si apriva da un vecchio link o da una notifica come se
+  // niente fosse, ma il server rifiutava regole e invii e l'app ricadeva sulle regole «come oggi».
+  if (assignment?.order?.deleted_at) {
+    return (
+      <div className="flex h-full min-h-[420px] flex-col items-center justify-center p-6 text-center">
+        <AlertCircle className="mb-3 h-10 w-10 text-muted-foreground" aria-hidden="true" />
+        <p className="font-semibold text-foreground">{t("Cantiere tolto dall'ufficio")}</p>
+        <p className="mt-1 max-w-xs text-sm text-muted-foreground">
+          {t("{codice} non è più tra i lavori: non si possono mandare rapportini, foto o bolle. Se ci stai ancora lavorando, avvisa l'ufficio.", { codice: assignment.order.order_code ?? t("Questo cantiere") })}
+        </p>
+        <button onClick={() => navigate("/campo")}
+          className="mt-4 min-h-11 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+          {t("Torna alla Home")}
+        </button>
       </div>
     );
   }

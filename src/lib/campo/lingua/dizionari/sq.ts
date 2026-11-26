@@ -69228,5 +69228,17 @@ const dizionario: Dizionario = {
   "1 ordine dall'impresa da chiudere": "1 urdhër nga firma për t'u mbyllur",
   "{n} ordini dall'impresa da chiudere": "{n} urdhra nga firma për t'u mbyllur",
   "Tutte le mie attività": "Të gjitha detyrat e mia",
+  "Senza rete. Il verbale resta sul telefono e si salva da solo appena torna il segnale. Per il PDF e la firma serve la rete.": "Pa rrjet. Procesverbali mbetet në telefon dhe ruhet vetë sapo kthehet sinjali. Për PDF-në dhe firmën duhet rrjeti.",
+  "Per mostrare il PDF al cliente serve la rete. Il verbale intanto resta sul telefono.": "Për t'i treguar PDF-në klientit duhet rrjeti. Ndërkohë procesverbali mbetet në telefon.",
+  "Tornata la rete: bozza del verbale salvata.": "U kthye rrjeti: drafti i procesverbalit u ruajt.",
+  "Hai un verbale non ancora salvato": "Ke një procesverbal ende të paruajtur",
+  "«{titolo}», compilato senza rete. Riprendilo: si salva appena c'è segnale.": "«{titolo}», i plotësuar pa rrjet. Rihape: ruhet sapo të ketë sinjal.",
+  "Buttare il verbale non salvato?": "Ta hedhësh procesverbalin e paruajtur?",
+  "Quello che hai scritto si perde.": "Ajo që ke shkruar humbet.",
+  "Butta": "Hidhe",
+  "Tieni": "Mbaje",
+  "Senza rete: quello che scrivi resta sul telefono. Per il PDF e la firma serve il segnale.": "Pa rrjet: ajo që shkruan mbetet në telefon. Për PDF-në dhe firmën duhet sinjal.",
+  "Cantiere tolto dall'ufficio": "Kantier i hequr nga zyra",
+  "{codice} non è più tra i lavori: non si possono mandare rapportini, foto o bolle. Se ci stai ancora lavorando, avvisa l'ufficio.": "{codice} nuk është më mes punëve: nuk mund të dërgohen raporte, foto apo fletëdërgesa. Nëse po punon ende atje, njofto zyrën.",
 };
 export default dizionario;
