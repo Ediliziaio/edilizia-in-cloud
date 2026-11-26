@@ -69039,5 +69039,10 @@ const dizionario: Dizionario = {
   "Manda all'ufficio": "ابعت للمكتب",
   "{n} lavoro extra dal cantiere da prezzare": "{n} شغل إضافي من الموقع محتاج تسعير",
   "{n} lavori extra dal cantiere da prezzare": "{n} أشغال إضافية من الموقع محتاجة تسعير",
+  "Per entrare in cantiere": "عشان تدخل الموقع",
+  "Per entrare in cantiere ti mancano:": "عشان تدخل الموقع ناقصك:",
+  "Hai tutti i documenti per entrare in cantiere.": "معاك كل المستندات عشان تدخل الموقع.",
+  "da caricare": "محتاج يترفع",
+  "scade presto": "هيخلص قريب",
 };
 export default dizionario;

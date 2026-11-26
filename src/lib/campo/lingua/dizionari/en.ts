@@ -69039,5 +69039,10 @@ const dizionario: Dizionario = {
   "Manda all'ufficio": "Send to the office",
   "{n} lavoro extra dal cantiere da prezzare": "{n} extra job from site to price",
   "{n} lavori extra dal cantiere da prezzare": "{n} extra jobs from site to price",
+  "Per entrare in cantiere": "To enter the site",
+  "Per entrare in cantiere ti mancano:": "To enter the site you still need:",
+  "Hai tutti i documenti per entrare in cantiere.": "You have all the documents to enter the site.",
+  "da caricare": "to upload",
+  "scade presto": "expires soon",
 };
 export default dizionario;

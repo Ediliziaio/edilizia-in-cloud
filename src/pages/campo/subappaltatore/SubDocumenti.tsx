@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { apriDocumentoDopoAttesa } from "@/lib/campo/apriDocumento";
 import { toast } from "sonner";
 import { PosDellaDitta } from "./PosDellaDitta";
+import { statoDocumentiDitta } from "@/lib/campo/documentiDitta";
 import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TIPI_DOCUMENTO = [
@@ -236,6 +237,28 @@ export default function SubDocumenti() {
       </div>
 
       <div className="px-4 py-4 space-y-4">
+        {/* Cosa manca per entrare in cantiere (piano campo completo 3.1). */}
+        {!isLoading && !isError && (() => {
+          const stati = statoDocumentiDitta(documenti, format(today, "yyyy-MM-dd"));
+          const daFare = stati.filter(d => d.stato !== "ok");
+          return (
+            <section aria-label={tr("Per entrare in cantiere")} className={cn("rounded-2xl border p-3", daFare.length ? "border-amber-300 bg-amber-50" : "border-emerald-300 bg-emerald-50")}>
+              <p className="text-sm font-semibold">{daFare.length ? tr("Per entrare in cantiere ti mancano:") : tr("Hai tutti i documenti per entrare in cantiere.")}</p>
+              {daFare.length > 0 && (
+                <ul className="mt-1 space-y-0.5 text-sm">
+                  {daFare.map(d => (
+                    <li key={d.tipo} className="flex items-center justify-between gap-2">
+                      <span>{tr(d.label)}</span>
+                      <span className={cn("text-xs font-semibold", d.stato === "in_scadenza" ? "text-amber-800" : "text-red-700")}>
+                        {d.stato === "manca" ? tr("da caricare") : d.stato === "scaduto" ? tr("scaduto") : tr("scade presto")}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          );
+        })()}
         {companyId && user?.id && <PosDellaDitta companyId={companyId} userId={user.id} />}
         {/* Alert scadenze */}
         {scadutiCount > 0 && (

@@ -69076,5 +69076,10 @@ const dizionario: Dizionario = {
   "Manda all'ufficio": "Dërgoje në zyrë",
   "{n} lavoro extra dal cantiere da prezzare": "{n} punë shtesë nga kantieri për t'u vlerësuar",
   "{n} lavori extra dal cantiere da prezzare": "{n} punë shtesë nga kantieri për t'u vlerësuar",
+  "Per entrare in cantiere": "Për të hyrë në kantier",
+  "Per entrare in cantiere ti mancano:": "Për të hyrë në kantier të mungojnë:",
+  "Hai tutti i documenti per entrare in cantiere.": "Ke të gjitha dokumentet për të hyrë në kantier.",
+  "da caricare": "për t'u ngarkuar",
+  "scade presto": "skadon së shpejti",
 };
 export default dizionario;

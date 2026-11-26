@@ -69076,5 +69076,10 @@ const dizionario: Dizionario = {
   "Manda all'ufficio": "Trimite la birou",
   "{n} lavoro extra dal cantiere da prezzare": "{n} lucrare suplimentară de pe șantier de evaluat",
   "{n} lavori extra dal cantiere da prezzare": "{n} lucrări suplimentare de pe șantier de evaluat",
+  "Per entrare in cantiere": "Pentru a intra pe șantier",
+  "Per entrare in cantiere ti mancano:": "Ca să intri pe șantier îți lipsesc:",
+  "Hai tutti i documenti per entrare in cantiere.": "Ai toate documentele ca să intri pe șantier.",
+  "da caricare": "de încărcat",
+  "scade presto": "expiră curând",
 };
 export default dizionario;

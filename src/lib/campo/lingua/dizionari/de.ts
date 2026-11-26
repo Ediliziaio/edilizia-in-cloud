@@ -69039,5 +69039,10 @@ const dizionario: Dizionario = {
   "Manda all'ufficio": "An das Büro senden",
   "{n} lavoro extra dal cantiere da prezzare": "{n} Zusatzarbeit von der Baustelle zu bepreisen",
   "{n} lavori extra dal cantiere da prezzare": "{n} Zusatzarbeiten von der Baustelle zu bepreisen",
+  "Per entrare in cantiere": "Um die Baustelle zu betreten",
+  "Per entrare in cantiere ti mancano:": "Um die Baustelle zu betreten, fehlen dir:",
+  "Hai tutti i documenti per entrare in cantiere.": "Du hast alle Dokumente, um die Baustelle zu betreten.",
+  "da caricare": "hochzuladen",
+  "scade presto": "läuft bald ab",
 };
 export default dizionario;
