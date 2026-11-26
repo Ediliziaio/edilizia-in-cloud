@@ -61379,6 +61379,7 @@ export type Database = {
           telefono: string | null
           telefono_privato: string | null
           timbra_dall_app: boolean
+          vede_telefono_clienti: boolean
           tipo_contratto: string | null
           updated_at: string | null
           user_id: string | null
@@ -61442,6 +61443,7 @@ export type Database = {
           telefono?: string | null
           telefono_privato?: string | null
           timbra_dall_app?: boolean
+          vede_telefono_clienti?: boolean
           tipo_contratto?: string | null
           updated_at?: string | null
           user_id?: string | null
@@ -61505,6 +61507,7 @@ export type Database = {
           telefono?: string | null
           telefono_privato?: string | null
           timbra_dall_app?: boolean
+          vede_telefono_clienti?: boolean
           tipo_contratto?: string | null
           updated_at?: string | null
           user_id?: string | null

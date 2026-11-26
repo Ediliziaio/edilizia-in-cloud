@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import {
   dbInterventi, giornoRoma, interventoFatto, interventoIniziato, linkMappa, oraRoma, prossimoIntervento, spostaGiorno,
-  useMieiInterventi, type InterventoCampo,
+  useMieiInterventi, useRapportiIntervento, type InterventoCampo,
 } from "@/lib/campo/interventi";
 
 const BUCKET = "campo-foto";
@@ -52,7 +52,7 @@ export default function CampoIntervento() {
     );
   }
   return <Dettaglio key={intervento.id} intervento={intervento} tutti={lista.data ?? []} userId={user?.id ?? ""}
-    aggiorna={() => qc.invalidateQueries({ queryKey: ["campo-interventi"] })} />;
+    aggiorna={() => { void qc.invalidateQueries({ queryKey: ["campo-interventi"] }); void qc.invalidateQueries({ queryKey: ["campo-intervento-rapporti"] }); void qc.invalidateQueries({ queryKey: ["campo-miei-interventi"] }); }} />;
 }
 
 function Dettaglio({ intervento: i, tutti, userId, aggiorna }: { intervento: InterventoCampo; tutti: InterventoCampo[]; userId: string; aggiorna: () => void }) {
@@ -156,7 +156,8 @@ function Dettaglio({ intervento: i, tutti, userId, aggiorna }: { intervento: Int
         <div className="grid grid-cols-2 gap-2">
           {i.cliente?.telefono
             ? <Button asChild variant="outline" className="h-11"><a href={`tel:${i.cliente.telefono.replace(/\s+/g, "")}`}><Phone className="mr-1.5 size-4" />{t("Chiama")}</a></Button>
-            : <Button variant="outline" className="h-11" disabled><Phone className="mr-1.5 size-4" />{t("Nessun telefono")}</Button>}
+            // Il numero non c'è, o l'azienda non lo dà a tutti (26/11/2026): si chiede all'ufficio.
+            : <Button variant="outline" className="h-11" disabled><Phone className="mr-1.5 size-4" />{t("Numero all'ufficio")}</Button>}
           {i.indirizzo
             ? <Button asChild variant="outline" className="h-11"><a href={linkMappa(i.indirizzo)} target="_blank" rel="noreferrer"><Navigation className="mr-1.5 size-4" />{t("Portami lì")}</a></Button>
             : <Button variant="outline" className="h-11" disabled><Navigation className="mr-1.5 size-4" />{t("Senza indirizzo")}</Button>}
@@ -254,6 +255,8 @@ function Dettaglio({ intervento: i, tutti, userId, aggiorna }: { intervento: Int
         </section>
       )}
 
+      <RapportiIntervento ticketId={i.id} />
+
       {/* 5. Fatto: il prossimo. */}
       {(fatto || appenaFinito) && (
         <section className="space-y-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
@@ -270,5 +273,36 @@ function Dettaglio({ intervento: i, tutti, userId, aggiorna }: { intervento: Int
         </section>
       )}
     </div>
+  );
+}
+
+/** I rapporti dell'intervento (26/11/2026): ogni visita, mia o dei colleghi, e quelli scritti dall'ufficio. */
+function RapportiIntervento({ ticketId }: { ticketId: string }) {
+  const t = useT();
+  const { data = [] } = useRapportiIntervento(ticketId);
+  const finiti = data.filter(r => r.finito_at);
+  if (!finiti.length) return null;
+  const quando = (iso: string) => new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  return (
+    <section aria-labelledby="rapporti-intervento" className="space-y-2 rounded-2xl border bg-background p-3">
+      <h2 id="rapporti-intervento" className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{t("Rapporti dell'intervento")}</h2>
+      <ul className="divide-y">
+        {finiti.map(r => (
+          <li key={r.id} className="space-y-0.5 py-2 text-sm">
+            <p className="text-xs text-muted-foreground">
+              {[quando(r.finito_at!), r.mio ? t("tu") : r.chi, r.dall_ufficio ? t("scritto dall'ufficio") : null,
+                r.ore != null ? t("{n} ore", { n: String(r.ore).replace(".", ",") }) : null].filter(Boolean).join(" · ")}
+            </p>
+            {r.note && <p dir="auto" className="whitespace-pre-line">{r.note}</p>}
+            {r.materiali && <p className="text-xs"><span className="font-semibold">{t("Materiale usato")}:</span> {r.materiali}</p>}
+            {(r.foto > 0 || r.firmato_da != null) && (
+              <p className="text-xs text-muted-foreground">
+                {[r.foto > 0 ? t("{n} foto", { n: r.foto }) : null, r.firmato_da != null ? (r.firmato_da ? t("firmato da {nome}", { nome: r.firmato_da }) : t("firmato dal cliente")) : null].filter(Boolean).join(" · ")}
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

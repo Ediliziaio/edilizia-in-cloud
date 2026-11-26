@@ -186,7 +186,7 @@ export default function CampoHome() {
       {isOperaio && sera && <RapportiniDaCompilareOggi />}
 
       {/* Gli interventi brevi di oggi (manutenzioni, assistenze), in ordine di orario: prima dei cantieri lunghi. */}
-      {isOperaio && <InterventiDelGiorno giorno={giornoRoma(new Date().toISOString())} />}
+      {(isOperaio || isSubappaltatore) && <InterventiDelGiorno giorno={giornoRoma(new Date().toISOString())} />}
 
       {/* Oggi: dove vai, cosa fai, con chi e chi chiamare — le TUE date */}
       {(isOperaio || isSubappaltatore) && <CampoOggi memoria={azienda && user?.id ? `${azienda}:${user.id}` : undefined}

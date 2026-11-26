@@ -30,7 +30,7 @@ export interface InterventoCampo {
   firma_obbligatoria: boolean;
 }
 
-type Rpc = "campo_miei_interventi" | "campo_intervento_inizia" | "campo_intervento_chiudi";
+type Rpc = "campo_miei_interventi" | "campo_intervento_inizia" | "campo_intervento_chiudi" | "campo_intervento_rapporti" | "campo_vedo_telefono_clienti";
 export const dbInterventi = () => supabase as unknown as {
   rpc: (nome: Rpc, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
 };
@@ -75,3 +75,37 @@ export function prossimoIntervento(lista: InterventoCampo[], dopoId: string): In
 }
 
 export const linkMappa = (indirizzo: string) => `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(indirizzo)}`;
+
+/** Un rapporto dell'intervento: una visita di un tecnico, o il rapporto scritto dall'ufficio. */
+export interface RapportoIntervento {
+  id: string; chi: string | null; mio: boolean; dall_ufficio: boolean; iniziato_at: string | null; finito_at: string | null;
+  note: string | null; ore: number | null; materiali: string | null; foto: number; firmato_da: string | null;
+}
+
+export function useRapportiIntervento(ticketId: string | undefined) {
+  return useQuery<RapportoIntervento[]>({
+    queryKey: ["campo-intervento-rapporti", ticketId],
+    enabled: !!ticketId,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data, error } = await dbInterventi().rpc("campo_intervento_rapporti", { p_ticket: ticketId });
+      if (error) throw new Error(error.message);
+      return Array.isArray(data) ? (data as RapportoIntervento[]) : [];
+    },
+  });
+}
+
+/** Io vedo il telefono dei clienti? Lo decide l'azienda (tutti / chi ha la spunta nella scheda / nessuno). */
+export function useVedoTelefonoClienti() {
+  const { user } = useAuth();
+  return useQuery<boolean>({
+    queryKey: ["campo-vedo-telefono-clienti", user?.id],
+    enabled: !!user?.id,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await dbInterventi().rpc("campo_vedo_telefono_clienti", {});
+      if (error) return false; // nel dubbio non si mostra
+      return data !== false;
+    },
+  });
+}

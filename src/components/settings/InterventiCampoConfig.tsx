@@ -15,7 +15,8 @@ import { UniformSelect } from "@/components/ui/uniform-select";
 import { motivoDelRifiuto } from "@/lib/impostazioni/erroriPerUtente";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
-type Rpc = "campo_avvisi_azienda_leggi" | "campo_avvisi_azienda_salva_interventi";
+type Rpc = "campo_avvisi_azienda_leggi" | "campo_avvisi_azienda_salva_interventi" | "campo_avvisi_azienda_salva_telefono";
+type Telefono = "tutti" | "autorizzati" | "nessuno";
 const db = () => supabase as unknown as {
   rpc: (nome: Rpc, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
 };
@@ -30,21 +31,25 @@ export function InterventiCampoConfig({ companyId, canEdit }: { companyId: strin
   const [salvo, setSalvo] = useState(false);
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: chiave(companyId),
-    queryFn: async (): Promise<{ firma: Firma; stato: StatoFine }> => {
+    queryFn: async (): Promise<{ firma: Firma; stato: StatoFine; telefono: Telefono }> => {
       const { data: d, error } = await db().rpc("campo_avvisi_azienda_leggi", { p_company_id: companyId });
       if (error) throw error;
-      const r = d as { intervento_firma?: string; intervento_stato_fine?: string } | null;
+      const r = d as { intervento_firma?: string; intervento_stato_fine?: string; telefono_cliente?: string } | null;
       return {
+        telefono: r?.telefono_cliente === "autorizzati" || r?.telefono_cliente === "nessuno" ? r.telefono_cliente : "tutti",
         firma: r?.intervento_firma === "obbligatoria" ? "obbligatoria" : "facoltativa",
         stato: r?.intervento_stato_fine === "da_fatturare" || r?.intervento_stato_fine === "chiuso" ? r.intervento_stato_fine : "risolto",
       };
     },
   });
 
-  const salva = async (prossimo: { firma: Firma; stato: StatoFine }) => {
+  const salva = async (prossimo: { firma: Firma; stato: StatoFine; telefono: Telefono }) => {
     setSalvo(true);
     try {
-      const { error } = await db().rpc("campo_avvisi_azienda_salva_interventi", { p_company_id: companyId, p_firma: prossimo.firma, p_stato_fine: prossimo.stato });
+      const telefonoCambiato = prossimo.telefono !== data?.telefono;
+      const { error } = telefonoCambiato
+        ? await db().rpc("campo_avvisi_azienda_salva_telefono", { p_company_id: companyId, p_valore: prossimo.telefono })
+        : await db().rpc("campo_avvisi_azienda_salva_interventi", { p_company_id: companyId, p_firma: prossimo.firma, p_stato_fine: prossimo.stato });
       if (error) throw error;
       qc.setQueryData(chiave(companyId), prossimo);
       toast.success(t("Impostazione salvata"));
@@ -52,7 +57,7 @@ export function InterventiCampoConfig({ companyId, canEdit }: { companyId: strin
       toast.error(motivoDelRifiuto(e, t("Non sono riuscito a salvare: riprova.")));
     } finally { setSalvo(false); }
   };
-  const attuale = data ?? { firma: "facoltativa" as Firma, stato: "risolto" as StatoFine };
+  const attuale = data ?? { firma: "facoltativa" as Firma, stato: "risolto" as StatoFine, telefono: "tutti" as Telefono };
   const fermo = !canEdit || isLoading || salvo;
 
   return (
@@ -80,6 +85,15 @@ export function InterventiCampoConfig({ companyId, canEdit }: { companyId: strin
               <option value="risolto">{t("Risolto: poi controlla l'ufficio")}</option>
               <option value="da_fatturare">{t("Da fatturare")}</option>
               <option value="chiuso">{t("Chiuso subito")}</option>
+            </UniformSelect>
+          </div>
+          <div className="grid gap-1 sm:col-span-2">
+            <Label htmlFor="telefono-cliente" className="text-sm font-medium">{t("Chi vede il telefono del cliente nell'app")}</Label>
+            <UniformSelect id="telefono-cliente" className="h-10 w-full rounded-md border bg-background px-3 text-sm" disabled={fermo}
+              value={attuale.telefono} onChange={e => void salva({ ...attuale, telefono: e.target.value as Telefono })}>
+              <option value="tutti">{t("Tutti i tecnici dell'intervento (nel cantiere solo il capocantiere)")}</option>
+              <option value="autorizzati">{t("Solo chi ha «Vede il telefono dei clienti» nella scheda del personale")}</option>
+              <option value="nessuno">{t("Nessuno: il cliente lo chiama l'ufficio")}</option>
             </UniformSelect>
           </div>
           {!canEdit && <p className="text-xs text-muted-foreground sm:col-span-2">{t("La cambia chi può modificare la configurazione delle commesse.")}</p>}

@@ -442,6 +442,19 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfil
                           />
                         </div>
                       )}
+                      {watch("lavora_in_cantiere") && (
+                        <div className="col-span-2 flex items-center justify-between rounded-md border px-3 py-2 max-sm:order-last">
+                          <div>
+                            <Label htmlFor="hr-vede-telefono">{t("Vede il telefono dei clienti")}</Label>
+                            <p className="text-xs text-muted-foreground max-sm:hidden">{t("Conta solo se l'azienda ha scelto «Solo chi ha la spunta» (Regole dell'area operai).")}</p>
+                          </div>
+                          <Switch
+                            id="hr-vede-telefono"
+                            checked={watch("vede_telefono_clienti") ?? false}
+                            onCheckedChange={(checked) => setValue("vede_telefono_clienti", checked)}
+                          />
+                        </div>
+                      )}
                       {profilo?.user_id && <LinguaAppDipendente userId={profilo.user_id} />}
                     </div>
                   </div>
