@@ -10,6 +10,7 @@ import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { toast } from "sonner";
+import { messaggioErrore, testoGrezzoErrore } from "@/lib/messaggioErrore";
 import { segnalaBloccoDaRisposta } from "@/lib/creditoEsaurito";
 import type { EmailCategoria, EntitaTipo } from "./types";
 import { LIMITE_ELENCO, TIPO_ALTRO } from "./documentiDaConfermare";
@@ -224,7 +225,6 @@ export function useL1Backfill() {
 // ─── MP-EMAIL-AI-05 — CRUD regole instradamento ──────────────────────────────
 
 import type { Condizione, Azione } from "./rules-engine";
-import { messaggioErrore, testoGrezzoErrore } from "@/lib/messaggioErrore";
 
 export interface EmailRegola {
   id: string;
