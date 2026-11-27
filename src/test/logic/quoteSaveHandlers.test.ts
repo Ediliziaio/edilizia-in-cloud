@@ -8,6 +8,7 @@ import { quoteWriteVersion } from "@/lib/preventivi/quoteWriteVersion";
 import { esitoUpdateConGuardia, isConflittoModifica } from "@/lib/concorrenza";
 import { assertSavedQuoteAmounts } from "@/lib/preventivi/quoteSaveValidation";
 import { serializeQuoteDraft, readQuoteDraft, quoteDraftInputHash } from "@/lib/preventivi/quoteDraft";
+import { calcolaQuoteIva, serializzaIvaMista } from "@/lib/orders/ivaMista";
 import { descrizioneConMisure, righeConMisureIncomplete, salvaMisurePreventivo } from "@/lib/preventivi/misurePreventivo";
 
 // Execute the real handlers, with synthetic services only. This catches ordering
@@ -163,9 +164,11 @@ function fixture(failAttachment: boolean, legacy = false, newQuote = false) {
       return query;
     } },
   };
-  for (const key of ["contactId", "customerId", "clientName", "clientEmail", "clientPhone", "clientCompany", "clientAddress", "clientFiscalCode", "clientVatNumber", "clientCodiceUnivoco", "cronoprogramma", "title", "description", "notes", "internalNotes", "paymentMethod", "prezzoManuale", "prezzoManualeIvaPct", "effectiveSelectedTemplateId", "tipoLavoro", "indirizzoLavori", "pianoInstallazione", "kmCantiere", "salespersonId", "sedeId", "renderUrl", "renderSessionId", "pdfFirma", "layoutOverride", "pdfPrezziRiga", "pdfSoloTotale", "pdfSconti", "pdfImmagini", "pdfSchedeTecniche", "pdfMisure", "pdfAttributi", "pdfNoteCliente", "pdfCondizioni", "condizioniTesto", "pdfWatermarkText", "pdfCopiaDestinatario", "clienteDaUrl"]) context[key] = null;
+  for (const key of ["contactId", "customerId", "clientName", "clientEmail", "clientPhone", "clientCompany", "clientAddress", "clientFiscalCode", "clientVatNumber", "clientCodiceUnivoco", "cronoprogramma", "title", "description", "notes", "internalNotes", "paymentMethod", "prezzoManuale", "prezzoManualeIvaPct", "prezzoManualeIvaMista", "effectiveSelectedTemplateId", "tipoLavoro", "indirizzoLavori", "pianoInstallazione", "kmCantiere", "salespersonId", "sedeId", "renderUrl", "renderSessionId", "pdfFirma", "layoutOverride", "pdfPrezziRiga", "pdfSoloTotale", "pdfSconti", "pdfImmagini", "pdfSchedeTecniche", "pdfMisure", "pdfAttributi", "pdfNoteCliente", "pdfCondizioni", "condizioniTesto", "pdfWatermarkText", "pdfCopiaDestinatario", "clienteDaUrl"]) context[key] = null;
   // Il legame col cliente della scheda (10/11/2026): la funzione vera, nessun cliente arrivato dalla scheda.
   context.clienteDaCollegare = clienteDaCollegare;
+  // IVA mista a mano sul prezzo dell'offerta (datiTestata la serializza).
+  context.calcolaQuoteIva = calcolaQuoteIva; context.serializzaIvaMista = serializzaIvaMista;
   // Testata e righe si costruiscono fuori da handleSave dal 07/11/2026: le usa anche il PDF vero a destra.
   context.datiTestata = actualHandler("src/pages/azienda/marketing/QuoteBuilder.tsx", "datiTestata", context);
   context.righeDaSalvare = actualHandler("src/pages/azienda/marketing/QuoteBuilder.tsx", "righeDaSalvare", context);

@@ -1,3 +1,4 @@
+// 27/11/2026: il renderer stampa l'IVA mista a mano sul prezzo dell'offerta (quotes.prezzo_manuale_iva_mista: righe 10% e 22%). Questo commento fa ripubblicare la funzione.
 // 11/11/2026: il renderer stampa le rate a misura e il termine di pagamento. Questo commento fa ripubblicare la funzione.
 // 10/11/2026: ripubblicata per _shared/quoteTemplateComposer, contrattoStandard e punteggiatura (niente doppio punto).
 // 09/11/2026: il renderer comune stampa la veste propria dell'azienda (logo e piè). Questo commento fa ripubblicare la funzione.

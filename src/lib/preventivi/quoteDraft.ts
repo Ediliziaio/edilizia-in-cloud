@@ -36,6 +36,8 @@ export const quoteDraftSchema = z.object({
   tipoLavoro: text, indirizzoLavori: text, pianoInstallazione: number, kmCantiere: number,
   salespersonId: nullableText, sedeId: nullableText,
   discountPercent: number, prezzoManuale: number.nullable(), prezzoManualeIvaPct: number.nullable(),
+  // IVA mista a mano sul prezzo dell'offerta: le due quote 10%/22% (bozza del browser).
+  prezzoManualeIvaMista: z.object({ mode: z.enum(["net", "gross"]), amount10: text, amount22: text }).nullable().optional(),
   provvigionePct: number, items: z.array(item),
   paymentMethod: text,
   cronoprogramma: z.array(z.object({ fase: text, durata: nullableText, descrizione: nullableText })).max(20).nullable().optional(),

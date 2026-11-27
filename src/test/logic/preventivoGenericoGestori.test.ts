@@ -10,6 +10,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
 import { clienteDaCollegare } from "@/lib/preventivi/preventiviCommittente";
+import { calcolaQuoteIva, serializzaIvaMista } from "@/lib/orders/ivaMista";
 import { describe, expect, it, vi } from "vitest";
 import { calcolaPrezzoFamiglia, type GridPoint } from "@/hooks/useFamilyPricing";
 import { calcolaTotaliPreventivo, ivaVoceNuova, normalizzaRigaSconto } from "@/hooks/usePreventivoCosti";
@@ -291,8 +292,10 @@ describe("Salvataggio: riga di sconto in negativo, margine vuoto se mancano cost
       isConflittoModifica, erroreAttuale: null, ambitoSalvataggio: "azienda:preventivo", queryClient: { invalidateQueries: () => {} },
       queryKeys: { quotes: { all: [], detail: (): string[] => [], items: (): string[] => [] } }, navigate: () => {}, toast, supabase,
     };
-    for (const k of ["contactId", "customerId", "clientName", "clientEmail", "clientPhone", "clientCompany", "clientAddress", "clientFiscalCode", "clientVatNumber", "clientCodiceUnivoco", "cronoprogramma", "title", "description", "notes", "internalNotes", "paymentMethod", "prezzoManuale", "prezzoManualeIvaPct", "effectiveSelectedTemplateId", "tipoLavoro", "indirizzoLavori", "pianoInstallazione", "kmCantiere", "salespersonId", "sedeId", "renderUrl", "renderSessionId", "pdfFirma", "layoutOverride", "pdfPrezziRiga", "pdfSoloTotale", "pdfSconti", "pdfImmagini", "pdfSchedeTecniche", "pdfMisure", "pdfAttributi", "pdfNoteCliente", "pdfCondizioni", "pdfWatermarkText", "pdfCopiaDestinatario", "condizioniTesto", "clienteDaUrl"]) contesto[k] = null;
+    for (const k of ["contactId", "customerId", "clientName", "clientEmail", "clientPhone", "clientCompany", "clientAddress", "clientFiscalCode", "clientVatNumber", "clientCodiceUnivoco", "cronoprogramma", "title", "description", "notes", "internalNotes", "paymentMethod", "prezzoManuale", "prezzoManualeIvaPct", "prezzoManualeIvaMista", "effectiveSelectedTemplateId", "tipoLavoro", "indirizzoLavori", "pianoInstallazione", "kmCantiere", "salespersonId", "sedeId", "renderUrl", "renderSessionId", "pdfFirma", "layoutOverride", "pdfPrezziRiga", "pdfSoloTotale", "pdfSconti", "pdfImmagini", "pdfSchedeTecniche", "pdfMisure", "pdfAttributi", "pdfNoteCliente", "pdfCondizioni", "pdfWatermarkText", "pdfCopiaDestinatario", "condizioniTesto", "clienteDaUrl"]) contesto[k] = null;
     contesto.clienteDaCollegare = clienteDaCollegare;
+    // IVA mista a mano sul prezzo dell'offerta (datiTestata la serializza).
+    contesto.calcolaQuoteIva = calcolaQuoteIva; contesto.serializzaIvaMista = serializzaIvaMista;
     // Testata e righe si costruiscono fuori da handleSave dal 07/11/2026: le usa anche il PDF vero a destra.
     const g = gestoriVeri(BUILDER, ["datiTestata", "righeDaSalvare", "handleSave"], contesto);
     return { esegui: () => g.handleSave() as Promise<void>, scritto, toast, totale: total };

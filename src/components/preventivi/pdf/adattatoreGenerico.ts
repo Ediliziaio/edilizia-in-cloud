@@ -7,6 +7,7 @@ import { coloreDelBlocco } from "../../../../supabase/functions/_shared/blocchiM
 import { nomeLeggibile } from "../../../../supabase/functions/_shared/impaginaPreventivo";
 import { formatCurrency } from "@/lib/formatters";
 import { CAPITOLI_EDILI } from "./ordineCapitoli";
+import { leggiIvaMista, calcolaQuoteIva } from "@/lib/orders/ivaMista";
 
 /** I soli capitoli del preventivo classico: la tabella e il prezzo con le modalità di pagamento. */
 export const ORDINE_PREVENTIVO_CLASSICO = CAPITOLI_EDILI.map((c) => ({ chiave: c.chiave, visibile: c.chiave === "piano" || c.chiave === "investimento" }));
@@ -36,9 +37,17 @@ export function datiGenerici(input: { quote: Riga; items: Riga[]; righePerIva?: 
   const conNomeLeggibile = (testo: unknown) => nomeCliente.length > 2 && typeof testo === "string"
     ? testo.split(nomeCliente).join(nomeLeggibile(nomeCliente)) : testo;
   const prezzoManuale = num(q.prezzo_manuale) > 0;
+  // IVA mista a mano sul prezzo dell'offerta: le quote 10%/22% salvate danno
+  // l'imponibile per aliquota; altrimenti un'unica aliquota (prezzo_manuale_iva_pct).
+  const mistaManuale = prezzoManuale ? leggiIvaMista(q.prezzo_manuale_iva_mista) : null;
+  const baseManuale = mistaManuale ? (() => {
+    const s = calcolaQuoteIva(mistaManuale);
+    return s.error ? undefined : { "10": s.rows[0].net, "22": s.rows[1].net };
+  })() : undefined;
   const iva = righeRiepilogoIva({ righe: input.righePerIva ?? items,
     subtotal: q.subtotal, discount_amount: q.discount_amount, total: q.total, discount_percent: q.discount_percent,
-    aliquotaManuale: prezzoManuale ? num(q.prezzo_manuale_iva_pct) : undefined,
+    aliquotaManuale: prezzoManuale && !baseManuale ? num(q.prezzo_manuale_iva_pct) : undefined,
+    baseManuale,
   });
   const imponibile = iva.subTotShown - iva.scontoShown;
   const totale = iva.totShown;

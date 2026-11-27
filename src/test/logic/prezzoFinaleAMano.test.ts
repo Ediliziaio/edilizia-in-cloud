@@ -214,6 +214,47 @@ describe("Il prezzo scritto a mano nel preventivo generico (QuoteBuilder)", () =
     expect(t.iva_breakdown).toEqual({ "0": 0 });
     expect(t.totale).toBe(12000);
   });
+
+  it("IVA mista a mano: le due quote 10%/22% ripartiscono il prezzo scritto", () => {
+    // Prezzo 10.000 netto spezzato a mano: 6.000 al 10% e 4.000 al 22%.
+    const t = calcolaTotaliPreventivo([riga(22), riga(10)], 0, 0, 10000, null, { mode: "net", amount10: "6000", amount22: "4000" });
+    expect(t.prezzo_manuale).toBe(true);
+    expect(t.subtotale_netto).toBeCloseTo(10000, 6);
+    expect(t.iva_breakdown).toEqual({ "10": 600, "22": 880 });
+    expect(t.totale).toBeCloseTo(11480, 6);
+  });
+
+  it("IVA mista: lo sconto globale scala le due quote IVA come nel ramo delle righe", () => {
+    // 10.000 − 10% sull'imponibile; l'IVA di ogni aliquota scende del 10%.
+    const t = calcolaTotaliPreventivo([riga(22)], 0, 10, 10000, null, { mode: "net", amount10: "6000", amount22: "4000" });
+    expect(t.subtotale_netto).toBeCloseTo(9000, 6);
+    expect(t.iva_breakdown).toEqual({ "10": 540, "22": 792 });
+    expect(t.totale).toBeCloseTo(10332, 6);
+  });
+
+  it("IVA mista con le quote IVA inclusa: lo scorporo dà lo stesso imponibile per aliquota", () => {
+    // 6.600 lordo al 10% → 6.000 netto; 4.880 lordo al 22% → 4.000 netto.
+    const t = calcolaTotaliPreventivo([riga(22)], 0, 0, 10000, null, { mode: "gross", amount10: "6600", amount22: "4880" });
+    expect(t.iva_breakdown).toEqual({ "10": 600, "22": 880 });
+  });
+
+  it("IVA mista con una sola aliquota usata: l'altra quota a 0 non crea una riga vuota", () => {
+    const t = calcolaTotaliPreventivo([riga(22)], 0, 0, 5000, null, { mode: "net", amount10: "0", amount22: "5000" });
+    expect(t.iva_breakdown).toEqual({ "22": 1100 });
+    expect(t.totale).toBeCloseTo(6100, 6);
+  });
+
+  it("IVA mista vuota o non valida: si ricade sull'aliquota unica", () => {
+    const t = calcolaTotaliPreventivo([riga(22)], 0, 0, 10000, 10, { mode: "net", amount10: "", amount22: "" });
+    expect(t.iva_breakdown).toEqual({ "10": 1000 });
+  });
+
+  it("IVA mista ignorata senza prezzo scritto: comanda l'IVA per riga", () => {
+    const righe = [riga(22, { quantity: 1, unit_price: 100 })];
+    const t = calcolaTotaliPreventivo(righe, 0, 0, null, null, { mode: "net", amount10: "50", amount22: "50" });
+    expect(t.prezzo_manuale).toBe(false);
+    expect(t.iva_breakdown).toEqual({ "22": 22 });
+  });
 });
 
 describe("Il campo del prezzo", () => {

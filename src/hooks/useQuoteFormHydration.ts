@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { type QuotePaymentPhase, parseQuotePaymentPhases } from "@/lib/preventivi/paymentTerms";
 import { type BonusLine, parseBonusLines } from "@/lib/orders/bonusFiscali";
+import { leggiIvaMista, type QuoteIvaMista } from "@/lib/orders/ivaMista";
 
 /**
  * P1-4: campi extra del preventivo (migration 20260324200*_preventivo_pro_v2).
@@ -27,6 +28,8 @@ export interface QuoteExtraFields {
   prezzo_manuale?: number | null;
   /** Aliquota IVA usata solo insieme a prezzo_manuale (qui l'IVA è per riga). */
   prezzo_manuale_iva_pct?: number | null;
+  /** IVA mista a mano sul prezzo dell'offerta: formato IvaMistaSalvata (ivaMista.ts). */
+  prezzo_manuale_iva_mista?: unknown;
 }
 
 export interface QuoteFormSetters {
@@ -49,6 +52,7 @@ export interface QuoteFormSetters {
   setDiscountPercent: (v: number) => void;
   setPrezzoManuale?: (v: number | null) => void;
   setPrezzoManualeIvaPct?: (v: number | null) => void;
+  setPrezzoManualeIvaMista?: (v: QuoteIvaMista | null) => void;
   setSelectedTemplateId: (v: string) => void;
   setTipoLavoro: (v: string) => void;
   setIndirizzoLavori: (v: string) => void;
@@ -132,6 +136,7 @@ export function useQuoteFormHydration(
     s.setDiscountPercent(q.discount_percent || 0);
     s.setPrezzoManuale?.(q.prezzo_manuale ?? null);
     s.setPrezzoManualeIvaPct?.(q.prezzo_manuale_iva_pct ?? null);
+    s.setPrezzoManualeIvaMista?.(leggiIvaMista(q.prezzo_manuale_iva_mista));
     if (q.template_id) {
       s.setSelectedTemplateId(q.template_id);
     }

@@ -9,7 +9,7 @@ describe("bozza completa preventivo classico", () => {
     title: "Offerta", description: "Progetto", validityDays: 30, notes: "Nota cliente",
     internalNotes: "Nota riservata", tipoLavoro: "Bagno", indirizzoLavori: "",
     pianoInstallazione: 0, kmCantiere: 0, salespersonId: null, sedeId: null,
-    discountPercent: 0, prezzoManuale: null, prezzoManualeIvaPct: 0, provvigionePct: 0,
+    discountPercent: 0, prezzoManuale: null, prezzoManualeIvaPct: 0, prezzoManualeIvaMista: null, provvigionePct: 0,
     items: [{ item_type: "product", item_category: "prodotto", name: "Porta",
       description: "", quantity: 1, unit_price: 100, discount_percent: 0, vat_rate: 22,
       unit_of_measure: "pz", sort_order: 0, prezzo_acquisto: 20, mostra_nel_pdf: false,

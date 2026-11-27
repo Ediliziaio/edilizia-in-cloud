@@ -98523,6 +98523,7 @@ export type Database = {
           pdf_watermark_text: string | null
           piano_installazione: number | null
           prezzo_manuale: number | null
+          prezzo_manuale_iva_mista: Json | null
           prezzo_manuale_iva_pct: number | null
           quote_number: string
           refused_at: string | null
@@ -98632,6 +98633,7 @@ export type Database = {
           pdf_watermark_text?: string | null
           piano_installazione?: number | null
           prezzo_manuale?: number | null
+          prezzo_manuale_iva_mista?: Json | null
           prezzo_manuale_iva_pct?: number | null
           quote_number: string
           refused_at?: string | null
@@ -98741,6 +98743,7 @@ export type Database = {
           pdf_watermark_text?: string | null
           piano_installazione?: number | null
           prezzo_manuale?: number | null
+          prezzo_manuale_iva_mista?: Json | null
           prezzo_manuale_iva_pct?: number | null
           quote_number?: string
           refused_at?: string | null

@@ -56,6 +56,13 @@ export function righeRiepilogoIva(input: {
   total: unknown;
   discount_percent: unknown;
   aliquotaManuale?: number;
+  /**
+   * Prezzo scritto a mano con IVA mista: l'imponibile per aliquota preso dalle
+   * quote salvate (10%/22%). Con le righe a 0 € non c'è da ripartire; questo è
+   * il riparto da usare, al posto di `aliquotaManuale`. La ripartizione segue lo
+   * stesso ordine di calcolo delle righe (ivaPerAliquota + residuo alla maggiore).
+   */
+  baseManuale?: Record<string, number>;
 }): { subTotShown: number; scontoShown: number; totShown: number; ivaToShow: number; righeIva: RigaIva[] } {
   const subTotShown = arrotondaComePostgres(numero(input.subtotal));
   const totShown = arrotondaComePostgres(numero(input.total));
@@ -73,13 +80,22 @@ export function righeRiepilogoIva(input: {
     return { subTotShown, scontoShown, totShown, ivaToShow, righeIva: [{ aliquota: input.aliquotaManuale, valore: ivaToShow }] };
   }
 
+  // Prezzo a mano con IVA mista: l'imponibile per aliquota viene dalle quote
+  // salvate, non dalle righe (che stanno a 0 €). Per il resto la ripartizione
+  // è identica al caso delle righe.
   const basePerAliquota: Record<string, number> = {};
-  for (const r of input.righe.filter((x) => !x.is_optional)) {
-    const aliquota = String(r.vat_rate == null || !Number.isFinite(Number(r.vat_rate)) ? 22 : Number(r.vat_rate));
-    const importo = r.line_total != null && r.line_total !== ""
-      ? numero(r.line_total)
-      : numero(r.quantity) * numero(r.unit_price) * (1 - numero(r.discount_percent) / 100);
-    basePerAliquota[aliquota] = (basePerAliquota[aliquota] || 0) + importo;
+  if (input.baseManuale) {
+    for (const [aliquota, base] of Object.entries(input.baseManuale)) {
+      if (numero(base) > 0) basePerAliquota[aliquota] = (basePerAliquota[aliquota] || 0) + numero(base);
+    }
+  } else {
+    for (const r of input.righe.filter((x) => !x.is_optional)) {
+      const aliquota = String(r.vat_rate == null || !Number.isFinite(Number(r.vat_rate)) ? 22 : Number(r.vat_rate));
+      const importo = r.line_total != null && r.line_total !== ""
+        ? numero(r.line_total)
+        : numero(r.quantity) * numero(r.unit_price) * (1 - numero(r.discount_percent) / 100);
+      basePerAliquota[aliquota] = (basePerAliquota[aliquota] || 0) + importo;
+    }
   }
   const ivaRate = ivaPerAliquota(basePerAliquota, numero(input.discount_percent));
   const aliquote = Object.keys(basePerAliquota).map(Number).sort((a, b) => a - b);

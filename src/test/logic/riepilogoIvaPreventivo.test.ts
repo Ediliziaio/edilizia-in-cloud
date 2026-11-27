@@ -27,6 +27,27 @@ describe("righeRiepilogoIva: scenari a mano", () => {
     expect(r.ivaToShow).toBe(748);
   });
 
+  it("prezzo a mano con IVA mista: due righe dal riparto salvato (10% e 22%)", () => {
+    // Righe a 0 € (prezzo scritto a mano): il riparto viene dalle quote salvate.
+    // 6.000 al 10% = 600 ; 4.000 al 22% = 880 ; totale 10.000 + 1.480 = 11.480.
+    const r = righeRiepilogoIva({
+      righe: [riga(0, 22), riga(0, 10)], subtotal: 10000, discount_amount: 0, total: 11480, discount_percent: 0,
+      baseManuale: { "10": 6000, "22": 4000 },
+    });
+    expect(r.righeIva).toEqual([{ aliquota: 10, valore: 600 }, { aliquota: 22, valore: 880 }]);
+    expect(somma2(r.righeIva.map((x) => x.valore))).toBe(r.ivaToShow);
+  });
+
+  it("prezzo a mano con IVA mista e sconto 10%: le righe IVA scendono e quadrano col totale", () => {
+    // 6.000/4.000 netti − 10% globale: IVA 540 + 792 = 1.332 ; totale 9.000 + 1.332 = 10.332.
+    const r = righeRiepilogoIva({
+      righe: [riga(0, 22)], subtotal: 10000, discount_amount: 1000, total: 10332, discount_percent: 10,
+      baseManuale: { "10": 6000, "22": 4000 },
+    });
+    expect(r.righeIva).toEqual([{ aliquota: 10, valore: 540 }, { aliquota: 22, valore: 792 }]);
+    expect(somma2([r.subTotShown, -r.scontoShown, r.ivaToShow])).toBe(r.totShown);
+  });
+
   it("tre aliquote con sconto 10%: 36 + 180 + 594 = 810, totale 6.210", () => {
     const r = righeRiepilogoIva({
       righe: [riga(1000, 4), riga(2000, 10), riga(3000, 22)], subtotal: 6000, discount_amount: 600, total: 6210, discount_percent: 10,

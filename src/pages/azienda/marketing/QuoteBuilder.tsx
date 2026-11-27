@@ -94,6 +94,8 @@ import { quoteWriteVersion } from "@/lib/preventivi/quoteWriteVersion";
 import { ProductSearchDialog } from "@/components/marketing/preventivi/ProductSearchDialog";
 import { QuoteDiscountControl } from "@/components/preventivi/QuoteDiscountControl";
 import { PrezzoPreventivoAMano } from "@/components/preventivi/PrezzoPreventivoAMano";
+import { QuoteIvaMista } from "@/components/orders/QuoteIvaMista";
+import { IVA_MISTA, calcolaIvaContratto, calcolaQuoteIva, quoteIvaVuote, serializzaIvaMista, cambiaModalitaQuote, type QuoteIvaMista as QuoteIvaMistaDraft } from "@/lib/orders/ivaMista";
 import { SceltaRenderDialog, type RenderScelto } from "@/components/preventivi/SceltaRenderDialog";
 // mp-preventivi-v2: slider sconto limitato integrato nello step 1 per preventivi esistenti
 import { isPreventivatoreUnifiedOn } from "@/lib/featureFlags";
@@ -417,6 +419,9 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   // per riga (aliquote miste): serve un'aliquota esplicita solo per questo caso.
   const [prezzoManuale, setPrezzoManuale] = useState<number | null>(null);
   const [prezzoManualeIvaPct, setPrezzoManualeIvaPct] = useState<number | null>(null);
+  // IVA mista a mano sul prezzo dell'offerta: le due quote 10%/22% (come la
+  // commessa). null = aliquota unica (prezzoManualeIvaPct).
+  const [prezzoManualeIvaMista, setPrezzoManualeIvaMista] = useState<QuoteIvaMistaDraft | null>(null);
   // FASE 11 Serramentisti — Margine Lordo Atteso:
   // provvigione commerciale (%) da sottrarre al margine in preview.
   // Sessione-only, non persistita in DB (preview calcolo per il venditore).
@@ -758,6 +763,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     setDiscountPercent,
     setPrezzoManuale,
     setPrezzoManualeIvaPct,
+    setPrezzoManualeIvaMista,
     setSelectedTemplateId,
     setTipoLavoro,
     setIndirizzoLavori,
@@ -1723,7 +1729,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     step, contactId, clientName, clientEmail, clientPhone, clientCompany,
     clientAddress, clientFiscalCode, clientVatNumber, clientCodiceUnivoco, tipoClienteScelto, title, description, validityDays,
     notes, internalNotes, tipoLavoro, indirizzoLavori, pianoInstallazione, kmCantiere,
-    salespersonId, sedeId, discountPercent, prezzoManuale, prezzoManualeIvaPct, provvigionePct,
+    salespersonId, sedeId, discountPercent, prezzoManuale, prezzoManualeIvaPct, prezzoManualeIvaMista, provvigionePct,
     items, paymentMethod, paymentPhases, cronoprogramma, bonusLines, selectedRenders, selectedMaterials,
     renderUrl, renderSessionId, renderOriginalUrl, selectedTemplateId, templateValues, layoutOverride, financingProposal,
     pdfPrezziRiga, pdfSoloTotale, pdfSconti, pdfImmagini, pdfSchedeTecniche, pdfFirma,
@@ -1850,6 +1856,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     if (d.discountPercent !== undefined) setDiscountPercent(d.discountPercent);
     if (d.prezzoManuale !== undefined) setPrezzoManuale(d.prezzoManuale);
     if (d.prezzoManualeIvaPct !== undefined) setPrezzoManualeIvaPct(d.prezzoManualeIvaPct);
+    if (d.prezzoManualeIvaMista !== undefined) setPrezzoManualeIvaMista(d.prezzoManualeIvaMista ?? null);
     if (d.provvigionePct !== undefined) setProvvigionePct(d.provvigionePct);
     // Le bozze di prima del 05/10/2026 possono avere righe «Sconto» in positivo.
     if (d.items !== undefined) setItems(d.items.map((it) => normalizzaRigaSconto(it)));
@@ -1937,7 +1944,8 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     impostazioni.overhead_percentuale ?? 0,
     discountPercent,
     prezzoManuale,
-    prezzoManualeIvaPct
+    prezzoManualeIvaPct,
+    prezzoManualeIvaMista
   );
   const subtotal = totaliPro.subtotale;
   const discountAmt = Math.round((subtotal - totaliPro.subtotale_netto) * 100) / 100;
@@ -1952,6 +1960,17 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   // Le righe del preventivo possono avere aliquote diverse: qui serve solo una
   // media per stimare il lordo dei bonifici, non un dato fiscale.
   const imponibilePreventivo = totaliPro.subtotale_netto;
+  // IVA mista a mano sul prezzo dell'offerta: il controllo somma-quote = prezzo,
+  // come sul contratto della commessa. L'errore blocca il salvataggio.
+  const ivaMistaFiscal = prezzoManuale && prezzoManualeIvaMista
+    ? calcolaIvaContratto(prezzoManuale, IVA_MISTA, prezzoManualeIvaMista)
+    : null;
+  const ivaMistaError = ivaMistaFiscal?.error ?? null;
+  // Le righe IVA da mostrare in economia (ripartizione per aliquota).
+  const ivaRighe = Object.entries(totaliPro.iva_breakdown)
+    .map(([aliquota, valore]) => ({ aliquota: Number(aliquota), valore }))
+    .filter((r) => r.valore > 0.0049)
+    .sort((a, b) => a.aliquota - b.aliquota);
   const livePreviewProps: QuoteLivePreviewProps = {
     ...localPreviewProps,
     template: haTesto(condizioniTesto)
@@ -2014,6 +2033,13 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       discount_percent: discountPercent,
       prezzo_manuale: prezzoManuale,
       prezzo_manuale_iva_pct: prezzoManualeIvaPct,
+      // IVA mista a mano sul prezzo dell'offerta: si salva solo se le due quote
+      // sono valide (stesso formato di orders.vat_breakdown). Altrimenti null =
+      // aliquota unica.
+      prezzo_manuale_iva_mista:
+        prezzoManualeIvaMista && !calcolaQuoteIva(prezzoManualeIvaMista).error
+          ? (serializzaIvaMista(prezzoManualeIvaMista) as unknown as Json)
+          : null,
       // L'autore resta chi l'ha creato: le notifiche di firma e scadenza vanno a lui.
       ...(isEdit ? {} : { created_by: user?.id }),
       template_id: effectiveSelectedTemplateId || null,
@@ -2138,6 +2164,10 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     }
     if ((opts?.anteprima || opts?.complete || status !== "bozza") && !prezziVenditaCompleti(items, prezzoManuale)) {
       toast.error(tr("Completa i prezzi di vendita"), { description: tr("I costi d’acquisto non sono prezzi cliente. Puoi comunque salvare una bozza.") });
+      return;
+    }
+    if ((opts?.anteprima || opts?.complete || status !== "bozza") && ivaMistaError) {
+      toast.error(tr("La ripartizione IVA mista non quadra"), { description: ivaMistaError });
       return;
     }
     if (isEdit && (!existingQuote || !existingItemsLoaded || !existingAttachmentsLoaded)) {
@@ -2391,7 +2421,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   const productLines = items.filter((item) => !["nota", "subtotale", "sconto"].includes(item.item_category));
   const productsReady = productLines.length > 0 && productLines.every((item) => !!item.name.trim());
   const paymentError = paymentPlanError(paymentPhases);
-  const quoteReady = clientReady && productsReady && !paymentError && !righeConMisureIncomplete(items) && prezziVenditaCompleti(items, prezzoManuale);
+  const quoteReady = clientReady && productsReady && !paymentError && !righeConMisureIncomplete(items) && prezziVenditaCompleti(items, prezzoManuale) && !ivaMistaError;
 
   // Prima le voci, poi la definizione del prezzo: stessa sequenza in modifica e riepilogo.
   const priceAndDiscountPanel = productLines.length > 0 ? (
@@ -2412,18 +2442,54 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
               <div className="space-y-2">
                 <PrezzoPreventivoAMano id="quote-prezzo-manuale" companyId={companyId} value={prezzoManuale} sommaVoci={totaliPro.somma_voci} showDisabledHint onCommit={(v) => {
                   setPrezzoManuale(v);
-                  if (v && prezzoManualeIvaPct == null) setPrezzoManualeIvaPct(ivaPredefinita());
-                  if (!v) setPrezzoManualeIvaPct(null);
+                  if (v && prezzoManualeIvaPct == null && !prezzoManualeIvaMista) setPrezzoManualeIvaPct(ivaPredefinita());
+                  if (!v) { setPrezzoManualeIvaPct(null); setPrezzoManualeIvaMista(null); }
                 }} />
-                {totaliPro.prezzo_manuale && <div className="flex items-center justify-between gap-3">
-                  <Label htmlFor="quote-prezzo-manuale-iva">{tr("IVA sul prezzo manuale (%)")}</Label>
-                  <Input id="quote-prezzo-manuale-iva" type="number" min={0} max={100} step={0.5} className="w-20" value={prezzoManualeIvaPct ?? 0} onChange={(e) => setPrezzoManualeIvaPct(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))} />
+                {totaliPro.prezzo_manuale && <div className="space-y-2">
+                  {/* Aliquota unica o IVA mista 10%/22% scritte a mano (come la commessa). */}
+                  <div className="flex items-center gap-2 text-xs">
+                    <button type="button" onClick={() => setPrezzoManualeIvaMista(null)} className={`rounded-full border px-2.5 py-1 font-medium ${!prezzoManualeIvaMista ? "border-primary bg-primary/10 text-primary" : "border-slate-200 text-slate-600"}`}>{tr("Aliquota unica")}</button>
+                    <button type="button" onClick={() => { setPrezzoManualeIvaMista(prezzoManualeIvaMista ?? quoteIvaVuote("net")); setPrezzoManualeIvaPct(null); }} className={`rounded-full border px-2.5 py-1 font-medium ${prezzoManualeIvaMista ? "border-primary bg-primary/10 text-primary" : "border-slate-200 text-slate-600"}`}>{tr("IVA mista · 10% e 22%")}</button>
+                  </div>
+                  {!prezzoManualeIvaMista ? (
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="quote-prezzo-manuale-iva">{tr("IVA sul prezzo manuale (%)")}</Label>
+                      <Input id="quote-prezzo-manuale-iva" type="number" min={0} max={100} step={0.5} className="w-20" value={prezzoManualeIvaPct ?? 0} onChange={(e) => setPrezzoManualeIvaPct(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))} />
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="text-slate-500">{tr("Le quote sono:")}</span>
+                        {(["net", "gross"] as const).map((m) => (
+                          <button key={m} type="button" onClick={() => setPrezzoManualeIvaMista((d) => d ? cambiaModalitaQuote(d, m) : d)} className={`rounded-full border px-2 py-0.5 ${prezzoManualeIvaMista.mode === m ? "border-primary bg-primary/10 text-primary" : "border-slate-200 text-slate-600"}`}>{m === "net" ? tr("IVA esclusa") : tr("IVA inclusa")}</button>
+                        ))}
+                      </div>
+                      <QuoteIvaMista
+                        value={prezzoManualeIvaMista}
+                        onChange={setPrezzoManualeIvaMista}
+                        error={ivaMistaError}
+                        onUseTotal={() => { const s = calcolaQuoteIva(prezzoManualeIvaMista!); if (!s.error) setPrezzoManuale(s.net); }}
+                      />
+                    </div>
+                  )}
                 </div>}
               </div>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 p-3 text-sm max-sm:gap-1 max-sm:px-3 max-sm:py-2 max-sm:text-xs">
-              <span className="text-slate-500">{tr("Imponibile {imponibilePreventivo} + IVA {vatAmount}", { imponibilePreventivo: formatCurrency(imponibilePreventivo), vatAmount: formatCurrency(vatAmount) })}</span>
-              <span className="font-semibold">{tr("Totale IVA inclusa")} <strong className="ml-2 text-lg text-primary">{formatCurrency(total)}</strong></span>
+            <div className="rounded-lg bg-slate-50 p-3 text-sm max-sm:px-3 max-sm:py-2 max-sm:text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-3 max-sm:gap-1">
+                <span className="text-slate-500">{tr("Imponibile {imponibilePreventivo} + IVA {vatAmount}", { imponibilePreventivo: formatCurrency(imponibilePreventivo), vatAmount: formatCurrency(vatAmount) })}</span>
+                <span className="font-semibold">{tr("Totale IVA inclusa")} <strong className="ml-2 text-lg text-primary">{formatCurrency(total)}</strong></span>
+              </div>
+              {/* Ripartizione dell'IVA per aliquota: compare quando ci sono più
+                  aliquote (IVA mista), così si vede la quota al 10% e al 22%. */}
+              {ivaRighe.length > 1 && (
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-200 pt-2 text-xs text-slate-600 tabular-nums">
+                  {ivaRighe.map((r) => (
+                    <span key={r.aliquota}>{tr("IVA {aliquota}%", { aliquota: String(r.aliquota) })}: <strong className="font-medium text-slate-800">{formatCurrency(r.valore)}</strong></span>
+                  ))}
+                </div>
+              )}
+              {ivaMistaError && <p className="mt-2 border-t border-amber-200 pt-2 text-xs font-medium text-amber-700">{ivaMistaError}</p>}
             </div>
             {/* Margine per chi lo può vedere (05/10/2026). Con una riga venduta
                 senza costo non si mostra: contava zero quel costo, fino al 100%.

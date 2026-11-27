@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { aliquotaComune, aliquotaValida, costoArticolo, costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
 import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
+import { calcolaQuoteIva, type QuoteIvaMista } from "@/lib/orders/ivaMista";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -271,7 +272,14 @@ export function calcolaTotaliPreventivo(
    * Aliquota IVA usata SOLO col prezzo scritto a mano: qui l'IVA è per riga
    * (aliquote miste), e con le righe a 0€ non c'è niente da ripartire.
    */
-  prezzo_manuale_iva_pct?: number | null
+  prezzo_manuale_iva_pct?: number | null,
+  /**
+   * IVA mista scritta a mano SOLO col prezzo a mano: le due quote (10% e 22%)
+   * che ripartiscono il prezzo. Stesso modello della commessa (ivaMista.ts). Se
+   * presente e valida, prende il posto di `prezzo_manuale_iva_pct`: l'IVA esce
+   * ripartita su due aliquote invece che una sola.
+   */
+  prezzo_manuale_iva_mista?: QuoteIvaMista | null
 ): {
   subtotale: number;
   subtotale_netto: number;
@@ -347,11 +355,25 @@ export function calcolaTotaliPreventivo(
   const vatFactor = 1 - scontoGlobale / 100;
   let iva_breakdown_netto: Record<string, number>;
   if (prezzoManualeAttivo) {
-    // Un'unica aliquota esplicita sul netto: con le righe a 0€ non c'è niente
-    // da ripartire per aliquota come nel ramo sotto. L'aliquota si salva su
-    // quotes.prezzo_manuale_iva_pct numeric(5,2): a due decimali.
-    const ivaPct = round2(numeroOZero(prezzo_manuale_iva_pct));
-    iva_breakdown_netto = { [String(ivaPct)]: round2(subtotale_netto * ivaPct / 100) };
+    // IVA mista a mano (10% e 22%): le due quote del prezzo scritto a mano
+    // (stesso modello della commessa). L'imponibile per aliquota viene dalle
+    // quote nette; l'IVA si arrotonda per aliquota e lo sconto globale la
+    // scala come nel ramo delle righe. Se le quote non sono valide (vuote o
+    // somma = 0) si ricade sull'aliquota unica.
+    const mista = prezzo_manuale_iva_mista ? calcolaQuoteIva(prezzo_manuale_iva_mista) : null;
+    if (mista && !mista.error) {
+      iva_breakdown_netto = {};
+      for (const row of mista.rows) {
+        if (round2(row.net) <= 0) continue; // aliquota non usata: niente riga
+        iva_breakdown_netto[String(row.rate)] = round2(row.net * row.rate / 100 * vatFactor);
+      }
+    } else {
+      // Un'unica aliquota esplicita sul netto: con le righe a 0€ non c'è niente
+      // da ripartire per aliquota come nel ramo sotto. L'aliquota si salva su
+      // quotes.prezzo_manuale_iva_pct numeric(5,2): a due decimali.
+      const ivaPct = round2(numeroOZero(prezzo_manuale_iva_pct));
+      iva_breakdown_netto = { [String(ivaPct)]: round2(subtotale_netto * ivaPct / 100) };
+    }
   } else {
     // IVA PER ALIQUOTA arrotondata al centesimo, POI sommata (standard fiscale
     // italiano: l'imposta si calcola e arrotonda per singola aliquota). Il
