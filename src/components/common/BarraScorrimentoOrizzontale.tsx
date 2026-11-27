@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
@@ -16,9 +16,11 @@ import { useT } from "@/lib/campo/lingua/LinguaCampo";
 export function BarraScorrimentoOrizzontale({
   contenitore,
   className,
+  mostraSempre = false,
 }: {
   contenitore: HTMLElement | null;
   className?: string;
+  mostraSempre?: boolean;
 }) {
   const t = useT();
   const [barra, setBarra] = useState({ visibile: false, sinistraPct: 0, larghezzaPct: 100 });
@@ -61,7 +63,7 @@ export function BarraScorrimentoOrizzontale({
       e.preventDefault();
       e.stopPropagation();
       const pista = pistaRef.current;
-      if (!contenitore || !pista) return;
+      if (!barra.visibile || !contenitore || !pista) return;
       e.currentTarget.setPointerCapture(e.pointerId);
       trascina.current = {
         startX: e.clientX,
@@ -69,7 +71,7 @@ export function BarraScorrimentoOrizzontale({
         larghezzaPista: pista.clientWidth,
       };
     },
-    [contenitore],
+    [barra.visibile, contenitore],
   );
 
   const muovi = useCallback(
@@ -97,7 +99,7 @@ export function BarraScorrimentoOrizzontale({
     (e: ReactPointerEvent<HTMLDivElement>) => {
       if (e.target !== e.currentTarget) return;
       const pista = pistaRef.current;
-      if (!contenitore || !pista) return;
+      if (!barra.visibile || !contenitore || !pista) return;
       const rect = pista.getBoundingClientRect();
       const rapporto = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
       contenitore.scrollTo({
@@ -105,10 +107,30 @@ export function BarraScorrimentoOrizzontale({
         behavior: "smooth",
       });
     },
-    [contenitore],
+    [barra.visibile, contenitore],
   );
 
-  if (!barra.visibile) return null;
+  const scorriDaTastiera = useCallback((e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!barra.visibile || !contenitore) return;
+    const passo = Math.max(40, Math.round(contenitore.clientWidth * 0.1));
+    const massimo = contenitore.scrollWidth - contenitore.clientWidth;
+    let posizione: number;
+    switch (e.key) {
+      case "ArrowLeft": posizione = contenitore.scrollLeft - passo; break;
+      case "ArrowRight": posizione = contenitore.scrollLeft + passo; break;
+      case "Home": posizione = 0; break;
+      case "End": posizione = massimo; break;
+      default: return;
+    }
+    e.preventDefault();
+    contenitore.scrollTo({ left: Math.min(massimo, Math.max(0, posizione)) });
+  }, [barra.visibile, contenitore]);
+
+  if (!contenitore || (!barra.visibile && !mostraSempre)) return null;
+
+  const progresso = barra.visibile
+    ? Math.round((barra.sinistraPct / (100 - barra.larghezzaPct)) * 100)
+    : 0;
 
   return (
     <div className={cn("shrink-0 px-1 pt-1", className)}>
@@ -121,14 +143,22 @@ export function BarraScorrimentoOrizzontale({
           role="scrollbar"
           aria-label={t("Scorri le colonne")}
           aria-orientation="horizontal"
+          aria-disabled={!barra.visibile}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-valuenow={Math.round(barra.sinistraPct)}
+          aria-valuenow={Math.min(100, Math.max(0, progresso))}
+          tabIndex={barra.visibile ? 0 : -1}
+          onKeyDown={scorriDaTastiera}
           onPointerDown={inizia}
           onPointerMove={muovi}
           onPointerUp={finisci}
           onPointerCancel={finisci}
-          className="absolute top-0 h-full min-w-[24px] touch-none cursor-grab rounded-full bg-muted-foreground/50 transition-colors hover:bg-muted-foreground/70 active:cursor-grabbing active:bg-muted-foreground/80"
+          className={cn(
+            "absolute top-0 h-full min-w-[24px] touch-none rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            barra.visibile
+              ? "cursor-grab bg-muted-foreground/50 hover:bg-muted-foreground/70 active:cursor-grabbing active:bg-muted-foreground/80"
+              : "cursor-default bg-muted-foreground/20",
+          )}
           style={{ left: `${barra.sinistraPct}%`, width: `${barra.larghezzaPct}%` }}
         />
       </div>

@@ -324,7 +324,7 @@ export const ContactsTable = memo(function ContactsTable({
 
       <div className="rounded-md border">
         {/* 26/11/2026: ogni contatto su una riga (nomi, aziende e titoli andavano a capo). */}
-        <BarraScorrimentoOrizzontale contenitore={scorrimento} className="mx-3 my-2" />
+        <BarraScorrimentoOrizzontale contenitore={scorrimento} className="mx-3 my-2" mostraSempre />
         <Table wrapperRef={setScorrimento} className="[&_td]:whitespace-nowrap [&_th]:whitespace-nowrap [&_td]:px-2 [&_th]:px-2 2xl:[&_td]:px-4 2xl:[&_th]:px-4">
           <TableHeader>
             <TableRow>
