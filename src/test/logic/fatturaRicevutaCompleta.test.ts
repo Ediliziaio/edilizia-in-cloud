@@ -4,6 +4,7 @@ import { fileOriginale, xmlDaFile } from '../../../supabase/functions/_shared/ri
 import { fatturaRicevutaHtml } from '@/lib/fatturazione/fatturaRicevutaHtml';
 import { generaPdfFatturaXml, leggiFattureXmlStampabili, riferimentiRigaXml } from '@/lib/fatturazione/fatturaXmlTabellare';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { fatturaProfessionistaXml } from '../fixtures/fatturaProfessionistaXml';
 
 function completa() {
   return `<p:FatturaElettronica xmlns:p="urn:fattura" xmlns:f="urn:futuro" xmlns:ds="urn:firma" versione="FPR12" SistemaEmittente="GEST-TEST">
@@ -56,7 +57,7 @@ function catalogoSchema() {
 }
 
 describe('Copia leggibile completa dell’XML del fornitore', () => {
-  it('mantiene i dati fiscali nel PDF sintetico ed esclude trasmissione e appendice XML', async () => {
+  it('mantiene gli importi fiscali nel PDF sintetico ed esclude tutte le tabelle e le scritte tecniche XML', async () => {
     const pdf = await getDocument({
       data: new Uint8Array(await generaPdfFatturaXml(completa(), { indiceCorpo: 0, direzione: 'ricevuta', versione: 'sintetico' })),
       useSystemFonts: true,
@@ -71,12 +72,31 @@ describe('Copia leggibile completa dell’XML del fornitore', () => {
       const testo = pagine.join(' ').replace(/\s+/g, ' ');
       for (const valore of [
         'TEST-COMPLETA', 'Fornitura di prova', '175,49', '38,61', '214,10', 'CAUSALE COMPLETA',
-        'Importo del bollo', 'Importo della ritenuta', 'Contributo cassa', 'IBAN-UNO', 'IBAN-DUE',
-        '19-01-2027', 'COD-PAGAMENTO', 'CIG-TEST', 'CUP-TEST', 'DDT-TEST',
+        'Bollo', 'Ritenuta (20%)', 'Contributo cassa (4%)', '12,34', '2,00', '7,89', 'IBAN-UNO', 'IBAN-DUE',
+        '19-01-2027', 'CIG-TEST', 'CUP-TEST', 'DDT-TEST',
       ]) expect(testo).toContain(valore);
       for (const valore of [
         'Dati di trasmissione', 'Altri dati presenti nel file XML', 'TRASM-TEST', 'INVIO-TEST', 'ABC1234', 'GEST-TEST', 'IMPRONTA-TEST',
+        'Ritenute, bollo, cassa e altre condizioni fiscali', 'Trasporto e dati di consegna', 'Altri riferimenti di pagamento',
+        'Corpo della fattura /', 'DettaglioLinee', 'ATTR-RIGA', 'VALORE-FUTURO', 'COD-PAGAMENTO', 'XML',
       ]) expect(testo).not.toContain(valore);
+      expect(testo).not.toMatch(/\bCampo\s+Valore\b/);
+    } finally { await pdf.cleanup(); }
+  }, 30_000);
+
+  it.each(['ricevuta', 'emessa'] as const)('riassume una fattura professionale %s su una pagina senza appendici Campo / Valore', async direzione => {
+    const pdf = await getDocument({
+      data: new Uint8Array(await generaPdfFatturaXml(fatturaProfessionistaXml, { direzione, versione: 'sintetico' })),
+      useSystemFonts: true,
+    }).promise;
+    try {
+      expect(pdf.numPages).toBe(1);
+      const pagina = await pdf.getPage(1);
+      const { items } = await pagina.getTextContent();
+      const testo = items.map(x => 'str' in x ? x.str : '').join(' ').replace(/\s+/g, ' ');
+      for (const valore of ['PROVA-241', 'COMPENSO PROFESSIONALE', 'ANTICIPAZIONI', '2.474,68', '2.129,68', '345,00', '69,00']) expect(testo).toContain(valore);
+      for (const valore of ['Ritenute, bollo, cassa e altre condizioni fiscali', 'Altri riferimenti di pagamento', 'Corpo della fattura', 'XML']) expect(testo).not.toContain(valore);
+      expect(testo).not.toMatch(/\bCampo\s+Valore\b/);
     } finally { await pdf.cleanup(); }
   }, 30_000);
 

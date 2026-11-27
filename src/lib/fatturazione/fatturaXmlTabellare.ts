@@ -16,7 +16,7 @@ export interface TabellaXml {
 export interface FatturaXmlStampabile {
   titolo: string; tipoDocumento: string; numero: string; data: string; valuta: string; cedente: string[]; cliente: string[];
   tabelle: TabellaXml[]; causali: string[]; righeXml: RigaXmlStampabile[];
-  riferimenti: TabellaXml[]; datiAggiuntivi: CampoXml[];
+  riferimenti: TabellaXml[]; datiAggiuntivi: CampoXml[]; riepilogoFiscale?: CampoXml[];
 }
 export interface OpzioniFatturaXml { indiceCorpo?: number; parser?: DOMParser; direzione?: 'ricevuta' | 'emessa'; dentroIframe?: boolean }
 export type VersionePdfFatturaXml = 'sintetico' | 'completo';
@@ -99,6 +99,18 @@ export function leggiFattureXmlStampabili(xml: string, opzioni: OpzioniFatturaXm
     const cedente = parte('CedentePrestatore'), cliente = parte('CessionarioCommittente');
     const generali = child(body, 'DatiGenerali'), doc = child(generali, 'DatiGeneraliDocumento');
     const tipo = val(doc, 'TipoDocumento'), n = val(doc, 'Numero'), divisa = val(doc, 'Divisa'), giorno = data(val(doc, 'Data'));
+    // La sintesi espone gli importi fiscali con etichette brevi, senza i percorsi XML.
+    // La lettura non marca i campi come usati: la copia completa li conserva tutti.
+    const riepilogoFiscale = [
+      { tag: 'DatiRitenuta', etichetta: 'Ritenuta', importo: 'ImportoRitenuta', aliquota: 'AliquotaRitenuta' },
+      { tag: 'DatiBollo', etichetta: 'Bollo', importo: 'ImportoBollo', aliquota: '' },
+      { tag: 'DatiCassaPrevidenziale', etichetta: 'Contributo cassa', importo: 'ImportoContributoCassa', aliquota: 'AlCassa' },
+    ].flatMap(({ tag, etichetta, importo, aliquota }) => children(doc, tag).flatMap(e => {
+      const valore = testo(child(e, importo));
+      if (!valore) return [];
+      const percentuale = aliquota ? testo(child(e, aliquota)) : '';
+      return [{ campo: etichetta + (percentuale ? ' (' + numeroXml(percentuale) + '%)' : ''), valore: numeroXml(valore, true) }];
+    }));
     const tabelle: TabellaXml[] = [{ titolo: '', intestazioni: ['Tipologia documento', 'Art. 73', 'Numero documento', 'Data documento', 'Codice destinatario'], righe: [[tipo + (TIPI[tipo] ? ' (' + TIPI[tipo].toLocaleLowerCase('it-IT') + ')' : ''), val(doc, 'Art73') || '—', n, giorno, val(child(header, 'DatiTrasmissione'), 'CodiceDestinatario') || '—']] }];
     const riferimenti: TabellaXml[] = [];
     const docPerRiga: Array<{ linee: string[]; campo: CampoXml }> = [];
@@ -175,7 +187,7 @@ export function leggiFattureXmlStampabili(xml: string, opzioni: OpzioniFatturaXm
     datiAggiuntivi.push(...campiXml(header, usati), ...campiXml(body, usati, [], true));
     for (const altro of Array.from(d.documentElement.children).filter(e => e !== header && !tutti.includes(e))) datiAggiuntivi.push(...campiXml(altro, usati));
     if (datiAggiuntivi.length) tabelle.push({ titolo: 'Altri dati presenti nel file XML', tipo: 'altri', intestazioni: ['Campo', 'Valore'], righe: datiAggiuntivi.map(c => [c.campo, c.valore]), larghezze: ['*', '*'] });
-    return { titolo: 'Fattura elettronica ' + (n || tipo), tipoDocumento: TIPI[tipo] ?? 'Fattura elettronica', numero: n, data: giorno, valuta: divisa, cedente, cliente, tabelle, causali, righeXml, riferimenti, datiAggiuntivi };
+    return { titolo: 'Fattura elettronica ' + (n || tipo), tipoDocumento: TIPI[tipo] ?? 'Fattura elettronica', numero: n, data: giorno, valuta: divisa, cedente, cliente, tabelle, causali, righeXml, riferimenti, datiAggiuntivi, riepilogoFiscale };
   });
 }
 
@@ -186,12 +198,12 @@ export function riferimentiRigaXml(fattura: FatturaXmlStampabile | null, chiave:
 
 const NOTA_XML = 'Rappresentazione leggibile del file XML. I dati riportati provengono esclusivamente dall’XML.';
 const titoloSezione = 'Altri dati presenti nel file XML';
-const TIPI_DETTAGLIO: Array<{ titolo: string; tag: string[]; nellaSintesi?: boolean }> = [
+const TIPI_DETTAGLIO: Array<{ titolo: string; tag: string[] }> = [
   { titolo: 'Dati di trasmissione', tag: ['DatiTrasmissione'] },
-  { titolo: 'Ritenute, bollo, cassa e altre condizioni fiscali', tag: ['DatiRitenuta', 'DatiBollo', 'DatiCassaPrevidenziale', 'ScontoMaggiorazione'], nellaSintesi: true },
-  { titolo: 'Trasporto e dati di consegna', tag: ['DatiTrasporto', 'DatiVeicoli'], nellaSintesi: true },
+  { titolo: 'Ritenute, bollo, cassa e altre condizioni fiscali', tag: ['DatiRitenuta', 'DatiBollo', 'DatiCassaPrevidenziale', 'ScontoMaggiorazione'] },
+  { titolo: 'Trasporto e dati di consegna', tag: ['DatiTrasporto', 'DatiVeicoli'] },
   { titolo: 'Allegati', tag: ['Allegati'] },
-  { titolo: 'Altri riferimenti di pagamento', tag: ['DatiPagamento'], nellaSintesi: true },
+  { titolo: 'Altri riferimenti di pagamento', tag: ['DatiPagamento'] },
 ];
 
 function etichettaCampo(percorso: string) {
@@ -204,25 +216,26 @@ function etichettaCampo(percorso: string) {
 
 function tabelleDocumento(fattura: FatturaXmlStampabile, sintetico = false): TabellaXml[] {
   const [, ...tabelle] = fattura.tabelle;
-  const sezioni = TIPI_DETTAGLIO.map(({ titolo, tag, nellaSintesi }) => ({ titolo, tag: new Set(tag), nellaSintesi, righe: [] as string[][] }));
+  const principali = [
+    ...tabelle.filter(t => t.tipo === 'righe'),
+    ...tabelle.filter(t => t.titolo === 'Riepilogo IVA e totali' || t.tipo === 'totale'),
+    ...tabelle.filter(t => t.tipo === 'riferimenti' || t.tipo === 'pagamenti'),
+    ...tabelle.filter(t => !t.tipo && t.titolo !== 'Riepilogo IVA e totali'),
+  ];
+  if (sintetico) return principali.map(t => t.tipo === 'righe' ? { ...t, dettagliRighe: undefined } : t);
+  const sezioni = TIPI_DETTAGLIO.map(({ titolo, tag }) => ({ titolo, tag: new Set(tag), righe: [] as string[][] }));
   const residui: string[][] = [];
   for (const { campo, valore } of fattura.datiAggiuntivi) {
     const nodi = campo.split(' / ').map(nodo => nodo.replace(/^.*:/, '').replace(/ \[\d+\]$/, ''));
     const sezione = sezioni.find(s => nodi.some(nodo => s.tag.has(nodo)));
     (sezione?.righe ?? residui).push([campo, valore]);
   }
-  const dati = [...sezioni, { titolo: titoloSezione, righe: residui, nellaSintesi: false }]
-    .filter(sezione => sezione.righe.length && (!sintetico || sezione.nellaSintesi))
+  const dati = [...sezioni, { titolo: titoloSezione, righe: residui }]
+    .filter(sezione => sezione.righe.length)
     .map(({ titolo, righe }): TabellaXml => ({
       titolo, righe, intestazioni: ['Campo', 'Valore'], tipo: 'altri', larghezze: ['*', '*'],
     }));
-  return [
-    ...tabelle.filter(t => t.tipo === 'righe'),
-    ...tabelle.filter(t => t.titolo === 'Riepilogo IVA e totali' || t.tipo === 'totale'),
-    ...tabelle.filter(t => t.tipo === 'riferimenti' || t.tipo === 'pagamenti'),
-    ...tabelle.filter(t => !t.tipo && t.titolo !== 'Riepilogo IVA e totali'),
-    ...dati,
-  ];
+  return [...principali, ...dati];
 }
 
 function datiTestata(f: FatturaXmlStampabile, sintetico = false) {
@@ -233,9 +246,9 @@ function datiTestata(f: FatturaXmlStampabile, sintetico = false) {
   });
 }
 
-function sottotitolo(opzioni: OpzioniFatturaXml) {
-  return opzioni.direzione === 'ricevuta' ? 'Fattura ricevuta · Dati del file XML'
-    : opzioni.direzione === 'emessa' ? 'Fattura di vendita · Dati del file XML' : 'Dati del file XML';
+function sottotitolo(opzioni: OpzioniFatturaXml, sintetico = false) {
+  const direzione = opzioni.direzione === 'ricevuta' ? 'Fattura ricevuta' : opzioni.direzione === 'emessa' ? 'Fattura di vendita' : '';
+  return sintetico ? direzione : (direzione ? direzione + ' · ' : '') + 'Dati del file XML';
 }
 
 function partiHtml(label: string, [nome, ...dati]: string[]) {
@@ -349,7 +362,7 @@ export function fatturaXmlTabellareHtml(xml: string, opzioni: OpzioniFatturaXml 
 
 export function definizionePdfFatturaXml(fatture: FatturaXmlStampabile[], opzioni: OpzioniPdfFatturaXml = {}): Record<string, unknown> {
   const sintetico = opzioni.versione === 'sintetico';
-  const descrizione = sottotitolo(opzioni) + (sintetico ? ' · Sintesi' : '');
+  const descrizione = sottotitolo(opzioni, sintetico);
   const blu = '#183558', testo = '#182941', tenue = '#52637a', fondo = '#edf3fa', divisore = '#d9e3ee';
   const layout = {
     hLineWidth: (i: number) => i > 0 ? 0.5 : 0,
@@ -399,7 +412,11 @@ export function definizionePdfFatturaXml(fatture: FatturaXmlStampabile[], opzion
       if (t.tipo === 'totale') {
         const [[valuta, arrotondamento, totale]] = t.righe;
         content.push({
-          table: { widths: larghezze(['*', 172]), body: [[
+          table: { widths: larghezze(['*', 172]), body: [
+            ...(sintetico ? (f.riepilogoFiscale ?? []).map(c => [
+              { text: c.campo, color: tenue },
+              { text: totaleConValuta(c.valore, valuta), alignment: 'right' },
+            ]) : []), [
             { stack: [{ text: 'Totale documento', bold: true, color: blu }, { text: 'Valuta ' + (valuta || '—') +
               (arrotondamento !== '—' ? ' · Arrotondamento ' + arrotondamento : ''), color: tenue, fontSize: 7.5 }], fillColor: fondo },
             { text: totaleConValuta(totale, valuta), bold: true, fontSize: 15, alignment: 'right', fillColor: fondo, color: blu },
@@ -439,8 +456,8 @@ export function definizionePdfFatturaXml(fatture: FatturaXmlStampabile[], opzion
   const ref = fatture.length === 1 ? 'Documento n. ' + fatture[0].numero + ' · ' + fatture[0].data + ' · ' : '';
   return {
     pageSize: 'A4', pageMargins: [24, 24, 24, 32], defaultStyle: { font: 'Roboto', fontSize: 8, color: testo }, content,
-    info: { title: fatture[0]?.titolo ?? 'Fattura elettronica', subject: 'Rappresentazione del file XML' },
-    footer: (pagina: number, totale: number) => ({ text: ref + 'Rappresentazione leggibile del file XML · Pagina ' + pagina + ' di ' + totale, fontSize: 6.5, color: tenue, alignment: 'right', margin: [24, 8, 24, 0] }),
+    info: { title: fatture[0]?.titolo ?? 'Fattura elettronica', subject: sintetico ? 'Copia della fattura' : 'Rappresentazione del file XML' },
+    footer: (pagina: number, totale: number) => ({ text: ref + (sintetico ? '' : 'Rappresentazione leggibile del file XML · ') + 'Pagina ' + pagina + ' di ' + totale, fontSize: 6.5, color: tenue, alignment: 'right', margin: [24, 8, 24, 0] }),
     pageBreakBefore: (nodo: { headlineLevel?: number }, contesto: { getFollowingNodesOnPage: () => unknown[] }) => nodo.headlineLevel === 1 && contesto.getFollowingNodesOnPage().length === 0,
   };
 }
