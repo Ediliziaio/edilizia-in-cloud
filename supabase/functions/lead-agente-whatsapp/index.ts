@@ -33,6 +33,7 @@ import { messaggiRiepilogo, notaRiepilogo } from "../_shared/riepilogoChatLead.t
 import { avvisaUtenti, specificheStrumenti, trovaStrumento, type CtxAgente } from "./strumenti.ts";
 import { rispostaDelModello } from "./giroStrumenti.ts";
 import { adessoRoma, appuntamentoDaFare, dataRomaOggi } from "./appuntamentoCorrente.ts";
+import { controllaDateRisposta } from "../_shared/controlloDateRisposta.ts";
 
 interface Richiesta {
   message_id?: string;
@@ -321,6 +322,32 @@ async function unGiro(admin: Admin, g: {
     await avvisaUtenti(ctx, "Assistente WhatsApp: risposta vuota", "Un lead ha scritto ma l'assistente non ha prodotto una risposta. Rispondi tu da Conversazioni.");
     return "fermo";
   }
+  // L'ultimo controllo prima di mandare: le date scritte devono tornare col
+  // calendario (27/11/2026). Le regole del prompt non bastano — è il modello
+  // stesso che le disattende quando il cliente insiste: vedi
+  // _shared/controlloDateRisposta.ts. L'appuntamento si rilegge ADESSO, dopo
+  // gli strumenti, perché in questo giro può essere appena stato fissato o
+  // spostato.
+  const { data: appuntamentoOra } = await admin.from("appointments")
+    .select("appointment_date, appointment_time")
+    .eq("company_id", g.companyId).eq("contact_id", g.contatto.id)
+    .gte("appointment_date", dataRomaOggi())
+    .not("status", "in", '("annullato","cancelled")')
+    .order("appointment_date").order("appointment_time").limit(1);
+  const riga = appuntamentoOra?.[0];
+  const controllo = controllaDateRisposta(risposta, dataRomaOggi(), riga
+    ? { data: String(riga.appointment_date), ora: String(riga.appointment_time).slice(0, 5) }
+    : null);
+  if (!controllo.ok) {
+    console.error(JSON.stringify({ level: "error", fn: "lead-agente-whatsapp", msg: "risposta non inviata: data sbagliata", contatto: g.contatto.id, motivo: controllo.motivo }));
+    await avvisaUtenti(
+      ctx,
+      "Assistente WhatsApp: data sbagliata, messaggio non inviato",
+      `L'assistente stava per scrivere una data che non torna: ${controllo.motivo}. Il messaggio NON è partito.${ctx.riepilogo ? ` In questo giro però ha fatto: ${ctx.riepilogo.esito}.` : ""} Scrivi tu al cliente da Conversazioni.`,
+    );
+    return "fermo";
+  }
+
   const inviata = await inviaRisposta(g.numeroId, g.companyId, g.destinatario, g.contatto.id, risposta);
   if (!inviata) {
     await avvisaUtenti(ctx, "Assistente WhatsApp: invio non riuscito", "La risposta dell'assistente non è partita (WhatsApp l'ha rifiutata). Rispondi tu da Conversazioni.");
