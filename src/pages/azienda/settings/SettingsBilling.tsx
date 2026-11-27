@@ -131,6 +131,7 @@ export default function SettingsBilling() {
   const [newZucUrl, setNewZucUrl] = useState(ZUCCHETTI_URL_DEFAULT); // Zucchetti: URL servizio
   const [newCompany, setNewCompany] = useState(""); // Zucchetti: company (es. 001)
   const [testing, setTesting] = useState<string | null>(null);
+  const [tab, setTab] = useState("integrations");
 
   // ── OAuth2 Fatture in Cloud: apre il popup di autorizzazione ──────────────
   const connectFic = async () => {
@@ -299,6 +300,9 @@ export default function SettingsBilling() {
   };
 
   const providerConfig = (p: string) => PROVIDERS.find((pr) => pr.value === p);
+  // Itala vive nel riquadro in primo piano (ItalaPlatformConnection), non nella
+  // lista dei provider: così non compare due volte quando è collegato.
+  const altriProvider = integrations.filter((i: any) => i.provider !== "itala");
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -312,43 +316,46 @@ export default function SettingsBilling() {
         </Alert>
       )}
 
-      <Tabs defaultValue="integrations">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
-          <TabsTrigger value="integrations">{t("Programma collegato")}</TabsTrigger>
-          <TabsTrigger value="logs">{t("Sincronizzazioni")}</TabsTrigger>
+          <TabsTrigger value="integrations">{t("Collegamento")}</TabsTrigger>
           <TabsTrigger value="massive">{t("Recupera da AdE")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="massive" className="mt-4">
-          <MassiveImportPanel companyId={companyId} italaConnected={integrations.some(i => i.provider === "itala" && i.is_active)} />
+          <MassiveImportPanel companyId={companyId} italaConnected={integrations.some(i => i.provider === "itala" && i.is_active)} onVaiACollegamento={() => setTab("integrations")} />
         </TabsContent>
 
         <TabsContent value="integrations" className="space-y-4 mt-4">
-          {/* ── Cassetto fiscale (fatture ricevute) ─────────────────────
-              Provider e recupero dello storico sono due percorsi distinti.
-              I servizi ufficiali SMTS richiedono canale accreditato e abilitazione. */}
-          <Card className="border-blue-100 bg-blue-50/40">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                {t("🗄️ Cassetto fiscale — fatture emesse e ricevute")}
-              </CardTitle>
-              <CardDescription>
-                {t("Le fatture del cassetto fiscale AdE passano tutte dallo SDI. Per importarle collega un provider con il bollino")}{" "}
-                {/* span, non Badge: Badge è un div e dentro il paragrafo della descrizione non può stare */}
-                <span className={`${badgeVariants({ variant: "secondary" })} bg-emerald-100 text-emerald-800 text-[10px] align-middle`}>{t("Emesse + Ricevute")}</span>{" "}
-                {t("e le trovi in")} <strong>{t("Fatturazione → Fatture ricevute")}</strong>{t(", senza inserirle a mano. Con gli altri provider vengono importate solo le emesse.")}
-              </CardDescription>
-            </CardHeader>
-          </Card>
+          {/* Itala è la via consigliata (un collegamento, nessuna chiave). I provider
+              diretti stanno sotto, a scomparsa, per chi ha già un altro gestionale.
+              Collegamento e recupero dello storico restano due percorsi distinti. */}
+          <ItalaPlatformConnection
+            companyId={companyId}
+            connected={integrations.some(i => i.provider === "itala" && i.is_active)}
+            hasDirect={integrations.some(i => i.provider !== "itala" && i.is_active)}
+            onRecuperaStorico={() => setTab("massive")}
+            onScollega={() => deleteMutation.mutate("itala")}
+          />
 
-          <ItalaPlatformConnection companyId={companyId} connected={integrations.some(i => i.provider === "itala" && i.is_active)} hasDirect={integrations.some(i => i.provider !== "itala" && i.is_active)} />
+          <details className="rounded-xl border bg-card" open={altriProvider.length > 0 || undefined}>
+            <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
+              {t("Hai già un altro programma di fatturazione? Collegalo")}
+            </summary>
+            <div className="space-y-4 border-t p-4">
+              <p className="text-xs text-muted-foreground">
+                {t("Le fatture del cassetto fiscale AdE passano tutte dallo SDI. I provider col bollino")}{" "}
+                {/* span, non Badge: Badge è un div e dentro il paragrafo non può stare */}
+                <span className={`${badgeVariants({ variant: "secondary" })} bg-emerald-100 text-emerald-800 text-[10px] align-middle`}>{t("Emesse + Ricevute")}</span>{" "}
+                {t("portano anche le ricevute (le trovi in")} <strong>{t("Fatturazione → Fatture ricevute")}</strong>{t("); gli altri solo le emesse.")}
+              </p>
 
           {/* Connected providers */}
           {isLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
             </div>
-          ) : integrations.length === 0 && !showAdd ? (
+          ) : altriProvider.length === 0 && !showAdd ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
                 <Plug className="h-10 w-10 mx-auto mb-3 opacity-40" />
@@ -361,7 +368,7 @@ export default function SettingsBilling() {
             </Card>
           ) : (
             <>
-              {integrations.map((integ: any) => {
+              {altriProvider.map((integ: any) => {
                 const cfg = providerConfig(integ.provider);
                 return (
                   <Card key={integ.id} className={!integ.is_active ? "opacity-60" : ""}>
@@ -632,18 +639,17 @@ export default function SettingsBilling() {
               </CardContent>
             </Card>
           )}
-        </TabsContent>
+            </div>
+          </details>
 
-        <TabsContent value="logs" className="mt-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <ScrollText className="h-5 w-5 text-muted-foreground" />
-                <CardTitle className="text-base">{t("Log sincronizzazione")}</CardTitle>
-              </div>
-              <CardDescription>{t("Ultime 50 operazioni di sincronizzazione")}</CardDescription>
-            </CardHeader>
-            <CardContent>
+          {/* Registro sincronizzazioni: utile all'assistenza, non in primo piano. */}
+          <details className="rounded-xl border bg-card">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-medium flex items-center gap-2">
+              <ScrollText className="h-4 w-4 text-muted-foreground" />
+              {t("Registro sincronizzazioni")}
+            </summary>
+            <div className="border-t p-4">
+              <p className="mb-3 text-xs text-muted-foreground">{t("Ultime 50 operazioni di sincronizzazione")}</p>
               {logsLoading ? (
                 <div className="space-y-2">
                   {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-lg" />)}
@@ -678,8 +684,8 @@ export default function SettingsBilling() {
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </details>
         </TabsContent>
       </Tabs>
     </div>

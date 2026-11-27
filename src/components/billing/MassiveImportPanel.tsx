@@ -35,7 +35,7 @@ function base64File(file: File): Promise<string> {
     reader.onload = () => resolve(String(reader.result).split(",")[1]); reader.readAsDataURL(file);
   });
 }
-export function MassiveImportPanel({ companyId, italaConnected }: { companyId?: string; italaConnected: boolean }) {
+export function MassiveImportPanel({ companyId, italaConnected, onVaiACollegamento }: { companyId?: string; italaConnected: boolean; onVaiACollegamento?: () => void }) {
   const t = useT();
   const queryClient = useQueryClient();
   const [provider, setProvider] = useState("itala");
@@ -101,7 +101,10 @@ export function MassiveImportPanel({ companyId, italaConnected }: { companyId?: 
             <SelectItem value="itala">{t("Fattura Elettronica API (ITALA)")}</SelectItem><SelectItem value="ade_direct" disabled>{t("Canale diretto AdE · in preparazione")}</SelectItem>
           </SelectContent></Select>
       </div>
-      {provider === "itala" && !italaConnected && <Alert><AlertDescription>{t("Attiva prima «Recupero fatture con Edilizia in Cloud» in «Programma collegato». La partita IVA viene letta dall’anagrafica aziendale.")}</AlertDescription></Alert>}
+      {provider === "itala" && !italaConnected && <Alert><AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <span>{t("Attiva prima il «Recupero fatture con Edilizia in Cloud» nella scheda Collegamento. La partita IVA viene letta dall’anagrafica aziendale.")}</span>
+        {onVaiACollegamento && <Button size="sm" variant="outline" className="shrink-0" onClick={() => onVaiACollegamento()}>{t("Vai al collegamento")}</Button>}
+      </AlertDescription></Alert>}
       {provider === "itala" && <p className="text-sm text-muted-foreground">{t("In Fatture e Corrispettivi → Consultazione → Censimento canali per forniture massive, abilita «Itala Tecnologia Informatica S.r.l.» per Scarico Fatture. Il collegamento dalle impostazioni registra l'azienda nel servizio centrale.")}</p>}
       {listing.data?.missing?.length ? <Alert><AlertDescription>{t("Canale diretto da completare: {missing}. Puoi già preparare il file da firmare.", { missing: listing.data.missing.join("; ") })}</AlertDescription></Alert> : null}
       {listing.data?.environment && <Badge variant="outline">{listing.data.environment === "test" ? t("Ambiente di test") : t("Ambiente di produzione")}</Badge>}
