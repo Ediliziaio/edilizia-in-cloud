@@ -88,18 +88,27 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
   const { employees } = useOrderWorkPhases(orderId);
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
-  // Ditte della commessa: le stesse del rapportino dell'ufficio.
+  // Le ditte della commessa in testa, poi le altre dell'azienda: al committente si
+  // rendiconta anche la ditta chiamata per un giorno, che nessuno ha assegnato al
+  // cantiere. Stessi due gruppi dei mezzi nel rapportino dell'ufficio (27/11/2026).
   const ditte = useQuery({
-    queryKey: ["rapportini-ufficio-ditte", companyId, orderId],
+    queryKey: ["rendiconto-giornaliero-ditte", companyId, orderId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data: d, error } = await (supabase as unknown as { from: (t: string) => any }) // eslint-disable-line @typescript-eslint/no-explicit-any
-        .from("order_external_teams").select("team:external_teams(name, subappaltatore_id)").eq("order_id", orderId);
-      if (error) throw error;
-      const visti = new Set<string>();
-      return ((d ?? []) as Array<{ team: { name: string; subappaltatore_id: string | null } | null }>)
-        .filter((r) => r.team?.subappaltatore_id && !visti.has(r.team.subappaltatore_id) && visti.add(r.team.subappaltatore_id))
-        .map((r) => ({ id: r.team!.subappaltatore_id!, nome: r.team!.name }));
+      const cliente = supabase as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+      const [assegnate, tutte] = await Promise.all([
+        cliente.from("order_external_teams").select("team:external_teams(name, subappaltatore_id)").eq("order_id", orderId),
+        cliente.from("subappaltatori").select("id, ragione_sociale").eq("company_id", companyId).eq("is_active", true).order("ragione_sociale"),
+      ]);
+      if (assegnate.error) throw assegnate.error;
+      if (tutte.error) throw tutte.error;
+      const qui = new Set(
+        ((assegnate.data ?? []) as Array<{ team: { name: string; subappaltatore_id: string | null } | null }>)
+          .map((r) => r.team?.subappaltatore_id).filter((x): x is string => !!x),
+      );
+      return ((tutte.data ?? []) as Array<{ id: string; ragione_sociale: string }>)
+        .map((d) => ({ id: d.id, nome: d.ragione_sociale, qui: qui.has(d.id) }))
+        .sort((a, b) => Number(b.qui) - Number(a.qui) || a.nome.localeCompare(b.nome));
     },
   });
   const committente = useQuery({
@@ -420,7 +429,7 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
                       {c.valore === "manodopera" && (ditte.data ?? []).length > 0 && (
                         <OfficeSelect value="" label={tr("Aggiungi ditta")} className="h-8 min-w-[10rem] flex-1 text-muted-foreground"
                           placeholder={tr("+ Aggiungi ditta…")} onValueChange={(v) => { if (v) aggiungiDitta(v); }}
-                          options={(ditte.data ?? []).map((d) => ({ value: d.id, label: d.nome }))} />
+                          options={(ditte.data ?? []).map((d) => ({ value: d.id, label: d.nome, group: d.qui ? tr("Su questo cantiere") : tr("Altre ditte") }))} />
                       )}
                       {c.valore === "mezzo" && (
                         <OfficeSelect value="" label={tr("Aggiungi mezzo")} className="h-8 min-w-[12rem] flex-1 text-muted-foreground"

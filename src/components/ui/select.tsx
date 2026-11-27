@@ -68,6 +68,24 @@ const normalizza = (t: string) =>
   t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 /**
+ * Il tasto premuto con la lista aperta va nel campo «Cerca…»?
+ *
+ * Le lettere sì, da sempre. Lo spazio solo a ricerca già cominciata: «SIM RG
+ * Escavatore» e «FORD TRANSIT» hanno uno spazio dentro, e senza questo la lista
+ * lo prendeva per sé, sceglieva la voce evidenziata e si chiudeva a metà parola
+ * (27/11/2026). A ricerca vuota lo spazio resta della lista, dove sceglie la
+ * voce, come in ogni tendina.
+ */
+export function tastoVaNellaRicerca(
+  e: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "altKey">,
+  ricerca: string,
+): boolean {
+  if (e.key.length !== 1) return false;
+  if (e.ctrlKey || e.metaKey || e.altKey) return false;
+  return e.key !== " " || ricerca !== "";
+}
+
+/**
  * La lista della tendina (12/11/2026): con tante voci (490 fornitori) non si
  * trovava niente. Sopra le {@link SOGLIA_RICERCA_TENDINA} voci compare «Cerca…»;
  * basta cominciare a scrivere con la lista aperta e le lettere finiscono lì.
@@ -144,15 +162,8 @@ const SelectContent = React.forwardRef<
         onPointerDownOutside={(e) => { setRicerca(""); onPointerDownOutside?.(e); }}
         onKeyDownCapture={(e) => {
           onKeyDownCapture?.(e);
-          // Una lettera scritta con la lista aperta va nel campo di ricerca, non
-          // salta alla prima voce che comincia così.
-          if (
-            conRicerca &&
-            e.target !== cercaRef.current &&
-            e.key.length === 1 &&
-            !e.ctrlKey && !e.metaKey && !e.altKey &&
-            e.key !== " "
-          ) {
+          // Quali tasti finiscono nel campo «Cerca…»: vedi tastoVaNellaRicerca.
+          if (conRicerca && e.target !== cercaRef.current && tastoVaNellaRicerca(e, ricerca)) {
             e.preventDefault();
             e.stopPropagation();
             setRicerca((r) => r + e.key);

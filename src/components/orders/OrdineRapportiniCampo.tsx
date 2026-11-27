@@ -300,7 +300,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
         {!azioniInRiga && (
           <div className="flex flex-wrap items-center gap-2">
             {!soloDaApprovare && canEditOrders && <NuoviRapportiniUfficio orderId={orderId} />}
-            {!isLoading && !isError && <RapportiPeriodoDialog companyId={companyId} orderId={orderId} mese="Rapportini della commessa" righe={rapportini.filter((r) => !r.annullato_at)} conDatiEconomici={canViewCosts} />}
+            {!isLoading && !isError && <RapportiPeriodoDialog nascondiSeVuoto companyId={companyId} orderId={orderId} mese="Rapportini della commessa" righe={rapportini.filter((r) => !r.annullato_at)} conDatiEconomici={canViewCosts} />}
           </div>
         )}
         {/* Colpo d'occhio: quante ore, cosa aspetta l'ufficio, a che punto sono i lavori.
@@ -341,7 +341,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
         ) : isError ? (
           <div role="alert" className="space-y-2 text-sm"><p>{t("Rapportini non disponibili. Non è possibile verificare il consuntivo.")}</p><Button variant="outline" onClick={() => refetch()}>{t("Riprova")}</Button></div>
         ) : rapportini.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{soloDaApprovare ? t("Nessun rapportino da approvare") : t("Nessun rapportino caricato dagli operai")}</p>
+          <p className="-mt-2 text-xs text-muted-foreground">{soloDaApprovare ? t("Nessun rapportino da approvare") : t("Nessun rapportino caricato dagli operai")}</p>
         ) : (
           <div className="space-y-4">
             {!soloDaApprovare && canViewCosts && <CostiDaCompletareCommessa orderId={orderId} />}

@@ -177,10 +177,10 @@ export function FotoGrid({ foto, isLoading, onElimina, getSignedUrl }: Props) {
 
   if (foto.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed py-8 text-center text-slate-500">
-        <Camera className="h-6 w-6" aria-hidden="true" />
-        <p className="text-sm font-medium">{t("Nessuna foto caricata")}</p>
-        <p className="text-xs">{t("Le foto scattate dal campo arrivano qui con data e posizione.")}</p>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
+        <Camera className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span className="font-medium">{t("Nessuna foto caricata")}</span>
+        <span>{t("Le foto scattate dal campo arrivano qui con data e posizione.")}</span>
       </div>
     );
   }

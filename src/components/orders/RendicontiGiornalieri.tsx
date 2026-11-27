@@ -16,7 +16,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { messaggioErrore } from "@/lib/messaggioErrore";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { cn } from "@/lib/utils";
-import { elencoRendiconti, rendicontiDaRapportini, rendicontoDelGiorno, type EsitoDaRapportini, type StatoRendiconto } from "@/lib/rendiconti/rendicontiGiornalieri";
+import { categorieRigheRendiconti, elencoRendiconti, riassuntoRighe, rendicontiDaRapportini, rendicontoDelGiorno, type EsitoDaRapportini, type StatoRendiconto } from "@/lib/rendiconti/rendicontiGiornalieri";
 import { PulsantePdfRendiconto } from "@/components/orders/PulsantePdfRendiconto";
 import { RendicontoGiornalieroEditor } from "@/components/orders/RendicontoGiornalieroEditor";
 
@@ -48,6 +48,14 @@ export function RendicontiGiornalieri({ orderId, apriId, onApriConsumato }: {
     queryKey: ["rendiconti-giornalieri", orderId],
     enabled: canViewOrderAmounts,
     queryFn: () => elencoRendiconti(orderId),
+  });
+
+  // Chi non ha descrizione dice cosa contiene: una sola lettura per tutto l'elenco.
+  const senzaDescrizione = (elenco.data ?? []).filter((r) => !r.descrizione_lavori?.trim()).map((r) => r.id);
+  const contenuto = useQuery({
+    queryKey: ["rendiconti-giornalieri-contenuto", orderId, senzaDescrizione.join(",")],
+    enabled: canViewOrderAmounts && senzaDescrizione.length > 0,
+    queryFn: () => categorieRigheRendiconti(senzaDescrizione),
   });
 
   const calcola = useMutation({
@@ -123,7 +131,7 @@ export function RendicontiGiornalieri({ orderId, apriId, onApriConsumato }: {
                 <span className="tabular-nums max-sm:hidden">{giorno(r.data)}</span>
                 <span className="min-w-0 truncate">
                   <span className="sm:hidden">{giorno(r.data)} · </span>
-                  {r.descrizione_lavori || <span className="text-muted-foreground">{tr("Senza descrizione")}</span>}
+                  <span className="font-medium">{r.descrizione_lavori?.trim() || (contenuto.data ? riassuntoRighe(contenuto.data.get(r.id) ?? [], tr) : (r.righe === 0 ? tr("Vuoto") : "…"))}</span>
                   <span className="ml-2 text-[11px] text-muted-foreground">{r.righe === 1 ? tr("1 riga") : tr("{n} righe", { n: r.righe })}</span>
                   {r.rapportini > 0 && <span className="ml-2 text-[11px] text-muted-foreground">{r.rapportini === 1 ? tr("da 1 rapportino") : tr("da {n} rapportini", { n: r.rapportini })}</span>}
                   {r.rapportini_nuovi > 0 && <span className="ml-2 text-[11px] font-medium text-amber-700">{r.rapportini_nuovi === 1 ? tr("1 rapportino nuovo") : tr("{n} rapportini nuovi", { n: r.rapportini_nuovi })}</span>}

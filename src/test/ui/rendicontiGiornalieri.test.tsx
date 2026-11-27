@@ -29,7 +29,7 @@ vi.mock("@/components/orders/CercaNelListino", async (importOriginal) => ({
 vi.mock("@/integrations/supabase/client", () => {
   const from = (t: string) => {
     const b: Record<string, unknown> = {};
-    for (const k of ["select", "eq", "order"]) b[k] = () => b;
+    for (const k of ["select", "eq", "in", "order"]) b[k] = () => b;
     b.maybeSingle = async () => ({ data: { tariffa_manodopera_id: "tar-man" }, error: null as unknown });
     b.then = (res: (v: unknown) => unknown) => Promise.resolve({ data: m.tabelle[t] ?? [], error: null }).then(res);
     return b;
@@ -76,6 +76,21 @@ it("elenca i rendiconti con totale, stato e avvisi", async () => {
   expect(screen.getByText("2 senza prezzo")).toBeVisible();
   expect(screen.getByText("nel rendiconto del periodo")).toBeVisible();
   expect(screen.getByText("Confermato")).toBeVisible();
+});
+
+it("senza descrizione dice cosa contiene, con una sola lettura per tutto l'elenco", async () => {
+  m.tabelle.v_rendiconti_giornalieri = [
+    testata({ id: "g1", descrizione_lavori: null, righe: 3 }),
+    testata({ id: "g2", numero: 4, descrizione_lavori: "", righe: 0 }),
+  ];
+  m.tabelle.appalto_rendiconto_righe = [
+    { rendiconto_giornaliero_id: "g1", categoria: "manodopera" }, { rendiconto_giornaliero_id: "g1", categoria: "manodopera" },
+    { rendiconto_giornaliero_id: "g1", categoria: "mezzo" },
+  ];
+  draw();
+  expect(await screen.findByText("2 persone · 1 mezzo")).toBeVisible();
+  expect(screen.getByText("Vuoto")).toBeVisible();
+  expect(screen.queryByText("Senza descrizione")).not.toBeInTheDocument();
 });
 
 it("senza il permesso sugli importi spiega perché non mostra l'elenco", () => {

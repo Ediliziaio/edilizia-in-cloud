@@ -42,6 +42,7 @@ export function RapportiPeriodoDialog({
   conDatiEconomici = false,
   orderId,
   compatto = false,
+  nascondiSeVuoto = false,
 }: {
   righe: RapportinoCompleto[];
   mese: string;
@@ -49,6 +50,8 @@ export function RapportiPeriodoDialog({
   conDatiEconomici?: boolean;
   /** Accesso dalla commessa: il rapporto manuale parte con riferimento e indirizzo. */
   orderId?: string;
+  /** Con zero rapportini in tutto il pulsante non serve: non si mostra (commessa senza rapportini). */
+  nascondiSeVuoto?: boolean;
   /** Nella testata delle schede di Commesse: bottone da 32px come gli altri comandi. */
   compatto?: boolean;
 }) {
@@ -165,6 +168,7 @@ export function RapportiPeriodoDialog({
       setScegli(rapporto);
     }
   };
+  if (nascondiSeVuoto && righe.length === 0) return null;
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">

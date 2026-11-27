@@ -87,3 +87,12 @@ describe("ora della correzione", () => {
     expect(istanteDaGiornoEOra("2026-10-17", "")).toBeNull();
   });
 });
+
+describe("Da approvare dal cantiere: a vuoto", () => {
+  it("senza niente in attesa il riquadro non compare", async () => {
+    state.correzioni = []; state.rapportiniInviati = 0; state.acquistiDaVerificare = 0;
+    const { container } = mostra(<DaApprovareCommessa orderId="o1" />);
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
+    expect(screen.queryByText("Da approvare dal cantiere")).not.toBeInTheDocument();
+  });
+});

@@ -93,6 +93,7 @@ type Esito<T> = PromiseLike<{ data: T | null; error: unknown }>;
 interface Costruttore {
   select: (c: string) => Costruttore;
   eq: (c: string, v: string) => Costruttore;
+  in: (c: string, v: string[]) => Costruttore;
   order: (c: string, o?: { ascending: boolean }) => Costruttore;
   then: Esito<unknown[]>["then"];
 }
@@ -121,6 +122,31 @@ function leggiTestata(r: Record<string, unknown>): RendicontoGiornaliero {
     sal_id: (r.sal_id as string | null) ?? null,
     rapportini: comeNumero(r.rapportini), rapportini_nuovi: comeNumero(r.rapportini_nuovi), rapportini_ritirati: comeNumero(r.rapportini_ritirati),
   };
+}
+
+/** Categorie delle righe dei rendiconti dati (una sola lettura per l'elenco): id rendiconto → categorie. */
+export async function categorieRigheRendiconti(ids: string[]): Promise<Map<string, CategoriaRiga[]>> {
+  const out = new Map<string, CategoriaRiga[]>();
+  if (!ids.length) return out;
+  const { data, error } = await (db.from("appalto_rendiconto_righe").select("rendiconto_giornaliero_id, categoria")
+    .in("rendiconto_giornaliero_id", ids) as unknown as Esito<Array<Record<string, unknown>>>);
+  if (error) throw error;
+  for (const x of data ?? []) {
+    const id = String(x.rendiconto_giornaliero_id);
+    out.set(id, [...(out.get(id) ?? []), ((x.categoria as CategoriaRiga | null) ?? "voce")]);
+  }
+  return out;
+}
+
+/** «2 persone · 1 mezzo»: cosa c'è dentro un rendiconto senza descrizione. Vuoto se non ha righe. */
+export function riassuntoRighe(categorie: CategoriaRiga[], tr: (k: string, v?: Record<string, unknown>) => string): string {
+  if (!categorie.length) return tr("Vuoto");
+  const n = (c: CategoriaRiga) => categorie.filter((x) => x === c).length;
+  const parti: Array<[CategoriaRiga, string, string]> = [
+    ["manodopera", "1 persona", "{n} persone"], ["mezzo", "1 mezzo", "{n} mezzi"], ["trasporto", "1 trasporto", "{n} trasporti"],
+    ["materiale", "1 materiale", "{n} materiali"], ["voce", "1 voce", "{n} voci"],
+  ];
+  return parti.filter(([c]) => n(c) > 0).map(([c, uno, molti]) => (n(c) === 1 ? tr(uno) : tr(molti, { n: n(c) }))).join(" · ");
 }
 
 export async function elencoRendiconti(orderId: string): Promise<RendicontoGiornaliero[]> {

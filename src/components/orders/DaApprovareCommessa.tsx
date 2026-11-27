@@ -140,6 +140,21 @@ function useRapportiniInviati(orderId: string) {
   });
 }
 
+/** Timbrature dimenticate e bolle in attesa: servono a sapere se il riquadro ha qualcosa da mostrare. */
+function useDaApprovareAltri(orderId: string) {
+  return useQuery({
+    queryKey: ["campo-da-approvare-conteggi", orderId],
+    staleTime: 30_000,
+    queryFn: async () => {
+      const [corr, acq] = await Promise.all([
+        db.from("campo_timbrature_correzioni").select("id", { count: "exact", head: true }).eq("order_id", orderId).eq("stato", "in_attesa"),
+        db.from("campo_acquisti").select("id", { count: "exact", head: true }).eq("order_id", orderId).eq("stato", "da_verificare"),
+      ]);
+      return { correzioni: corr.error ? 0 : corr.count ?? 0, bolle: acq.error ? 0 : acq.count ?? 0 };
+    },
+  });
+}
+
 /**
  * `compatto`: dentro il popup «Approva» di Attività, dove l'elenco dei rapportini è subito sotto.
  * Lì titolo, spiegazione e riquadro giallo «1 rapportino aspetta… Vai ai rapportini» ripetevano
@@ -154,6 +169,7 @@ export function DaApprovareCommessa({ orderId, onApriRapportini, compatto = fals
   const titolare = role === "company_admin" || role === "super_admin";
   const rapportini = useRapportiniInviati(orderId);
   const n = rapportini.data ?? 0;
+  const altri = useDaApprovareAltri(orderId);
   if (compatto) {
     return (
       <div className="space-y-4 empty:hidden">
@@ -162,6 +178,9 @@ export function DaApprovareCommessa({ orderId, onApriRapportini, compatto = fals
       </div>
     );
   }
+  // Niente in attesa: il riquadro non compare (lo dice già l'elenco dei rapportini).
+  if (n === 0 && !rapportini.isLoading && !rapportini.isError && !altri.isLoading && !altri.isError
+    && (altri.data?.correzioni ?? 0) + (altri.data?.bolle ?? 0) === 0) return null;
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -182,9 +201,6 @@ export function DaApprovareCommessa({ orderId, onApriRapportini, compatto = fals
         )}
         <CorrezioniTimbrature orderId={orderId} puoDecidere={puoDecidere} utenteId={user?.id} titolare={titolare} />
         <AcquistiCampoCard orderId={orderId} />
-        {n === 0 && !rapportini.isLoading && (
-          <p className="text-xs text-muted-foreground">{t("Se qui sopra non c’è niente, dal cantiere non aspetta nulla.")}</p>
-        )}
       </CardContent>
     </Card>
   );
@@ -194,17 +210,7 @@ export function DaApprovareCommessa({ orderId, onApriRapportini, compatto = fals
 export function DaApprovareAvviso({ orderId, onOpen }: { orderId: string; onOpen: () => void }) {
   const t = useT();
   const rapportini = useRapportiniInviati(orderId);
-  const altri = useQuery({
-    queryKey: ["campo-da-approvare-conteggi", orderId],
-    staleTime: 30_000,
-    queryFn: async () => {
-      const [corr, acq] = await Promise.all([
-        db.from("campo_timbrature_correzioni").select("id", { count: "exact", head: true }).eq("order_id", orderId).eq("stato", "in_attesa"),
-        db.from("campo_acquisti").select("id", { count: "exact", head: true }).eq("order_id", orderId).eq("stato", "da_verificare"),
-      ]);
-      return { correzioni: corr.error ? 0 : corr.count ?? 0, bolle: acq.error ? 0 : acq.count ?? 0 };
-    },
-  });
+  const altri = useDaApprovareAltri(orderId);
   const r = rapportini.data ?? 0;
   const c = altri.data?.correzioni ?? 0;
   const b = altri.data?.bolle ?? 0;
