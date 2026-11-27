@@ -829,7 +829,8 @@ function FotovoltaicoWizard() {
           const watt = Number(pannelli.find(p => p.id === d.pannello_id)?.potenza_w);
           if (ripreso && !d.kit_bundle_id) {
             const piano = ripreso;
-            return { ...d,[k]:v, ...(watt>0?datiDalDisegno(piano,watt):{}),...(piano.mappa?{ore_sole_annue:resaMappaFv(piano)?.ore??null}:{}) };
+            const geometriaCambiata = JSON.stringify(piano.mappa?.falde ?? null) !== JSON.stringify(disegno?.mappa?.falde ?? null);
+            return { ...d,[k]:v, ...(watt>0?datiDalDisegno(piano,watt):{}),...(piano.mappa?{ore_sole_annue:resaMappaFv(piano)?.ore??(geometriaCambiata?null:d.ore_sole_annue)}:{}) };
           }
         }
         if (k === "pannello_id" && disegno) {
@@ -2954,6 +2955,9 @@ export function Step4Tetto({
 }) {
   const t = useT();
   const senzaMappa = preventivoSenzaMappa(data.layout_overlay);
+  const [posaAperta, setPosaAperta] = useState(false);
+  const [bozzaPosa, setBozzaPosa] = useState<DisegnoCommercialeFv | null>(null);
+  const pianoTetto = leggiDisegnoCommerciale(data.layout_overlay);
   const localitaRichiesta = useRef<string | null>(null);
   useEffect(() => {
     if (readOnlyMode || analizzando || data.latitudine == null || data.longitudine == null) return;
@@ -2975,6 +2979,17 @@ export function Step4Tetto({
       <FvSceltaProgettazione senzaMappa={senzaMappa} disabled={readOnlyMode || analizzando}
         onChange={(rapido) => update("layout_overlay", cambiaModalitaProgettazione(data.layout_overlay, rapido))} />
       {!senzaMappa&&data.latitudine!=null&&data.longitudine!=null&&<FvMappaTetto key={`${data.latitudine}:${data.longitudine}`} progettoId={progettoId} ricerca={{lat:data.latitudine,lng:data.longitudine}} indirizzo={data.indirizzo} riferimento={data.riferimento_tetto??null} piano={leggiDisegnoCommerciale(data.layout_overlay)} modificabile={!readOnlyMode} onPosizione={r=>update("riferimento_tetto",r)} onChange={p=>update("layout_overlay",p)}/>}
+      {!senzaMappa && pianoTetto?.mappa && <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
+        <p className="text-sm text-slate-600">{t("Le falde sono salvate. Puoi già disporre e ruotare i pannelli sul tetto prima di scegliere i componenti.")}</p>
+        <Button type="button" variant="outline" onClick={()=>{setBozzaPosa(pianoTetto);setPosaAperta(true);}}>{readOnlyMode?t("Visualizza pannelli sul tetto"):t("Disponi pannelli sul tetto")}</Button>
+      </div>}
+      <Dialog open={posaAperta} onOpenChange={setPosaAperta}>
+        <DialogContent className="fv-roof-dialog w-[calc(100vw-2rem)] max-w-5xl max-h-[92dvh] flex flex-col gap-0 overflow-hidden p-0">
+          <DialogHeader className="shrink-0 border-b px-5 py-4"><DialogTitle>{t("Pannelli sul tetto selezionato")}</DialogTitle><DialogDescription>{t("Disponi i pannelli sulle falde tracciate. Il disegno sarà ripreso nella configurazione dell’impianto.")}</DialogDescription></DialogHeader>
+          <div className="fv-roof-dialog-content min-h-0 overflow-y-auto px-4 py-3"><FvEditorTetto value={bozzaPosa} onChange={setBozzaPosa} modulo={bozzaPosa?.modulo ?? {corto:1.134,lungo:1.762,stimato:true}} potenzaModuloW={0} quantitaIniziale={Math.max(1,data.numero_pannelli_scelti)} modificabile={!readOnlyMode} consentiCapannone={data.tipologia_immobile === "capannone" || data.archetipo === "industriale_grande"}/></div>
+          <div className="fv-roof-dialog-footer shrink-0 border-t bg-white px-5 py-3"><p className="text-sm text-slate-600">{t("{n} pannelli nel disegno",{n:bozzaPosa?.pannelli.length ?? 0})}</p><div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={()=>setPosaAperta(false)}>{readOnlyMode?t("Chiudi"):t("Annulla")}</Button>{!readOnlyMode && <Button type="button" disabled={!bozzaPosa || pannelliDaRivedere(bozzaPosa).length>0} onClick={()=>{if(bozzaPosa){update("layout_overlay",bozzaPosa);setPosaAperta(false);}}}>{t("Conserva disposizione sul tetto")}</Button>}</div></div>
+        </DialogContent>
+      </Dialog>
       {senzaMappa && (
         <FvCard title={t("Stima solare senza mappa")}>
           <p className="mb-4 text-sm text-slate-600">{t("Scegli numero e modello dei pannelli nella fase Impianto. La capienza del tetto resta da verificare con il sopralluogo.")}</p>
@@ -4081,6 +4096,7 @@ export function Step5Configurazione({
           <div className="fv-roof-dialog-content min-h-0 overflow-y-auto px-4 py-3">
           <EditorDisegno
             companyId={companyId}
+            consentiCapannone={data.tipologia_immobile === "capannone" || data.archetipo === "industriale_grande"}
             value={disegnoBozza}
             modulo={moduloDisegno}
             potenzaModuloW={wattDisegno>0?wattDisegno:0}
@@ -4100,7 +4116,7 @@ export function Step5Configurazione({
             {data.prezzo_vendita_manuale != null && data.prezzo_vendita_manuale > 0 && <p className="text-[11px] text-slate-500 mt-1">{tr("È mantenuto il prezzo a corpo della configurazione.")}</p>}
             {!!problemiDisegno.length && <p role="alert" className="text-xs text-amber-700 mt-2">{tr("Riposiziona {n} pannelli evidenziati prima di usare la disposizione.", { n: problemiDisegno.length })}</p>}
             <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setDisegnoAperto(false)}>{readOnlyMode ? tr("Chiudi disposizione") : tr("Annulla")}</Button>
-              {!readOnlyMode && (wattDisegno>0?<Button type="button" disabled={!disegnoBozza?.pannelli.length || problemiDisegno.length > 0} onClick={applicaDisegno}>{tr("Usa disposizione nel preventivo")}</Button>:<Button type="button" disabled={!disegnoBozza} onClick={()=>{setGeometriaInAttesa(disegnoBozza);setDisegnoAperto(false);window.setTimeout(()=>document.getElementById("fv-modello-pannello")?.focus(),0);}}>{tr("Conserva il disegno e scegli il pannello")}</Button>)}
+              {!readOnlyMode && (wattDisegno>0?<Button type="button" disabled={!disegnoBozza?.pannelli.length || problemiDisegno.length > 0} onClick={applicaDisegno}>{tr("Usa disposizione nel preventivo")}</Button>:<Button type="button" disabled={!disegnoBozza} onClick={()=>{if(disegnoBozza)update("layout_overlay",disegnoBozza);setGeometriaInAttesa(disegnoBozza);setDisegnoAperto(false);window.setTimeout(()=>document.getElementById("fv-modello-pannello")?.focus(),0);}}>{tr("Conserva il disegno e scegli il pannello")}</Button>)}
             </div>
           </div>
         </DialogContent>

@@ -61,4 +61,4 @@ export function propostePosa(piano: DisegnoCommercialeFv, faldaId: string, richi
     }
     return proposte;
 }
-export function firmaPosa(piano: DisegnoCommercialeFv) { return JSON.stringify(piano.pannelli.map(m => { const r = ingombroModulo(m, piano.modulo); return [m.faldaId, r.x, r.y, r.w, r.h]; }).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))); }
+export function firmaPosa(piano: DisegnoCommercialeFv) { return JSON.stringify(piano.pannelli.map(m => { const r = ingombroModulo(m, piano.modulo); return [m.faldaId, r.x, r.y, r.w, r.h, m.rotazione ?? 0]; }).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))); }

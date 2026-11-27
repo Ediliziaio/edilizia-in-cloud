@@ -114,6 +114,23 @@ const usa = () =>
     }),
   );
 describe("pin e falde sulla mappa", () => {
+  it("salva una falda appena chiusa e la ritrova dopo Avanti e Indietro senza una seconda conferma", () => {
+    function Host() {
+      const [p,setP]=useState<DisegnoCommercialeFv|null>(null),[mappaVisibile,setMappaVisibile]=useState(true);
+      return <><button onClick={()=>setMappaVisibile(v=>!v)}>Cambia fase</button><output aria-label="Tetto salvato">{JSON.stringify(p)}</output>{mappaVisibile&&<FvMappaTetto ricerca={posizione} indirizzo="Via Esempio 1" riferimento={riferimento} piano={p} modificabile onPosizione={()=>{}} onChange={setP}/>}</>;
+    }
+    render(<Host/>);
+    const el=screen.getByRole("group",{name:"Mappa satellitare: scegli il tetto o disegna una falda"});
+    vi.spyOn(el,"getBoundingClientRect").mockReturnValue({left:0,top:0,width:640,height:440} as DOMRect);
+    fireEvent.click(screen.getByRole("button",{name:"Disegna falda"}));
+    for(const [x,y] of [[250,160],[380,160],[380,280],[250,280]])pointer(el,"pointerdown",x,y);
+    fireEvent.click(screen.getByRole("button",{name:"Chiudi falda"}));
+    const salvato=JSON.parse(screen.getByLabelText("Tetto salvato").textContent!);
+    expect(salvato.mappa.falde).toHaveLength(1);expect(salvato.falde[0].id).toBe(salvato.mappa.falde[0].id);
+    fireEvent.click(screen.getByRole("button",{name:"Cambia fase"}));fireEvent.click(screen.getByRole("button",{name:"Cambia fase"}));
+    expect(screen.getByRole("button",{name:"Falda 1: trascina per spostare"})).toBeTruthy();
+    expect(JSON.parse(screen.getByLabelText("Tetto salvato").textContent!)).toEqual(salvato);
+  });
   it("conserva il punto di presa del pin senza saltare sotto al cursore", () => {
     const { el } = prepara(), prima = poligoni(el);
     pointer(

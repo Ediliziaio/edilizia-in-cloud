@@ -1,5 +1,6 @@
 import { aspettoTettoFv, azimutVistaTettoFv } from "./fvAspettoTetto.ts";
-import { areaPoligono, ingombroModulo, poligonoValido, rettangoloNellaFalda, type DisegnoCommercialeFv, type PuntoFv } from "./fvDisegnoCommerciale.ts";
+import { puntiFaldaInQuota } from "./fvGeometriaFalda.ts";
+import { areaPoligono, ingombroModulo, verticiModulo, poligonoValido, rettangoloNellaFalda, type DisegnoCommercialeFv, type PuntoFv } from "./fvDisegnoCommerciale.ts";
 
 type P3 = PuntoFv & { z: number };
 const rad = Math.PI / 180;
@@ -17,9 +18,7 @@ export function geometriaTettoDocumento(piano: DisegnoCommercialeFv) {
   const altezza = piano.schema3d?.altezza ?? 8;
   const falde = piano.mappa.falde.map((f, indice) => {
     const locale = piano.falde.find(q => q.id === f.id)!;
-    const d = { x: Math.sin(f.azimut * rad), y: Math.cos(f.azimut * rad) };
-    const massimo = Math.max(...f.punti.map(p => p.x * d.x + p.y * d.y));
-    const punti = f.punti.map(p => ({ ...p, z: altezza + (f.dislivelloGronda ?? 0) + (massimo - p.x * d.x - p.y * d.y) * Math.tan(f.inclinazione * rad) }));
+    const punti = puntiFaldaInQuota(f.punti, altezza + (f.dislivelloGronda ?? 0), f.inclinazione, f.azimut);
     const origine = punti.reduce((a, p) => ({ x: a.x + p.x / punti.length, y: a.y + p.y / punti.length, z: a.z + p.z / punti.length }), { x: 0, y: 0, z: 0 });
     const normale = punti.reduce((a, p, i) => {
       const q = punti[(i + 1) % punti.length];
@@ -56,7 +55,7 @@ export function geometriaTettoDocumento(piano: DisegnoCommercialeFv) {
     const f = falde.find(f => f.id === p.faldaId)!;
     const r = ingombroModulo(p, piano.modulo);
     // I supporti alzano solo il lato alto del modulo, come nell'editor 3D.
-    const vertici = rett(r).map((q, i) => {
+    const vertici = verticiModulo(p, piano.modulo).map((q, i) => {
       const t = p.supporto ? .15 + Math.tan(p.supporto.inclinazione * rad) * (p.supporto.verso === "y-" ? (i < 2 ? 0 : r.h) : p.supporto.verso === "x+" ? (i === 1 || i === 2 ? 0 : r.w) : (i === 1 || i === 2 ? r.w : 0)) : 0;
       return f.nelMondo(q, .055 + t);
     });
@@ -74,11 +73,11 @@ const colori = ["#d9e4e9", "#e7d9c9", "#d8e8de", "#e2dded"];
 
 /** SVG incorporato: resta nitido nella stampa e non dipende da canvas/WebGL,
  * crediti AI, rete o fotografie del provider cartografico. */
-export function svgTettoDocumento(g: Geometria, vista: "pianta" | "3d") {
+export function svgTettoDocumento(g: Geometria, vista: "pianta" | "3d", lato = 0) {
   const treD = vista === "3d";
   // Guarda la falda principale dal lato esposto: una camera fissa può mostrarla
   // quasi di taglio quando azimut e pendenza coincidono con la direzione vista.
-  const angolo = azimutVistaTettoFv(g.falde.map(f => ({ id: f.id, azimut: f.azimut, area: f.superficie })), g.pannelli) * rad, d = { x: Math.sin(angolo), y: Math.cos(angolo) };
+  const angolo = (azimutVistaTettoFv(g.falde.map(f => ({ id: f.id, azimut: f.azimut, area: f.superficie })), g.pannelli) + (Number.isFinite(lato) ? lato * 90 : 0)) * rad, d = { x: Math.sin(angolo), y: Math.cos(angolo) };
   const proietta = (p: P3): PuntoFv => treD ? { x: -d.y * p.x + d.x * p.y, y: (d.x * p.x + d.y * p.y) * Math.sin(55 * rad) - p.z * Math.cos(55 * rad) } : { x: p.x, y: -p.y };
   const tutti = g.falde.flatMap(f => f.punti.flatMap(p => treD ? [p, { ...p, z: 0 }] : [p]));
   const ps = tutti.map(proietta), minX = Math.min(...ps.map(p => p.x)), minY = Math.min(...ps.map(p => p.y));

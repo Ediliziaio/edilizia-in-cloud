@@ -1,5 +1,5 @@
 import { type MappaFv } from "../../../../supabase/functions/_shared/fvMappa";
-import { creaPianoReale, type EdificioReale } from "./tettoReale";
+import { creaPianoReale, riferimentiTettoReale, type EdificioReale } from "./tettoReale";
 import { edificioDaFalde, faldaDaOrto } from "./rilievoLocale";
 import {
   areaPoligono,
@@ -7,6 +7,7 @@ import {
   poligonoValido,
   type PuntoFv,
   puntoNelPoligono,
+  rettangoloNellaFalda,
   segmentiSiIncrociano,
 } from "../../../../supabase/functions/_shared/fvDisegnoCommerciale";
 const sulBordo = (p: PuntoFv, ps: PuntoFv[]) =>
@@ -91,4 +92,22 @@ export function pianoDaMappaFv(
   modulo: DisegnoCommercialeFv["modulo"],
 ): DisegnoCommercialeFv {
   return { ...creaPianoReale(edificioDaMappaFv(m), modulo), mappa: m };
+}
+
+/** Aggiorna i contorni conservando posa, ostacoli e impostazioni delle falde non modificate. */
+export function aggiornaPianoDaMappaFv(mappa: MappaFv, precedente: DisegnoCommercialeFv | null): DisegnoCommercialeFv {
+  const nuovo = pianoDaMappaFv(mappa, precedente?.modulo ?? { corto: 1.134, lungo: 1.762, stimato: true });
+  if (!precedente?.mappa) return nuovo;
+  const prima = riferimentiTettoReale(edificioDaMappaFv(precedente.mappa));
+  const dopo = riferimentiTettoReale(edificioDaMappaFv(mappa));
+  const geometria = (f: MappaFv["falde"][number] | undefined) => f ? JSON.stringify([f.punti,f.inclinazione,f.azimut,f.dislivelloGronda ?? 0]) : "";
+  const conservate = new Map(mappa.falde.filter(f => geometria(f) === geometria(precedente.mappa!.falde.find(q => q.id === f.id))).map(f => {
+    const a = prima.find(q => q.faccia.id === f.id)!.offset, b = dopo.find(q => q.faccia.id === f.id)!.offset;
+    return [f.id, { x: b.x-a.x, y: b.y-a.y }];
+  }));
+  return { ...precedente, ...nuovo,
+    falde: nuovo.falde.map(f => {const d=conservate.get(f.id),prima=precedente.falde.find(q=>q.id===f.id);return d&&prima?{...f,punti:prima.punti.map(p=>({x:p.x+d.x,y:p.y+d.y}))}:f;}),
+    pannelli: precedente.pannelli.flatMap(p => { const d = conservate.get(p.faldaId); return d ? [{...p,x:p.x+d.x,y:p.y+d.y}] : []; }),
+    ostacoli: precedente.ostacoli.flatMap(o => {const f=precedente.falde.find(f=>rettangoloNellaFalda(o,f,0)),d=f&&conservate.get(f.id);return d?[{...o,x:o.x+d.x,y:o.y+d.y}]:[];}),
+  };
 }

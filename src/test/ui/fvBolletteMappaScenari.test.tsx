@@ -346,7 +346,7 @@ describe("Tetto manuale e mappa indisponibile", () => {
         name: "Usa falde e prepara nuova disposizione",
       }),
     );
-    expect(salva).toHaveBeenCalledTimes(1);
+    expect(salva).toHaveBeenCalledTimes(2);
     const p = salva.mock.calls[0][0];
     expect(p.mappa.origine).toEqual(posizione);
     expect(p.mappa.ricerca.posizione).toEqual(ricerca);
@@ -445,7 +445,7 @@ describe("Disegno diretto sulla mappa", () => {
         name: "Usa falde e prepara nuova disposizione",
       }),
     );
-    expect(salva).toHaveBeenCalledTimes(1);
+    expect(salva).toHaveBeenCalledTimes(2);
     const p = salva.mock.calls[0][0];
     expect(p.mappa.origine).toEqual(posizione);
     expect(p.mappa.falde[0].punti).toHaveLength(3);

@@ -5,7 +5,7 @@ import { leggiConfermaMisure, type ConfermaMisureFv } from "./fvVerificaMisure.t
  */
 export type PuntoFv = { x: number; y: number };
 export type FaldaFv = { id: string; nome: string; punti: PuntoFv[] };
-export type ModuloPosatoFv = { id: string; faldaId: string; x: number; y: number; orizzontale: boolean; supporto?: {inclinazione:number;verso:"x+"|"x-"|"y-";gruppo:number} };
+export type ModuloPosatoFv = { id: string; faldaId: string; x: number; y: number; orizzontale: boolean; rotazione?: number; supporto?: {inclinazione:number;verso:"x+"|"x-"|"y-";gruppo:number} };
 export type OstacoloFv = { id: string; x: number; y: number; w: number; h: number; tipo?: "lucernario"|"evacuatore"|"corridoio"|"impianto" };
 export type DisegnoCommercialeFv = {
   modalita: "disegno_commerciale"; versione: 1;
@@ -69,18 +69,28 @@ export function ingombroModulo(p: ModuloPosatoFv, modulo: DisegnoCommercialeFv["
 }
 type Rettangolo = { x: number; y: number; w: number; h: number };
 const vertici = (r: Rettangolo): PuntoFv[] => [{ x: r.x, y: r.y }, { x: r.x + r.w, y: r.y }, { x: r.x + r.w, y: r.y + r.h }, { x: r.x, y: r.y + r.h }];
+export const normalizzaRotazioneModulo = (gradi: number) => ((gradi % 360) + 360) % 360;
+/** La posizione resta l'angolo del modulo non ruotato; la rotazione avviene attorno al centro. */
+export function verticiModulo(p: ModuloPosatoFv, modulo: DisegnoCommercialeFv["modulo"]): PuntoFv[] {
+  const r = ingombroModulo(p, modulo), a = (p.rotazione ?? 0) * Math.PI / 180;
+  if (!a) return vertici(r);
+  const cx = r.x + r.w / 2, cy = r.y + r.h / 2, c = Math.cos(a), s = Math.sin(a);
+  return vertici(r).map(q => ({ x: cx + (q.x - cx) * c - (q.y - cy) * s, y: cy + (q.x - cx) * s + (q.y - cy) * c }));
+}
 const distanzaSegmento = (p: PuntoFv, a: PuntoFv, b: PuntoFv) => {
   const l = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
   const t = l ? Math.max(0, Math.min(1, ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / l)) : 0;
   return Math.hypot(p.x - a.x - t * (b.x - a.x), p.y - a.y - t * (b.y - a.y));
 };
 export function rettangoloNellaFalda(r: Rettangolo, falda: FaldaFv, bordo: number) {
-  const v = vertici(r);
+  return poligonoNellaFalda(vertici(r), falda, bordo);
+}
+export function poligonoNellaFalda(v: PuntoFv[], falda: FaldaFv, bordo: number) {
   if (!v.every(p => puntoNelPoligono(p, falda.punti))) return false;
   for (let i = 0; i < falda.punti.length; i++) {
     const a = falda.punti[i], b = falda.punti[(i + 1) % falda.punti.length];
-    for (let j = 0; j < 4; j++) {
-      const c = v[j], d = v[(j + 1) % 4];
+    for (let j = 0; j < v.length; j++) {
+      const c = v[j], d = v[(j + 1) % v.length];
       if (segmentiSiIncrociano(a, b, c, d)) return false;
       if (bordo > 0 && Math.min(distanzaSegmento(c, a, b), distanzaSegmento(d, a, b), distanzaSegmento(a, c, d), distanzaSegmento(b, c, d)) < bordo - EPS) return false;
     }
@@ -90,12 +100,33 @@ export function rettangoloNellaFalda(r: Rettangolo, falda: FaldaFv, bordo: numbe
 export function rettangoliSovrapposti(a: Rettangolo, b: Rettangolo, distanza = 0) {
   return a.x < b.x + b.w + distanza - EPS && a.x + a.w + distanza > b.x + EPS && a.y < b.y + b.h + distanza - EPS && a.y + a.h + distanza > b.y + EPS;
 }
+/** Rettangoli convessi ruotati: separazione degli assi e distanza reale fra i lati. */
+function moduliTroppoVicini(a: PuntoFv[], b: PuntoFv[], distanza: number) {
+  const limiti = (ps: PuntoFv[]) => {const xs=ps.map(p=>p.x),ys=ps.map(p=>p.y),x=Math.min(...xs),y=Math.min(...ys);return{x,y,w:Math.max(...xs)-x,h:Math.max(...ys)-y};};
+  if (!rettangoliSovrapposti(limiti(a),limiti(b),distanza)) return false;
+  const separati = [a, b].some(ps => ps.some((p, i) => {
+    const q = ps[(i + 1) % ps.length], dx = q.y - p.y, dy = p.x - q.x, lunghezza = Math.hypot(dx, dy);
+    const proietta = (v: PuntoFv) => (v.x * dx + v.y * dy) / lunghezza;
+    const pa = a.map(proietta), pb = b.map(proietta);
+    return Math.max(...pa) <= Math.min(...pb) + EPS || Math.max(...pb) <= Math.min(...pa) + EPS;
+  }));
+  if (!separati) return true;
+  return distanza > 0 && a.some((p, i) => b.some((q, j) => {
+    const ap = a[(i + 1) % a.length], bq = b[(j + 1) % b.length];
+    return Math.min(distanzaSegmento(p, q, bq), distanzaSegmento(ap, q, bq), distanzaSegmento(q, p, ap), distanzaSegmento(bq, p, ap)) < distanza - EPS;
+  }));
+}
 export function posizioneModuloValida(piano: DisegnoCommercialeFv, pannello: ModuloPosatoFv) {
+  if (![pannello.x, pannello.y, pannello.rotazione ?? 0].every(Number.isFinite) || (pannello.supporto && normalizzaRotazioneModulo(pannello.rotazione ?? 0) !== 0)) return false;
   const falda = piano.falde.find(f => f.id === pannello.faldaId);
   const r = ingombroModulo(pannello, piano.modulo);
-  if (!falda || !rettangoloNellaFalda(r, falda, piano.distanzaBordo)) return false;
-  if (piano.ostacoli.some(o => rettangoliSovrapposti(r, o, piano.mappa?.distanzaOstacoli ?? piano.distanzaBordo))) return false;
-  return !piano.pannelli.some(p => p.id !== pannello.id && (rettangoliSovrapposti(r, ingombroModulo(p, piano.modulo), piano.spazioModuli)||interfilaViolata(piano,pannello,p)));
+  const ruotato = normalizzaRotazioneModulo(pannello.rotazione ?? 0) !== 0, v = verticiModulo(pannello, piano.modulo);
+  if (!falda || !(ruotato ? poligonoNellaFalda(v, falda, piano.distanzaBordo) : rettangoloNellaFalda(r, falda, piano.distanzaBordo))) return false;
+  const distanzaOstacoli = piano.mappa?.distanzaOstacoli ?? piano.distanzaBordo;
+  if (piano.ostacoli.some(o => ruotato ? moduliTroppoVicini(v, vertici(o), distanzaOstacoli) : rettangoliSovrapposti(r, o, distanzaOstacoli))) return false;
+  return !piano.pannelli.some(p => p.id !== pannello.id && ((ruotato || normalizzaRotazioneModulo(p.rotazione ?? 0) !== 0
+    ? moduliTroppoVicini(v, verticiModulo(p, piano.modulo), piano.spazioModuli)
+    : rettangoliSovrapposti(r, ingombroModulo(p, piano.modulo), piano.spazioModuli)) || interfilaViolata(piano,pannello,p)));
 }
 export function pannelliDaRivedere(piano: DisegnoCommercialeFv) {
   return piano.pannelli.filter(p => !posizioneModuloValida(piano, p)).map(p => p.id);
@@ -140,22 +171,28 @@ export function disponiModuliIndustriali(piano:DisegnoCommercialeFv,quantita:num
   }return next;
 }
 /** Proposta ordinata: non oltre 500 moduli, senza uscire dalle falde o invadere ostacoli. */
-export function disponiModuliAutomaticamente(piano: DisegnoCommercialeFv, quantita: number, orizzontale = false, soloFalda?: string): DisegnoCommercialeFv {
-  if(piano.industriale)return disponiModuliIndustriali(piano,quantita,orizzontale,soloFalda);
+export function disponiModuliAutomaticamente(piano: DisegnoCommercialeFv, quantita: number, orizzontale = false, soloFalda?: string, rotazione = 0): DisegnoCommercialeFv {
+  if(piano.industriale && (piano.industriale.posa !== "aderente" || !rotazione))return disponiModuliIndustriali(piano,quantita,orizzontale,soloFalda);
+  if (!Number.isFinite(rotazione)) return piano;
+  rotazione = normalizzaRotazioneModulo(rotazione);
   const conservati = soloFalda ? piano.pannelli.filter(p => p.faldaId !== soloFalda) : [];
   const richiesti = Number.isFinite(quantita) ? Math.max(0, Math.floor(quantita)) : 0;
-  const target = Math.min(500, conservati.length + richiesti);
+  const target = Math.min(limiteModuliDisegno(piano), conservati.length + richiesti);
   const next = { ...piano, pannelli: [...conservati] };
   const ids = new Set(conservati.map(p => p.id));
   let seriale = 0;
   const prossimoId = () => { do { seriale++; } while (ids.has("modulo-" + seriale)); return "modulo-" + seriale; };
   const w = orizzontale ? piano.modulo.lungo : piano.modulo.corto, h = orizzontale ? piano.modulo.corto : piano.modulo.lungo;
+  const a = rotazione * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  const gira = (p: PuntoFv, inverso = false) => ({x:p.x*c-p.y*s*(inverso?-1:1),y:p.x*s*(inverso?-1:1)+p.y*c});
   for (const f of piano.falde.filter(f => !soloFalda || f.id === soloFalda)) {
-    const xs = f.punti.map(p => p.x), ys = f.punti.map(p => p.y);
+    const contorno = rotazione ? f.punti.map(p=>gira(p,true)) : f.punti;
+    const xs = contorno.map(p => p.x), ys = contorno.map(p => p.y);
     for (let y = Math.min(...ys) + piano.distanzaBordo; y + h <= Math.max(...ys) - piano.distanzaBordo + EPS; y += Math.ceil((h + piano.spazioModuli) * 100) / 100) {
       for (let x = Math.min(...xs) + piano.distanzaBordo; x + w <= Math.max(...xs) - piano.distanzaBordo + EPS; x += Math.ceil((w + piano.spazioModuli) * 100) / 100) {
         if (next.pannelli.length >= target) return next;
-        const p = { id: prossimoId(), faldaId: f.id, x: arrotondaMetro(x), y: arrotondaMetro(y), orizzontale };
+        const centro = gira({x:x+w/2,y:y+h/2});
+        const p = { id: prossimoId(), faldaId: f.id, x: rotazione ? Math.round((centro.x-w/2)*1e6)/1e6 : arrotondaMetro(x), y: rotazione ? Math.round((centro.y-h/2)*1e6)/1e6 : arrotondaMetro(y), orizzontale, ...(rotazione?{rotazione}:{}) };
         if (posizioneModuloValida(next, p)) next.pannelli.push(p);
       }
     }
@@ -165,7 +202,13 @@ export function disponiModuliAutomaticamente(piano: DisegnoCommercialeFv, quanti
 /** Confronto limitato di griglie e orientamenti, senza cambiare contorni o ostacoli.
  * La capacità proposta non è una ricerca esaustiva del massimo installabile.
  */
-export function disponiModuliOttimizzati(piano: DisegnoCommercialeFv, quantita: number, orientamento: boolean | "auto" = "auto", soloFalda?: string): DisegnoCommercialeFv {
+export function disponiModuliOttimizzati(piano: DisegnoCommercialeFv, quantita: number, orientamento: boolean | "auto" = "auto", soloFalda?: string, rotazione = 0): DisegnoCommercialeFv {
+  if (rotazione && (!piano.industriale || piano.industriale.posa === "aderente")) {
+    const a = disponiModuliAutomaticamente(piano,quantita,orientamento===true,soloFalda,rotazione);
+    if (orientamento !== "auto") return a;
+    const b = disponiModuliAutomaticamente(piano,quantita,true,soloFalda,rotazione);
+    return b.pannelli.length > a.pannelli.length ? b : a;
+  }
   if(piano.industriale){const a=disponiModuliIndustriali(piano,quantita,orientamento===true,soloFalda);if(orientamento!=="auto")return a;const b=disponiModuliIndustriali(piano,quantita,true,soloFalda);return b.pannelli.length>a.pannelli.length?b:a;}
   const conservati = soloFalda ? piano.pannelli.filter(p => p.faldaId !== soloFalda) : [];
   const target = Math.min(500, conservati.length + (Number.isFinite(quantita) ? Math.max(0, Math.floor(quantita)) : 0));
@@ -246,7 +289,8 @@ export function leggiDisegnoCommerciale(raw: unknown): DisegnoCommercialeFv | nu
     let supporto:ModuloPosatoFv["supporto"];
     if(p.supporto!==undefined){const q=p.supporto;if(!industriale||industriale.posa==="aderente"||!record(q)||!finito(q.inclinazione)||q.inclinazione!==industriale.inclinazione||!["x+","x-","y-"].includes(String(q.verso))||(industriale.posa==="sud")!==(q.verso==="y-")||!finito(q.gruppo)||!Number.isSafeInteger(q.gruppo)||q.gruppo<0||q.gruppo>2000)return null;supporto={inclinazione:q.inclinazione,verso:q.verso as NonNullable<ModuloPosatoFv["supporto"]>["verso"],gruppo:q.gruppo};}
     if(industriale&&industriale.posa!=="aderente"&&!supporto)return null;
-    pannelli.push({ ...(supporto?{supporto}:{}),id: p.id, faldaId: p.faldaId, x: p.x, y: p.y, orizzontale: p.orizzontale });
+    if (p.rotazione !== undefined && (!finito(p.rotazione) || Math.abs(p.rotazione) > 360 || (supporto && normalizzaRotazioneModulo(p.rotazione) !== 0))) return null;
+    pannelli.push({ ...(supporto?{supporto}:{}), ...(p.rotazione !== undefined ? { rotazione: normalizzaRotazioneModulo(p.rotazione as number) } : {}), id: p.id, faldaId: p.faldaId, x: p.x, y: p.y, orizzontale: p.orizzontale });
   }
   const ostacoli: OstacoloFv[] = [];
   for (const o of raw.ostacoli) {
@@ -281,7 +325,7 @@ export function svgDisegnoCommerciale(piano: DisegnoCommercialeFv) {
   const ostacoli = piano.ostacoli.map(o => '<rect x="' + o.x + '" y="' + o.y + '" width="' + o.w + '" height="' + o.h + '" fill="#EABF93" stroke="#A16207" stroke-width=".04"/>').join("");
   const moduli = piano.pannelli.map(p => {
     const r = ingombroModulo(p, piano.modulo);
-    return '<rect x="' + r.x + '" y="' + r.y + '" width="' + r.w + '" height="' + r.h + '" rx=".035" fill="' + (bad.has(p.id) ? "#DC2626" : "#182126") + '" stroke="#566168" stroke-width=".025"/><path d="M' + (r.x+r.w/2) + ' ' + r.y + 'v' + r.h + ' M' + r.x + ' ' + (r.y+r.h/3) + 'h' + r.w + ' M' + r.x + ' ' + (r.y+2*r.h/3) + 'h' + r.w + '" stroke="#6f7a7e" stroke-opacity=".35" stroke-width=".009"/>';
+    return '<g transform="rotate(' + (p.rotazione ?? 0) + ' ' + (r.x + r.w / 2) + ' ' + (r.y + r.h / 2) + ')"><rect x="' + r.x + '" y="' + r.y + '" width="' + r.w + '" height="' + r.h + '" rx=".035" fill="' + (bad.has(p.id) ? "#DC2626" : "#182126") + '" stroke="#566168" stroke-width=".025"/><path d="M' + (r.x+r.w/2) + ' ' + r.y + 'v' + r.h + ' M' + r.x + ' ' + (r.y+r.h/3) + 'h' + r.w + ' M' + r.x + ' ' + (r.y+2*r.h/3) + 'h' + r.w + '" stroke="#6f7a7e" stroke-opacity=".35" stroke-width=".009"/></g>';
   }).join("");
   const c=piano.industriale;
   const legenda=c?'<text x="'+b.x+'" y="'+(b.y+b.h+.7)+'" font-size=".4" fill="#475569">Pianta · '+(c.posa==="aderente"?'posa aderente':c.posa==="sud"?'file sud':'coppie est–ovest')+' · supporti '+(c.posa==="aderente"?0:c.inclinazione)+'° · spazio libero '+c.interfila+' m</text>':'';

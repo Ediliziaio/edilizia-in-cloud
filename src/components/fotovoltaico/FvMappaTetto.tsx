@@ -2,7 +2,7 @@ import { FvFotoSolar } from "./tetto/FvFotoSolar";
 import { FvGoogleSolarPanel } from "./tetto/FvGoogleSolarPanel";
 import { FvVerificaMisure } from "./tetto/FvVerificaMisure";
 import type { FotoSolarFv } from "../../../supabase/functions/_shared/fvGoogleSolar";
-import { type PointerEvent, useRef, useState } from "react";
+import { type PointerEvent, useEffect, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import "./FvMappaTetto.css";
 import {
@@ -36,7 +36,7 @@ import {
   poligonoValido,
   type PuntoFv,
 } from "../../../supabase/functions/_shared/fvDisegnoCommerciale";
-import { erroreFaldeMappaFv, pianoDaMappaFv } from "./tetto/mappaGeometria";
+import { aggiornaPianoDaMappaFv, erroreFaldeMappaFv, pianoDaMappaFv } from "./tetto/mappaGeometria";
 import { agganciaPuntoFv, impostaLunghezzaLatoFv } from "./tetto/aggancioMappa";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
@@ -152,6 +152,16 @@ export function FvMappaTetto(
     JSON.stringify(piano.mappa.falde) === JSON.stringify(falde) &&
     piano.mappa.distanzaOstacoli === ostacoli && piano.distanzaBordo === bordo;
   const mantieniPannelli = contorniInvariati && !!piano?.pannelli.length;
+  const ultimoSalvataggioAutomatico = useRef("");
+  // Una falda chiusa appartiene già alla bozza del wizard: Avanti non deve perderla.
+  useEffect(() => {
+    if (!modificabile || !confermato || !falde.length || erroreGeometria || drag.current || contorniInvariati) return;
+    const mappa: MappaFv = {versione:1,origine,ricerca:riferimento?.ricerca ?? {indirizzo,posizione:ricerca},falde,distanzaOstacoli:ostacoli,fotoSolar};
+    const firma=JSON.stringify([mappa,bordo]);
+    if(ultimoSalvataggioAutomatico.current===firma)return;
+    ultimoSalvataggioAutomatico.current=firma;
+    onChange({...aggiornaPianoDaMappaFv(mappa,piano),distanzaBordo:bordo});
+  }, [modificabile, confermato, falde, erroreGeometria, contorniInvariati, bordo, ostacoli, fotoSolar, origine, riferimento, indirizzo, ricerca, piano, onChange, spostamento]);
   const schermo = (p: PuntoFv) =>
     pixelDaCoordinate(
       coordinateDaMetri(p, origine),
@@ -271,11 +281,8 @@ export function FvMappaTetto(
       };
       const next = piano && piano.mappa && contorniInvariati
         ? { ...piano, mappa: { ...piano.mappa, ...mappa } }
-        : pianoDaMappaFv(
-          mappa,
-          piano?.modulo ?? { corto: 1.134, lungo: 1.762, stimato: true },
-        );
-      // Solo nuovi contorni o margini richiedono una nuova disposizione dei pannelli.
+        : aggiornaPianoDaMappaFv(mappa, piano);
+      // Conserva la posa delle falde che non hanno cambiato geometria.
       onChange({ ...next, distanzaBordo: bordo, confermaMisure: piano?.confermaMisure });
       setErrore("");
     } catch (e) {
