@@ -15,11 +15,14 @@ export async function registerExpensePayment(input: {
   reference?: string; bankId?: string; existingId?: string;
   account?: { bankAccountId: string | null; liquidityAccountId: string | null };
 }) {
-  if (input.account) {
+  // Anche dal comando rapido nei Costi serve il percorso autorizzato, non solo
+  // dal popup che passa esplicitamente un conto. I collegamenti bancari usano
+  // invece la loro RPC originale e i relativi permessi di Tesoreria.
+  if (input.account || (!input.bankId && !input.existingId)) {
     const { data, error } = await db.rpc('registra_pagamento_costo_con_conto', {
       p_costo: input.costId, p_richiesta: input.requestId, p_importo: input.amount ?? null,
       p_data: input.date, p_metodo: input.method ?? 'bonifico', p_riferimento: input.reference ?? null,
-      p_conto_banca: input.account.bankAccountId, p_conto_liquidita: input.account.liquidityAccountId,
+      p_conto_banca: input.account?.bankAccountId ?? null, p_conto_liquidita: input.account?.liquidityAccountId ?? null,
     });
     if (error) throw new Error(error.message);
     return data;

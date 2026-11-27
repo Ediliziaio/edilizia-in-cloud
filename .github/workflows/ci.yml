@@ -126,6 +126,7 @@ jobs:
           src/test/logic/commesseScadenza.test.ts
           src/test/logic/primaNotaEliminaCostoDatabase.test.ts
           src/test/logic/pagamentoCostoPermessiDatabase.test.ts
+          src/test/logic/expensePaymentsPermessi.test.ts
           src/test/ui/togliPagamentoCosto.test.tsx
           src/test/ui/pagamentoRicevuta.test.tsx
           src/test/logic/finanzaRevisioniDatabase.test.ts
@@ -165,7 +166,10 @@ jobs:
           src/test/security/fattureRicevuteSaldi.test.ts
           src/test/logic/mesiRicevute.test.ts
           src/test/logic/colonneRicevute.test.ts
+          src/test/logic/fattureFornitoreContestuali.test.ts
           src/test/ui/expensePaymentDialog.test.tsx
+          src/test/ui/contestoFornitoreRicevuta.test.tsx
+          src/test/ui/contestoFornitoreFetch.test.tsx
           src/test/ui/riepilogoFatturaRicevuta.test.tsx
           src/test/ui/collegamentiFattura.test.tsx
           src/test/ui/riepilogoDdtFattura.test.tsx

@@ -6,12 +6,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // 30/10/2026 — Il riepilogo della fattura ricevuta funziona senza XML (righe e totali
 // dal database), dice a cosa è collegata e collega fornitore e commessa da lì.
 
-const finto = vi.hoisted(() => ({ dati: {} as Record<string, unknown>, rpc: vi.fn() }));
+const finto = vi.hoisted(() => ({ dati: {} as Record<string, unknown>, rpc: vi.fn(), contesto: [] as unknown[] }));
 vi.mock("@/integrations/supabase/client", () => {
   const catena = (tabella: string): any => {
     const c: any = {};
     for (const m of ["select", "eq", "is", "order", "in", "or", "limit"]) c[m] = () => c;
-    c.maybeSingle = async () => ({ data: finto.dati[tabella] ?? null, error: null as null });
+    let selezionato = "";
+    c.eq = (campo: string, valore: string) => { if (campo === "id") selezionato = valore; return c; };
+    c.maybeSingle = async () => ({ data: finto.dati[`${tabella}:${selezionato}`] ?? finto.dati[tabella] ?? null, error: null as null });
     if (tabella === "rate_fornitori") {
       let id: string;
       let versione: string;
@@ -36,6 +38,10 @@ vi.mock("@/integrations/supabase/client", () => {
 });
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewCosts: true, solaLettura: false }) }));
+vi.mock("@/hooks/useFattureFornitoreContestuali", () => ({
+  filtriFornitore: () => ["fornitore_id.eq.test"],
+  useFattureFornitoreContestuali: () => ({ data: finto.contesto, isLoading: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 import { RiepilogoFatturaRicevuta } from "@/components/fatturazione/RiepilogoFatturaRicevuta";
 
@@ -66,6 +72,7 @@ const conXml = () => ({...FIC,xml_raw:XML_DETTAGLI,indice_corpo:0,righe:(FIC.rig
 
 beforeEach(() => {
   finto.rpc.mockReset().mockResolvedValue({ data: { esito: "collegata" }, error: null as null });
+  finto.contesto = [];
   finto.dati = {
     fatture_ricevute: FIC,
     "fatture_ricevute[]": [{ id: "f1" }, { id: "f2" }],
@@ -75,6 +82,26 @@ beforeEach(() => {
 });
 
 describe("riepilogo della fattura ricevuta", () => {
+  it("apre le altre fatture dello stesso fornitore senza riusare azioni riferite al documento iniziale", async () => {
+    const seconda: Record<string, unknown> = { ...FIC, id: "f2", numero_fattura: "1290", data_fattura: "2026-11-15", order_id_suggerito: null };
+    finto.dati["fatture_ricevute:f2"] = seconda;
+    finto.contesto = [
+      { ...FIC, scadenze: [] },
+      { ...seconda, scadenze: [{ id: "r2", numero: 1, scadenza: "2026-12-31", importo: 100, residuo: 100, metodo: "riba", stato: "da pagare", prevista: false }] },
+    ];
+    const collega = vi.fn();
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={qc}><MemoryRouter>
+      <RiepilogoFatturaRicevuta fatturaId="f1" companyId="co" onClose={() => {}} azioni={{ onCollegaOrdine: collega }} />
+    </MemoryRouter></QueryClientProvider>);
+    fireEvent.click(await screen.findByRole("button", { name: "Altre fatture del fornitore" }));
+    expect(screen.getByLabelText("Fatture e scadenze del fornitore")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Apri fattura 1290" }));
+    expect(await screen.findByText(/n\. 1290/)).toBeVisible();
+    expect(screen.getByLabelText("Fatture e scadenze del fornitore")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Collega" })).toBeNull();
+    expect(collega).not.toHaveBeenCalled();
+  });
   it("mostra il riferimento del cliente che giustifica la proposta della commessa",async()=>{
     finto.dati.fatture_ricevute={...FIC,order_id_suggerito:'o9',order_suggerito_motivo:'Da confermare: cliente Biemme citato nella causale'};
     apri();
@@ -139,7 +166,7 @@ describe("riepilogo della fattura ricevuta", () => {
   it("«Pagamenti e residuo» apre i pagamenti dentro il riepilogo, che resta aperto",async()=>{
     finto.dati.fatture_ricevute={...FIC,company_cost_id:'c1'};
     finto.dati.company_costs={id:'c1',amount:356};
-    finto.rpc.mockImplementation(async(name:string)=>({data:name==='dettaglio_pagamento_costo'?{id:'c1',company_id:'co',nome:'Costo c1',totale:434.32,pagato:0,residuo:434.32,da_verificare:false,movimenti:[]}:null,error:null}));
+    finto.rpc.mockImplementation(async(name:string)=>({data:name==='dettaglio_pagamento_costo'?{id:'c1',company_id:'co',nome:'Costo c1',totale:434.32,pagato:0,residuo:434.32,da_verificare:false,puo_registrare_pagamento:true,puo_togliere_pagamento:true,movimenti:[]}:null,error:null}));
     apri();
     fireEvent.click(await screen.findByRole('button',{name:'Pagamenti e residuo'}));
     // Il pannello è dentro la sezione dei pagamenti del riepilogo: un dialogo solo, la fattura resta lì.
@@ -237,7 +264,7 @@ describe("riepilogo della fattura ricevuta", () => {
         finto.dati.company_costs = { id: "c1", amount: 356 };
         return { data: { esito: "creato", company_cost_id: "c1" }, error: null };
       }
-      if (name === "dettaglio_pagamento_costo") return { data: { id: "c1", company_id: "co", nome: "Costo c1", totale: 434.32, pagato: 0, residuo: 434.32, da_verificare: false, movimenti: [] }, error: null };
+      if (name === "dettaglio_pagamento_costo") return { data: { id: "c1", company_id: "co", nome: "Costo c1", totale: 434.32, pagato: 0, residuo: 434.32, da_verificare: false, puo_registrare_pagamento: true, puo_togliere_pagamento: true, movimenti: [] }, error: null };
       return { data: null, error: null };
     });
     apri();

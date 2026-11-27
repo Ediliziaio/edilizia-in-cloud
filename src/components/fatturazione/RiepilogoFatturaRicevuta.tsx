@@ -51,6 +51,7 @@ import { useExpensePaymentDetail } from "@/hooks/useExpensePaymentDetail";
 import { VerificaPrimaDelPagamento } from "@/components/operazioni/VerificaPrimaDelPagamento";
 import { PrezziListinoFattura } from "@/components/fatturazione/PrezziListinoFattura";
 import { ExpensePaymentSummary } from "@/components/orders/ExpensePaymentSummary";
+import { ContestoFornitoreRicevuta } from "./ContestoFornitoreRicevuta";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 import "./riepilogo-ricevuta.css";
 
@@ -262,7 +263,17 @@ interface PropsRiepilogo {
 }
 
 export function RiepilogoFatturaRicevuta(props: PropsRiepilogo) {
-  return <ContenutoRiepilogo key={`${props.companyId}-${props.fatturaId}`} {...props} />;
+  return <NavigazioneRiepilogo key={`${props.companyId}-${props.fatturaId}`} {...props} />;
+}
+
+function NavigazioneRiepilogo(props: PropsRiepilogo) {
+  const [fatturaAttiva, setFatturaAttiva] = useState(props.fatturaId);
+  const [mostraFornitore, setMostraFornitore] = useState(false);
+  return <ContenutoRiepilogo key={`${props.companyId}-${fatturaAttiva}`} {...props} fatturaId={fatturaAttiva}
+    azioni={fatturaAttiva === props.fatturaId ? props.azioni : undefined}
+    apriConfronto={fatturaAttiva === props.fatturaId ? props.apriConfronto : false}
+    analisiDaAprire={fatturaAttiva === props.fatturaId ? props.analisiDaAprire : undefined}
+    mostraFornitore={mostraFornitore} setMostraFornitore={setMostraFornitore} onApriAltraFattura={setFatturaAttiva} />;
 }
 
 function ContenutoRiepilogo({
@@ -272,7 +283,10 @@ function ContenutoRiepilogo({
   azioni = {},
   apriConfronto = false,
   analisiDaAprire,
-}: PropsRiepilogo) {
+  mostraFornitore,
+  setMostraFornitore,
+  onApriAltraFattura,
+}: PropsRiepilogo & { mostraFornitore: boolean; setMostraFornitore: (mostra: boolean) => void; onApriAltraFattura: (id: string) => void }) {
   const t = useT();
   const aspettoGenerale = useAspettoOperativo();
   const isMobile = useIsMobile();
@@ -300,6 +314,7 @@ function ContenutoRiepilogo({
   const [modificaQuote, setModificaQuote] = useState(false);
   const [confronto, setConfronto] = useState(apriConfronto);
   const [pagamenti, setPagamenti] = useState<string | null>(null);
+  const pulsanteFornitore = useRef<HTMLButtonElement | null>(null);
   // 23/11/2026: i pagamenti si aprono dentro il riepilogo, nella loro sezione. Prima il riepilogo
   // spariva e al suo posto compariva il popup dei pagamenti: si perdeva la fattura di vista.
   const sezionePagamenti = useRef<HTMLElement | null>(null);
@@ -478,7 +493,7 @@ function ContenutoRiepilogo({
     {!!fatturaId && !(confronto && permessi.canViewCosts && f) && !modificaQuote && !rataScelta && !vistaCompleta && <Radice open onOpenChange={(o) => { if (!o) chiudiRiepilogo(); }}>
       <Contenuto
         {...(isMobile ? { side: "bottom" as const } : { onOpenAutoFocus: (e: Event) => e.preventDefault() })}
-        className={`commessa-modal-layout ricevuta-riepilogo ${isMobile ? "max-h-[94dvh] rounded-t-2xl px-4 pb-4" : "max-h-[92dvh]"} [&_dl_a]:min-h-0 [&_dl_a]:min-w-0`}
+        className={`commessa-modal-layout ricevuta-riepilogo ${mostraFornitore ? "ricevuta-con-contesto" : ""} ${isMobile ? "max-h-[94dvh] rounded-t-2xl px-4 pb-4" : "max-h-[92dvh]"} [&_dl_a]:min-h-0 [&_dl_a]:min-w-0`}
       >
         <SheetHeader data-ui="dialog-header" className="ricevuta-testata text-left space-y-2">
           <div className="ricevuta-testata-riga">
@@ -539,7 +554,7 @@ function ContenutoRiepilogo({
               </section>
             )}
 
-            <div className="ricevuta-overview">
+            <div className={`ricevuta-overview ${mostraFornitore ? "ricevuta-overview-con-contesto" : ""}`}>
             {/* Collegamenti */}
             <section className="ricevuta-collegamenti rounded-lg border p-3 space-y-2">
               <h3 className="text-sm font-semibold flex items-center gap-1.5"><Link2 className="h-4 w-4" /> {t("A cosa è collegata")}</h3>
@@ -689,7 +704,17 @@ function ContenutoRiepilogo({
             </section>
 
             <section ref={sezionePagamenti} aria-label={t("Pagamenti della fattura")} className="ricevuta-pagamenti rounded-lg border p-3 space-y-3 scroll-mt-4">
-              <h3 className="text-sm font-semibold">{t("Pagamenti e residuo")}</h3>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold">{t("Pagamenti e residuo")}</h3>
+                <Button ref={pulsanteFornitore} type="button" size="sm" variant={mostraFornitore ? "secondary" : "outline"} className="h-8 px-2.5 text-xs"
+                  aria-expanded={mostraFornitore} aria-controls="contesto-fornitore-ricevuta" onClick={() => {
+                    const aperto = !mostraFornitore;
+                    setMostraFornitore(aperto);
+                    if (aperto && isMobile) requestAnimationFrame(() => document.getElementById("contesto-fornitore-ricevuta")?.scrollIntoView({ block: "start", behavior: "smooth" }));
+                  }}>
+                  {mostraFornitore ? t("Nascondi altre fatture") : t("Altre fatture del fornitore")}
+                </Button>
+              </div>
               {statoPagamento && <ExpensePaymentSummary totale={Number(statoPagamento.totale)} pagato={Number(statoPagamento.pagato)} residuo={Number(statoPagamento.residuo)} />}
               {pagamentoCosto.isError && <p role="alert" className="text-xs text-destructive">{t("Pagamenti non disponibili.")} <Button variant="link" size="sm" onClick={() => void pagamentoCosto.refetch()}>{t("Riprova")}</Button></p>}
               {statoPagamento?.da_verificare && <p role="status" className="text-xs text-amber-800">{t("Ci sono registrazioni storiche da confrontare prima di aggiungere un pagamento.")}</p>}
@@ -770,6 +795,16 @@ function ContenutoRiepilogo({
             })()}
 
             </section>
+            {mostraFornitore && companyId && <ContestoFornitoreRicevuta companyId={companyId} fatturaId={String(f.id)}
+              supplierId={f.fornitore_id ? String(f.fornitore_id) : null} piva={f.cedente_piva ? String(f.cedente_piva) : null}
+              cf={f.cedente_cf ? String(f.cedente_cf) : null} paese={f.cedente_paese ? String(f.cedente_paese) : null}
+              onChiudi={() => { setMostraFornitore(false); requestAnimationFrame(() => pulsanteFornitore.current?.focus()); }} onApriFattura={(id) => {
+                if (contiRighe.salvando || contiRighe.modificati) {
+                  toast.info(t("Ci sono conti non salvati"), { description: t("Usa «Salva conti della fattura» oppure «Annulla modifiche ai conti» prima di chiudere.") });
+                  return;
+                }
+                onApriAltraFattura(id);
+              }} />}
             </div>
             <dl className="ricevuta-totali-documento grid grid-cols-3 gap-2" aria-label={t("Importi del documento")}>
               {[["Imponibile", imponibile], ["IVA", iva], ["Totale documento", totale]].map(([titolo, valore]) => <div key={String(titolo)} className="rounded-lg bg-muted/40 p-3"><dt className="text-xs text-muted-foreground">{titolo}</dt><dd className="font-semibold tabular-nums">{formatCurrency(Number(valore))}</dd></div>)}

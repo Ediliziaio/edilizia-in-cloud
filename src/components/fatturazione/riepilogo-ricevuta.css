@@ -1,4 +1,5 @@
 [role="dialog"].dialog-readable.ricevuta-riepilogo { width: min(1100px, calc(100vw - 48px)); }
+[role="dialog"].dialog-readable.ricevuta-riepilogo.ricevuta-con-contesto { width: min(1500px, calc(100vw - 48px)); max-width: calc(100vw - 48px); }
 .ricevuta-riepilogo .ricevuta-testata { flex: 0 0 auto; border-bottom: 1px solid hsl(var(--border)); padding-bottom: 12px; }
 .ricevuta-testata-riga { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding-right: 18px; }
 .ricevuta-identita { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 18px; min-width: 0; }
@@ -8,16 +9,23 @@
 .ricevuta-riepilogo .ricevuta-azioni button { height: auto; min-height: 30px; padding: 5px 8px; gap: 4px; font-size: 12px; white-space: nowrap; text-align: left; }
 .ricevuta-azioni button svg { width: 14px; height: 14px; margin: 0; }
 .ricevuta-overview { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.ricevuta-overview-con-contesto { grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr) minmax(280px, .9fr); gap: 12px; }
+.ricevuta-contesto-lista { max-height: min(52vh, 520px); overflow-y: auto; overscroll-behavior: contain; }
 .ricevuta-overview > *, .ricevuta-overview dd { min-width: 0; overflow-wrap: anywhere; }
 .ricevuta-pagamenti .commessa-payment-summary > div { padding: 10px; }
 .ricevuta-riepilogo .commessa-modal-body { padding-top: 4px; }
+@media (max-width: 1199px) {
+  .ricevuta-overview-con-contesto { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .ricevuta-overview-con-contesto > .ricevuta-contesto-fornitore { grid-column: 1 / -1; }
+  .ricevuta-contesto-lista { max-height: 360px; }
+}
 @media (max-width: 899px) {
   .ricevuta-overview { grid-template-columns: minmax(0, 1fr); }
   .ricevuta-testata-riga { flex-wrap: wrap; }
   .ricevuta-azioni { margin-left: auto; }
 }
 @media (max-width: 639px) {
-  [role="dialog"].dialog-readable.ricevuta-riepilogo { width: 100%; max-width: 100%; }
+  [role="dialog"].dialog-readable.ricevuta-riepilogo, [role="dialog"].dialog-readable.ricevuta-riepilogo.ricevuta-con-contesto { width: 100%; max-width: 100%; }
   .ricevuta-testata-riga { padding-right: 0; }
   .ricevuta-riepilogo .ricevuta-fornitore { padding-right: 24px; }
   .ricevuta-azioni { gap: 4px; }
