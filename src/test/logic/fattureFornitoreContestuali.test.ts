@@ -27,6 +27,13 @@ describe("contesto del fornitore nella fattura ricevuta", () => {
     const [f] = unisciFattureScadenze([fattura("F2", [{ scadenza: "2027-01-30", importo: 120, modalita: "MP12" }])], []);
     expect(f.scadenze[0]).toMatchObject({ prevista: true, residuo: null, importo: 120, stato: "da verificare" });
   });
+  it("non mostra date tecniche o non valide come vere scadenze", () => {
+    const [f] = unisciFattureScadenze([fattura("F2", [
+      { scadenza: "9999-12-31", importo: 120, modalita: "MP12" },
+      { scadenza: "2026-02-30", importo: 50, modalita: "MP05" },
+    ])], []);
+    expect(f.scadenze.map(r => r.scadenza)).toEqual([null, null]);
+  });
   it("conserva le rate già registrate senza costo e non duplica quelle dello scadenzario", () => {
     const comune: { id: string; numero: number; scadenza: string; importo: number; metodo: string; stato: string; pagata_il: string | null } =
       { id: "r1", numero: 1, scadenza: "2027-02-28", importo: 100, metodo: "riba", stato: "da_pagare", pagata_il: null };

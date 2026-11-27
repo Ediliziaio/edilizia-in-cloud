@@ -17,6 +17,13 @@ export type ScadenzaFornitore = {
 };
 export type FatturaConScadenze = FatturaFornitore & { scadenze: ScadenzaFornitore[] };
 
+function dataScadenza(valore: string | null): string | null {
+  const data = valore?.slice(0, 10) ?? "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data) || data === "9999-12-31") return null;
+  const letta = new Date(`${data}T00:00:00Z`);
+  return Number.isFinite(letta.getTime()) && letta.toISOString().slice(0, 10) === data ? data : null;
+}
+
 /** Le rate senza costo possono esistere già: conserva lo stato, non inventare il residuo. */
 export function completaRateFornitore(rate: RataScadenzario[], dirette: RataDiretta[]): RataScadenzario[] {
   const perId = new Map(rate.map(r => [r.id, r]));
@@ -63,10 +70,10 @@ export function unisciFattureScadenze(fatture: FatturaFornitore[], rate: RataSca
   return fatture.map(f => {
     const registrate = perFattura.get(f.id) ?? [];
     const scadenze: ScadenzaFornitore[] = registrate.length ? registrate.map(r => ({
-      id: r.id, numero: r.numero, scadenza: r.scadenza, importo: r.importo, residuo: r.residuo,
+      id: r.id, numero: r.numero, scadenza: dataScadenza(r.scadenza), importo: r.importo, residuo: r.residuo,
       metodo: r.metodo, stato: statoRataFornitore({ ...r, fatture_ricevute: null }), prevista: false,
     })) : (pagamentoDaMostrare(f)?.rate ?? []).map((r, i) => ({
-      id: `xml:${f.id}:${i}`, numero: i + 1, scadenza: r.scadenza, importo: r.importo,
+      id: `xml:${f.id}:${i}`, numero: i + 1, scadenza: dataScadenza(r.scadenza), importo: r.importo,
       residuo: null as number | null, metodo: r.metodo, stato: r.pagataIl || f.pagata_il ? "pagata" : "da verificare", prevista: true,
     }));
     scadenze.sort((a, b) => (a.scadenza ?? "9999-12-31").localeCompare(b.scadenza ?? "9999-12-31") || a.numero - b.numero);
