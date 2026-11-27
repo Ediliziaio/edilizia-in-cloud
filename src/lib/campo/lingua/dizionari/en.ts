@@ -69426,5 +69426,15 @@ const dizionario: Dizionario = {
   "Forse è: {nome}": "Maybe: {nome}",
   "{n} voce non collegata al listino generale: i rendiconti la trovano solo cercandola a mano.": "{n} item not linked to the general price list: daily statements only find it when searched by hand.",
   "{n} voci non collegate al listino generale: i rendiconti le trovano solo cercandole a mano.": "{n} items not linked to the general price list: daily statements only find them when searched by hand.",
+  "Rendiconto del giorno aperto: controlla i prezzi e conferma": "Daily statement opened: check the prices and confirm",
+  "Rendiconto non creato": "Statement not created",
+  "Crea il rendiconto di questo giorno": "Create this day's statement",
+  "scritto a mano": "entered by hand",
+  "stimato dalle fatture": "estimated from invoices",
+  "Fa parte di un rendiconto giornaliero: si modifica da Cantiere → Rendiconti": "Part of a daily statement: edit it from Site → Statements",
+  "Le righe di ogni giorno si scrivono in": "Each day's lines are written in",
+  "Cantiere → Rendiconti": "Site → Statements",
+  "Quelli confermati entrano in questo rendiconto.": "Confirmed ones go into this statement.",
+  "{n} rapportini rifiutati dentro: riaprilo e controlla": "{n} rejected reports inside: reopen it and check",
 };
 export default dizionario;

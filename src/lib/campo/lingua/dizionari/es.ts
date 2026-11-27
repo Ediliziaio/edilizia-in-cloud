@@ -69426,5 +69426,15 @@ const dizionario: Dizionario = {
   "Forse è: {nome}": "Quizá sea: {nome}",
   "{n} voce non collegata al listino generale: i rendiconti la trovano solo cercandola a mano.": "{n} partida sin vincular a la lista general: los partes diarios solo la encuentran buscándola a mano.",
   "{n} voci non collegate al listino generale: i rendiconti le trovano solo cercandole a mano.": "{n} partidas sin vincular a la lista general: los partes diarios solo las encuentran buscándolas a mano.",
+  "Rendiconto del giorno aperto: controlla i prezzi e conferma": "Resumen del día abierto: revisa los precios y confirma",
+  "Rendiconto non creato": "Resumen no creado",
+  "Crea il rendiconto di questo giorno": "Crear el resumen de este día",
+  "scritto a mano": "escrito a mano",
+  "stimato dalle fatture": "estimado de las facturas",
+  "Fa parte di un rendiconto giornaliero: si modifica da Cantiere → Rendiconti": "Forma parte de un resumen diario: se modifica en Obra → Resúmenes",
+  "Le righe di ogni giorno si scrivono in": "Las líneas de cada día se escriben en",
+  "Cantiere → Rendiconti": "Obra → Resúmenes",
+  "Quelli confermati entrano in questo rendiconto.": "Los confirmados entran en este resumen.",
+  "{n} rapportini rifiutati dentro: riaprilo e controlla": "{n} partes rechazados dentro: reábrelo y revisa",
 };
 export default dizionario;

@@ -127,6 +127,7 @@ export function RendicontiGiornalieri({ orderId, apriId, onApriConsumato }: {
                   <span className="ml-2 text-[11px] text-muted-foreground">{r.righe === 1 ? tr("1 riga") : tr("{n} righe", { n: r.righe })}</span>
                   {r.rapportini > 0 && <span className="ml-2 text-[11px] text-muted-foreground">{r.rapportini === 1 ? tr("da 1 rapportino") : tr("da {n} rapportini", { n: r.rapportini })}</span>}
                   {r.rapportini_nuovi > 0 && <span className="ml-2 text-[11px] font-medium text-amber-700">{r.rapportini_nuovi === 1 ? tr("1 rapportino nuovo") : tr("{n} rapportini nuovi", { n: r.rapportini_nuovi })}</span>}
+                  {r.rapportini_ritirati > 0 && <span className="ml-2 text-[11px] font-medium text-red-700">{tr("{n} rapportini rifiutati dentro: riaprilo e controlla", { n: r.rapportini_ritirati })}</span>}
                   {r.senza_prezzo > 0 && <span className="ml-2 text-[11px] font-medium text-amber-700">{tr("{n} senza prezzo", { n: r.senza_prezzo })}</span>}
                   {r.sal_id && <span className="ml-2 text-[11px] text-blue-800">{tr("nel rendiconto del periodo")}</span>}
                 </span>

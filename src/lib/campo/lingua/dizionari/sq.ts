@@ -69463,5 +69463,15 @@ const dizionario: Dizionario = {
   "Forse è: {nome}": "Ndoshta është: {nome}",
   "{n} voce non collegata al listino generale: i rendiconti la trovano solo cercandola a mano.": "{n} zë i palidhur me listën e përgjithshme: raportet ditore e gjejnë vetëm duke e kërkuar me dorë.",
   "{n} voci non collegate al listino generale: i rendiconti le trovano solo cercandole a mano.": "{n} zëra të palidhur me listën e përgjithshme: raportet ditore i gjejnë vetëm duke i kërkuar me dorë.",
+  "Rendiconto del giorno aperto: controlla i prezzi e conferma": "Llogaria e ditës u hap: kontrollo çmimet dhe konfirmo",
+  "Rendiconto non creato": "Llogaria nuk u krijua",
+  "Crea il rendiconto di questo giorno": "Krijo llogarinë e kësaj dite",
+  "scritto a mano": "shkruar me dorë",
+  "stimato dalle fatture": "vlerësuar nga faturat",
+  "Fa parte di un rendiconto giornaliero: si modifica da Cantiere → Rendiconti": "Pjesë e një llogarie ditore: ndryshohet te Kantieri → Llogaritë",
+  "Le righe di ogni giorno si scrivono in": "Rreshtat e çdo dite shkruhen te",
+  "Cantiere → Rendiconti": "Kantieri → Llogaritë",
+  "Quelli confermati entrano in questo rendiconto.": "Të konfirmuarat hyjnë në këtë llogari.",
+  "{n} rapportini rifiutati dentro: riaprilo e controlla": "{n} raporte të refuzuara brenda: rihape dhe kontrollo",
 };
 export default dizionario;

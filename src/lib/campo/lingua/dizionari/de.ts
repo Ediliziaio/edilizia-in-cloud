@@ -69426,5 +69426,15 @@ const dizionario: Dizionario = {
   "Forse è: {nome}": "Vielleicht: {nome}",
   "{n} voce non collegata al listino generale: i rendiconti la trovano solo cercandola a mano.": "{n} Position ist nicht mit der allgemeinen Preisliste verknüpft: Die Tagesabrechnungen finden sie nur durch manuelle Suche.",
   "{n} voci non collegate al listino generale: i rendiconti le trovano solo cercandole a mano.": "{n} Positionen sind nicht mit der allgemeinen Preisliste verknüpft: Die Tagesabrechnungen finden sie nur durch manuelle Suche.",
+  "Rendiconto del giorno aperto: controlla i prezzi e conferma": "Tagesabrechnung geöffnet: Preise prüfen und bestätigen",
+  "Rendiconto non creato": "Abrechnung nicht erstellt",
+  "Crea il rendiconto di questo giorno": "Abrechnung dieses Tages erstellen",
+  "scritto a mano": "von Hand eingetragen",
+  "stimato dalle fatture": "aus Rechnungen geschätzt",
+  "Fa parte di un rendiconto giornaliero: si modifica da Cantiere → Rendiconti": "Teil einer Tagesabrechnung: wird unter Baustelle → Abrechnungen geändert",
+  "Le righe di ogni giorno si scrivono in": "Die Zeilen jedes Tages werden geschrieben in",
+  "Cantiere → Rendiconti": "Baustelle → Abrechnungen",
+  "Quelli confermati entrano in questo rendiconto.": "Bestätigte fließen in diese Abrechnung ein.",
+  "{n} rapportini rifiutati dentro: riaprilo e controlla": "{n} abgelehnte Berichte enthalten: wieder öffnen und prüfen",
 };
 export default dizionario;

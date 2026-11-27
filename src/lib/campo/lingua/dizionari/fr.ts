@@ -69426,5 +69426,15 @@ const dizionario: Dizionario = {
   "Forse è: {nome}": "Peut-être : {nome}",
   "{n} voce non collegata al listino generale: i rendiconti la trovano solo cercandola a mano.": "{n} poste non lié au tarif général : les relevés journaliers ne le trouvent qu'en le cherchant à la main.",
   "{n} voci non collegate al listino generale: i rendiconti le trovano solo cercandole a mano.": "{n} postes non liés au tarif général : les relevés journaliers ne les trouvent qu'en les cherchant à la main.",
+  "Rendiconto del giorno aperto: controlla i prezzi e conferma": "Relevé du jour ouvert : vérifiez les prix et confirmez",
+  "Rendiconto non creato": "Relevé non créé",
+  "Crea il rendiconto di questo giorno": "Créer le relevé de ce jour",
+  "scritto a mano": "saisi à la main",
+  "stimato dalle fatture": "estimé à partir des factures",
+  "Fa parte di un rendiconto giornaliero: si modifica da Cantiere → Rendiconti": "Fait partie d'un relevé journalier : se modifie dans Chantier → Relevés",
+  "Le righe di ogni giorno si scrivono in": "Les lignes de chaque jour s'écrivent dans",
+  "Cantiere → Rendiconti": "Chantier → Relevés",
+  "Quelli confermati entrano in questo rendiconto.": "Les confirmés entrent dans ce relevé.",
+  "{n} rapportini rifiutati dentro: riaprilo e controlla": "{n} rapports refusés dedans : rouvrez-le et vérifiez",
 };
 export default dizionario;

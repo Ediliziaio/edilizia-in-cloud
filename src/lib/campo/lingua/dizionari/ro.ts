@@ -69463,5 +69463,15 @@ const dizionario: Dizionario = {
   "Forse è: {nome}": "Poate este: {nome}",
   "{n} voce non collegata al listino generale: i rendiconti la trovano solo cercandola a mano.": "{n} articol nelegat de lista generală: rapoartele zilnice îl găsesc doar căutându-l manual.",
   "{n} voci non collegate al listino generale: i rendiconti le trovano solo cercandole a mano.": "{n} articole nelegate de lista generală: rapoartele zilnice le găsesc doar căutându-le manual.",
+  "Rendiconto del giorno aperto: controlla i prezzi e conferma": "Decontul zilei deschis: verifică prețurile și confirmă",
+  "Rendiconto non creato": "Decont necreat",
+  "Crea il rendiconto di questo giorno": "Creează decontul acestei zile",
+  "scritto a mano": "scris de mână",
+  "stimato dalle fatture": "estimat din facturi",
+  "Fa parte di un rendiconto giornaliero: si modifica da Cantiere → Rendiconti": "Face parte dintr-un decont zilnic: se modifică din Șantier → Deconturi",
+  "Le righe di ogni giorno si scrivono in": "Rândurile fiecărei zile se scriu în",
+  "Cantiere → Rendiconti": "Șantier → Deconturi",
+  "Quelli confermati entrano in questo rendiconto.": "Cele confirmate intră în acest decont.",
+  "{n} rapportini rifiutati dentro: riaprilo e controlla": "{n} rapoarte respinse în interior: redeschide-l și verifică",
 };
 export default dizionario;

@@ -14,7 +14,14 @@ vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewOrder
 vi.mock("@/hooks/useOrderWorkPhases", () => ({ useOrderWorkPhases: () => ({ employees: [{ id: "e1", label: "Mario Rossi" }] }) }));
 vi.mock("@/components/orders/PulsantePdfRendiconto", () => ({ PulsantePdfRendiconto: () => <button type="button">PDF</button> }));
 vi.mock("@/hooks/useMezzi", () => ({ useMezzi: () => ({ data: [] as unknown[] }) }));
-vi.mock("@/components/orders/CercaNelListino", () => ({
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "c1", name: "Impresa" } }) }));
+vi.mock("@/components/orders/CercaVoceRendiconto", () => ({
+  CercaVoceRendiconto: ({ onScegliGenerale }: { onScegliGenerale: (v: unknown) => void }) => (
+    <button type="button" onClick={() => onScegliGenerale({ tariffa_id: "t1", codice: null, descrizione: "Posa pavimento", unita: "mq", prezzo: 20, fonte: "committente" })}>scegli-voce</button>
+  ),
+}));
+vi.mock("@/components/orders/CercaNelListino", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/orders/CercaNelListino")>()),
   CercaNelListino: ({ onScegli }: { onScegli: (v: unknown) => void }) => (
     <button type="button" onClick={() => onScegli({ tariffa_id: "t1", codice: null, descrizione: "Posa pavimento", unita: "mq", prezzo: 20, fonte: "committente" })}>scegli-voce</button>
   ),
@@ -32,7 +39,7 @@ vi.mock("@/integrations/supabase/client", () => {
 
 const testata = (o: Record<string, unknown> = {}) => ({
   id: "g1", order_id: "o", data: "2026-11-20", numero: 3, stato: "bozza", descrizione_lavori: "Massetto piano terra",
-  note: null as string | null, rapportino_id: null as string | null, righe: 4, totale: 1250.5, senza_prezzo: 0, sal_id: null as string | null, rapportini: 0, rapportini_nuovi: 0, ...o,
+  note: null as string | null, rapportino_id: null as string | null, righe: 4, totale: 1250.5, senza_prezzo: 0, sal_id: null as string | null, rapportini: 0, rapportini_nuovi: 0, rapportini_ritirati: 0, ...o,
 });
 
 beforeAll(() => {
@@ -139,14 +146,14 @@ it("«Nuovo rendiconto del giorno» chiede il giorno e dice quanti rapportini ha
 });
 
 it("l'elenco dice da quanti rapportini nasce ogni rendiconto e quanti sono nuovi", async () => {
-  m.tabelle.v_rendiconti_giornalieri = [testata({ rapportini: 3, rapportini_nuovi: 1 })];
+  m.tabelle.v_rendiconti_giornalieri = [testata({ rapportini: 3, rapportini_nuovi: 1, rapportini_ritirati: 0 })];
   draw();
   expect(await screen.findByText("da 3 rapportini")).toBeVisible();
   expect(screen.getByText("1 rapportino nuovo")).toBeVisible();
 });
 
 it("in bozza con rapportini nuovi, il pulsante li aggiunge richiamando «del giorno»", async () => {
-  m.tabelle.v_rendiconti_giornalieri = [testata({ rapportini: 1, rapportini_nuovi: 2 })];
+  m.tabelle.v_rendiconti_giornalieri = [testata({ rapportini: 1, rapportini_nuovi: 2, rapportini_ritirati: 0 })];
   draw();
   fireEvent.click(await screen.findByText(/Massetto piano terra/));
   fireEvent.click(await screen.findByRole("button", { name: /Aggiungi le voci dei rapportini nuovi/ }));
@@ -155,7 +162,7 @@ it("in bozza con rapportini nuovi, il pulsante li aggiunge richiamando «del gio
 });
 
 it("confermato con rapportini nuovi: l'avviso chiede di riaprirlo, senza pulsante di aggiunta", async () => {
-  m.tabelle.v_rendiconti_giornalieri = [testata({ stato: "confermato", rapportini: 1, rapportini_nuovi: 1 })];
+  m.tabelle.v_rendiconti_giornalieri = [testata({ stato: "confermato", rapportini: 1, rapportini_nuovi: 1, rapportini_ritirati: 0 })];
   draw();
   fireEvent.click(await screen.findByText(/Massetto piano terra/));
   expect(await screen.findByText(/riapri il rendiconto per aggiungerne le voci/)).toBeVisible();

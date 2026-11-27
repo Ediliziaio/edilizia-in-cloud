@@ -69426,5 +69426,15 @@ const dizionario: Dizionario = {
   "Forse è: {nome}": "يمكن يكون: {nome}",
   "{n} voce non collegata al listino generale: i rendiconti la trovano solo cercandola a mano.": "{n} عنصر ماربوطش مع اللائحة العامة: التقارير اليومية كتلقاه غير إلا قلبتي عليه بيديك.",
   "{n} voci non collegate al listino generale: i rendiconti le trovano solo cercandole a mano.": "{n} عناصر ماربوطينش مع اللائحة العامة: التقارير اليومية كتلقاهم غير إلا قلبتي عليهم بيديك.",
+  "Rendiconto del giorno aperto: controlla i prezzi e conferma": "تفتح الحساب ديال النهار: شوف الأثمنة وأكد",
+  "Rendiconto non creato": "ما تصاوبش الحساب",
+  "Crea il rendiconto di questo giorno": "صاوب الحساب ديال هاد النهار",
+  "scritto a mano": "مكتوب باليد",
+  "stimato dalle fatture": "مقدر من الفواتير",
+  "Fa parte di un rendiconto giornaliero: si modifica da Cantiere → Rendiconti": "جزء من حساب يومي: كيتبدل من الورشة ← الحسابات",
+  "Le righe di ogni giorno si scrivono in": "السطور ديال كل نهار كيتكتبو ف",
+  "Cantiere → Rendiconti": "الورشة ← الحسابات",
+  "Quelli confermati entrano in questo rendiconto.": "اللي تأكدو كيدخلو ف هاد الحساب.",
+  "{n} rapportini rifiutati dentro: riaprilo e controlla": "{n} تقارير مرفوضة داخلو: عاود حلو وشوف",
 };
 export default dizionario;
