@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import type { TemplateChannel } from "@/lib/messageTemplateVars";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export interface MessageTemplateRow {
   id: string;
@@ -103,7 +104,7 @@ export function useMessageTemplates(channel?: TemplateChannel) {
       if (error) throw error;
     },
     onSuccess: () => { invalidate(); toast.success("Template salvato"); },
-    onError: (e) => toast.error("Salvataggio non riuscito", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Salvataggio non riuscito", { description: messaggioErrore(e) }),
   });
 
   const updateMutation = useMutation({
@@ -120,7 +121,7 @@ export function useMessageTemplates(channel?: TemplateChannel) {
       if (error) throw error;
     },
     onSuccess: () => { invalidate(); toast.success("Template aggiornato"); },
-    onError: (e) => toast.error("Aggiornamento non riuscito", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Aggiornamento non riuscito", { description: messaggioErrore(e) }),
   });
 
   const removeMutation = useMutation({
@@ -129,7 +130,7 @@ export function useMessageTemplates(channel?: TemplateChannel) {
       if (error) throw error;
     },
     onSuccess: () => { invalidate(); toast.success("Template eliminato"); },
-    onError: (e) => toast.error("Eliminazione non riuscita", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Eliminazione non riuscita", { description: messaggioErrore(e) }),
   });
 
   const seedExamplesMutation = useMutation({
@@ -147,7 +148,7 @@ export function useMessageTemplates(channel?: TemplateChannel) {
       if (error) throw error;
     },
     onSuccess: () => { invalidate(); toast.success("Template di esempio aggiunti"); },
-    onError: (e) => toast.error("Impossibile aggiungere gli esempi", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Impossibile aggiungere gli esempi", { description: messaggioErrore(e) }),
   });
 
   return {

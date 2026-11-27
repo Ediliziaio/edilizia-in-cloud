@@ -23,10 +23,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { leggiImportoItaliano } from "@/lib/orders/salCertificato";
 import { ContiPerRuolo, useContiMovimentabili, type RuoloConto } from "./ContiPerRuolo";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const euro = (n: number) => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" } as Intl.NumberFormatOptions).format(n);
 const dataIt = (d: string) => d.split("-").reverse().join("/");
-const errore = (titolo: string) => (e: unknown) => toast.error(titolo, { description: e instanceof Error ? e.message : String(e) });
+const errore = (titolo: string) => (e: unknown) => toast.error(titolo, { description: messaggioErrore(e) });
 
 /** I ruoli che i cespiti usano quando un cespite non ha i suoi conti. */
 export const RUOLI_CESPITI: readonly RuoloConto[] = [

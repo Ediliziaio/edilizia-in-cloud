@@ -27,6 +27,7 @@ import { contiDellAzienda, contoDellIban, ibanValido, nomeConto, pulisciIbanCont
 import type { AnagraficaAzienda, ContoFatturazione } from "@/types/fatturazione";
 import { toast } from "sonner";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const A_MANO = "__a_mano__";
 
@@ -96,7 +97,7 @@ export function SceltaContoIncasso({ azienda, iban, nomeBanca, intestatario, onC
         description: t("Dalla prossima fattura lo scegli dalla tendina, senza riscriverlo."),
       });
     } catch (e) {
-      toast.error(t("Il conto non è stato salvato"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Il conto non è stato salvato"), { description: messaggioErrore(e) });
     } finally {
       setSalvando(false);
     }

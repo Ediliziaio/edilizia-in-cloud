@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { deleteMedia, uploadMedia, type SurveyDetail } from "@/lib/api/surveys";
 import { riduciFile } from "@/lib/commesse/riduciFoto";
 import { fileCartaValido, tipoMediaCarta } from "@/lib/surveys/suCarta";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export function RilievoSuCarta({ detail, canEdit }: { detail: SurveyDetail; canEdit: boolean }) {
   const qc = useQueryClient();
@@ -32,7 +33,7 @@ export function RilievoSuCarta({ detail, canEdit }: { detail: SurveyDetail; canE
         await uploadMedia(detail.survey.id, leggero, { type: tipoMediaCarta(leggero.type), expectedCompanyId: detail.survey.company_id, position: file.length + fatti });
         fatti++;
       } catch (e) {
-        toast.error(`${f.name} non caricato`, { description: e instanceof Error ? e.message : String(e) });
+        toast.error(`${f.name} non caricato`, { description: messaggioErrore(e) });
       } finally {
         setInCorso((n) => n - 1);
       }
@@ -42,7 +43,7 @@ export function RilievoSuCarta({ detail, canEdit }: { detail: SurveyDetail; canE
   };
 
   const togli = async (id: string) => {
-    try { await deleteMedia(id); await aggiorna(); } catch (e) { toast.error("File non tolto", { description: e instanceof Error ? e.message : String(e) }); }
+    try { await deleteMedia(id); await aggiorna(); } catch (e) { toast.error("File non tolto", { description: messaggioErrore(e) }); }
   };
 
   return (

@@ -94,6 +94,7 @@ import { readLocalTemplateImage } from "@/lib/moduli-vendita/localTemplateImage"
 import { fotoDellaLibreria } from "../../../supabase/functions/_shared/blocchiPreventivo";
 import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const BUCKET = "company-photo-library";
 const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8 MB
@@ -460,7 +461,7 @@ export function ElettricoTemplateEditor({ embedded = false, localModule }: Props
       setCoverImage(pub.publicUrl);
       toast.success(t("Immagine caricata"));
     } catch (error) {
-      toast.error(t("Immagine non caricata"), { description: error instanceof Error ? error.message : String(error) });
+      toast.error(t("Immagine non caricata"), { description: messaggioErrore(error) });
     } finally {
       setUploadingCover(false);
       if (coverInputRef.current) coverInputRef.current.value = "";
@@ -1461,7 +1462,7 @@ function ImageUploadField({ label, hint, value, companyId, onChange, aspect = "a
       onChange(pub.publicUrl);
       toast.success(t("Immagine caricata"));
     } catch (error) {
-      toast.error(t("Immagine non caricata"), { description: error instanceof Error ? error.message : String(error) });
+      toast.error(t("Immagine non caricata"), { description: messaggioErrore(error) });
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";

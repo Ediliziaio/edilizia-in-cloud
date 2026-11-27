@@ -84,6 +84,7 @@ import { getDateLabel, RIGHT_TABS, type RightTab } from "@/components/marketing/
 import { getAvatarColor } from "@/lib/contactUtils";
 import { sottoLarghezza, useSottoLarghezza } from "@/hooks/useSottoLarghezza";
 import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // 2026-05-27 (richiesta utente CC/CCN): parser email CSV/space-separated,
 // lowercase, dedup, validazione basica. Restituisce undefined se input vuoto
@@ -1492,7 +1493,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                             `AI Score: ${sc?.score}/100 (${sc?.tier}) · ${sc?.next_action ?? ""}`,
                           );
                         } catch (err) {
-                          toast.error(`AI: ${err instanceof Error ? err.message : String(err)}`);
+                          toast.error(`AI: ${messaggioErrore(err)}`);
                         }
                       }}
                     >

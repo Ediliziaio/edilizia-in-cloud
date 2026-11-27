@@ -18,6 +18,7 @@ import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { leggiDDTdaAI } from "@/lib/ddt/letturaAI";
 import { completaBolla, type Completamento, type TestataBolla } from "@/lib/ddt/rileggiBolla";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const ETICHETTE: Record<keyof TestataBolla, string> = {
   targa_mezzo: "Targa", autista_nome: "Autista", corriere: "Vettore", trasporto_a_cura_di: "Chi l'ha portata", porto: "Porto",
@@ -61,7 +62,7 @@ export function RileggiOriginaleBolla({ ddt, fileUrl }: {
       setTogliCampi(new Set());
       setStato("proposta");
     } catch (e) {
-      toast.error(t("Lettura non riuscita"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Lettura non riuscita"), { description: messaggioErrore(e) });
       setStato("pronto");
     }
   };
@@ -84,7 +85,7 @@ export function RileggiOriginaleBolla({ ddt, fileUrl }: {
       setProposta(null);
       setStato("pronto");
     } catch (e) {
-      toast.error(t("Bolla non completata"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Bolla non completata"), { description: messaggioErrore(e) });
       setStato("proposta");
     }
   };

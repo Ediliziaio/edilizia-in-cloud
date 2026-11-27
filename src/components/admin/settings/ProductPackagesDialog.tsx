@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Plus, Pencil, Trash2, Loader2, Package, Layers } from "lucide-react";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export interface ProductPackage {
   id: string;
@@ -85,7 +86,7 @@ export function ProductPackagesDialog({
       if (error) throw error;
     },
     onSuccess: () => { invalidate(); toast.success("Pacchetto salvato"); setForm(null); },
-    onError: (e: unknown) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e: unknown) => toast.error("Errore", { description: messaggioErrore(e) }),
   });
 
   const del = useMutation({
@@ -95,7 +96,7 @@ export function ProductPackagesDialog({
       if (error) throw error;
     },
     onSuccess: () => { invalidate(); toast.success("Pacchetto eliminato"); setDeletePkg(null); },
-    onError: (e: unknown) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e: unknown) => toast.error("Errore", { description: messaggioErrore(e) }),
   });
 
   const openNew = () => setForm({ ricorrenza: "mensile", attivo: true, prezzo: 0, ltv_target: 0, ordine: pkgs.reduce((m, p) => Math.max(m, p.ordine ?? 0), -1) + 1 });

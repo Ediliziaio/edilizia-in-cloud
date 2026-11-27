@@ -27,6 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { queryKeys } from "@/lib/queryKeys";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -109,7 +110,7 @@ export function UsciteSenzaFattura({ companyId, puoModificare, variante = "fasci
       let erroreFile: string | null = null;
       if (file.length) {
         try { await caricaAllegati({ companyId, madre: { costoId: id }, tipo: "altro", files: file }); }
-        catch (e) { erroreFile = e instanceof Error ? e.message : String(e); }
+        catch (e) { erroreFile = messaggioErrore(e); }
       }
       return { id, erroreFile, conFile: file.length, modificata: !!inModifica };
     },

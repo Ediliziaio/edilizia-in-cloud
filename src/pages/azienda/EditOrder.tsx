@@ -73,6 +73,7 @@ import {
   buildInstallmentsFromLegacy,
   prefillExpectedDates,
 } from "@/lib/orderUtils";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface OrderData {
   /** Serve a capire se una bozza locale è più vecchia del record. */
@@ -862,7 +863,7 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
           await salvaRiferimentiPa(id!, bozzeRiferimentiPa, riferimentiPa.data.righe,
             riferimentiPaAttivi !== riferimentiPa.data.attivi ? !!riferimentiPaAttivi : undefined);
         } catch (e) {
-          toast.error(t("Commessa salvata, dati appalto no"), { description: e instanceof Error ? e.message : String(e), duration: 12000 });
+          toast.error(t("Commessa salvata, dati appalto no"), { description: messaggioErrore(e), duration: 12000 });
         }
         queryClient.invalidateQueries({ queryKey: ["order-riferimenti-pa", id] });
       }

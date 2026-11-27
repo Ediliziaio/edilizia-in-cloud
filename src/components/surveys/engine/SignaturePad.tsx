@@ -9,6 +9,7 @@ import { Eraser, Check, X, Loader2 } from "lucide-react";
 import { uploadMedia, updateSurvey } from "@/lib/api/surveys";
 import { toast } from "sonner";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export interface SignaturePadProps {
   surveyId: string;
@@ -121,7 +122,7 @@ export function SignaturePad({ surveyId, signerName, onConfirm, onCancel }: Sign
       toast.success(t("Firma registrata"));
       onConfirm?.(media.url, now);
     } catch (e) {
-      toast.error(t("Salvataggio firma fallito"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Salvataggio firma fallito"), { description: messaggioErrore(e) });
     } finally {
       confirmingRef.current = false;
       setUploading(false);

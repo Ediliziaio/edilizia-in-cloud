@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { leggiImportoItaliano } from "@/lib/orders/salCertificato";
 import { ContiPerRuolo, type RuoloConto } from "./ContiPerRuolo";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const euro = (n: number) => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" } as Intl.NumberFormatOptions).format(n);
 
@@ -69,7 +70,7 @@ export function ImposteFineAnno({ companyId, anno, chiuso }: { companyId: string
       setIres(null); setIrap(null);
       void qc.invalidateQueries({ queryKey: ["contabilita-generale", companyId] });
     },
-    onError: (err) => toast.error(tr("Imposte non registrate"), { description: err instanceof Error ? err.message : String(err) }),
+    onError: (err) => toast.error(tr("Imposte non registrate"), { description: messaggioErrore(err) }),
   });
 
   if (esito.isLoading) return <p role="status" className="text-sm text-muted-foreground">{tr("Carico le imposte…")}</p>;

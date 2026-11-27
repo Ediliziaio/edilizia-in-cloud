@@ -89,6 +89,7 @@ import { elencaComputiCloud, type RiepilogoComputoCloud } from "@/lib/computo/cl
 import { elencaComputiPreventivo } from "@/lib/computo/editorNativo";
 import { totaleElencoComputo } from "@/lib/computo/economiaComputo";
 import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const GraficiPreventivi = lazy(() => import("./GraficiPreventivi"));
 
@@ -266,7 +267,7 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
       toast.success(tr("Preventivo duplicato"), { description: tr("La copia parte in bozza: aprila e adattala.") });
       navigate(vai);
     } catch (e) {
-      toast.error(tr("Duplicazione non riuscita"), { description: e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e) });
+      toast.error(tr("Duplicazione non riuscita"), { description: messaggioErrore(e) });
     } finally {
       setInDuplicazione(null);
     }

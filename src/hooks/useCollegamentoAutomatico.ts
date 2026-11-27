@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 type Riga = { company_id: string; collegamento_automatico: boolean; updated_at: string };
 type Db = {
@@ -53,6 +54,6 @@ export function useSalvaCollegamentoAutomatico(companyId: string | undefined) {
       toast.success(acceso ? "Collegamento automatico acceso" : "Collegamento automatico spento: i collegamenti certi diventano proposte");
       void qc.invalidateQueries({ queryKey: chiave(companyId) });
     },
-    onError: (e) => toast.error("Impostazione non salvata", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Impostazione non salvata", { description: messaggioErrore(e) }),
   });
 }

@@ -28,6 +28,7 @@ import { formatCost, formatLatency } from '@/lib/ai/openrouter-models';
 import { DEMO_COMPANY_ID, DEMO_USER_EMAIL } from '@/lib/ai/models.config';
 import { cn } from '@/lib/utils';
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface KPIRow {
   feature: string;
@@ -158,7 +159,7 @@ export default function AITestLab() {
       toast.success(tTesto("{modelId} impostato come default per {feature}", { modelId: String(modelId ?? ""), feature: String(feature ?? "") }));
       defaultsQuery.refetch();
     } catch (e) {
-      toast.error(tTesto("Errore: {messaggio}", { messaggio: e instanceof Error ? e.message : String(e) }));
+      toast.error(tTesto("Errore: {messaggio}", { messaggio: messaggioErrore(e) }));
     }
   };
 

@@ -18,6 +18,7 @@ import { eseguiInBlocco } from "@/lib/fatturazione/azioniInBlocco";
 import { cn } from "@/lib/utils";
 import type { DocumentoFiscale } from "@/types/fatturazione";
 import { useT, intlCampo, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 /**
  * Chi fattura con un altro programma (Fatture in Cloud, Zucchetti, XML…) usa lo stesso
@@ -161,7 +162,7 @@ export function GestionaleEsternoAzioni({ companyId }: { companyId: string }) {
       invalidaFattureImportate(queryClient, companyId);
       await queryClient.invalidateQueries({ queryKey: ["billing_integration"], refetchType: "all" });
     } catch (e) {
-      toast.error(t("Errore sincronizzazione"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Errore sincronizzazione"), { description: messaggioErrore(e) });
     } finally {
       setSyncing(false);
     }
@@ -417,7 +418,7 @@ export function SegnaPagataImportataDialog({ fattura, companyId, onClose }: { fa
       invalidaFattureImportate(queryClient, companyId);
       onClose();
     },
-    onError: (e) => toast.error(t("Incasso non registrato"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Incasso non registrato"), { description: messaggioErrore(e) }),
   });
 
   return (

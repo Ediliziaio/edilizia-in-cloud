@@ -21,6 +21,7 @@ import { aggiornaDatiPlanimetria } from "@/lib/planimetrie/archivio";
 import type { RiepilogoLavori } from "@/lib/planimetrie/primaEDopo";
 import { itemsPreventivo, righeDaLavori, totaleRighe, type RigaProposta } from "@/lib/planimetrie/preventivoDaPianta";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Props {
   aperto: boolean;
@@ -76,7 +77,7 @@ export function PreventivoDaPiantaDialog({ aperto, onChiudi, lavori, titolo, pla
       onChiudi();
       navigate(`/azienda/marketing/preventivi/${q.id}`);
     } catch (e) {
-      toast.error(tr("Preventivo non creato"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Preventivo non creato"), { description: messaggioErrore(e) });
     } finally {
       setInCorso(false);
     }

@@ -25,6 +25,7 @@ import {
 import { formatEuro } from "@/lib/serramenti/format";
 import { serramentiAiIssues, verifiedSerramentiAiItem } from "@/lib/serramenti/aiDraftValidation";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Props {
   open: boolean;
@@ -136,7 +137,7 @@ export function AiSerramentiDraftDialog({
     } catch (error) {
       if (run !== generation.current) return;
       toast.error(t("Bozza AI non disponibile"), {
-        description: error instanceof Error ? error.message : String(error),
+        description: messaggioErrore(error),
       });
     } finally {
       if (run === generation.current) { loadingRef.current = false; setLoading(false); }

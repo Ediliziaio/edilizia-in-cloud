@@ -39,6 +39,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const PHONE_CLEAN_REGEX = /[\u200B-\u200D\uFEFF]/g;
 const PHONE_ALLOWED = /^[0-9+\-\s().]+$/;
@@ -333,7 +334,7 @@ export function CreateCustomerDialog({
             aggiornaProfilo: true,
           });
         } catch (fiscErr) {
-          toast.warning(t("Cliente creato, dati per la fattura da completare"), { description: fiscErr instanceof Error ? fiscErr.message : String(fiscErr) });
+          toast.warning(t("Cliente creato, dati per la fattura da completare"), { description: messaggioErrore(fiscErr) });
         }
       }
 

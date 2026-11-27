@@ -89,6 +89,7 @@ import {
   type Scrittura,
 } from "@/lib/contabilita/libroGiornale";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // Le tabelle sono nuove: i tipi generati non le conoscono ancora.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -240,7 +241,7 @@ function PianoVuoto({ companyId }: { companyId: string }) {
       toast.success(t("Piano dei conti caricato: {n} conti", { n: String(n ?? "") }));
       void qc.invalidateQueries({ queryKey: chiave(companyId) });
     },
-    onError: (e) => toast.error(t("Piano dei conti non caricato"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Piano dei conti non caricato"), { description: messaggioErrore(e) }),
   });
   return (
     <div className="rounded-xl border p-6 text-sm space-y-3">
@@ -288,7 +289,7 @@ function PianoDeiConti({ companyId, conti }: { companyId: string; conti: ContoCo
       setCodice(""); setDescrizione(""); setVoce(""); setMastro("");
       void qc.invalidateQueries({ queryKey: chiave(companyId, "conti") });
     },
-    onError: (e) => toast.error(t("Conto non creato"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Conto non creato"), { description: messaggioErrore(e) }),
   });
   return (
     <div className="space-y-3">
@@ -495,7 +496,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
       qc.setQueryData<StatoEsercizioRiga | null>(chiave(companyId, "esercizio", anno),
         (e) => e ? { ...e, generato_il: new Date().toISOString(), generato_esito: { ...(e.generato_esito ?? {}), avvisi: r.avvisi ?? [], errori: r.errori, saltate_solo_testata: r.saltate_solo_testata } } : e);
     },
-    onError: (e) => toast.error(tTesto("Scritture non generate"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(tTesto("Scritture non generate"), { description: messaggioErrore(e) }),
   });
   const stornate = useMemo(() => new Set((scritture.data ?? []).flatMap((s) => [...(s.storno_di ? [s.storno_di] : []), ...(s.stornata ? [s.id] : [])])), [scritture.data]);
   const elenco = scritture.data ?? [];
@@ -971,7 +972,7 @@ function NuovoContoVeloce({ companyId, tutti, nome, onCreato, onAnnulla }: {
       await qc.invalidateQueries({ queryKey: chiave(companyId, "conti") });
       onCreato(id);
     },
-    onError: (e) => toast.error(t("Conto non creato"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Conto non creato"), { description: messaggioErrore(e) }),
   });
   return (
     <div className="space-y-2 p-3 text-sm">
@@ -1435,7 +1436,7 @@ function ModificaConto({ conto, onClose, onFatto }: { conto: ContoContabile | nu
       if (error) throw error;
     },
     onSuccess: () => { toast.success(t("Conto aggiornato")); setPer(null); onClose(); onFatto(); },
-    onError: (e) => toast.error(t("Conto non aggiornato"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Conto non aggiornato"), { description: messaggioErrore(e) }),
   });
   return (
     <Dialog open={!!conto} onOpenChange={(v) => { if (!v) { setPer(null); onClose(); } }}>
@@ -1799,7 +1800,7 @@ function LiquidazioneIva({ companyId, anno, senzaImporti = [], periodicita, onAp
       });
       void qc.invalidateQueries({ queryKey: chiave(companyId) });
     },
-    onError: (e) => toast.error(t("Liquidazione non registrata"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Liquidazione non registrata"), { description: messaggioErrore(e) }),
   });
   return (
     <div className="space-y-3">
@@ -1995,7 +1996,7 @@ function StampaDefinitiva({ open, onOpenChange, companyId, anno, onStampa }: {
       onOpenChange(false);
       onStampa(r.dal, r.al);
     },
-    onError: (e) => toast.error(t("Stampa definitiva non fatta"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Stampa definitiva non fatta"), { description: messaggioErrore(e) }),
   });
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -2078,7 +2079,7 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
       toast.success(r.registrate.length ? t("Registrati: {registrate}", { registrate: r.registrate.join(", ") }) : t("Niente di nuovo da registrare"));
       aggiorna();
     },
-    onError: (e) => toast.error(t("Scritture di fine anno non registrate"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Scritture di fine anno non registrate"), { description: messaggioErrore(e) }),
   });
   const chiudi = useMutation({
     mutationFn: async () => {
@@ -2095,7 +2096,7 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
       setConferma(false);
       aggiorna();
     },
-    onError: (e) => toast.error(t("Esercizio non chiuso"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Esercizio non chiuso"), { description: messaggioErrore(e) }),
   });
   const riapriM = useMutation({
     mutationFn: async () => {
@@ -2103,7 +2104,7 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
       if (error) throw error;
     },
     onSuccess: () => { toast.success(t("Esercizio {anno} riaperto: chiusura e apertura stornate", { anno })); setRiapri(false); setMotivo(""); aggiorna(); },
-    onError: (e) => toast.error(t("Esercizio non riaperto"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Esercizio non riaperto"), { description: messaggioErrore(e) }),
   });
 
   if (fine.isLoading || fine.isError) {

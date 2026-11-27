@@ -24,6 +24,7 @@ vi.mock("sonner", () => ({ toast }));
 import { useSignatureActions } from "@/hooks/useSignatureActions";
 import { sendModuleQuoteSignature } from "@/lib/moduli/quoteBridge";
 import { messaggioDaErroreFirma } from "@/lib/preventivi/offertaPubblica";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const FRASE_409 = "Questo preventivo è stato rifiutato dal cliente: non si può rimandare per la firma. Per un'altra offerta, duplicalo o fanne una nuova revisione.";
 const FRASE_403 = "Sconto del 12% oltre il limite consentito (10%): serve l'approvazione prima di inviare il preventivo.";
@@ -113,6 +114,7 @@ describe("QuoteDetail: invio del solo PDF (inviaPdfSemplice)", () => {
       queryClient: { invalidateQueries: vi.fn() },
       queryKeys: { quotes: { detail: (id: string) => ["quotes", "detail", id] } },
       messaggioDaErroreFirma,
+      messaggioErrore,
     };
     const g = gestoriVeri("src/pages/azienda/marketing/QuoteDetail.tsx", ["inviaPdfSemplice"], contesto);
     return { toasts, invia: () => g.inviaPdfSemplice("mario@example.it", 30) as Promise<void> };

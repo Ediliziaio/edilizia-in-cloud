@@ -42,6 +42,7 @@ import { CampiClienteFiscale, SceltaTipoCliente } from "@/components/clients/Cam
 import { etichettaTipoCliente, problemiClienteFiscale, type ClienteFiscaleForm, type TipoClienteFiscale } from "@/lib/clienti/clienteFiscale";
 import { salvaClienteFiscale } from "@/lib/clienti/salvaClienteFiscale";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // Regex client-side (resta comunque validato server-side)
 const PHONE_CLEAN_REGEX = /[\u200B-\u200D\uFEFF]/g; // caratteri invisibili
@@ -344,7 +345,7 @@ export default function CreateCustomer() {
           logger.error("Anagrafica fiscale non creata:", fiscErr);
           toast({
             title: tr("Cliente creato, dati per la fattura non salvati"),
-            description: `${fiscErr instanceof Error ? fiscErr.message : String(fiscErr)}. Completali dalla scheda cliente.`,
+            description: `${messaggioErrore(fiscErr)}. Completali dalla scheda cliente.`,
             variant: "destructive",
           });
         }

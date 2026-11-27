@@ -35,6 +35,7 @@ import {
 } from "@/modules/render/lib/edgeFunctionClient";
 import { uploadRenderOriginal } from "@/lib/render/renderStorage";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { testoGrezzoErrore } from "@/lib/messaggioErrore";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Step = 1 | 2 | 3 | 4;
@@ -326,7 +327,7 @@ export default function RenderStanzaNew() {
       return;
     }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = testoGrezzoErrore(err);
       if (isIdleTimeoutMessage(msg)) {
         toast.info(t("Render avviato: continuo a controllare lo stato in automatico."));
         return;

@@ -22,6 +22,7 @@ import {
   type GovernanceThresholds,
   type GovernanceSettingsRow,
 } from "@/lib/governance/thresholds";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // Contratto locale della sola tabella non ancora inclusa nei tipi generati.
 // Nessuna modifica al client, all'autenticazione o alle regole RLS.
@@ -99,7 +100,7 @@ export function useSaveGovernanceThresholds(companyId: string | undefined) {
     },
     onError: (e) =>
       toast.error("Errore nel salvataggio", {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       }),
   });
 }

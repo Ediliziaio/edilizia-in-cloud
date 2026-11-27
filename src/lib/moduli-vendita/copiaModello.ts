@@ -51,6 +51,7 @@ import type { IdrTemplatePdf } from "@/types/termoidraulico";
 import type { RstTemplatePdf } from "@/types/ristrutturazione";
 import type { TetTemplatePdf } from "@/types/tetti";
 import type { FvTemplate } from "@/components/fotovoltaico/FotovoltaicoTemplateEditor";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 type PortaStorage = Pick<Storage, "getItem" | "setItem">;
 
@@ -343,6 +344,6 @@ export function copiaConfigurazioneSuModulo(opts: {
     voce.salva(companyId, destinazione.areaId, destinazione.moduleId, template, esistente?.savedAt ?? null, storage);
     return base;
   } catch (e) {
-    return { ...base, esito: "errore", messaggio: e instanceof Error ? e.message : String(e) };
+    return { ...base, esito: "errore", messaggio: messaggioErrore(e) };
   }
 }

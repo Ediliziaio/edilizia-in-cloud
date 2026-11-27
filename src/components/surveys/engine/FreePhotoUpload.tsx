@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export interface FreePhotoUploadProps {
   surveyId: string;
@@ -70,7 +71,7 @@ export function FreePhotoUpload({
     } catch (e) {
       setDaRiprovare(list.slice(indice));
       toast.error(t("Upload foto fallito"), {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       });
     } finally {
       inCorso.current = false;
@@ -90,7 +91,7 @@ export function FreePhotoUpload({
       onMediaDeleted?.(id);
     } catch (e) {
       toast.error(t("Eliminazione fallita"), {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       });
     }
   };

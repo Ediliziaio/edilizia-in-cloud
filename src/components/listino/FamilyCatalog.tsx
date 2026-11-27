@@ -88,6 +88,7 @@ import { CODICE_ASSE, VALORE_COLORE, VALORE_VETRO } from "@/lib/listino/standard
 import { messaggioErroreListino, translateListinoError } from "@/lib/listinoErrors";
 import { parseDecimalField } from "@/lib/listino/numeriEditor";
 import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
+import { testoGrezzoErrore } from "@/lib/messaggioErrore";
 
 /** Valore dei select per «nessuna tipologia» e «nessuna linea». */
 const NESSUNA = "__nessuna__";
@@ -420,7 +421,7 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
       toast.success(tr("Prodotto ripristinato"));
     } catch (err) {
       // Il caso del nome doppio si riconosce dal testo del database, prima di tradurlo.
-      const grezzo = err instanceof Error ? err.message : String((err as { message?: unknown } | null)?.message ?? "");
+      const grezzo = testoGrezzoErrore(err);
       toast.error(tr("Ripristino non riuscito"), {
         description: /duplicate key|23505/i.test(grezzo)
           ? tr("C'è già un prodotto attivo con lo stesso nome: rinominalo o disattivalo, poi ripristina questo.")

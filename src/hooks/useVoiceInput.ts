@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { messaggioErrore, testoGrezzoErrore } from "@/lib/messaggioErrore";
 
 /**
  * useVoiceInput — registrazione microfono (MediaRecorder) + trascrizione via
@@ -72,7 +73,7 @@ export function useVoiceInput(onTranscript: (text: string) => void) {
       onTranscript(text);
       toast.success("Audio trascritto. Controlla e invia.");
     } catch (err) {
-      toast.error(`Trascrizione fallita: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(`Trascrizione fallita: ${messaggioErrore(err)}`);
     } finally {
       setTranscribing(false);
     }
@@ -144,7 +145,7 @@ export function useVoiceInput(onTranscript: (text: string) => void) {
       // Safari iOS il messaggio di un permesso negato non contiene
       // «NotAllowedError» e l'utente vedeva il testo tecnico del browser.
       const nome = err instanceof Error ? err.name : "";
-      const msg = `${nome} ${err instanceof Error ? err.message : String(err)}`;
+      const msg = `${nome} ${testoGrezzoErrore(err)}`;
       if (msg.includes("NotAllowedError") || msg.includes("Permission")) {
         toast.error("Permesso microfono negato. Abilita l'accesso nelle impostazioni del browser.");
       } else if (msg.includes("NotFoundError") || msg.includes("DevicesNotFound")) {

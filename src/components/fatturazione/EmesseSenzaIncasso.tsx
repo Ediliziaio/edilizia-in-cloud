@@ -20,6 +20,7 @@ import { eseguiInBlocco } from "@/lib/fatturazione/azioniInBlocco";
 import { queryKeys } from "@/lib/queryKeys";
 import { invalidaFattureImportate } from "./GestionaleEsterno";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export interface SenzaIncasso { invoice_id: string; pagato: number; data_pagamento: string | null; storico: boolean }
 
@@ -68,7 +69,7 @@ export function BannerSenzaIncasso({ companyId, senzaIncasso, soloQueste, onSolo
       setChiedi(false);
       onSoloQueste(false);
     },
-    onError: (e) => toast.error(t("Non riuscito"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Non riuscito"), { description: messaggioErrore(e) }),
   });
   if (!tutte.length) return null;
   return (

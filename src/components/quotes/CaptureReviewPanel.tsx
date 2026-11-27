@@ -37,6 +37,7 @@ import { Badge } from "@/components/ui/badge";
 import { MatchProductPickerDialog } from "./MatchProductPickerDialog";
 import type { CatalogItem } from "@/types/catalogItem";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface ExtractedCustomer {
   nome?: string;
@@ -442,7 +443,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
         onApplied(result.quote_id);
       }
     } catch (e) {
-      toast.error(t("Errore"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Errore"), { description: messaggioErrore(e) });
     }
     setSaving(false);
   };

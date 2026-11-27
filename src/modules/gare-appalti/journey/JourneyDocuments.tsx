@@ -16,11 +16,12 @@ import { CostImport } from './CostImport';
 import { TechnicalLibrary } from './TechnicalLibrary';
 import { DguePanel } from './DguePanel';
 import type { GuidedJourney,Participation,Tender } from '../types';
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export function JourneyDocuments({participation:p,tender:t,journey:j,view,save}:{participation:Participation;tender:Tender;journey:GuidedJourney;view:string;save:(patch:Partial<Pick<GuidedJourney,'configuration'|'confirmations'|'selected_document_ids'|'extras'>>)=>Promise<void>}){
  const{data,api,canEdit}=useWorkspace();const[busy,setBusy]=useState(false);const[signature,setSignature]=useState<Record<string,unknown>|null>(null);
  const docs=activeTenderDocuments(data.documents.filter(d=>d.participation_id===p.id&&['amministrativa','tecnica','economica'].includes(d.category)));
- async function run(action:()=>Promise<unknown>){setBusy(true);try{await action();}catch(e){toast.error(e instanceof Error?e.message:String(e));}finally{setBusy(false);}}
+ async function run(action:()=>Promise<unknown>){setBusy(true);try{await action();}catch(e){toast.error(messaggioErrore(e));}finally{setBusy(false);}}
  // Reject path separators and control characters in ZIP entries.
  // eslint-disable-next-line no-control-regex
  async function portalBundle(){const selected=docs.filter(d=>j.selected_document_ids.includes(d.id));if(!selected.length)throw Error('Scegli i documenti della bozza');const{default:JSZip}=await import('jszip');const zip=new JSZip();const names=new Set<string>();for(const doc of selected){if(/[\\/\x00-\x1f]/.test(doc.name)||doc.name==='..')throw Error('Nome file non esportabile in una cartella: scarica e verifica l’originale');const key=`${doc.category}/${doc.name}`;if(names.has(key))throw Error('Due file con lo stesso nome nella stessa busta: verifica quale va consegnato');names.add(key);zip.file(key,await(await api.blob(doc)).arrayBuffer());}zip.file('LEGGIMI.txt','BOZZA PER REVISIONE INTERNA. Verificare contenuti e requisiti sui documenti della procedura.');downloadBlob(await zip.generateAsync({type:'blob'}),'BOZZA_Dossier_per_revisione.zip');}

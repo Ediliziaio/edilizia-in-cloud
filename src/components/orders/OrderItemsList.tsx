@@ -51,6 +51,7 @@ import { AggiungiArticoloDialog, type GruppoDaModificare } from "./articoli/Aggi
 import type { EsitoSuMisura } from "./articoli/FormSuMisura";
 import { ETICHETTA_STATO_MISURE, misureLeggibili, raggruppaRighe, type StatoMisure } from "@/lib/orders/gruppiSuMisura";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 /** Una riga della distinta/abaco dentro l'articolo (es. "2 ante · 1000x1000 · x1"). */
 export interface Posizione {
@@ -471,7 +472,7 @@ export function OrderItemsList({
       onAttachmentsRefresh?.();
       toast({ title: tr("ODA caricato"), description: tr("{nome} allegato all'articolo.", { nome: file.name }) });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = messaggioErrore(err);
       toast({ variant: "destructive", title: tr("Upload ODA fallito"), description: msg });
     }
   };
@@ -935,7 +936,7 @@ export function OrderItemsList({
       if (error) throw error;
       toast({ title: tr("ODA collegato"), description: tr("L'articolo è ora associato all'ODA selezionato.") });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = messaggioErrore(err);
       toast({ variant: "destructive", title: tr("Collegamento ODA fallito"), description: msg });
     } finally {
       refreshMaterialQueries(queryClient);
@@ -2094,7 +2095,7 @@ export function OrderItemsList({
                               if (error || !data?.signedUrl) throw error ?? new Error(tr("URL non disponibile"));
                               window.open(data.signedUrl, "_blank", "noopener,noreferrer");
                             } catch (err) {
-                              const msg = err instanceof Error ? err.message : String(err);
+                              const msg = messaggioErrore(err);
                               toast({ variant: "destructive", title: tr("Apertura ODA fallita"), description: msg });
                             }
                           }}

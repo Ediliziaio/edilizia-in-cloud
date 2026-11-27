@@ -38,6 +38,7 @@ import {
   Package, Plus, Pencil, Trash2, Loader2, Cloud, Megaphone, Trophy, BarChart3, Handshake, Layers, Users,
 } from "lucide-react";
 import { ProductPackagesDialog } from "@/components/admin/settings/ProductPackagesDialog";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface ProductLine {
   id: string;
@@ -132,7 +133,7 @@ export default function AdminSettingsProductLines() {
       toast.success(isEdit ? "Servizio aggiornato" : "Servizio creato");
       setDialogOpen(false);
     },
-    onError: (e: unknown) => toast.error("Errore nel salvataggio", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e: unknown) => toast.error("Errore nel salvataggio", { description: messaggioErrore(e) }),
   });
 
   const del = useMutation({
@@ -147,7 +148,7 @@ export default function AdminSettingsProductLines() {
       toast.success("Servizio eliminato");
       setDeleteLine(null);
     },
-    onError: (e: unknown) => toast.error("Errore nell'eliminazione", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e: unknown) => toast.error("Errore nell'eliminazione", { description: messaggioErrore(e) }),
   });
 
   const openNew = () => { setDraft({ ...EMPTY, ordine: rows.reduce((m, r) => Math.max(m, r.ordine ?? 0), -1) + 1 }); setSlugTouched(false); setDialogOpen(true); };

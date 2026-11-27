@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { leggiImportoItaliano } from "@/lib/orders/salCertificato";
 import { useContiMovimentabili } from "./ContiPerRuolo";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 /** Le righe della fattura che sono già un cespite: numero riga → descrizione del cespite. */
 export function useCespitiDellaFattura(companyId: string, fatturaId: string, enabled: boolean) {
@@ -88,7 +89,7 @@ function Dialogo({ companyId, fatturaId, chiave, descrizione, onClose }: {
       }
       onClose();
     },
-    onError: (e) => toast.error(t("Cespite non creato"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Cespite non creato"), { description: messaggioErrore(e) }),
   });
 
   return (

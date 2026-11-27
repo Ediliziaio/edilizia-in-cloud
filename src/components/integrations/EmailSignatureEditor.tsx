@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Loader2, Check, AlertCircle } from "lucide-react";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { testoGrezzoErrore } from "@/lib/messaggioErrore";
 
 interface EmailSignatureEditorProps {
   connectionId: string;
@@ -94,7 +95,7 @@ export function EmailSignatureEditor({
     },
     onError: (e) => {
       // Errore tipico: colonna non esiste (migration pending)
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = testoGrezzoErrore(e);
       if (msg.includes("signature_html") || msg.includes("signature_text") || msg.includes("42703")) {
         toast.error(t("Migration firma email non ancora applicata"), {
           description: t("Esegui `supabase db push` per attivare le firme personali."),

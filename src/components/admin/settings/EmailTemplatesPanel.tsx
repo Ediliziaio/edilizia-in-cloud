@@ -136,6 +136,7 @@ import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 import { formatError } from "@/lib/errors";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 const CATEGORY_LABELS: Record<string, string> = {
@@ -1760,7 +1761,7 @@ export function EmailTemplatesPanel() {
                     if (errMsg) throw new Error(errMsg);
                     toast.success(`Email di prova "${selectedMeta?.label ?? selectedKey}" inviata a ${to}`);
                   } catch (e) {
-                    toast.error(`Invio non riuscito: ${e instanceof Error ? e.message : String(e)}`);
+                    toast.error(`Invio non riuscito: ${messaggioErrore(e)}`);
                   } finally {
                     setSendingTest(false);
                   }

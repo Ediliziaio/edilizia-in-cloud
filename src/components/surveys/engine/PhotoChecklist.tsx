@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export interface PhotoChecklistProps {
   items: PhotoChecklistItem[];
@@ -62,7 +63,7 @@ export function PhotoChecklist({
       }
     } catch (e) {
       toast.error(t("Upload foto fallito"), {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       });
     } finally {
       setUploading(null);
@@ -85,7 +86,7 @@ export function PhotoChecklist({
       onMediaDeleted?.(mediaId);
     } catch (e) {
       toast.error(t("Eliminazione fallita"), {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       });
     }
   };

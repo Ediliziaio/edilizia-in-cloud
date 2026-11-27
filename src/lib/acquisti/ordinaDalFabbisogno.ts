@@ -14,6 +14,7 @@ import { loadMaterialCoverage } from "@/hooks/useMaterialProcurement";
 import { createMaterialPurchaseOrder } from "@/lib/orders/createMaterialPurchaseOrder";
 import { pendingMaterials, type ProcurementItem } from "@/lib/orders/materialProcurement";
 import type { RigaFabbisogno } from "./fabbisogno";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export interface GruppoOrdine {
   orderId: string;
@@ -79,7 +80,7 @@ export async function ordinaDalFabbisogno(input: {
       });
       esiti.push({ ...g, ok: true, poId: r.poId, n: r.n });
     } catch (e) {
-      esiti.push({ ...g, ok: false, errore: e instanceof Error ? e.message : String(e) });
+      esiti.push({ ...g, ok: false, errore: messaggioErrore(e) });
     }
   }
   return esiti;

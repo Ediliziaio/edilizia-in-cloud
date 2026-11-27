@@ -45,6 +45,7 @@ import { AvvisiPerEvento } from "@/components/notifications/AvvisiPerEvento";
 import { useUserCalendarPrefs } from "@/hooks/useUserCalendarPrefs";
 import { useCalendariDiCasella } from "@/hooks/useCalendariEsterni";
 import { direzioneDaModo, etichettaDirezione, type DirezioneSync } from "@/lib/calendar/direzioneSync";
+import { testoGrezzoErrore } from "@/lib/messaggioErrore";
 // v8.6.36 — MySurveysTab rimosso dal profilo (non era semantica corretta:
 // è una LISTA OPERATIVA di sopralluoghi assegnati, non un'impostazione
 // personale). Il componente, mai più usato, è uscito dal codice il 25/09/2026:
@@ -450,7 +451,7 @@ export default function MioProfilo() {
       queryClient.invalidateQueries({ queryKey: ["google-calendar-connection"] });
       queryClient.invalidateQueries({ queryKey: ["gcal-busy-slots"] });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = testoGrezzoErrore(err);
       toast.error(t("Calendario non aggiornato"), {
         description: msg.includes("token") || msg.includes("auth")
           ? t("Sembra che il collegamento sia scaduto. Scollega e ricollega Google Calendar.")

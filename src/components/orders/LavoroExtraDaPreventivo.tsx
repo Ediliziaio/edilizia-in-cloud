@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { OdVSection } from "./OdVSection";
 import type { VariationContext } from "./VariationEditor";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export function LavoroExtraDaPreventivo({ quoteId, orderId, companyId, context, onChiudi }: {
   quoteId: string;
@@ -75,7 +76,7 @@ export function LavoroExtraDaPreventivo({ quoteId, orderId, companyId, context, 
         queryClient.invalidateQueries({ queryKey: ["preventivi-per-commessa"] });
       }
     } catch (e) {
-      toast.error(t("Il lavoro extra c'è, ma il preventivo non risulta collegato"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Il lavoro extra c'è, ma il preventivo non risulta collegato"), { description: messaggioErrore(e) });
     } finally {
       onChiudi();
     }

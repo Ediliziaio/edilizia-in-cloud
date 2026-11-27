@@ -62,6 +62,7 @@ import { etichettaAzimut } from "@/lib/fotovoltaico/tetto";
 import { leggiDisegnoCommerciale } from "../../../../supabase/functions/_shared/fvDisegnoCommerciale";
 import { statoMisureFv } from "../../../../supabase/functions/_shared/fvVerificaMisure";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 const STATI_LABEL = {
   bozza: { label: "Bozza", variant: "default" as const },
   configurato: { label: "Configurato", variant: "navy" as const },
@@ -223,7 +224,7 @@ export default function FotovoltaicoDettaglio() {
         a.click();
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toast.error(messaggioErrore(e));
     } finally {
       setScaricando(null);
     }
@@ -263,7 +264,7 @@ export default function FotovoltaicoDettaglio() {
       );
     } catch (e) {
       toast.error(
-        t("Stampa PDF fallita: {errore}", { errore: e instanceof Error ? e.message : String(e) }),
+        t("Stampa PDF fallita: {errore}", { errore: messaggioErrore(e) }),
         { id: tid },
       );
     } finally {
@@ -277,7 +278,7 @@ export default function FotovoltaicoDettaglio() {
       await elimina.mutateAsync(progetto.id);
       navigate("/azienda/marketing/preventivi");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toast.error(messaggioErrore(e));
     }
   };
 

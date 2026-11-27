@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const STORAGE_BUCKET = "ad-media";
 const MAX_BYTES = 200 * 1024 * 1024; // 200 MB
@@ -190,7 +191,7 @@ export function AdVideoUploader({ companyId, onUploaded }: Props) {
     } catch (e) {
       console.error("[AdVideoUploader] upload failed", e);
       toast.error(t("Errore upload"), {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       });
     } finally {
       setIsUploading(false);

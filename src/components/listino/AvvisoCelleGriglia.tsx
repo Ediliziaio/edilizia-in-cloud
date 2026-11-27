@@ -17,6 +17,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { celleDaRicalcolare, type CellaPrezzo, type ParametriPrezzo } from "@/lib/listino/celleGriglia";
 import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 type FamigliaGriglia = ParametriPrezzo & {
   id: string;
@@ -76,7 +77,7 @@ export function AvvisoCelleGriglia({
       await qc.invalidateQueries({ queryKey: queryKeys.articleFamilies.grid(family.id) });
       toast.success(n === 1 ? t("Prezzo della cella aggiornato") : t("Prezzi di {n} celle aggiornati", { n }));
     } catch (e) {
-      toast.error(t("Aggiornamento non riuscito"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Aggiornamento non riuscito"), { description: messaggioErrore(e) });
     } finally {
       setInCorso(false);
     }

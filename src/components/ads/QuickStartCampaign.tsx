@@ -54,6 +54,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface ParsedBrief {
   name: string;
@@ -238,7 +239,7 @@ export function QuickStartCampaign({
       });
     } catch (e) {
       toast.error(tr("Errore AI"), {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       });
     } finally {
       setParsing(false);

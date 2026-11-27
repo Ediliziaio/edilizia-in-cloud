@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mesiRicevute, type RicevutaPerMesi } from "@/lib/fatturazione/mesiRicevute";
+import { mesiRicevute, scadutoRicevuta, type RicevutaPerMesi } from "@/lib/fatturazione/mesiRicevute";
 import { coloreDaRiempimento, COLORI_GRAFICO } from "@/components/charts/grafici/comune";
 
 const f = (p: Partial<RicevutaPerMesi> & { id: string }): RicevutaPerMesi => ({
@@ -40,6 +40,26 @@ describe("i mesi delle fatture ricevute", () => {
     expect(marzo.incassato).toBe(122 + 300);
     expect(marzo.daIncassare).toBe(700 + 100);
     expect(marzo.scaduto).toBe(100);
+  });
+});
+
+describe("quanto è scaduto di una fattura ricevuta", () => {
+  const piano = [{ scadenza: "2026-10-31", importo: 1263.42 }, { scadenza: "2026-11-30", importo: 1263.42 }];
+  it("la rata scaduta non pagata conta anche se la successiva deve ancora arrivare", () => {
+    // La rata del 31/10 era «segnata pagata» senza pagamento: il server l'ha rimessa nel residuo.
+    expect(scadutoRicevuta(piano, 0, 2526.84, "2026-11-27")).toBeCloseTo(1263.42);
+  });
+  it("la rata scaduta pagata davvero non è scaduta", () => {
+    expect(scadutoRicevuta(piano, 1263.42, 1263.42, "2026-11-27")).toBe(0);
+  });
+  it("tutte scadute: tutto il residuo, mai di più", () => {
+    expect(scadutoRicevuta(piano, 1000, 1526.84, "2026-12-15")).toBeCloseTo(1526.84);
+    expect(scadutoRicevuta(piano, 0, 100, "2026-12-15")).toBe(100);
+  });
+  it("piano senza importi: come prima, conta la prossima scadenza", () => {
+    expect(scadutoRicevuta([{ scadenza: "2026-04-30" }], 0, 100, "2026-11-16")).toBe(100);
+    expect(scadutoRicevuta([{ scadenza: "2026-12-30" }], 0, 100, "2026-11-16")).toBe(0);
+    expect(scadutoRicevuta(null, 0, 100, "2026-11-16")).toBe(0);
   });
 });
 

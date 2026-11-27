@@ -19,6 +19,7 @@ import { classificaDirezione, espandiXmlDaFiles } from "@/lib/fatturazione/bulkX
 import { bytesToBase64 } from "../../../supabase/functions/_shared/base64";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -35,7 +36,7 @@ export function tipoFileFattura(file: { name: string; type: string }): TipoFileF
 
 /** Il motivo vero dentro la risposta di una edge function (error.message dice solo «non-2xx»). */
 async function motivoErrore(error: unknown): Promise<string> {
-  let motivo = error instanceof Error ? error.message : String(error);
+  let motivo = messaggioErrore(error);
   try {
     const corpo = await (error as { context?: Response }).context?.json?.();
     if (corpo?.error) motivo = String(corpo.error);

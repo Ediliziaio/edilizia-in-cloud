@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 /**
  * Impostazioni → Acquisti e materiali (tabella company_acquisti_impostazioni,
@@ -66,7 +67,7 @@ export function useImpostazioniAcquisti() {
       toast.success("Impostazioni degli acquisti salvate");
     },
     onError: (e: unknown) => {
-      toast.error("Non riesco a salvare", { description: e instanceof Error ? e.message : String(e) });
+      toast.error("Non riesco a salvare", { description: messaggioErrore(e) });
     },
   });
 
@@ -82,7 +83,7 @@ export function useImpostazioniAcquisti() {
       toast.success("Impostazioni degli acquisti salvate");
     },
     onError: (e: unknown) => {
-      toast.error("Non riesco a salvare", { description: e instanceof Error ? e.message : String(e) });
+      toast.error("Non riesco a salvare", { description: messaggioErrore(e) });
     },
   });
 
@@ -158,7 +159,7 @@ export function useSalvaLetturaBolleTelefono() {
       toast.success("Impostazioni degli acquisti salvate");
     },
     onError: (e: unknown) => {
-      toast.error("Non riesco a salvare", { description: e instanceof Error ? e.message : String(e) });
+      toast.error("Non riesco a salvare", { description: messaggioErrore(e) });
     },
   });
 }

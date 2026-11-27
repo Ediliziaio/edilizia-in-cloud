@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
   ArrowDownLeft,
@@ -680,11 +680,14 @@ function useCandidates(company: string, id: string, existing: boolean) {
   const [search, setSearch] = useState("");
   const [term, setTerm] = useState("");
   useEffect(() => {
-    const timer = setTimeout(() => setTerm(search), 250);
+    const timer = setTimeout(() => setTerm(search), 400);
     return () => clearTimeout(timer);
   }, [search]);
   const query = useQuery({
     queryKey: ["bank-candidati", company, id, existing, term],
+    // Una ricerca che fallisce (timeout) lascia in vista gli ultimi risultati: prima
+    // l'elenco spariva e, con lui, le scadenze già spuntate (27/11/2026).
+    placeholderData: keepPreviousData,
     queryFn: () =>
       bankRpc<CandidatoRipartizione[]>("bank_candidati_movimento", {
         p_company: company,
@@ -748,26 +751,29 @@ function FinancialPicker({
           ? t("Questa conferma registra nuovi incassi. Se sono già presenti in Prima nota, usa «Collega pagamenti già registrati».")
           : t("Questa conferma registra nuovi pagamenti. Se sono già presenti in Prima nota, usa «Collega pagamenti già registrati».")}
       </p>
-      {query.isError ? (
+      {/* L'errore sta sopra, senza smontare la ripartizione: le scadenze già spuntate e
+          gli importi scritti vivono lì dentro, e un timeout della ricerca li cancellava
+          tutti (distinta RiBa da 94.856 €, 27/11/2026). */}
+      {query.isError && (
         <p role="alert" className="text-sm text-destructive">
           {query.error.message}{" "}
           <button className="underline" onClick={() => void query.refetch()}>
             {t("Riprova")}
-          </button>
+          </button>{" "}
+          {t("Le scadenze già selezionate restano selezionate.")}
         </p>
-      ) : (
-        <RipartizioneMovimento
-          resto={m.links.remaining}
-          candidati={(query.data ?? []) as CandidatoRipartizione[]}
-          caricando={query.isFetching}
-          onSearch={setSearch}
-          inCorso={busy}
-          etichettaDocumenti={
-            m.transaction_type === "credit" ? "fatture" : "scadenze"
-          }
-          onConferma={(r, n) => void confirm(r, n)}
-        />
       )}
+      <RipartizioneMovimento
+        resto={m.links.remaining}
+        candidati={(query.data ?? []) as CandidatoRipartizione[]}
+        caricando={query.isFetching}
+        onSearch={setSearch}
+        inCorso={busy}
+        etichettaDocumenti={
+          m.transaction_type === "credit" ? "fatture" : "scadenze"
+        }
+        onConferma={(r, n) => void confirm(r, n)}
+      />
       {(query.data?.length ?? 0) >= 100 && (
         <p className="text-xs text-muted-foreground">
           {t("Primi 100 risultati. Usa la ricerca per trovare gli altri documenti.")}

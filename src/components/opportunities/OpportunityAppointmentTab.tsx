@@ -32,6 +32,7 @@ import {
 } from "@/lib/opportunita/appuntamentoPrecompilato";
 import { calcolaSlotLiberi, impegniEsterniInFascia, type Occupato } from "@/lib/opportunita/slotCalendario";
 import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Props {
   contactId: string;
@@ -580,7 +581,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
             void queryClient.invalidateQueries({ queryKey: ["sopralluoghi-vendita"] });
           }
         } catch (e) {
-          toast.warning("Appuntamento prenotato, rilievo non preparato", { description: e instanceof Error ? e.message : String(e) });
+          toast.warning("Appuntamento prenotato, rilievo non preparato", { description: messaggioErrore(e) });
         }
       }
 

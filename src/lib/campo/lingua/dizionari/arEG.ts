@@ -31653,6 +31653,8 @@ const dizionario: Dizionario = {
   "Data di arrivo non disponibile": "تاريخ الوصول مش متاح",
   "Consegnata dallo SDI il {data_ricezione_sdi}": "SDI سلّمها يوم {data_ricezione_sdi}",
   "Nessun residuo": "مفيش متبقي",
+  "Segnata, non registrata": "متعلّمة، مش متسجلة",
+  "Le rate risultano pagate, ma {importo} non hanno un pagamento registrato. Riconcilia il movimento di banca, oppure apri la fattura e usa «Segna pagata», che registra la scrittura.": "الأقساط باينة مدفوعة، بس {importo} مالهمش دفعة متسجلة. طابق حركة البنك، أو افتح الفاتورة واستخدم «علّمها مدفوعة»، اللي بتسجل القيد.",
   "Non letta": "متقريتش",
   "Letta": "اتقرت",
   "Già registrata (storico)": "متسجلة خلاص (قديم)",
@@ -69310,7 +69312,7 @@ const dizionario: Dizionario = {
   "Non sono riuscito a riaprirli": "مقدرتش أفتحهم تاني",
   "Una fattura risulta pagata, ma il pagamento non è registrato": "فاتورة ظاهرة مدفوعة، بس الدفع مش مسجّل",
   "{n} fatture risultano pagate, ma il pagamento non è registrato": "{n} فواتير ظاهرة مدفوعة، بس الدفع مش مسجّل",
-  "Finché restano così non si possono riconciliare con il movimento della banca. Riaprendole tornano fra quelle da pagare: poi le abbini al pagamento, oppure usi «Segna pagata» dalla fattura, che registra la scrittura.": "وهي كده مش هتعرف تطابقها مع حركة البنك. لو فتحتها تاني بترجع مع اللي لسه هيتدفع: بعد كده بتطابقها مع الدفع، أو بتستخدم «علّم مدفوعة» من الفاتورة، واللي بيسجّل القيد.",
+  "Finché restano così non si possono riconciliare con il movimento della banca. Riaprendole tornano fra quelle da pagare: poi le abbini al pagamento, oppure usi «Segna pagata» dalla fattura, che registra la scrittura.": "وهي كده مش هتعرف تطابقها مع حركة البنك. لو فتحتها تاني بترجع مع اللي لسه هيتدفع: بعد كده بتطابقها مع الدفع، أو بتستخدم «علّمها مدفوعة» من الفاتورة، واللي بيسجّل القيد.",
   "Riaprire {n} pagamenti?": "تفتح {n} دفعات تاني؟",
   "Le rate tornano fra quelle da pagare, per {importo} in tutto. Non si cancella niente: le fatture restano dove sono, e chi ha pagato davvero può risegnarle pagate in un clic. Si toccano solo quelle dove il pagamento non risulta registrato.": "الأقساط بترجع مع اللي لسه هتتدفع، بـ {importo} في الإجمالي. مش بيتمسح حاجة: الفواتير بتفضل في مكانها، واللي دفع بجد يقدر يعلّمها مدفوعة تاني بكليك. بتتغير بس اللي الدفع بتاعها مش مسجّل.",
   "Seleziona tutte le manutenzioni": "اختار كل الصيانات",
@@ -69391,5 +69393,6 @@ const dizionario: Dizionario = {
   "Elimina commessa {commessa}": "احذف المشروع {commessa}",
   "Contatti / Lead": "جهات الاتصال / العملاء المحتملين",
   "Segna come perso": "علّم عليه كمفقود",
+  "Le scadenze già selezionate restano selezionate.": "المواعيد اللي اخترتها هتفضل مختارة.",
 };
 export default dizionario;

@@ -15,6 +15,7 @@ import {
 } from "@/lib/orders/riferimentiPa";
 import { RiferimentiPaEditor } from "./RiferimentiPaEditor";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const dataIt = (d: string | null) => (d ? d.split("-").reverse().join("/") : null);
 
@@ -95,7 +96,7 @@ export function RiquadroRiferimentiPa({ orderId, puoModificare }: { orderId: str
     if (!bozze || conErrori) return;
     salva.mutate({ bozze, attivi: true }, {
       onSuccess: () => { toast.success(t("Dati appalto salvati")); setBozze(null); },
-      onError: (e) => toast.error(t("Dati appalto non salvati"), { description: e instanceof Error ? e.message : String(e) }),
+      onError: (e) => toast.error(t("Dati appalto non salvati"), { description: messaggioErrore(e) }),
     });
   };
   const importa = (f: FonteRiferimentoEsistente) => {
@@ -105,7 +106,7 @@ export function RiquadroRiferimentiPa({ orderId, puoModificare }: { orderId: str
     if (nuove.some(bozzaHaErrori)) { setBozze(nuove); toast.warning(t("Da correggere prima di salvare"), { description: f.etichetta }); return; }
     salva.mutate({ bozze: nuove, attivi: true }, {
       onSuccess: () => toast.success(t("Riferimento importato"), { description: f.problemi.length ? t("Il codice non ha il formato giusto: correggilo con «Modifica».") : f.etichetta }),
-      onError: (e) => toast.error(t("Importazione non riuscita"), { description: e instanceof Error ? e.message : String(e) }),
+      onError: (e) => toast.error(t("Importazione non riuscita"), { description: messaggioErrore(e) }),
     });
   };
 

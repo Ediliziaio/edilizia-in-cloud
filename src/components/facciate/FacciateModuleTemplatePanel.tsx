@@ -6,6 +6,7 @@ import { loadLocalFacTemplate, localFacTemplateKey, saveLocalFacTemplate } from 
 import { FacciateTemplateEditor } from "./FacciateTemplateEditor";
 import { getFacDraft } from "./facDraftRecovery";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export interface FacciateModuleTemplatePanelProps {
   moduleId: FullFacModuleId;
@@ -31,7 +32,7 @@ function Workspace({ companyId, moduleId, branding, onDirtyChange }: FacciateMod
       if (draft) return { record: draft.revision ? { savedAt: draft.revision } : null, template: draft.template, error: "" };
       const record = loadLocalFacTemplate(companyId, moduleId);
       return { record, template: record?.template ?? createFullFacTemplate({ ...branding, company_id: companyId }, moduleId), error: "" };
-    } catch (e) { return { record: null, template: null, error: e instanceof Error ? e.message : String(e) }; }
+    } catch (e) { return { record: null, template: null, error: messaggioErrore(e) }; }
   });
   const revision = useRef(initial.record?.savedAt ?? null);
   const dirty = useCallback((value: boolean) => onDirtyChange?.(value), [onDirtyChange]);

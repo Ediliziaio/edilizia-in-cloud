@@ -41,6 +41,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { WhatsAppOperationsReview } from "@/components/whatsapp/WhatsAppOperationsReview";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 type OrderMini = { order_code?: string | null; description?: string | null };
 
@@ -135,7 +136,7 @@ function failedResult<T>(result: PromiseSettledResult<T>, fallback: T): T {
 }
 
 function failureLabel(result: PromiseSettledResult<unknown>, label: string) {
-  return result.status === "rejected" ? `${label}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}` : null;
+  return result.status === "rejected" ? `${label}: ${messaggioErrore(result.reason)}` : null;
 }
 
 const REVIEW_STATUSES = new Set(["failed", "failed_max_retries", "requires_confirmation", "received", "processing"]);

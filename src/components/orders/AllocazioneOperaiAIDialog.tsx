@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { Sparkles, Wand2, Loader2, AlertTriangle, Users, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Suggerimento {
   employee_id: string;
@@ -71,7 +72,7 @@ export function AllocazioneOperaiAIDialog({ orderId, companyId, open: openFuori,
       toast.success(t("AI: {n} operai suggeriti", { n: data.suggerimenti?.length ?? 0 }));
     },
     onError: (err) => {
-      toast.error(t("AI: {errore}", { errore: err instanceof Error ? err.message : String(err) }));
+      toast.error(t("AI: {errore}", { errore: messaggioErrore(err) }));
     },
   });
 
@@ -80,7 +81,7 @@ export function AllocazioneOperaiAIDialog({ orderId, companyId, open: openFuori,
       await assignOfficeEmployee(orderId, { employeeId });
     },
     onSuccess: () => toast.success(t("Operaio assegnato all'ordine")),
-    onError: (err) => toast.error(t("Errore: {errore}", { errore: err instanceof Error ? err.message : String(err) })),
+    onError: (err) => toast.error(t("Errore: {errore}", { errore: messaggioErrore(err) })),
   });
 
   return (

@@ -287,6 +287,7 @@ const CONTACT_SELECT =
 // MP-MKT-001: STEPS estratto in ./QuoteBuilder/constants.ts
 import { STEPS } from "./QuoteBuilder/constants";
 import { SedeSelect } from "@/components/sedi/SedeSelect";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 /**
  * Le griglie prezzi delle famiglie «a griglia» scelte dall'AI (05/10/2026):
@@ -2360,7 +2361,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
           if (!isEdit) setPendingEditNavId(quoteId);
         } catch (ePrev: unknown) {
           toast.error(tr("Anteprima non riuscita"), {
-            description: ePrev instanceof Error ? ePrev.message : String(ePrev),
+            description: messaggioErrore(ePrev),
           });
           navigate(`/azienda/marketing/preventivi/${quoteId}`);
         } finally {

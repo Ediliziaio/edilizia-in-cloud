@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { logger } from "@/utils/logger";
+import { testoGrezzoErrore } from "@/lib/messaggioErrore";
 
 export interface CompanyCustomer {
   id: string;
@@ -112,7 +113,7 @@ export function useCompanyCustomers(companyId: string | null | undefined, enable
           rpcErrMsg = error?.message ?? "rpc_unknown_error";
           logger.warn(`[useCompanyCustomers] RPC get_company_customers failed (tentativo ${attempt + 1}): ${rpcErrMsg}`);
         } catch (rpcErr) {
-          rpcErrMsg = rpcErr instanceof Error ? rpcErr.message : String(rpcErr);
+          rpcErrMsg = testoGrezzoErrore(rpcErr);
           logger.warn(`[useCompanyCustomers] RPC get_company_customers threw (tentativo ${attempt + 1}):`, rpcErr);
         }
       }

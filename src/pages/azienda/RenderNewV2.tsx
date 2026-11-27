@@ -91,6 +91,7 @@ import { MandaRenderMobile } from "@/components/render/MandaRenderMobile";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore, testoGrezzoErrore } from "@/lib/messaggioErrore";
 // v8.6.23 — Polling come SAFETY NET dietro al canale Realtime.
 // La Realtime subscription riceve l'evento UPDATE row push istantaneo dal DB
 // (latenza <500ms). Il polling è il paracadute se il websocket cade
@@ -354,7 +355,7 @@ export default function RenderNewV2() {
       })
       .catch((err) => {
         setPhoto(null);
-        toast.error(err instanceof Error ? err.message : String(err));
+        toast.error(messaggioErrore(err));
       });
   }, [t]);
 
@@ -393,7 +394,7 @@ export default function RenderNewV2() {
       const fallback = createFallbackWindowSceneAnalysis(photoMeta);
       setSceneAnalysis(fallback);
       setSelectedOpeningIds(fallback.openings.map((opening) => opening.id));
-      setAnalysisError(err instanceof Error ? err.message : String(err));
+      setAnalysisError(messaggioErrore(err));
     } finally {
       setAnalysisLoading(false);
     }
@@ -498,7 +499,7 @@ export default function RenderNewV2() {
       setSessionId(sess.id);
       return { sid: sess.id, path };
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toast.error(messaggioErrore(err));
       return null;
     } finally {
       setUploading(false);
@@ -716,7 +717,7 @@ export default function RenderNewV2() {
         photoMeta,
       });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toast.error(messaggioErrore(err));
       return;
     }
 
@@ -827,7 +828,7 @@ export default function RenderNewV2() {
       // su render_sessions: se la function completa, il polling raccoglie
       // il risultato. Se davvero ha fallito, il polling vedrà status="failed"
       // o timeoutterà a sua volta (MAX_POLL_SEC = 180s).
-      const message = err instanceof Error ? err.message : String(err);
+      const message = testoGrezzoErrore(err);
       const isTimeoutLike = /timeout|aborted|Failed to send a request/i.test(message);
       if (isTimeoutLike && sessionId) {
         console.warn("[render] invoke timed out, falling back to polling");

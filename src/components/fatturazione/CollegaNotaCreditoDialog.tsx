@@ -21,6 +21,7 @@ import {
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import type { LettoreXml } from "../../../supabase/functions/_shared/fatturapaReader";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -136,7 +137,7 @@ export function CollegaNotaCreditoDialog({ nota, onChiudi }: { nota: NotaDaColle
       aggiorna();
       onChiudi();
     } catch (e) {
-      toast.error(t("Collegamento non salvato"), { description: e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e) });
+      toast.error(t("Collegamento non salvato"), { description: messaggioErrore(e) });
     } finally {
       setSalvataggio(false);
     }
@@ -154,7 +155,7 @@ export function CollegaNotaCreditoDialog({ nota, onChiudi }: { nota: NotaDaColle
       aggiorna();
       onChiudi();
     } catch (e) {
-      toast.error(t("Collegamento non tolto"), { description: e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e) });
+      toast.error(t("Collegamento non tolto"), { description: messaggioErrore(e) });
     } finally {
       setSalvataggio(false);
     }

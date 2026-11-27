@@ -27,6 +27,7 @@ import type { SurveyRow, TemplateSchema } from "@/types/surveys";
 import {
   itemsPreventivoDalRilievo, righeDalRilievo, vociComputoDalRilievo, type RigaScelta,
 } from "@/lib/surveys/righeDalRilievo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 type Modo = "preventivo" | "computo";
 const ENERGIA = new Set(["fotovoltaico", "climatizzazione"]);
@@ -133,7 +134,7 @@ function DocumentoDalRilievoDialog({ detail, modo, onClose }: { detail: SurveyDe
         navigate(percorsoComputoNativo(id));
       }
     } catch (e) {
-      toast.error(modo === "preventivo" ? "Preventivo non creato" : "Computo non creato", { description: e instanceof Error ? e.message : String(e) });
+      toast.error(modo === "preventivo" ? "Preventivo non creato" : "Computo non creato", { description: messaggioErrore(e) });
     } finally {
       setInCorso(false);
     }

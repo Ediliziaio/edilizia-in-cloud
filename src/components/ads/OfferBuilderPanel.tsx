@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // ════════════════════════════════════════════════════════════════════
 // TYPES
@@ -200,7 +201,7 @@ export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, curre
       });
     } catch (e) {
       toast.error(t("Errore generazione"), {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       });
     } finally {
       setGenerating(false);

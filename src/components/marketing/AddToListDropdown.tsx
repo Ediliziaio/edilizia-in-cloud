@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { toast } from "sonner";
 import { CreateListDialog } from "./CreateListDialog";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface AddToListDropdownProps {
   selectedIds: Set<string>;
@@ -92,8 +93,8 @@ export function AddToListDropdown({ selectedIds }: AddToListDropdownProps) {
         // A lotti si può fallire a metà: chi è già nella lista ci resta.
         throw new Error(
           aggiunti > 0
-            ? t("{aggiunti} contatti aggiunti, poi si è fermata: {errore}", { aggiunti, errore: errore instanceof Error ? errore.message : String(errore) })
-            : errore instanceof Error ? errore.message : String(errore),
+            ? t("{aggiunti} contatti aggiunti, poi si è fermata: {errore}", { aggiunti, errore: messaggioErrore(errore) })
+            : messaggioErrore(errore),
           { cause: errore },
         );
       }

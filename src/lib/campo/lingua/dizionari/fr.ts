@@ -31653,6 +31653,8 @@ const dizionario: Dizionario = {
   "Data di arrivo non disponibile": "Date d'arrivée indisponible",
   "Consegnata dallo SDI il {data_ricezione_sdi}": "Remise par le SDI le {data_ricezione_sdi}",
   "Nessun residuo": "Aucun solde",
+  "Segnata, non registrata": "Marquée, non enregistrée",
+  "Le rate risultano pagate, ma {importo} non hanno un pagamento registrato. Riconcilia il movimento di banca, oppure apri la fattura e usa «Segna pagata», che registra la scrittura.": "Les échéances apparaissent payées, mais {importo} n'ont aucun paiement enregistré. Rapprochez le mouvement bancaire, ou ouvrez la facture et utilisez «Marquer payée», qui enregistre l'écriture.",
   "Non letta": "Non lue",
   "Letta": "Lue",
   "Già registrata (storico)": "Déjà enregistrée (historique)",
@@ -69391,5 +69393,6 @@ const dizionario: Dizionario = {
   "Elimina commessa {commessa}": "Supprimer le chantier {commessa}",
   "Contatti / Lead": "Contacts / Prospects",
   "Segna come perso": "Marquer comme perdu",
+  "Le scadenze già selezionate restano selezionate.": "Les échéances déjà sélectionnées restent sélectionnées.",
 };
 export default dizionario;

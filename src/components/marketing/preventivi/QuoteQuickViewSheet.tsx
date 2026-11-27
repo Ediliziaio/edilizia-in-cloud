@@ -21,6 +21,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { RIGHE_SENZA_COSTO } from "@/hooks/usePreventivoCosti";
 import { ricavoNettoPreventivo } from "@/lib/preventivi/ricavoNetto";
 import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface QuoteSummary {
   id: string;
@@ -76,7 +77,7 @@ export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
       }
       navigate(`/azienda/marketing/preventivi/${nuovoId}/modifica`);
     } catch (e) {
-      toast.error(t("Duplicazione non riuscita"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Duplicazione non riuscita"), { description: messaggioErrore(e) });
     } finally {
       setDuplicando(false);
     }

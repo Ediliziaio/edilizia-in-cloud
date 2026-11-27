@@ -22,6 +22,7 @@ import { Loader2, CheckCircle2, AlertCircle, Server, Save, FlaskConical } from "
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface PresetConfig {
   label: string;
@@ -274,7 +275,7 @@ export function ImapCustomDialog({ open, onOpenChange, daRicollegare = null }: I
     },
     onError: (e) => {
       setTestStatus("error");
-      setTestError(e instanceof Error ? e.message : String(e));
+      setTestError(messaggioErrore(e));
     },
   });
 

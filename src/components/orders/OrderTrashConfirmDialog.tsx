@@ -2,6 +2,7 @@ import {useState} from 'react';
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import {AlertDialog,AlertDialogContent,AlertDialogHeader,AlertDialogTitle,AlertDialogDescription,AlertDialogFooter,AlertDialogCancel,AlertDialogAction} from '@/components/ui/alert-dialog';
 import {commessaTrattenutaDaiDocumenti,commessaCosaSiScollega,ETICHETTE_SCOLLEGAMENTO} from '@/lib/orderUtils';
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 /** «3 fatture emesse · 1 DDT»: solo le voci che hanno un conteggio. */
 export function rigaScollegamento(conteggi:Record<string,number>,etichetta:(k:string)=>string):string{
@@ -27,7 +28,7 @@ export function OrderTrashConfirmDialog({open,onOpenChange,label,onConfirm,order
   try{await onConfirm(scollega);chiudi(false);}
   catch(err){
    if(!scollega&&commessaTrattenutaDaiDocumenti(err)){
-    setTrattenuta(err instanceof Error?err.message:String(err));
+    setTrattenuta(messaggioErrore(err));
     if(orderId&&companyId)setConteggi(await commessaCosaSiScollega(orderId,companyId));
    }else{
     setError(err&&typeof err==='object'&&'message'in err?String(err.message):t("Operazione non riuscita. Riprova."));

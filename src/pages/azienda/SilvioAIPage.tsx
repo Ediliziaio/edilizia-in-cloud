@@ -81,6 +81,7 @@ import { shouldSendSilvioOnEnter } from "@/lib/silvio/composerKeyboard";
 import { cn } from "@/lib/utils";
 import { sottoLarghezza } from "@/hooks/useSottoLarghezza";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 const MAX_ATTACHMENTS = 5;
@@ -619,7 +620,7 @@ export default function SilvioAIPage() {
       uploadAttachment(pending)
         .then((done) => setAttachments((prev) => prev.map((p) => (p.id === id ? done : p))))
         .catch((err: unknown) => {
-          const msg = err instanceof Error ? err.message : String(err);
+          const msg = messaggioErrore(err);
           toast.error(msg);
           setAttachments((prev) => prev.map((p) => (p.id === id ? { ...p, uploading: false, uploadError: msg } : p)));
         });

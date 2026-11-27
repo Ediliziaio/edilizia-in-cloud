@@ -26,6 +26,7 @@ import { refreshCrmContacts } from "@/lib/refreshCrmContacts";
 import { perOgniLotto, raccogliALotti } from "@/lib/lottiDiId";
 import { improntaOpportunitaInBlocco, salvaOpportunitaInBlocco } from "@/lib/marketing/opportunitaInBlocco";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 /** Quanti contatti si leggono per proporre i tag da rimuovere. */
 const TAG_DA_LEGGERE = 5000;
@@ -111,7 +112,7 @@ export function BulkTagsDialog({ selectedIds }: { selectedIds: Set<string> }) {
         }
       } catch (errore) {
         // A lotti si può fallire a metà: i tag già scritti restano scritti.
-        const causa = errore instanceof Error ? errore.message : String(errore);
+        const causa = messaggioErrore(errore);
         throw new Error(
           aggiornati > 0 ? tr("Tag aggiornati su {n} contatti, poi si è fermato: {causa}", { n: aggiornati, causa }) : causa,
           { cause: errore },
@@ -126,7 +127,7 @@ export function BulkTagsDialog({ selectedIds }: { selectedIds: Set<string> }) {
       setTagsToAdd([]);
       setTagsToRemove([]);
     },
-    onError: (e) => toast.error(tr("Errore aggiornamento tag"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(tr("Errore aggiornamento tag"), { description: messaggioErrore(e) }),
   });
 
   return (

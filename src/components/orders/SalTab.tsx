@@ -49,6 +49,7 @@ import { OfficeSelect } from "./OfficeSelect";
 import { ApriComputoCommessa } from "@/components/computo/commessa/ApriComputoCommessa";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 import {conPercentuale, conQuantita, percentualeFaseDaSottofasi, type SottofaseSalDraft} from "@/lib/orders/salSottofasi";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface SalRecord {
   id: string;
@@ -286,7 +287,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
       const warnings: string[] = data?.suggerimenti?.warnings ?? [];
       warnings.forEach((w) => toast.warning(w, { duration: 6000 }));
     },
-    onError: (err) => toast.error(`AI: ${err instanceof Error ? err.message : String(err)}`),
+    onError: (err) => toast.error(`AI: ${messaggioErrore(err)}`),
   });
 
   const createSalMutation = useMutation({

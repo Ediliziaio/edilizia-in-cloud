@@ -56,6 +56,7 @@ import {
   percorsiPlanimetrie,
 } from "@/lib/planimetrie/render/percorsi";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export default function RenderPlanimetrieHub() {
   const t = useT();
@@ -127,7 +128,7 @@ export default function RenderPlanimetrieHub() {
       navigate(percorsiPlanimetrie.pianta(id));
     } catch (e) {
       toast.error(t("Esempio non creato"), {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       });
     } finally {
       setEsempio(false);

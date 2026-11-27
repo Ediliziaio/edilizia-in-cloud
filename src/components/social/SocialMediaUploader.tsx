@@ -18,6 +18,7 @@ import {
 } from "@/lib/social/mediaUpload";
 import type { SocialPostMedia } from "@/lib/social/types";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Props {
   companyId: string | undefined;
@@ -82,7 +83,7 @@ export function SocialMediaUploader({
           uploaded.push(await uploadSocialMediaFile(companyId, file));
         } catch (err) {
           toast.error(t("Caricamento non riuscito: {nome}", { nome: file.name }), {
-            description: err instanceof Error ? err.message : String(err),
+            description: messaggioErrore(err),
           });
         }
       }

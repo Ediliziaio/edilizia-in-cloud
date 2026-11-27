@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { mezziPerNolo } from "@/lib/distinta/mezziPerNolo";
 import { useMezziPerNolo } from "@/hooks/useMezziPerNolo";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const TIPI: Record<TipoRisorsa, string> = { nolo: "Noleggio", servizio: "Servizio", manodopera: "Manodopera", lotto: "Distinta da completare" };
 const STATI: Record<StatoPropostaRisorsa, string> = { da_completare: "Da completare", da_quotare: "Da quotare", in_gestione: "In gestione", esclusa: "Esclusa" };
@@ -46,7 +47,7 @@ function EditorRisorse({ companyId, orderId, computoId, userId, dati, puoModific
         { companyId, orderId, computoId, userId }, dati.salvato?.revisione ?? 0, proposte);
       qc.setQueryData(["piano-risorse-computo", companyId, orderId, computoId], { ...dati, proposte, salvato });
       toast.success(tr("Proposte salvate nella commessa"), { description: tr("Puoi riaprirle senza rileggere il documento con l'AI.") });
-    } catch (e) { toast.error(tr("Piano risorse non salvato"), { description: e instanceof Error ? e.message : String(e) }); }
+    } catch (e) { toast.error(tr("Piano risorse non salvato"), { description: messaggioErrore(e) }); }
     finally { setSalvando(false); }
   };
   return <div className="space-y-3" aria-label={tr("Proposte di noleggi e servizi")}>

@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import type { OrigineRiga } from "@/lib/distinta/generaDistinta";
 import { verificaDaOrigini } from "@/lib/distinta/verificaAcquisto";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export type ChiFa = "interna" | "subappalto_fornitura_posa" | "subappalto_posa";
 const CHI_FA: ChiFa[] = ["interna", "subappalto_fornitura_posa", "subappalto_posa"];
@@ -194,7 +195,7 @@ export function MaterialiDaConfermare({ orderId, fasi, faseIniziale, aperto, onA
       setChiScelto({});
       onAperto(false);
     },
-    onError: (e) => toast.error(t("Materiali non inseriti"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Materiali non inseriti"), { description: messaggioErrore(e) }),
   });
   const scarta = useMutation({
     mutationFn: async (ids: string[]) => {
@@ -206,7 +207,7 @@ export function MaterialiDaConfermare({ orderId, fasi, faseIniziale, aperto, onA
       toast.success(t(n === 1 ? "{n} proposta scartata" : "{n} proposte scartate", { n }), { description: t("Rigenerando dal computo non tornano.") });
       aggiorna();
     },
-    onError: (e) => toast.error(t("Proposte non scartate"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Proposte non scartate"), { description: messaggioErrore(e) }),
   });
 
   if (!righe.length) return null;

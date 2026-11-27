@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { toast } from "sonner";
 import type { Autorizzazione } from "./permessi";
+import { messaggioErrore, testoGrezzoErrore } from "@/lib/messaggioErrore";
 
 const FN_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
@@ -56,7 +57,7 @@ export function useSilvioOverrideSet() {
       void qc.invalidateQueries({ queryKey: ["silvio-catalogo"] });
     },
     onError: (e) => {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = testoGrezzoErrore(e);
       toast.error("Operazione non riuscita", {
         description: msg.includes("override_non_puo_allargare")
           ? "Non puoi rendere un'azione più permissiva del livello di sicurezza di base."
@@ -135,7 +136,7 @@ export function useRisolviConferma() {
       void qc.invalidateQueries({ queryKey: ["silvio-coda"] });
       void qc.invalidateQueries({ queryKey: ["silvio-audit"] });
     },
-    onError: (e) => toast.error("Operazione non riuscita", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Operazione non riuscita", { description: messaggioErrore(e) }),
   });
 }
 
@@ -184,7 +185,7 @@ export function useSilvioUndo() {
       void qc.invalidateQueries({ queryKey: ["silvio-coda"] });
     },
     onError: (e) => {
-      const raw = e instanceof Error ? e.message : String(e);
+      const raw = testoGrezzoErrore(e);
       const key = Object.keys(UNDO_MSG).find((k) => raw.includes(k));
       toast.error("Annullamento non riuscito", { description: key ? UNDO_MSG[key] : raw });
     },
@@ -246,7 +247,7 @@ export function useAvviaPlaybook() {
       void qc.invalidateQueries({ queryKey: ["silvio-task-attivi"] });
       void qc.invalidateQueries({ queryKey: ["silvio-audit"] });
     },
-    onError: (e) => toast.error("Avvio non riuscito", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Avvio non riuscito", { description: messaggioErrore(e) }),
   });
 }
 
@@ -280,7 +281,7 @@ export function useChiediSilvio() {
       void qc.invalidateQueries({ queryKey: ["silvio-audit"] });
       void qc.invalidateQueries({ queryKey: ["silvio-task-attivi"] });
     },
-    onError: (e) => toast.error("Richiesta non riuscita", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Richiesta non riuscita", { description: messaggioErrore(e) }),
   });
 }
 
@@ -345,7 +346,7 @@ export function useAvviaVerificaCanale() {
     },
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ["silvio-canali"] }); },
     onError: (e) => {
-      const raw = e instanceof Error ? e.message : String(e);
+      const raw = testoGrezzoErrore(e);
       const key = Object.keys(AVVIA_MSG).find((k) => raw.includes(k));
       toast.error("Verifica non avviata", { description: key ? AVVIA_MSG[key] : raw });
     },
@@ -365,6 +366,6 @@ export function useScollegaCanale() {
       toast.success("Canale scollegato");
       void qc.invalidateQueries({ queryKey: ["silvio-canali"] });
     },
-    onError: (e) => toast.error("Operazione non riuscita", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Operazione non riuscita", { description: messaggioErrore(e) }),
   });
 }

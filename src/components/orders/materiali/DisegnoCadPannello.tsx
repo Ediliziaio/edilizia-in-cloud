@@ -39,6 +39,7 @@ import {
 import {
   type SceltaSimbolo, type VoceMappa, righeConteggio, scelteIniziali, vociDaSalvare,
 } from "@/lib/distinta/cad/mappaBlocchi";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const NESSUNO = "_nessuno";
 const SENZA_FASE = "_senza";
@@ -140,7 +141,7 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
       setCerchi(false);
       setLayerLunghezze(new Set(lunghezzePerLayer(d).map((l) => l.layer).filter((l) => /CORRUG|CAVI|CAVO|TUBO|TUBAZ|CANAL|PASSER|LINEA|DORSAL/i.test(l))));
     } catch (e) {
-      if (corrente === generazione.current) { setConversione(null); setErrore(e instanceof Error ? e.message : String(e)); }
+      if (corrente === generazione.current) { setConversione(null); setErrore(messaggioErrore(e)); }
     } finally {
       if (corrente === generazione.current) { setStato(null); setAvanzamento(null); annulla.current = null; }
     }
@@ -194,7 +195,7 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
       mappa.refetch();
       onSalvati();
     } catch (e) {
-      toast.error(t("Conteggi non salvati"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Conteggi non salvati"), { description: messaggioErrore(e) });
     } finally {
       setSalvo(false);
     }
@@ -211,7 +212,7 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
       onSalvati();
       return { id: d.id, nome: file.name };
     } catch (e) {
-      toast.error(t("Disegno non salvato tra i documenti"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Disegno non salvato tra i documenti"), { description: messaggioErrore(e) });
     } finally {
       setCaricoDocumento(false);
     }

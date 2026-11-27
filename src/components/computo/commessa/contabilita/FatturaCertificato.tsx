@@ -24,6 +24,7 @@ import { bozzaFatturaCertificato, type AnagraficaFatturazione } from "@/lib/comp
 import type { ComputoCommessa } from "@/hooks/useComputoCommessa";
 import { dataIt, euro } from "./comune";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Props {
   certificato: CertificatoDb;
@@ -72,12 +73,12 @@ export default function FatturaCertificato({ certificato, sal, computo, orderId,
       try {
         await collega.mutateAsync({ certificatoId: certificato.id, documentoId: doc.id });
       } catch (e) {
-        toast.warning(t("Fattura creata, ma non collegata al certificato"), { description: e instanceof Error ? e.message : String(e) });
+        toast.warning(t("Fattura creata, ma non collegata al certificato"), { description: messaggioErrore(e) });
       }
       try {
         await collegaOrdine.mutateAsync({ fatturaId: doc.id, ordineId: orderId, importoAssociato: certificato.totale, companyId });
       } catch (e) {
-        toast.warning(t("Fattura creata, ma non collegata alla commessa"), { description: e instanceof Error ? e.message : String(e) });
+        toast.warning(t("Fattura creata, ma non collegata alla commessa"), { description: messaggioErrore(e) });
       }
       if (!anagrafica) {
         toast.info(t("Completa i dati della stazione appaltante nella fattura"), {

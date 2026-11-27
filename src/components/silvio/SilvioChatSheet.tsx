@@ -137,6 +137,7 @@ const MAX_ATTACHMENTS = 5;
 // Definizioni in src/lib/silvio-skills.ts (shared con InternalChat)
 import { SILVIO_SKILLS as SILVIO_SKILLS_SHARED } from "@/lib/silvio-skills";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore, testoGrezzoErrore } from "@/lib/messaggioErrore";
 
 // Local alias per back-compat (codice sotto usa SILVIO_SKILLS)
 const SILVIO_SKILLS = SILVIO_SKILLS_SHARED;
@@ -604,7 +605,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
           );
         })
         .catch((err: unknown) => {
-          const msg = err instanceof Error ? err.message : String(err);
+          const msg = messaggioErrore(err);
           toast.error(msg);
           setAttachments((prev) =>
             prev.map((p) =>
@@ -722,7 +723,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
         });
       }, 100);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = testoGrezzoErrore(err);
       // Errori noti: NotAllowedError (permesso negato), NotFoundError (no mic), NotReadableError (mic occupato)
       if (msg.includes("NotAllowedError") || msg.includes("Permission")) {
         toast.error(tr("Permesso microfono negato. Abilita l'accesso nelle impostazioni del browser."));
@@ -765,7 +766,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
       setDraft((prev) => (prev ? `${prev} ${text}` : text));
       toast.success(tr("Audio trascritto. Controlla e invia."));
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = messaggioErrore(err);
       toast.error(tr("Trascrizione fallita: {errore}", { errore: String(msg ?? "") }));
     } finally {
       setTranscribing(false);

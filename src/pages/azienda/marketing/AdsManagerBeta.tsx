@@ -114,6 +114,7 @@ import {
   type AdsAttributionMetrics,
 } from "@/lib/ads/crmAttribution";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore, testoGrezzoErrore } from "@/lib/messaggioErrore";
 
 type AdsTab = "campagne" | "creativita" | "pubblici" | "impostazioni";
 type CampaignStatus = AdsCampaignStatus;
@@ -1607,7 +1608,7 @@ export default function AdsManagerBeta() {
             : t("Meta ha ripreso a mostrare gli annunci."),
         });
       } catch (err) {
-        const messaggio = err instanceof Error ? err.message : String(err);
+        const messaggio = testoGrezzoErrore(err);
         toast.error(spegni ? t("Non sono riuscito a mettere in pausa") : t("Non sono riuscito ad attivare"), {
           description:
             messaggio === "forbidden_activate"
@@ -7746,7 +7747,7 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
       }
     } catch (e) {
       toast.error(t("Non sono riuscito a leggere i Pixel"), {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       });
     } finally {
       setCercandoPixel(false);
@@ -7819,7 +7820,7 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
       }
     } catch (e) {
       toast.error(t("Test CAPI fallito"), {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       });
     } finally {
       setTestSending(false);

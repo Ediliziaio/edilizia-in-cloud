@@ -76,6 +76,7 @@ import type {
   MultiLocationWeather,
   LocationWeatherDay,
 } from "@/hooks/useWeatherForecast";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 6); // 06:00 – 20:00
 const SLOT_MINUTES = 15;
@@ -428,7 +429,7 @@ export function CalendarWeekView({
       toast(t("Evento spostato"));
       setPendingDrop(null);
     } catch (e: unknown) {
-      toast.error(t("Errore: {messaggio}", { messaggio: e instanceof Error ? e.message : String(e) }));
+      toast.error(t("Errore: {messaggio}", { messaggio: messaggioErrore(e) }));
       setPendingDrop(null);
     } finally {
       setIsConfirming(false);

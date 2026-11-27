@@ -29,6 +29,7 @@ import { etichettaVoce } from "@/lib/controlloGestione/rendicontoCassa";
 import { ScegliVoceCassa } from "@/components/tesoreria/ScegliVoceCassa";
 import { euroIntero } from "@/lib/controlloGestione/formatoCG";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export interface MovimentoDaClassificare {
   id: string;
@@ -184,7 +185,7 @@ export function ClassificaMovimentiDialog({
               onClick: () =>
                 void creaRegolaCassa({ company, testo: unica, voce: { id: voce.id, nome: voce.nome }, verso: versoRegola })
                   .then(() => toast.success(t("Regola creata: «{unica}» → {nome}", { unica: String(unica ?? ""), nome: String(voce.nome ?? "") }), { description: t("La trovi in Tesoreria → Impostazioni.") }))
-                  .catch((e: unknown) => toast.error(t("Regola non creata"), { description: e instanceof Error ? e.message : String(e) })),
+                  .catch((e: unknown) => toast.error(t("Regola non creata"), { description: messaggioErrore(e) })),
             }
           : undefined,
       });

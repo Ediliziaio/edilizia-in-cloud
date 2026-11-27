@@ -31748,6 +31748,8 @@ const dizionario: Dizionario = {
   "Data di arrivo non disponibile": "Data e mbërritjes nuk është e disponueshme",
   "Consegnata dallo SDI il {data_ricezione_sdi}": "Dorëzuar nga SDI më {data_ricezione_sdi}",
   "Nessun residuo": "Asnjë mbetje",
+  "Segnata, non registrata": "E shënuar, e paregjistruar",
+  "Le rate risultano pagate, ma {importo} non hanno un pagamento registrato. Riconcilia il movimento di banca, oppure apri la fattura e usa «Segna pagata», che registra la scrittura.": "Këstet duken të paguara, por {importo} nuk kanë pagesë të regjistruar. Rakordo lëvizjen bankare ose hap faturën dhe përdor «Shëno të paguar», që regjistron shënimin.",
   "Non letta": "E palexuar",
   "Letta": "E lexuar",
   "Già registrata (storico)": "Regjistruar tashmë (historik)",
@@ -69428,5 +69430,6 @@ const dizionario: Dizionario = {
   "Elimina commessa {commessa}": "Fshi porosinë {commessa}",
   "Contatti / Lead": "Kontakte / Klientë potencialë",
   "Segna come perso": "Shëno si të humbur",
+  "Le scadenze già selezionate restano selezionate.": "Afatet e zgjedhura mbeten të zgjedhura.",
 };
 export default dizionario;

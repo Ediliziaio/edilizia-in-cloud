@@ -21,8 +21,9 @@ import {
   type MotivoPerdita,
 } from "@/hooks/useLossReasons";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
-const messaggio = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const messaggio = (e: unknown) => (messaggioErrore(e));
 
 export default function SettingsMotiviPerdita() {
   const t = useT();

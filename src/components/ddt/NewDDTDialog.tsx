@@ -76,6 +76,7 @@ import {
   avvisaEsitoCarico, caricaAlSalvataggio, mostraSpuntaCarico,
 } from "@/lib/ddt/caricoAlSalvataggio";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 /**
  * Chi ha portato la merce. Con «noi» non c'è corriere: siamo andati a ritirarla
@@ -264,7 +265,7 @@ export function NewDDTDialog({
       setLettura("fatta");
     } catch (err) {
       setLettura("errore");
-      toast.error(`Lettura AI non riuscita: ${err instanceof Error ? err.message : String(err)}. Compila a mano.`);
+      toast.error(`Lettura AI non riuscita: ${messaggioErrore(err)}. Compila a mano.`);
     }
   };
 

@@ -26,6 +26,7 @@ import type { GareDocument, Participation, PreparationRun, Requirement, Tender }
 import { dateLabel, money } from '../domain';
 import { tenderParams } from '../tender-ux';
 import { buildWorkDesk, deskPhase, deskPhases, workDeskParams, type DeskItem, type DeskPhase, type DeskTarget } from './work-desk';
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Props {
  participation: Participation; tender: Tender; documents: GareDocument[];
@@ -57,7 +58,7 @@ export function TenderDesk({ participation: p, tender, documents, blockers, busy
    try {
     await api.local<PreparationRun>('preparation', 'start', { participation_id: p.id, force: false });
     go('prepara', 'ai'); await refresh(); toast.success('Preparazione AI locale avviata');
-   } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+   } catch (e) { setError(messaggioErrore(e)); }
    finally { setStarting(false); }
   } else if (target.modal) onModal(target.modal);
   else if (target.url) navigate(target.url);

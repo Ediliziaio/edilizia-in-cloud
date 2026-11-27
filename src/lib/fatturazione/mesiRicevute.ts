@@ -25,6 +25,27 @@ export interface RicevutaPerMesi {
 
 const cent = (n: number) => Math.round(n * 100) / 100;
 
+/**
+ * Quanto del residuo è già scaduto. Con un piano che ha date e importi: le rate
+ * con scadenza passata, meno quanto è stato pagato, al massimo il residuo. Così una
+ * rata scaduta non pagata conta anche se la successiva deve ancora arrivare: è il
+ * caso della rata «segnata pagata» senza pagamento registrato, che il server ha
+ * rimesso nel residuo (27/11/2026). Senza importi nel piano: tutto il residuo se
+ * anche la prossima scadenza è passata, come prima.
+ */
+export function scadutoRicevuta(piano: unknown, pagato: number, residuo: number, oggi: string): number {
+  if (residuo <= 0) return 0;
+  const rate = (Array.isArray(piano) ? piano : []) as Array<{ scadenza?: unknown; importo?: unknown }>;
+  const datate = rate.filter((r) => typeof r?.scadenza === "string" && r.scadenza.length >= 10);
+  const importi = datate.map((r) => (typeof r.importo === "number" ? r.importo : typeof r.importo === "string" ? Number(r.importo) : NaN));
+  if (datate.length && importi.every((n) => Number.isFinite(n))) {
+    const scadute = datate.reduce((tot, r, i) => (String(r.scadenza).slice(0, 10) < oggi ? tot + importi[i] : tot), 0);
+    return Math.min(residuo, Math.max(0, scadute - pagato));
+  }
+  const scadenza = prossimaScadenza(piano, oggi);
+  return scadenza && scadenza < oggi ? residuo : 0;
+}
+
 export function mesiRicevute(
   fatture: ReadonlyArray<RicevutaPerMesi>, anno: number,
   saldi: ReadonlyMap<string, { pagato: number | null; residuo: number | null }>, oggi: string,
@@ -60,8 +81,7 @@ export function mesiRicevute(
       pagato += saldo.pagato ?? 0;
       const resto = saldo.residuo ?? 0;
       daPagare += resto;
-      const scadenza = prossimaScadenza(f.piano_pagamento, oggi);
-      if (scadenza && scadenza < oggi) scaduto += resto;
+      scaduto += scadutoRicevuta(f.piano_pagamento, saldo.pagato ?? 0, resto, oggi);
     }
     mese.incassato = cent(pagato);
     mese.daIncassare = cent(daPagare);

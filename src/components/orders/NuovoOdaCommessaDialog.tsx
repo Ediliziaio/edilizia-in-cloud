@@ -44,6 +44,7 @@ import { invalidaFornitori } from "@/lib/suppliers/cacheFornitori";
 import { ACCEPT_DOCUMENTI_DDT, erroreDocumento } from "@/lib/ddt/preparaDocumento";
 import { caricaDocumentoOda, eliminaDocumentoOda, registraDocumentoOda } from "@/lib/orders/documentoOda";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Props {
   open: boolean;
@@ -176,7 +177,7 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
       setLettura("letto");
     } catch (e) {
       if (turno !== letturaInCorso.current) return;
-      setEsitoLettura({ righe: 0, abbinate: 0, fornitoreLetto: null, fornitoreTrovato: false, avvisi: [], errore: e instanceof Error ? e.message : String(e) });
+      setEsitoLettura({ righe: 0, abbinate: 0, fornitoreLetto: null, fornitoreTrovato: false, avvisi: [], errore: messaggioErrore(e) });
       setLettura("errore");
     }
   };
@@ -205,7 +206,7 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
       setEsitoLettura((e) => (e ? { ...e, fornitoreTrovato: true } : e));
       toast.success(tr("{nome} aggiunto ai fornitori", { nome: nuovo.name }), { description: tr("Completa la scheda (indirizzo, pagamento) dalla rubrica quando serve.") });
     } catch (e) {
-      toast.error(tr("Fornitore non aggiunto"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Fornitore non aggiunto"), { description: messaggioErrore(e) });
     } finally {
       setCreoFornitore(false);
     }
@@ -225,7 +226,7 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
       if (documento) {
         // Un file che non sale non ferma l'ordine: si dice, e si allega poi dalla pagina dell'ordine.
         try { caricato = await caricaDocumentoOda(orderId, documento); }
-        catch (e) { toast.warning(tr("Il documento non è stato caricato: l'ordine nasce senza allegato"), { description: e instanceof Error ? e.message : String(e) }); }
+        catch (e) { toast.warning(tr("Il documento non è stato caricato: l'ordine nasce senza allegato"), { description: messaggioErrore(e) }); }
       }
       const datiFornitore = suppliers.find(s => s.id === fornitore);
       const condizioni = condizioniPagamentoFornitore(datiFornitore || {});
@@ -282,7 +283,7 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
       setSalvando(false);
       chiudi(false);
     } catch (e) {
-      toast.error(tr("Ordine non creato"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Ordine non creato"), { description: messaggioErrore(e) });
       setSalvando(false);
     }
   };

@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Copy, Eye, EyeOff, MessageCircle, RefreshCw } from "lucide-react";
 import { PublicChatWidget } from "@/components/public-chat/PublicChatWidget";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface ChatbotSettings {
   company_id: string;
@@ -101,7 +102,7 @@ export function PublicChatbotSettings() {
     },
     onError: (e) => {
       toast.error("Errore salvataggio", {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       });
     },
   });

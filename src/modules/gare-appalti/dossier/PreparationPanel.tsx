@@ -11,6 +11,7 @@ import{ActionForm,Check,EditorDialog,Notice,Panel,TextField,value}from'../compon
 import { activeTenderDocuments } from '../tender-ux';
 import type{AiJob,Participation,PreparationRun}from'../types';
 import{toast}from'sonner';
+import { messaggioErrore } from "@/lib/messaggioErrore";
 const stepNames={inventory:'Originali',analysis:'Lettura AI',models:'Moduli',forms:'Valori e citazioni',dgue:'Operatori DGUE',matching:'Patrimonio e richieste',technical:'Struttura e controlli'};
 export function PreparationPanel({participation:p}:{participation:Participation}){
  const{api,canEdit,refresh,data}=useWorkspace();const navigate=useNavigate();const base=`/azienda/gare/partecipazioni/${p.id}`;const[requested,setRequested]=useState(false);const[busy,setBusy]=useState(false);const[error,setError]=useState('');const[selected,setSelected]=useState('');const[review,setReview]=useState(false);
@@ -34,7 +35,7 @@ export function PreparationPanel({participation:p}:{participation:Participation}
  async function act(task:()=>Promise<unknown>,startsRun=false){
   setBusy(true);setRequested(startsRun);setError('');
   try{await task();await runs.refetch();await refresh();}
-  catch(e){setError(e instanceof Error?e.message:String(e));}
+  catch(e){setError(messaggioErrore(e));}
   finally{setBusy(false);setRequested(false);}
  }
 

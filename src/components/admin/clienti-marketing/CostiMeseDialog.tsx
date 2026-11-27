@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useCostiManuali, useEliminaCostoManuale, useSalvaCostoManuale } from "./useClientiMarketing";
 import { fineMeseOOggi, type ClienteMarketing } from "./provvigioni";
 import { dataBreve, eur } from "./formato";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const FONTI = [
   { value: "meta", label: "Meta (inserito a mano)" },
@@ -53,7 +54,7 @@ export function CostiMeseDialog({ cliente, mese, meseLeggibile, oggi, open, onOp
       setImporto(""); setCampagna(""); setNote("");
       toast.success("Costo registrato");
     } catch (e) {
-      toast.error("Costo non salvato", { description: e instanceof Error ? e.message : String(e) });
+      toast.error("Costo non salvato", { description: messaggioErrore(e) });
     }
   };
 
@@ -122,7 +123,7 @@ export function CostiMeseDialog({ cliente, mese, meseLeggibile, oggi, open, onOp
                   <span className="tabular-nums font-medium">{eur(c.spend_amount, 2)}</span>
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" aria-label="Elimina costo"
                     disabled={elimina.isPending}
-                    onClick={() => elimina.mutate(c.id, { onSuccess: () => toast.success("Costo eliminato"), onError: (e) => toast.error("Non eliminato", { description: e instanceof Error ? e.message : String(e) }) })}>
+                    onClick={() => elimina.mutate(c.id, { onSuccess: () => toast.success("Costo eliminato"), onError: (e) => toast.error("Non eliminato", { description: messaggioErrore(e) }) })}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </li>

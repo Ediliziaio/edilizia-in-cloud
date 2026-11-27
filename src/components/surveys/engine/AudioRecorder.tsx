@@ -13,6 +13,7 @@ import type { SurveyMediaRow } from "@/types/surveys";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export interface AudioRecorderProps {
   surveyId: string;
@@ -79,7 +80,7 @@ export function AudioRecorder({
             }
           }
         } catch (e) {
-          toast.error(t("Upload audio fallito"), { description: e instanceof Error ? e.message : String(e) });
+          toast.error(t("Upload audio fallito"), { description: messaggioErrore(e) });
         } finally {
           setIsUploading(false);
           setIsRecording(false);
@@ -118,7 +119,7 @@ export function AudioRecorder({
       await deleteMedia(existingAudio.id);
       onAudioDeleted?.(existingAudio.id);
     } catch (e) {
-      toast.error(t("Eliminazione fallita"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Eliminazione fallita"), { description: messaggioErrore(e) });
     }
   };
 

@@ -41,6 +41,7 @@ import {
 import { preparaFotoProfilo } from "@/lib/whatsapp/fotoProfiloWhatsApp";
 import type { WANumber } from "@/hooks/whatsapp/useWhatsAppNumbers";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Props {
   number: WANumber;
@@ -162,7 +163,7 @@ export function WhatsAppProfiloDialog({ number, open, onOpenChange }: Props) {
         onError: (err) => toast.error(t("Foto non aggiornata"), { description: err.message }),
       });
     } catch (err) {
-      toast.error(t("Foto non valida"), { description: err instanceof Error ? err.message : String(err) });
+      toast.error(t("Foto non valida"), { description: messaggioErrore(err) });
     } finally {
       if (inputFoto.current) inputFoto.current.value = "";
     }

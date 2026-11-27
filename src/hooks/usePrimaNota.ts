@@ -7,6 +7,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { ACCONTI_SU_FATTURE_IN_CLOUD } from "@/lib/fatturazione/incassi";
 import { eseguiPerRiga } from "@/lib/operazioniPerRiga";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 
 /**
@@ -430,7 +431,7 @@ export function usePrimaNota(
       });
       invalidaIncassi();
     },
-    onError: (e) => toast.error("Registrazione non modificata", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Registrazione non modificata", { description: messaggioErrore(e) }),
   });
 
   // Elimina insieme all'incasso della sua fattura: prima la fattura restava «pagata» senza movimento.
@@ -450,7 +451,7 @@ export function usePrimaNota(
         : rataRiaperta ? { description: "La rata della commessa torna da incassare." } : undefined);
       invalidaIncassi();
     },
-    onError: (e) => toast.error("Registrazione non eliminata", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Registrazione non eliminata", { description: messaggioErrore(e) }),
   });
 
   const deleteManyMutation = useMutation({

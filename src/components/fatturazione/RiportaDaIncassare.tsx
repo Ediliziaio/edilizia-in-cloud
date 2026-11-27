@@ -9,15 +9,22 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
 import { invalidaFattureImportate } from "./GestionaleEsterno";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 /**
  * Il contrario di «Segna incassata» sulle fatture emesse importate da XML, che arrivano
  * spesso già «pagate» senza alcun incasso registrato. Per chi è collegato a un gestionale
  * il dato torna da là: si annulla dallo storico degli incassi.
+ *
+ * Dal 27/11/2026 anche le fatture storiche `primanota` (import una tantum dal gestionale di
+ * prima, nessun collegamento vivo): risultano incassate per scelta, ma se una non lo è davvero
+ * si riporta da incassare una per una (migrazione 20290628130000).
  */
+const PROVENIENZE_RIPORTABILI = new Set(["xml_import", "primanota"]);
+
 export function siRiportaDaIncassare(doc: { origine?: string; external_provider?: string | null; stato?: string; tipo?: string }): boolean {
   return doc.origine === "importata"
-    && doc.external_provider === "xml_import"
+    && PROVENIENZE_RIPORTABILI.has(doc.external_provider ?? "")
     && doc.tipo !== "nota_credito"
     && (doc.stato === "pagata" || doc.stato === "parzialmente_pagata");
 }
@@ -40,7 +47,7 @@ export function RiportaDaIncassareDialog({ fattura, onClose }: { fattura: { id: 
       toast.success(`Fattura ${fattura?.numero ?? ""} di nuovo da incassare`);
       onClose();
     },
-    onError: (e) => toast.error(t("Non sono riuscito a riportarla da incassare"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Non sono riuscito a riportarla da incassare"), { description: messaggioErrore(e) }),
   });
 
   return (

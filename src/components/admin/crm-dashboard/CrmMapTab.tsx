@@ -36,6 +36,7 @@ import {
 import { Loader2, Search, MapPin, AlertTriangle, RefreshCw, Filter, Download, X, Crosshair, Flame, SlidersHorizontal, Eraser, Target, Send, Navigation, BarChart3, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // leaflet.heat non ha i tipi ufficiali → wrapper tipizzato.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -418,7 +419,7 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
       return rows.length;
     },
     onSuccess: (n) => { toast.success(`${n} opportunità create dai prospect selezionati`); setSelectedIds(new Set()); },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : String(e)),
+    onError: (e: unknown) => toast.error(messaggioErrore(e)),
   });
 
   const enroll = useMutation({
@@ -433,7 +434,7 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
       });
       if (!report.altri) { setEnrollOpen(false); setSelectedIds(new Set()); }
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : String(e)),
+    onError: (e: unknown) => toast.error(messaggioErrore(e)),
   });
 
   // Geocodifica stradale precisa: sposta i pin dal centroide provincia alla via reale.
@@ -453,7 +454,7 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
       else toast.success("Tutti gli indirizzi disponibili sono già geocodificati");
       cellsQ.refetch(); pointsQ.refetch();
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : String(e)),
+    onError: (e: unknown) => toast.error(messaggioErrore(e)),
   });
 
   const queryClient = useQueryClient();
@@ -472,7 +473,7 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Segnata come cliente 🟢 · la mappa si aggiorna"); refreshMap(); },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : String(e)),
+    onError: (e: unknown) => toast.error(messaggioErrore(e)),
   });
 
   // Aggiornamento in tempo reale: quando un'opportunità cambia (es. diventa "vinta"

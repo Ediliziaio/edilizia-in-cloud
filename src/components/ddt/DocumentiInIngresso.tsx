@@ -33,6 +33,7 @@ import { preparaDocumento } from "@/lib/ddt/preparaDocumento";
 import { BolleInBloccoDialog } from "./BolleInBloccoDialog";
 import { AvvisoPossibileDuplicatoDDT } from "./AvvisoPossibileDuplicatoDDT";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export function RevisioneDocumento({
   documento,
@@ -262,7 +263,7 @@ export function RigaDocumentoInIngresso({
       toast.success(t("Bolla scartata"));
       void queryClient.invalidateQueries({ queryKey: ["ddt-documenti"] });
     } catch (e) {
-      toast.error(t("Bolla non scartata"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Bolla non scartata"), { description: messaggioErrore(e) });
     } finally { setScartando(false); }
   };
   const bottoneScarta = (

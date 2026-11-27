@@ -25,6 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Pencil, Save, X, Users, AlertTriangle } from "lucide-react";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface AdminPersona {
   persona_key: string;
@@ -98,7 +99,7 @@ export function AdminPersonasTab() {
     },
     onError: (e) => {
       toast.error("Errore salvataggio", {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       });
     },
   });

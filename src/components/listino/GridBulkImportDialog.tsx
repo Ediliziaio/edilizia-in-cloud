@@ -81,6 +81,7 @@ import {
   type MatrixParseResult,
 } from "@/features/serramenti-listini/utils/matrixImport";
 import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export type BulkTargetField = "prezzo_acquisto" | "prezzo_vendita";
 export type AiProvider = "auto" | "openai" | "anthropic" | "gemini";
@@ -368,7 +369,7 @@ export function GridBulkImportDialog({
       }
       // Sposta focus sulla preview — tabMode rimane "image" così l'utente vede provider/tokens
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = messaggioErrore(err);
       setAiError(msg);
       toast.error(t("Errore analisi AI"), { description: msg });
     } finally {

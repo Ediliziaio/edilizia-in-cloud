@@ -64,6 +64,7 @@ import {
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { formatError } from "@/lib/errors";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // ── Tipi locali (types.ts legacy, non rigenerato) ───────────────────────────
 type SuppressionReason =
@@ -264,7 +265,7 @@ export function EmailSuppressionsTable() {
           : `Esportate ${allRows.length.toLocaleString("it-IT")} soppressioni`,
       );
     } catch (e) {
-      toast.error(`Export non riuscito: ${e instanceof Error ? e.message : String(e)}`);
+      toast.error(`Export non riuscito: ${messaggioErrore(e)}`);
     } finally {
       setExporting(false);
     }

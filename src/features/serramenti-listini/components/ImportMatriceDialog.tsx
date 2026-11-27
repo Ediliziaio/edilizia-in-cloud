@@ -52,6 +52,7 @@ import {
   type MatrixParseResult,
   parseMatrixFile,
 } from "../utils/matrixImport";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 type Step = "upload" | "preview" | "importing" | "result";
 
@@ -164,7 +165,7 @@ export function ImportMatriceDialog({
         setStep("preview");
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = messaggioErrore(e);
       setParseError(msg);
       setParsed(null);
       captureVelocityError("listini-avanzati.matrice.import.parse", e as Error, {
@@ -223,7 +224,7 @@ export function ImportMatriceDialog({
         });
         ok++;
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = messaggioErrore(e);
         errors.push(`${cell.valore_x}×${cell.valore_y}: ${msg}`);
       }
       setProgress(Math.round(((i + 1) / cellsToWrite.length) * 100));

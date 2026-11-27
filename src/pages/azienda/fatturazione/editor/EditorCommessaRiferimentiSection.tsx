@@ -37,6 +37,7 @@ import {
 } from "../../../../../supabase/functions/_shared/riferimentiPaFattura";
 import type { EditorState } from "./useEditorState";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Props {
   state: EditorState;
@@ -164,7 +165,7 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
       }
       await applica(c, comePrincipale, collegaCommessa(base, proposti, c.id));
     } catch (e) {
-      toast.error(tr("Non riesco a leggere i riferimenti della commessa"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Non riesco a leggere i riferimenti della commessa"), { description: messaggioErrore(e) });
     } finally {
       setLavoro(false);
     }
@@ -210,7 +211,7 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
       const esito = aggiornaDallaCommessa(riferimenti, proposti, c.id);
       setAggiornamento({ commessa: c, ...esito });
     } catch (e) {
-      toast.error(tr("Non riesco a leggere la commessa"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Non riesco a leggere la commessa"), { description: messaggioErrore(e) });
     } finally {
       setLavoro(false);
     }

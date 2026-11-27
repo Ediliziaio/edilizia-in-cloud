@@ -31653,6 +31653,8 @@ const dizionario: Dizionario = {
   "Data di arrivo non disponibile": "Arrival date not available",
   "Consegnata dallo SDI il {data_ricezione_sdi}": "Delivered by SDI on {data_ricezione_sdi}",
   "Nessun residuo": "Nothing outstanding",
+  "Segnata, non registrata": "Marked, not recorded",
+  "Le rate risultano pagate, ma {importo} non hanno un pagamento registrato. Riconcilia il movimento di banca, oppure apri la fattura e usa «Segna pagata», che registra la scrittura.": "The instalments show as paid, but {importo} have no recorded payment. Reconcile the bank transaction, or open the invoice and use «Mark paid», which records the entry.",
   "Non letta": "Unread",
   "Letta": "Read",
   "Già registrata (storico)": "Already recorded (historical)",
@@ -69310,7 +69312,7 @@ const dizionario: Dizionario = {
   "Non sono riuscito a riaprirli": "I couldn’t reopen them",
   "Una fattura risulta pagata, ma il pagamento non è registrato": "One invoice shows as paid, but the payment isn’t recorded",
   "{n} fatture risultano pagate, ma il pagamento non è registrato": "{n} invoices show as paid, but the payment isn’t recorded",
-  "Finché restano così non si possono riconciliare con il movimento della banca. Riaprendole tornano fra quelle da pagare: poi le abbini al pagamento, oppure usi «Segna pagata» dalla fattura, che registra la scrittura.": "While they stay like this they can’t be reconciled with the bank movement. Reopening them puts them back among those to be paid: then you match them to the payment, or you use «Mark as paid» on the invoice, which records the entry.",
+  "Finché restano così non si possono riconciliare con il movimento della banca. Riaprendole tornano fra quelle da pagare: poi le abbini al pagamento, oppure usi «Segna pagata» dalla fattura, che registra la scrittura.": "While they stay like this they can’t be reconciled with the bank movement. Reopening them puts them back among those to be paid: then you match them to the payment, or you use «Mark paid» on the invoice, which records the entry.",
   "Riaprire {n} pagamenti?": "Reopen {n} payments?",
   "Le rate tornano fra quelle da pagare, per {importo} in tutto. Non si cancella niente: le fatture restano dove sono, e chi ha pagato davvero può risegnarle pagate in un clic. Si toccano solo quelle dove il pagamento non risulta registrato.": "The instalments go back among those to be paid, for {importo} in total. Nothing is deleted: the invoices stay where they are, and whoever really paid can mark them paid again in one click. Only the ones whose payment isn’t recorded are touched.",
   "Seleziona tutte le manutenzioni": "Select all maintenance",
@@ -69391,5 +69393,6 @@ const dizionario: Dizionario = {
   "Elimina commessa {commessa}": "Delete job {commessa}",
   "Contatti / Lead": "Contacts / Leads",
   "Segna come perso": "Mark as lost",
+  "Le scadenze già selezionate restano selezionate.": "Items already selected stay selected.",
 };
 export default dizionario;

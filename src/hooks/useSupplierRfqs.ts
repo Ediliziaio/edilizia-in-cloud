@@ -16,6 +16,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export const rfqKeys = {
   all: ["supplier-rfqs"] as const,
@@ -444,7 +445,7 @@ export function useSupplierRfqDetail(rfqId: string | null) {
     },
     onError: (e) => {
       invalida();
-      toast.error("Aggiudicazione non riuscita", { description: e instanceof Error ? e.message : String(e) });
+      toast.error("Aggiudicazione non riuscita", { description: messaggioErrore(e) });
     },
   });
 
@@ -505,7 +506,7 @@ export function useSupplierRfqDetail(rfqId: string | null) {
       toast.success("Offerta allegata");
       invalida();
     },
-    onError: (e) => toast.error("Allegato non caricato", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Allegato non caricato", { description: messaggioErrore(e) }),
   });
 
   return {

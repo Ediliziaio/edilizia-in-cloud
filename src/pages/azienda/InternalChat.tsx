@@ -85,6 +85,7 @@ import {
   parseStoredAttachmentUrl,
   toStoredAttachmentUrl,
 } from "@/lib/internalChat";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 // v8.6.75 (LOOP-CHAT-ADMIN Round 6 / SLATE-THEME) — Watermark logo rimosso
 // (utente lo trovava ancora "che fa cagare"). Theme finale: slate-50 di base,
 // bubble ricevuti slate-100, bubble miei verde WhatsApp-style. Compose bar
@@ -1930,7 +1931,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
         await sendToSilvio(userPrompt);
       }
     } catch (e) {
-      toast.error(t("Upload fallito: {errore}", { errore: e instanceof Error ? e.message : String(e) }));
+      toast.error(t("Upload fallito: {errore}", { errore: messaggioErrore(e) }));
     } finally {
       setSilvioUploading(false);
     }
@@ -1987,7 +1988,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
             }
           }, 100);
         } catch (e) {
-          toast.error(t("Trascrizione fallita: {errore}", { errore: e instanceof Error ? e.message : String(e) }));
+          toast.error(t("Trascrizione fallita: {errore}", { errore: messaggioErrore(e) }));
         } finally {
           setIsTranscribing(false);
         }

@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { chiaviMateriali } from "@/hooks/useMaterialiPerFase";
 import { chiaveDescrizione, prezzoAttuale, scegliPrezzo, type PrezzoProposto } from "@/lib/distinta/prezziMateriali";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export interface MaterialePerPrezzo {
   id: string;
@@ -103,6 +104,6 @@ export function useApplicaPrezziProposti(orderId: string) {
       qc.invalidateQueries({ queryKey: chiaviMateriali.commessa(orderId) });
       qc.invalidateQueries({ queryKey: ["order-items", orderId] });
     },
-    onError: (e) => toast.error("Prezzi non scritti", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Prezzi non scritti", { description: messaggioErrore(e) }),
   });
 }

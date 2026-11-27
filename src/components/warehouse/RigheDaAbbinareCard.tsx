@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -49,7 +50,7 @@ export function RigheDaAbbinareCard() {
       toast.success(t("Righe segnate come sistemate"));
       void qc.invalidateQueries({ queryKey: ["magazzino-righe-da-abbinare"] });
     },
-    onError: (e) => toast.error(t("Non sono riuscito a salvare"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Non sono riuscito a salvare"), { description: messaggioErrore(e) }),
   });
 
   const lista = carichi.data ?? [];

@@ -93,6 +93,7 @@ import {
   type BollaSenzaOriginale,
 } from "@/lib/ddt/importBolle";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -1121,7 +1122,7 @@ function BolleAperte({
                             })
                             .catch((e: unknown) =>
                               toast.error(t("Bolla non scartata"), {
-                                description: e instanceof Error ? e.message : String(e),
+                                description: messaggioErrore(e),
                               }),
                             );
                         }}

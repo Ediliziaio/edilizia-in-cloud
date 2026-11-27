@@ -29,6 +29,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CATEGORIE_DI_BASE, chiaveRiga, contoPropostoRiga, etichettaCategoria, proposteDalPiano, proposteDalleScelte, type FatturaStorica, type SceltaPassata } from "@/lib/fatturazione/contoPerRiga";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const DELLA_FATTURA = "__fattura";
 const uguali = (a: Record<string, string>, b: Record<string, string>) =>
@@ -179,7 +180,7 @@ export function useContiRighe({ companyId, fatturaId, salvati, righe, onCambiato
       onCambiato();
       void qc.invalidateQueries({ queryKey: ["contabilita-generale", companyId] });
     } catch (e) {
-      toast.error(t("Conto della riga non salvato"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Conto della riga non salvato"), { description: messaggioErrore(e) });
     } finally {
       invio.current = false;
       setSalvando(false);

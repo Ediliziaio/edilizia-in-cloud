@@ -20,6 +20,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Loader2, X, Check } from "lucide-react";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export interface TemplateManagerDialogProps {
   open: boolean;
@@ -91,7 +92,7 @@ export function TemplateManagerDialog({ open, onOpenChange }: TemplateManagerDia
       }
       cancelForm();
     } catch (e) {
-      toast.error(tr("Errore salvataggio"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Errore salvataggio"), { description: messaggioErrore(e) });
     }
   };
 
@@ -101,7 +102,7 @@ export function TemplateManagerDialog({ open, onOpenChange }: TemplateManagerDia
       await deleteMutation.mutateAsync(deleteTarget.id);
       toast.success(tr("Template eliminato"));
     } catch (e) {
-      toast.error(tr("Errore eliminazione"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Errore eliminazione"), { description: messaggioErrore(e) });
     } finally {
       setDeleteTarget(null);
     }

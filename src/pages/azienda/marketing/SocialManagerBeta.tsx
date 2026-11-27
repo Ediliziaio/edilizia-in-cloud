@@ -128,6 +128,7 @@ import type {
   SocialScheduledPost,
 } from "@/lib/social/types";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // ─── Platform config ───────────────────────────────────────────────────────────
 
@@ -2171,7 +2172,7 @@ function ContentStudioTab({
       mediaForPost = companyId ? await ensureRemoteSocialMedia(companyId, postMedia) : postMedia;
     } catch (err) {
       toast.error(tr("Caricamento del file non riuscito"), {
-        description: err instanceof Error ? err.message : String(err),
+        description: messaggioErrore(err),
       });
       setIsSubmitting(false);
       return;

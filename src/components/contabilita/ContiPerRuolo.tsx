@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 /** I conti del piano standard hanno per codice il loro ruolo (05.01, 30.40…): fanno già da quello. */
 const RUOLO_DAL_CODICE = /^\d{2}\.\d{2}$/;
@@ -38,7 +39,7 @@ export function ContiPerRuolo({ companyId, ruoli, chiuso }: { companyId: string;
       if (error) throw error;
     },
     onSuccess: () => { toast.success(t("Conto assegnato")); void qc.invalidateQueries({ queryKey: ["contabilita-generale", companyId] }); },
-    onError: (e) => toast.error(t("Conto non assegnato"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Conto non assegnato"), { description: messaggioErrore(e) }),
   });
   if (ruoli.length === 0) return null;
   return (

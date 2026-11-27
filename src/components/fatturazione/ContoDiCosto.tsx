@@ -24,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 /** La voce in fondo al menu: non è un conto, apre il campo per scriverne uno nuovo. */
 const VOCE_NUOVO = "__nuovo_conto__";
@@ -96,7 +97,7 @@ export function ContoDiCosto({ companyId, fatturaId, costoId, attuale, onCambiat
       onCambiato();
       void qc.invalidateQueries({ queryKey: ["contabilita-generale", companyId] });
     },
-    onError: (e) => toast.error(t("Conto di costo non cambiato"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Conto di costo non cambiato"), { description: messaggioErrore(e) }),
   });
 
   // Un conto che non c'è: si scrive qui, senza passare dalle impostazioni (16/11/2026).
@@ -118,7 +119,7 @@ export function ContoDiCosto({ companyId, fatturaId, costoId, attuale, onCambiat
     onError: (e) => toast.error(t("Conto non aggiunto"), {
       description: e instanceof Error && /permission|policy|row-level/i.test(e.message)
         ? t("Per creare un conto di costo serve il permesso Costi o Gestione acquisti.")
-        : e instanceof Error ? e.message : String(e),
+        : messaggioErrore(e),
     }),
   });
 

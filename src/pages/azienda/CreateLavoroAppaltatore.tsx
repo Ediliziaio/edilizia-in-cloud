@@ -59,6 +59,7 @@ import {
   installmentsToLegacyColumns,
 } from "@/lib/orderUtils";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 type LavoroPaymentMode = "single" | "installments";
 type Valorizzazione = "a_corpo" | "a_misura";
@@ -139,7 +140,7 @@ function ModuloLavoroAppaltatore() {
       else toast({ title: t("Commessa creata dal preventivo") });
       navigate(`/azienda/ordini/${esito.orderId}`);
     },
-    onError: (e) => toast({ title: t("Commessa non creata"), description: e instanceof Error ? e.message : String(e), variant: "destructive" }),
+    onError: (e) => toast({ title: t("Commessa non creata"), description: messaggioErrore(e), variant: "destructive" }),
   });
   const [originaleAi, setOriginaleAi] = useState<StoredContractFile | null>(scritturaIniziale?.documento ?? null);
   const [avvisiAi, setAvvisiAi] = useState<string[]>([]);

@@ -14,6 +14,7 @@ import { ReviewContent } from './ReviewContent';
 import { ReviewProvenance } from './ReviewProvenance';
 import { ReviewProgress } from './ReviewProgress';
 import { ValidationReport } from './ValidationReport';
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export function ReviewDialog({ document: initial, entry, onClose }: { document: GareDocument; entry?: ReviewEntry; onClose: () => void }) {
   const { api, data, canEdit, canApprove, refresh } = useWorkspace();
@@ -33,11 +34,11 @@ export function ReviewDialog({ document: initial, entry, onClose }: { document: 
         preview_confirmed: preview, declarations_confirmed: declarations, scope_ack: ack, note,
       });
       setDoc(result.document); setReport(result.report); setCurrent(true); if (handoff) setSent(true); await refresh();
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); setCurrent(false); }
+    } catch (e) { setError(messaggioErrore(e)); setCurrent(false); }
     finally { setBusy(false); }
   }
   return <EditorDialog wide className="ga-review-dialog" title={reviewTitle(doc)} description={documentOperator(doc) || doc.name} onClose={onClose}>
-    <div className="ga-review-dialog-top"><ReviewProgress document={doc} entry={entry} sent={sent} current={current} reviewable={!!report?.reviewable} /><Button size="sm" variant="outline" onClick={async () => { try { downloadBlob(await api.blob(doc), reviewDownloadName(doc)); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } }}><Download />Scarica il documento</Button></div>
+    <div className="ga-review-dialog-top"><ReviewProgress document={doc} entry={entry} sent={sent} current={current} reviewable={!!report?.reviewable} /><Button size="sm" variant="outline" onClick={async () => { try { downloadBlob(await api.blob(doc), reviewDownloadName(doc)); } catch (e) { setError(messaggioErrore(e)); } }}><Download />Scarica il documento</Button></div>
     <div className="ga-review-pane-switch" role="group" aria-label="Vista della revisione"><button aria-pressed={pane === 'documento'} onClick={() => setPane('documento')}>Documento</button><button aria-pressed={pane === 'controlli'} onClick={() => setPane('controlli')}>Controlli e consegna{report?.blockers.length ? ` · ${report.blockers.length}` : ''}</button></div>
     <div className="ga-review-split" data-pane={pane}>
       <section className="ga-review-preview-pane" aria-label="Documento da leggere"><div className="ga-review-pane-label"><strong>Documento</strong><span>{doc.name}</span></div><ReviewContent document={doc} focus={xmlFocus} /></section>

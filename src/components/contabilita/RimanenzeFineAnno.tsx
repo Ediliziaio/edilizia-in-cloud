@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { leggiImportoItaliano } from "@/lib/orders/salCertificato";
 import { ContiPerRuolo, type RuoloConto } from "./ContiPerRuolo";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const euro = (n: number) => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: "always" } as Intl.NumberFormatOptions).format(n);
 
@@ -88,7 +89,7 @@ export function RimanenzeFineAnno({ companyId, anno, chiuso }: { companyId: stri
       setLavori(null); setMateriali(null);
       aggiorna();
     },
-    onError: (e) => toast.error(t("Rimanenze non registrate"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Rimanenze non registrate"), { description: messaggioErrore(e) }),
   });
 
   if (anteprima.isLoading) return <p role="status" className="text-sm text-muted-foreground">{t("Carico le rimanenze…")}</p>;

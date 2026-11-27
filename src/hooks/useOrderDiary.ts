@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useCommessaCampoSync } from "@/hooks/useCommessaCampoSync";
 import { diaryReportSummary } from "@/lib/campo/diaryReportSummary";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export type DiaryEntry =
   | { kind: "event"; data: OrderEvent }
@@ -340,7 +341,7 @@ export function useOrderDiary(orderId: string | undefined) {
       qc.invalidateQueries({ queryKey: ["order-diary-audit", orderId] });
     },
     onError: (e: unknown) => {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = messaggioErrore(e);
       toast.error("Invio messaggio cliente fallito", {
         description: `Il messaggio NON è stato inviato. Riprova o controlla la connessione. Dettagli: ${msg}`,
       });
@@ -362,7 +363,7 @@ export function useOrderDiary(orderId: string | undefined) {
       qc.invalidateQueries({ queryKey: ["order-diary-audit", orderId] });
     },
     onError: (e: unknown) => {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = messaggioErrore(e);
       toast.error("Nota interna non salvata", {
         description: `La nota NON è stata salvata. Riprova. Dettagli: ${msg}`,
       });

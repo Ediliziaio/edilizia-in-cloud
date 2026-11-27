@@ -26,6 +26,7 @@ import type { SrAccessorioRow, SrSerramentoRow } from "@/types/serramenti";
 import type { ComplementiFinestra } from "./ComplementiFinestra";
 import type { ListinoPickerDialog, ListinoPickResult, PartenzaPicker } from "./ListinoPickerDialog";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 /** Dove finiscono i complementi: il database nel preventivo, la memoria nell'anteprima. */
 export interface SalvataggiComplementi {
@@ -175,7 +176,7 @@ export function useComplementiFinestre({
         try {
           griglia = await grigliaDi(modello.riga.famiglia.id);
         } catch (e) {
-          toast.error(tr("{nome}: griglia prezzi non letta", { nome: String(nome ?? "") }), { description: e instanceof Error ? e.message : String(e) });
+          toast.error(tr("{nome}: griglia prezzi non letta", { nome: String(nome ?? "") }), { description: messaggioErrore(e) });
           return;
         }
       }

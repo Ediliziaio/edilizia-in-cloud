@@ -13,6 +13,7 @@ import { etichettaTipoCliente, problemiClienteFiscale, type ClienteFiscaleForm }
 import { salvaClienteFiscale } from "@/lib/clienti/salvaClienteFiscale";
 import { queryKeys } from "@/lib/queryKeys";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Props {
   open: boolean;
@@ -70,7 +71,7 @@ function Corpo({ onOpenChange, iniziale, clienteId, anagraficaId, chiediUfficio,
       onSaved?.(id);
       onOpenChange(false);
     } catch (e) {
-      toast({ title: t("Non salvato"), description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+      toast({ title: t("Non salvato"), description: messaggioErrore(e), variant: "destructive" });
     } finally {
       setSalvo(false);
     }

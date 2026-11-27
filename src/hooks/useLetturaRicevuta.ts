@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 type Lettura = { id: string; stato: string; da_leggere: boolean };
 export function useLetturaRicevuta(companyId: string | null | undefined) {
   const client = useQueryClient();
@@ -52,7 +53,7 @@ export function useLetturaRicevuta(companyId: string | null | undefined) {
     },
     onError: (error) =>
       toast.error("Stato di lettura non aggiornato", {
-        description: error instanceof Error ? error.message : String(error),
+        description: messaggioErrore(error),
       }),
   });
 }

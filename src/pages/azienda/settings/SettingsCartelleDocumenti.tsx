@@ -27,8 +27,9 @@ import { AvvisoAreaClienti } from "@/components/impostazioni/AvvisoAreaClienti";
 import { AvvisoSolaLetturaImpostazioni } from "@/components/impostazioni/AvvisoSolaLetturaImpostazioni";
 import { ImpostazioniDocumentiGenerali } from "@/components/orders/generali/documenti/ImpostazioniDocumentiGenerali";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
-const messaggio = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const messaggio = (e: unknown) => (messaggioErrore(e));
 
 export default function SettingsCartelleDocumenti() {
   const t = useT();

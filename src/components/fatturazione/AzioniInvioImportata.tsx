@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 /**
  * «Stampa PDF» e «Invia per e-mail» di una fattura importata da un altro gestionale.
@@ -76,7 +77,7 @@ export function AzioniInvioImportata({ fattura, nomeAzienda }: { fattura: Fattur
       const w = window.open("", "_blank");
       if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 500); }
     } catch (e) {
-      toast.error(t("PDF non preparato"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("PDF non preparato"), { description: messaggioErrore(e) });
     } finally {
       setStampa(false);
     }
@@ -95,7 +96,7 @@ export function AzioniInvioImportata({ fattura, nomeAzienda }: { fattura: Fattur
       setAperto(false);
       setMessaggio("");
     } catch (e) {
-      toast.error(t("Email non inviata"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Email non inviata"), { description: messaggioErrore(e) });
     } finally {
       setInvio(false);
     }

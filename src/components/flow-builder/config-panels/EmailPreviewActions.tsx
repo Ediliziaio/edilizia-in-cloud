@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { emailContentEmpty } from "../../../../supabase/functions/_shared/automationEmail";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface EmailPreviewActionsProps {
   oggetto?: string;
@@ -55,7 +56,7 @@ export function EmailPreviewActions({ oggetto, corpo, mittenteNome, vars, compan
       setMissingVariables(Array.isArray(data.missingVariables) ? data.missingVariables : []);
       setOpen(true);
     } catch (e) {
-      toast.error(`Anteprima fallita: ${e instanceof Error ? e.message : String(e)}`);
+      toast.error(`Anteprima fallita: ${messaggioErrore(e)}`);
     } finally {
       setPreviewing(false);
     }
@@ -72,7 +73,7 @@ export function EmailPreviewActions({ oggetto, corpo, mittenteNome, vars, compan
       if (!data?.ok) throw new Error(data?.error || "Invio fallito");
       toast.success(t("Email di prova inviata a {sentTo}", { sentTo: String(data.sentTo ?? "") }));
     } catch (e) {
-      toast.error(`Invio prova fallito: ${e instanceof Error ? e.message : String(e)}`);
+      toast.error(`Invio prova fallito: ${messaggioErrore(e)}`);
     } finally {
       setSending(false);
     }

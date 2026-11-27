@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AlertTriangle, CheckCircle, Clock, Pencil, Sparkles, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface ProposalRow {
   id: string;
@@ -147,7 +148,7 @@ export function ActionProposalCard({ proposalId }: { proposalId: string }) {
       toast.success(t("Azione applicata con successo"));
       return true;
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = messaggioErrore(e);
       toast.error(t("Errore: {msg}", { msg: String(msg ?? "") }));
       return false;
     } finally {
@@ -192,7 +193,7 @@ export function ActionProposalCard({ proposalId }: { proposalId: string }) {
       if (dbErr) throw new Error(dbErr.message);
       toast.info(t("Azione rifiutata"));
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = messaggioErrore(e);
       toast.error(t("Errore: {msg}", { msg: String(msg ?? "") }));
     } finally {
       setIsProcessing(false);

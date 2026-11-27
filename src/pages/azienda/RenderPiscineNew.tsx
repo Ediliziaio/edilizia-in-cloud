@@ -35,6 +35,7 @@ import {
 } from "@/modules/render/lib/edgeFunctionClient";
 import { uploadRenderOriginal } from "@/lib/render/renderStorage";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -142,7 +143,7 @@ export default function RenderPiscineNew() {
       setSessionId(sess.id as string);
       setStep(2);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toast.error(messaggioErrore(err));
     } finally {
       setUploading(false);
     }

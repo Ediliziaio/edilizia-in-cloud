@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { Loader2, Sparkles, AlertTriangle, MessageCircle, Calendar, RefreshCw, ShieldCheck } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Briefing {
   id: string;
@@ -52,7 +53,7 @@ export default function SilvioAdminPage() {
         }
         setChannelId(data as string | null);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        if (!cancelled) setError(messaggioErrore(e));
       }
     })();
     return () => { cancelled = true; };

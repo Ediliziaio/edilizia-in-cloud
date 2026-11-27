@@ -14,6 +14,7 @@ import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { riferimentoImmagine } from "@/lib/storage/immaginiModelloPdf";
 import { readLocalTemplateImage } from "@/lib/moduli-vendita/localTemplateImage";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Props {
   localOnly?: boolean;
@@ -48,7 +49,7 @@ export function CampoFotoModello({ valore, onChange, bucket, cartella, localOnly
       onChange(riferimentoImmagine(bucket, percorso));
       toast.success(t("Foto caricata. Salva per applicare."));
     } catch (e) {
-      toast.error(t("Foto non caricata"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Foto non caricata"), { description: messaggioErrore(e) });
     } finally {
       setCarica(false);
       if (input.current) input.current.value = "";

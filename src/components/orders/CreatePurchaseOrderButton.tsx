@@ -15,6 +15,7 @@ import { pendingMaterials, type ProcurementItem } from "@/lib/orders/materialPro
 import { createMaterialPurchaseOrder, IncompletePurchaseOrderError } from "@/lib/orders/createMaterialPurchaseOrder";
 import { toast } from "sonner";
 import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface CreatePurchaseOrderButtonProps {
   orderId: string;
@@ -51,7 +52,7 @@ export function CreatePurchaseOrderButton({ orderId, orderCode, items }: CreateP
       navigate(`/azienda/ordini-acquisto/${poId}`);
     } catch (e) {
       toast.error(t("OdA non completato"), {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
         action: e instanceof IncompletePurchaseOrderError ? { label: t("Verifica bozza"), onClick: () => navigate(`/azienda/ordini-acquisto/${e.poId}`) } : undefined,
       });
     } finally {

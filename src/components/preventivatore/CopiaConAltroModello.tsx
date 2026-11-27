@@ -18,6 +18,7 @@ import { MODULI_VENDITA } from "@/lib/moduli-vendita/config";
 import { copiaConAltroModello } from "@/lib/moduli/copiaConAltroModello";
 import type { ModuloConModelli } from "@/lib/moduli/modelloPreventivo";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Props {
   modulo: ModuloConModelli;
@@ -52,7 +53,7 @@ export function CopiaConAltroModello({ modulo, progetto, snapshot, costruisci }:
       setAperto(false);
       navigate(`${href}/${creata.id}/modifica`);
     } catch (e) {
-      toast.error(t("Copia non riuscita"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Copia non riuscita"), { description: messaggioErrore(e) });
     } finally {
       setInCorso(false);
     }

@@ -32,6 +32,7 @@ import { sembraTavola } from "@/lib/distinta/sceltaTavola";
 import { ConfrontoTavoleAcquisti } from "./ConfrontoTavoleAcquisti";
 import type { ConteggioTavola } from "@/lib/distinta/confrontaTavole";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Tavola { id: string; file_name: string; file_url: string }
 interface Conteggio {
@@ -100,7 +101,7 @@ function TavoleCommessa({ orderId, open, onOpenChange, onGenera }: PropsTavole) 
       await caricaDocumentoCommessa({ orderId, companyId, userId: user.id, file, tipo: "application/pdf", accessScope: scopeDocumento });
     },
     onSuccess: () => { toast.success(tr("Tavola caricata tra i documenti della commessa")); aggiorna(); },
-    onError: (e) => toast.error(tr("Tavola non caricata"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(tr("Tavola non caricata"), { description: messaggioErrore(e) }),
   });
 
   const [tavolaId, setTavolaId] = useState<string | null>(null);
@@ -138,7 +139,7 @@ function TavoleCommessa({ orderId, open, onOpenChange, onGenera }: PropsTavole) 
       setSceltaSigle(new Set(r.sigle.filter((s) => s.quantita >= 3).map((s) => s.sigla)));
       if (!r.sigle.length && !r.legenda.length) toast.info(tr("Non trovo sigle o legenda"), { description: tr("Verifica che il PDF sia una planimetria. Per una scansione puoi usare il conteggio dei simboli dopo aver indicato la legenda.") });
     } catch (e) {
-      if (token === sessione.current) toast.error(tr("Tavola non letta"), { description: e instanceof Error ? e.message : String(e) });
+      if (token === sessione.current) toast.error(tr("Tavola non letta"), { description: messaggioErrore(e) });
     } finally {
       if (token === sessione.current) setLavoro(null);
     }
@@ -167,7 +168,7 @@ function TavoleCommessa({ orderId, open, onOpenChange, onGenera }: PropsTavole) 
       await salvaRighe(righe);
       toast.success(tr("{n} conteggi salvati come bozza", { n: righe.length }), { description: tr("Controllali e confermali: solo i confermati diventano materiali.") });
     } catch (e) {
-      toast.error(tr("Conteggi non salvati"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Conteggi non salvati"), { description: messaggioErrore(e) });
     }
   };
 
@@ -189,7 +190,7 @@ function TavoleCommessa({ orderId, open, onOpenChange, onGenera }: PropsTavole) 
       setImpronta(hash);
       setLettura(lettura ?? contaSigleDaTesto([])); setLegendaManuale(legenda.join("\n")); setSceltaSimboli(new Set(legenda));
       toast.info(legenda.length ? tr("Legenda proposta dall’AI: controllala prima di contare") : tr("Nessuna legenda leggibile: puoi inserirla a mano"));
-    } catch (e) { if (token === sessione.current) toast.error(tr("Legenda non letta"), { description: e instanceof Error ? e.message : String(e) }); }
+    } catch (e) { if (token === sessione.current) toast.error(tr("Legenda non letta"), { description: messaggioErrore(e) }); }
     finally { if (token === sessione.current) setLavoro(null); }
   };
   const contaSimboli = async () => {
@@ -219,7 +220,7 @@ function TavoleCommessa({ orderId, open, onOpenChange, onGenera }: PropsTavole) 
       })));
       toast.success(tr("Simboli contati su {n} riquadri", { n: mandati }), { description: tr("È una stima: controlla e conferma ogni conteggio.") });
     } catch (e) {
-      if (token === sessione.current) toast.error(tr("Conteggio dei simboli non riuscito"), { description: e instanceof Error ? e.message : String(e) });
+      if (token === sessione.current) toast.error(tr("Conteggio dei simboli non riuscito"), { description: messaggioErrore(e) });
     } finally {
       if (token === sessione.current) setLavoro(null);
     }
@@ -231,7 +232,7 @@ function TavoleCommessa({ orderId, open, onOpenChange, onGenera }: PropsTavole) 
       if (error) throw error;
     },
     onSuccess: aggiorna,
-    onError: (e) => toast.error(e instanceof Error ? e.message : String(e)),
+    onError: (e) => toast.error(messaggioErrore(e)),
   });
   const elimina = useMutation({
     mutationFn: async (id: string) => {

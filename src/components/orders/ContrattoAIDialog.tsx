@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { OfficeSelect } from "./OfficeSelect";
 import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Props {
   orderId: string;
@@ -150,7 +151,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel }: Props) {
       toast.success(t("Contratto {numero} pronto", { numero: data.contratto.numero_contratto }));
     },
     onError: (err) => {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toast.error(messaggioErrore(err));
     },
   });
 
@@ -191,7 +192,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel }: Props) {
       const rischio = data.review?.livello_rischio ?? "—";
       toast.success(t("Review completata: score {score}/100 — rischio {rischio}", { score, rischio }));
     },
-    onError: (err) => toast.error(t("Review: {errore}", { errore: err instanceof Error ? err.message : String(err) })),
+    onError: (err) => toast.error(t("Review: {errore}", { errore: messaggioErrore(err) })),
   });
 
   // Salva edit manuale
@@ -213,7 +214,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel }: Props) {
       qc.invalidateQueries({ queryKey: ["contratti_for_order", orderId] });
     },
     onError: (err) => {
-      toast.error(t("Errore salvataggio: {errore}", { errore: err instanceof Error ? err.message : String(err) }));
+      toast.error(t("Errore salvataggio: {errore}", { errore: messaggioErrore(err) }));
     },
   });
 
@@ -252,7 +253,7 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel }: Props) {
     onSuccess: () => {
       if (contrattoDaCompletare(previewMd)) toast.warning(t("Nel contratto ci sono ancora campi «[DA COMPLETARE]»: completali prima di mandarlo."));
     },
-    onError: (err) => toast.error(t("PDF non generato: {errore}", { errore: err instanceof Error ? err.message : String(err) })),
+    onError: (err) => toast.error(t("PDF non generato: {errore}", { errore: messaggioErrore(err) })),
   });
 
   const loadExisting = (c: ContrattoDoc) => {

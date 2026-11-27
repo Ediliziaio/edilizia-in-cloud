@@ -13,6 +13,11 @@ export interface SaldoRicevuta {
   rate_pagate: number;
   rate_totali: number;
   stornata: boolean;
+  /**
+   * Quanto delle rate «pagate» non ha un pagamento registrato (segnate a mano,
+   * senza scrittura). Già spostato dal pagato al residuo dal server. NULL se nulla.
+   */
+  segnata_non_registrata?: number | null;
 }
 
 export function useSaldiRicevute(companyId: string | null | undefined, anno: string) {

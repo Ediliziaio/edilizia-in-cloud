@@ -32,6 +32,7 @@ import type { JSX } from "react";
 import { spiegaErroreCasella } from "@/lib/email/spiegaErroreCasella";
 import { GoogleEmailPrivacyNotice } from "./GoogleEmailPrivacyNotice";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // Brand SVG icons per Gmail / Outlook / IMAP (no extra deps)
 function GmailIcon({ className }: { className?: string }) {
@@ -125,7 +126,7 @@ export function EmailOAuthConnectionsCard() {
   // cliente ha letto «Setup OAuth non completo · INBOUND_EMAIL_SECRET» e ha
   // pensato che Gmail non funzionasse. Ai clienti solo frasi semplici.
   const isSuperAdmin = userRoles?.includes("super_admin") ?? false;
-  const dettaglioTecnico = (e: unknown) => (isSuperAdmin ? (e instanceof Error ? e.message : String(e)) : undefined);
+  const dettaglioTecnico = (e: unknown) => (isSuperAdmin ? (messaggioErrore(e)) : undefined);
   const [connecting, setConnecting] = useState<"gmail" | "outlook" | null>(null);
   const [diagOpen, setDiagOpen] = useState(false);
   const [imapDialogOpen, setImapDialogOpen] = useState(false);

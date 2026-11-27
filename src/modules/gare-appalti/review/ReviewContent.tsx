@@ -4,6 +4,7 @@ import { useWorkspace } from '../WorkspaceContext';
 import { TemplatePdfPreview } from '../pages/TemplatePdfPreview';
 import type { GareDocument } from '../types';
 import { xmlSections } from './xml-content';
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export function ReviewContent({ document: doc, focus = '' }: { document: GareDocument; focus?: string }) {
   const { api } = useWorkspace();
@@ -17,11 +18,11 @@ export function ReviewContent({ document: doc, focus = '' }: { document: GareDoc
     Promise.resolve().then(() => {
       if(cancelled)return;
       setLoading(true); setError('');
-      return api.blob(doc).then(blob => blob.text()).then(value => { if (!cancelled) setContent(value); }).catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); }).finally(() => { if (!cancelled) setLoading(false); });
+      return api.blob(doc).then(blob => blob.text()).then(value => { if (!cancelled) setContent(value); }).catch(e => { if (!cancelled) setError(messaggioErrore(e)); }).finally(() => { if (!cancelled) setLoading(false); });
     });
     return () => { cancelled = true; };
   }, [api, doc.id, doc.sha256, xml]);
-  const parsed = useMemo(() => { if (!content) return { sections: [], error: '' }; try { return { sections: xmlSections(content), error: '' }; } catch (e) { return { sections: [], error: e instanceof Error ? e.message : String(e) }; } }, [content]);
+  const parsed = useMemo(() => { if (!content) return { sections: [], error: '' }; try { return { sections: xmlSections(content), error: '' }; } catch (e) { return { sections: [], error: messaggioErrore(e) }; } }, [content]);
   useEffect(() => { if (!focus) return; const timer=setTimeout(()=>{setQuery('');setRaw(false);},0);return()=>clearTimeout(timer); }, [focus]);
   useEffect(() => {
     if (!focus || !parsed.sections.length || raw) return;

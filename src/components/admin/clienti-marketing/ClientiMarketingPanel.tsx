@@ -30,6 +30,7 @@ import {
   COPERTI_DAL_MOTORE, azionePerRegola, cosaFareOggi, linkGestioneInserzioni, linkWhatsapp, meseLeggibile, spostaMese,
   type AzioneOggi, type ClienteMarketing, type VoceOggi,
 } from "./provvigioni";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 /**
  * La finestra scelta sulla console: oltre al mese, «oggi / ieri / ultimi giorni»
@@ -151,7 +152,7 @@ export function ClientiMarketingPanel({ mese, meseOggi, oggi, periodo, onPeriodo
       if (letti) toast.success(`Spesa Meta di ${leggibile} letta per ${letti} client${letti === 1 ? "e" : "i"}`, { description: dettagli || undefined });
       else toast.warning("Nessuna spesa Meta letta", { description: dettagli || "Nessun cliente attivo con un account pubblicitario Meta scelto." });
     } catch (err) {
-      toast.error("Aggiornamento non riuscito", { description: err instanceof Error ? err.message : String(err) });
+      toast.error("Aggiornamento non riuscito", { description: messaggioErrore(err) });
     }
   };
 
@@ -188,7 +189,7 @@ export function ClientiMarketingPanel({ mese, meseOggi, oggi, periodo, onPeriodo
       await chiudi.mutateAsync({ id, esito });
       toast.success(esito === "rimandato" ? "Rimandato a domani" : esito === "falso_positivo" ? "Segnato: non era un problema" : "Fatto");
     } catch (e) {
-      toast.error("Non riesco a chiudere l'allarme", { description: e instanceof Error ? e.message : String(e) });
+      toast.error("Non riesco a chiudere l'allarme", { description: messaggioErrore(e) });
     }
   };
 
@@ -197,7 +198,7 @@ export function ClientiMarketingPanel({ mese, meseOggi, oggi, periodo, onPeriodo
       const r = await ricalcola.mutateAsync();
       toast.success(`Ricalcolato: ${r.clienti} clienti, ${r.allarmi_nuovi} allarmi nuovi`);
     } catch (e) {
-      toast.error("Ricalcolo non riuscito", { description: e instanceof Error ? e.message : String(e) });
+      toast.error("Ricalcolo non riuscito", { description: messaggioErrore(e) });
     }
   };
 

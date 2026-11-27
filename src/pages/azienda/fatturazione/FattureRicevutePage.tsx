@@ -238,9 +238,17 @@ const STATO_CONFIG: Record<
   rifiutata: { label: "Rifiutata", variant: "destructive" },
 };
 
+/**
+ * Rate segnate pagate senza alcun pagamento registrato (27/11/2026, un'impresa cliente:
+ * «Pagato 37,54 €» in elenco, «Nessun pagamento registrato» nella fattura). Il server
+ * ha già rimesso quell'importo nel residuo: qui serve solo a dirlo sulla riga.
+ */
+const segnataNonRegistrata = (saldo: SaldoRicevuta | undefined) => (saldo?.segnata_non_registrata ?? 0) > 0.005;
+
 function testoSaldo(saldo: SaldoRicevuta | undefined, t: ReturnType<typeof useT>) {
   if (!saldo) return "—";
   if (saldo.stornata) return t("Stornata");
+  if (segnataNonRegistrata(saldo)) return t("Segnata, non registrata");
   if (saldo.pagata_il || saldo.data_saldo) return t("Pagata");
   if (saldo.residuo == null) return t("Da verificare");
   if (saldo.residuo === 0) return saldo.pagato ? t("Pagata") : t("Nessun residuo");
@@ -1721,7 +1729,11 @@ export default function FattureRicevutePage() {
                       <PagamentoRicevutaCella forma="chip" id={f.id} numero={f.numero_fattura} tipo={f.tipo_documento} pagataIl={pagataIl(f.id)} />
                     ) : (
                       <span className={cn("inline-flex items-center gap-1 whitespace-nowrap text-xs", daPagare(f) ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
-                        {testoSaldo(saldo, tr)}
+                        {segnataNonRegistrata(saldo) ? (
+                          <span title={tr("Le rate risultano pagate, ma {importo} non hanno un pagamento registrato. Riconcilia il movimento di banca, oppure apri la fattura e usa «Segna pagata», che registra la scrittura.", { importo: formatCurrency(Number(saldo!.segnata_non_registrata)) })}>
+                            <StatoPill tono="ambra">{tr("Segnata, non registrata")}</StatoPill>
+                          </span>
+                        ) : testoSaldo(saldo, tr)}
                         {daPagare(f) && (permessiCosti.canViewCosts && !permessiCosti.solaLettura
                           ? <Button variant="link" size="sm" className="h-auto min-h-0 p-0 text-xs font-semibold"
                               disabled={perPagare.isPending && perPagare.variables === f.id}

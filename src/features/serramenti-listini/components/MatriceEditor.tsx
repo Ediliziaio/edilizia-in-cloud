@@ -33,6 +33,7 @@ import { useGridCellMutations, useGridCells } from "../hooks/useGridCells";
 import type { GridCell, SupplierCatalog, SupplierProductLine } from "../types";
 import { calcolaPrezzoSerramento } from "../utils/pricing";
 import { ImportMatriceDialog } from "./ImportMatriceDialog";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Props {
   /** Famiglia serramento (article_families.id). Obbligatoria. */
@@ -303,7 +304,7 @@ export function MatriceEditor({
           okCount++;
           okKeys.add(k);
         } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
+          const msg = messaggioErrore(e);
           errs.push(`${x}×${y}: ${msg}`);
         }
       }

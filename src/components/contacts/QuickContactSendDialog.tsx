@@ -38,6 +38,7 @@ import { OrderDocumentAttacher } from "@/components/email/OrderDocumentAttacher"
 import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 import { LinkImpostazione } from "@/components/impostazioni/LinkImpostazione";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export type QuickSendChannel = "sms" | "whatsapp" | "email" | "whatsapp_locale";
 
@@ -291,7 +292,7 @@ export function QuickContactSendDialog({
       setPannello(null);
       toast.success(r.mode === "refine" ? tr("Testo rielaborato") : tr("Bozza generata"), { description: tr("Modificala pure prima di inviare.") });
     },
-    onError: (e) => toast.error(tr("AI non disponibile"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(tr("AI non disponibile"), { description: messaggioErrore(e) }),
   });
 
   // ── Allegati email (bucket email-attachments) ──
@@ -357,7 +358,7 @@ export function QuickContactSendDialog({
       dopoInvio({ channel: "email", subject: emailSubject.trim(), body: emailBody.trim() });
       onSent?.(); onOpenChange(false);
     },
-    onError: (e) => toast.error(tr("Errore invio email"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(tr("Errore invio email"), { description: messaggioErrore(e) }),
   });
 
   const bloccoEmail = motivoBloccoEmail({ mittente: emailFrom, oggetto: emailSubject, testo: emailBody, caricamento: attachments.some((a) => a.uploading) });

@@ -38,6 +38,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export type PreventivoScheda = PreventivoCommittente & { source?: string | null };
 export interface CommessaScheda { id: string; order_code: string | null; description: string | null; quote_id?: string | null }
@@ -87,13 +88,13 @@ export function PreventiviCommittente({
       if (!data?.length) throw new Error(t("Non hai il permesso di modificare questo preventivo."));
     },
     onSuccess: () => { setRifiuto(null); ricarica(); toast.success(t("Segnato come rifiutato")); },
-    onError: (e) => toast.error(t("Non salvato"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Non salvato"), { description: messaggioErrore(e) }),
   });
 
   const revisione = useMutation({
     mutationFn: async (q: PreventivoScheda) => (await duplicaPreventivo(q.id, companyId, { comeRevisione: true })).id,
     onSuccess: (id) => { ricarica(); toast.success(t("Revisione creata"), { description: t("Parte in bozza: correggila e rimandala.") }); navigate(`/azienda/marketing/preventivi/${id}/modifica`); },
-    onError: (e) => toast.error(t("Revisione non creata"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Revisione non creata"), { description: messaggioErrore(e) }),
   });
 
   const nuovaCommessa = useMutation({
@@ -105,7 +106,7 @@ export function PreventiviCommittente({
       else toast.success(t("Commessa creata dal preventivo"));
       navigate(`/azienda/ordini/${esito.orderId}`);
     },
-    onError: (e) => toast.error(t("Commessa non creata"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Commessa non creata"), { description: messaggioErrore(e) }),
   });
 
   const nuovoPreventivo = () => navigate(`/azienda/marketing/preventivi/nuovo?customer_id=${committenteId}`);

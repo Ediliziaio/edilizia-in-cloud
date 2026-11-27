@@ -42,6 +42,7 @@ import { importoRiga } from "@/hooks/usePreventivoCosti";
 import { captureVelocityEvent, captureVelocityError } from "@/lib/velocity/sentry";
 import { leggiPreventivoAi, confermaPreventivoAi, riepilogoPreventivoAi, type SezionePreventivoAi, type SezionePreventivoAiConfermata } from "@/lib/preventivi/aiQuoteReview";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { testoGrezzoErrore } from "@/lib/messaggioErrore";
 
 interface Misura {
   label: string;
@@ -283,7 +284,7 @@ function AIQuotePanelSession({
         });
       }, 1000);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = testoGrezzoErrore(err);
       if (msg.includes("NotAllowedError") || msg.includes("Permission")) {
         toast.error(tr("Permesso microfono negato. Usa la modalità testo."));
       } else if (msg.includes("NotFoundError")) {

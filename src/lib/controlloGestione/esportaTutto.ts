@@ -11,6 +11,7 @@
 import { cgRpc, type CgRpcName } from "@/hooks/controlloGestione/cgRpc";
 import type { SPResult } from "@/hooks/controlloGestione/useStatoPatrimoniale";
 import { buildAttivo, buildPassivo } from "@/lib/controlloGestione/spRighe";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export type Cella = string | number | null;
 
@@ -215,7 +216,7 @@ export async function caricaSezioni(chiavi: string[], anno: number): Promise<Sez
       const tabelle = (s.tabelle ?? appiattisci)(data ?? {}, s.titolo).filter((t) => t.righe.length > 0);
       return { chiave: s.chiave, titolo: s.titolo, tabelle, dati: data };
     } catch (e) {
-      const errore = e instanceof Error ? e.message : String(e);
+      const errore = messaggioErrore(e);
       const vuota: SezioneEsportata = { chiave: s.chiave, titolo: s.titolo, tabelle: [], dati: null, errore };
       return vuota;
     }

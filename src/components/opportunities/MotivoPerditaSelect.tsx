@@ -12,6 +12,7 @@ import { Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useAddLossReason, useLossReasons } from "@/hooks/useLossReasons";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export function MotivoPerditaSelect({
   value,
@@ -39,7 +40,7 @@ export function MotivoPerditaSelect({
       },
       onError: (e) =>
         toast.error(t("Motivo non aggiunto"), {
-          description: e instanceof Error ? e.message : String(e),
+          description: messaggioErrore(e),
         }),
     });
 

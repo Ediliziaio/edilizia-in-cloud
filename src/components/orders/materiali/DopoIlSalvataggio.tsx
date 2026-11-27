@@ -21,6 +21,7 @@ import { createMaterialPurchaseOrder } from "@/lib/orders/createMaterialPurchase
 import type { ProcurementItem } from "@/lib/orders/materialProcurement";
 import { raggruppaPerFornitore } from "@/lib/distinta/ordiniDaMateriali";
 import { chiaviMateriali } from "@/hooks/useMaterialiPerFase";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const euro = (n: number) => n.toLocaleString(intlCampo(), { style: "currency", currency: "EUR" });
 
@@ -44,7 +45,7 @@ export function DopoIlSalvataggio({ open, onOpenChange, materiali, companyId, or
         await createMaterialPurchaseOrder({ companyId, orderId, orderCode, supplierId: g.supplierId, userId, items: g.righe });
         fatti.push(g.supplierId);
       } catch (e) {
-        errori.push(`${g.nome}: ${e instanceof Error ? e.message : String(e)}`);
+        errori.push(`${g.nome}: ${messaggioErrore(e)}`);
       }
     }
     setCreati((c) => [...c, ...fatti]);

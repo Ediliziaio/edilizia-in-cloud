@@ -20,6 +20,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Checkbox } from "@/components/ui/checkbox";
 import { ETICHETTA_AMBITO, SCOMPOSIZIONI_STANDARD, vociPerImport, type AmbitoStandard } from "@/lib/distinta/scomposizioniStandard";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Componente {
   id?: string;
@@ -122,7 +123,7 @@ export default function ScomposizioniVoce() {
       }
     },
     onSuccess: () => { toast.success(tr("Scomposizione salvata")); setModifica(null); qc.invalidateQueries({ queryKey: ["scomposizioni"] }); },
-    onError: (e) => toast.error(tr("Non salvata"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(tr("Non salvata"), { description: messaggioErrore(e) }),
   });
 
   const attiva = useMutation({
@@ -131,7 +132,7 @@ export default function ScomposizioniVoce() {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["scomposizioni"] }),
-    onError: (e) => toast.error(e instanceof Error ? e.message : String(e)),
+    onError: (e) => toast.error(messaggioErrore(e)),
   });
   const approvaTutte = useMutation({
     mutationFn: async (ids: string[]) => {
@@ -139,7 +140,7 @@ export default function ScomposizioniVoce() {
       if (error) throw error;
     },
     onSuccess: (_d, ids) => { toast.success(tr("{n} scomposizioni approvate: da ora si usano per generare i materiali", { n: ids.length })); qc.invalidateQueries({ queryKey: ["scomposizioni"] }); },
-    onError: (e) => toast.error(tr("Non approvate"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(tr("Non approvate"), { description: messaggioErrore(e) }),
   });
   const importa = useMutation({
     mutationFn: async (scelti: AmbitoStandard[]) => {
@@ -154,7 +155,7 @@ export default function ScomposizioniVoce() {
       else toast.success(tr("{n} scomposizioni aggiunte dalla libreria standard", { n: String(n ?? "") }), { description: tr("Sono spente: il tecnico le controlla e le approva una per una o tutte insieme.") });
       setFiltro("da_approvare");
     },
-    onError: (e) => toast.error(tr("Libreria non aggiunta"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(tr("Libreria non aggiunta"), { description: messaggioErrore(e) }),
   });
   const elimina = useMutation({
     mutationFn: async (id: string) => {

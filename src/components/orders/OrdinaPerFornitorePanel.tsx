@@ -37,6 +37,7 @@ import { pendingMaterials, planMaterial, unitaMateriale, type ProcurementItem } 
 import { createMaterialPurchaseOrder, IncompletePurchaseOrderError } from "@/lib/orders/createMaterialPurchaseOrder";
 import { usePermissions } from "@/hooks/usePermissions";
 import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const eurFmt = () => new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", useGrouping: true });
 
@@ -126,7 +127,7 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
       }
     },
     onError: (e) => toast.error(t("Errore nella creazione dell'OdA"), {
-      description: e instanceof Error ? e.message : String(e),
+      description: messaggioErrore(e),
       action: e instanceof IncompletePurchaseOrderError ? { label: t("Verifica bozza"), onClick: () => navigate(`/azienda/ordini-acquisto/${e.poId}`) } : undefined,
     }),
     onSettled: () => {
@@ -195,7 +196,7 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
       setSceltaPer(null);
       navigate(`/azienda/richieste-offerta/${rfq.id}`);
     } catch (e) {
-      toast.error(t("Errore nella richiesta d'offerta"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Errore nella richiesta d'offerta"), { description: messaggioErrore(e) });
     } finally {
       setRdoBusy(false);
     }
@@ -483,7 +484,7 @@ export function PosaInLavorazioniBanner({ orderId, items }: BannerProps) {
       toast.success(tr("Posa spostata nelle Lavorazioni"));
       setOpen(false);
     } catch (e) {
-      toast.error(tr("Errore nello spostamento"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Errore nello spostamento"), { description: messaggioErrore(e) });
     } finally {
       setMoving(false);
     }

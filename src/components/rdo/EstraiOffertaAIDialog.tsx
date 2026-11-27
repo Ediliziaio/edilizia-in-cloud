@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export interface RigaEstratta {
   rfq_item_id: string | null;
@@ -105,7 +106,7 @@ export function EstraiOffertaAIDialog({
           .map(({ i }) => i),
       ));
     } catch (e) {
-      toast.error(t("Lettura non riuscita"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Lettura non riuscita"), { description: messaggioErrore(e) });
     } finally {
       setLettura(false);
     }
@@ -136,7 +137,7 @@ export function EstraiOffertaAIDialog({
       });
       chiudi(false);
     } catch (e) {
-      toast.error(t("Applicazione non riuscita"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Applicazione non riuscita"), { description: messaggioErrore(e) });
     } finally {
       setApplico(false);
     }

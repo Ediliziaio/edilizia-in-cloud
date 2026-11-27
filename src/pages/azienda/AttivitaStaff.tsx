@@ -90,6 +90,7 @@ import { DaApprovareCantieri, DaApprovareChip } from "@/components/campo/DaAppro
 import { DocumentiDaConfermareBox } from "@/components/email-ai/DocumentiDaConfermareBox";
 import { ScadenzeDittaBox } from "@/components/documentiAzienda/ScadenzeDittaBox";
 import { EccezioniOperative } from "@/components/operazioni/EccezioniOperative";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 // Lazy load delle sotto-pagine
 const TimbraturePersonali = lazy(() => import("@/pages/azienda/TimbraturePersonali"));
 const FeriePersonali = lazy(() => import("@/pages/azienda/FeriePersonali"));
@@ -454,7 +455,7 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
       const { error } = await supabase.rpc("attivita_prendi_in_carico" as never, { p_task: id, p_rilascia: release } as never);
       if (error) throw error;
       toast.success(release ? tr("Attività restituita all’area") : tr("Presa in carico confermata"));
-    } catch (error) { toast.error(error instanceof Error ? error.message : String((error as { message?: string })?.message ?? tr("Presa in carico non confermata"))); }
+    } catch (error) { toast.error(messaggioErrore(error, tr("Presa in carico non confermata"))); }
     finally { setClaimingTaskId(null); await invalidate(); }
   };
   const checkWrite = () => { if (!companyId || !user?.id || solaLettura) throw new Error(tr("Non puoi modificare le attività in questo momento.")); };

@@ -70,7 +70,7 @@ export function useGenerateAiDraft() {
     },
     onError: (e) => {
       toast.error("Errore generazione bozza", {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       });
     },
   });
@@ -107,7 +107,7 @@ export function useReclassifyEmail() {
     },
     onError: (e) => {
       toast.error("Errore riclassificazione", {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       });
     },
   });
@@ -158,7 +158,7 @@ export function useRegistraCorrezione() {
       toast.success(msg[vars.evento] ?? "Correzione registrata.");
     },
     onError: (e) => {
-      toast.error("Errore correzione", { description: e instanceof Error ? e.message : String(e) });
+      toast.error("Errore correzione", { description: messaggioErrore(e) });
     },
   });
 }
@@ -224,6 +224,7 @@ export function useL1Backfill() {
 // ─── MP-EMAIL-AI-05 — CRUD regole instradamento ──────────────────────────────
 
 import type { Condizione, Azione } from "./rules-engine";
+import { messaggioErrore, testoGrezzoErrore } from "@/lib/messaggioErrore";
 
 export interface EmailRegola {
   id: string;
@@ -292,7 +293,7 @@ export function useSaveEmailRegola() {
       qc.invalidateQueries({ queryKey: ["email-regole"] });
       toast.success("Regola salvata.");
     },
-    onError: (e) => toast.error("Errore salvataggio regola", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Errore salvataggio regola", { description: messaggioErrore(e) }),
   });
 }
 
@@ -361,7 +362,7 @@ export function useSilvioEmailQuery() {
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
       return json as SilvioQueryResult;
     },
-    onError: (e) => toast.error("Errore ricerca Silvio", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Errore ricerca Silvio", { description: messaggioErrore(e) }),
   });
 }
 
@@ -468,7 +469,7 @@ export function useEstraiAllegato() {
         void qc.invalidateQueries({ queryKey: ["email-documenti-da-confermare"] });
       }
     },
-    onError: (e) => toast.error("Errore estrazione", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Errore estrazione", { description: messaggioErrore(e) }),
   });
 }
 
@@ -512,7 +513,7 @@ export function useAggiornaStatoDocumentoEstratto() {
       // L'elenco unico «Documenti da confermare» e il numero in home.
       void qc.invalidateQueries({ queryKey: ["email-documenti-da-confermare"] });
     },
-    onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Errore", { description: messaggioErrore(e) }),
   });
 }
 
@@ -590,7 +591,7 @@ export function useScartaDocumentiEstratti() {
       void qc.invalidateQueries({ queryKey: ["email-documenti-da-confermare"] });
       void qc.invalidateQueries({ queryKey: ["email-documenti-estratti"] });
     },
-    onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Errore", { description: messaggioErrore(e) }),
   });
 }
 
@@ -646,7 +647,7 @@ export function useCreaCaricoDdt() {
         void qc.invalidateQueries({ queryKey: ["email-ddt-carichi", "documento"] });
       }
     },
-    onError: (e) => toast.error("Errore carico", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Errore carico", { description: messaggioErrore(e) }),
   });
 }
 
@@ -733,7 +734,7 @@ export function useAggiornaStatoCaricoDdt() {
       void qc.invalidateQueries({ queryKey: ["warehouse"] });
       void qc.invalidateQueries({ queryKey: ["magazzino-righe-da-abbinare"] });
     },
-    onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Errore", { description: messaggioErrore(e) }),
   });
 }
 
@@ -818,7 +819,7 @@ export function useApriOpportunita() {
       toast.success("Opportunità preparata", { description: data.cliente_trovato ? "Cliente collegato dal CRM." : "Cliente nuovo: proposta dai dati firma." });
       void qc.invalidateQueries({ queryKey: ["email-opportunita-bozze", vars.email_id] });
     },
-    onError: (e) => toast.error("Errore opportunità", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Errore opportunità", { description: messaggioErrore(e) }),
   });
 }
 
@@ -856,7 +857,7 @@ export function useAggiornaStatoOpportunita() {
       toast.success(input.stato === "aperta" ? "Opportunità segnata come aperta" : "Bozza scartata");
       void qc.invalidateQueries({ queryKey: ["email-opportunita-bozze", input.email_id] });
     },
-    onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Errore", { description: messaggioErrore(e) }),
   });
 }
 
@@ -896,7 +897,7 @@ export function useRilevaScadenza() {
       if (data.skipped) toast.info("Nessuna scadenza", { description: data.reason || data.skipped });
       else { toast.success("Scadenza rilevata", { description: "Controlla e aggiungila allo scadenzario." }); void qc.invalidateQueries({ queryKey: ["email-scadenze-bozze", vars.email_id] }); void qc.invalidateQueries({ queryKey: ["email-scadenze-bozze", "documento"] }); }
     },
-    onError: (e) => toast.error("Errore scadenza", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Errore scadenza", { description: messaggioErrore(e) }),
   });
 }
 
@@ -959,7 +960,7 @@ export function useConfermaScadenza() {
       void qc.invalidateQueries({ queryKey: ["scadenze-bozze-da-registrare"] });
       void qc.invalidateQueries({ queryKey: ["scadenzario"] });
     },
-    onError: (e) => toast.error("Errore conferma", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Errore conferma", { description: messaggioErrore(e) }),
   });
 }
 
@@ -972,7 +973,7 @@ export function useScartaScadenza() {
       return input;
     },
     onSuccess: (input) => { toast.success("Scadenza scartata"); void qc.invalidateQueries({ queryKey: ["email-scadenze-bozze", input.email_id] }); void qc.invalidateQueries({ queryKey: ["email-scadenze-bozze", "documento"] }); void qc.invalidateQueries({ queryKey: ["scadenze-bozze-da-registrare"] }); },
-    onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Errore", { description: messaggioErrore(e) }),
   });
 }
 
@@ -1050,7 +1051,7 @@ export function useCollegaEmail() {
     },
     onSuccess: (input) => { toast.success("Email collegata"); void qc.invalidateQueries({ queryKey: ["email-collegamenti", input.email_id] }); },
     onError: (e) => {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = testoGrezzoErrore(e);
       toast.error(/duplicate|unique/i.test(msg) ? "Già collegata a questo elemento" : "Errore collegamento", { description: msg.slice(0, 120) });
     },
   });
@@ -1065,7 +1066,7 @@ export function useScollegaEmail() {
       return input;
     },
     onSuccess: (input) => { toast.success("Collegamento rimosso"); void qc.invalidateQueries({ queryKey: ["email-collegamenti", input.email_id] }); },
-    onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Errore", { description: messaggioErrore(e) }),
   });
 }
 
@@ -1104,7 +1105,7 @@ export function useRilevaEvento() {
       if (data.skipped) toast.info("Nessun appuntamento", { description: data.reason || data.skipped });
       else { toast.success("Appuntamento rilevato", { description: "Controlla la data e aggiungilo in agenda." }); void qc.invalidateQueries({ queryKey: ["email-eventi-bozze", vars.email_id] }); }
     },
-    onError: (e) => toast.error("Errore rilevazione", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Errore rilevazione", { description: messaggioErrore(e) }),
   });
 }
 
@@ -1136,7 +1137,7 @@ export function useAggiornaStatoEvento() {
       return input;
     },
     onSuccess: (input) => { toast.success(input.stato === "aggiunto" ? "Aggiunto in agenda" : "Scartato"); void qc.invalidateQueries({ queryKey: ["email-eventi-bozze", input.email_id] }); },
-    onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Errore", { description: messaggioErrore(e) }),
   });
 }
 
@@ -1169,7 +1170,7 @@ export function useBonificaArchivia() {
       void qc.invalidateQueries({ queryKey: ["email-bonifica-overview"] });
       void qc.invalidateQueries({ queryKey: ["email-threads"] });
     },
-    onError: (e) => toast.error("Errore bonifica", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Errore bonifica", { description: messaggioErrore(e) }),
   });
 }
 
@@ -1186,7 +1187,7 @@ export function useBonificaAnnulla() {
       void qc.invalidateQueries({ queryKey: ["email-bonifica-overview"] });
       void qc.invalidateQueries({ queryKey: ["email-threads"] });
     },
-    onError: (e) => toast.error("Errore annulla", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Errore annulla", { description: messaggioErrore(e) }),
   });
 }
 
@@ -1265,7 +1266,7 @@ export function useVerificaDeliverability() {
       if (!res.ok) throw new Error(out.error || out.reason || `HTTP ${res.status}`);
       return out as DeliverabilityStato;
     },
-    onError: (e) => toast.error("Errore verifica DNS", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Errore verifica DNS", { description: messaggioErrore(e) }),
   });
 }
 
@@ -1369,7 +1370,7 @@ export function useSalvaSequenza() {
       toast.success("Sequenza salvata", { description: "Va approvata prima di attivarla." });
       void qc.invalidateQueries({ queryKey: ["email-sequenze"] });
     },
-    onError: (e) => toast.error("Errore salvataggio", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Errore salvataggio", { description: messaggioErrore(e) }),
   });
 }
 
@@ -1386,7 +1387,7 @@ export function useApprovaAttivaSequenza() {
       toast.success(input.attiva ? "Sequenza attivata" : "Sequenza disattivata");
       void qc.invalidateQueries({ queryKey: ["email-sequenze"] });
     },
-    onError: (e) => toast.error("Operazione non riuscita", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Operazione non riuscita", { description: messaggioErrore(e) }),
   });
 }
 
@@ -1416,7 +1417,7 @@ export function useEnrollSequenza() {
       toast.success("Follow-up attivato", { description: "Si fermerà da solo appena il destinatario risponde." });
       void qc.invalidateQueries({ queryKey: ["email-sequenze-esecuzioni"] });
     },
-    onError: (e) => toast.error("Impossibile attivare", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Impossibile attivare", { description: messaggioErrore(e) }),
   });
 }
 
@@ -1497,7 +1498,7 @@ export function useGestisciInvioSequenza() {
       void qc.invalidateQueries({ queryKey: ["email-sequenze-invii-attesa"] });
       void qc.invalidateQueries({ queryKey: ["email-sequenze-esecuzioni"] });
     },
-    onError: (e) => toast.error("Operazione non riuscita", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Operazione non riuscita", { description: messaggioErrore(e) }),
   });
 }
 
@@ -1511,6 +1512,6 @@ export function useStatoEsecuzioneSequenza() {
       return input;
     },
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ["email-sequenze-esecuzioni"] }); },
-    onError: (e) => toast.error("Operazione non riuscita", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Operazione non riuscita", { description: messaggioErrore(e) }),
   });
 }

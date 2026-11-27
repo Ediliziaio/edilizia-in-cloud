@@ -60,6 +60,7 @@ import {
 } from "@/lib/documenti/smartDocumentImport";
 import type { JSX } from "react";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // Sostituiamo i tip di AIProcessingStage iniettando un wrapper minimale.
 // (Per non duplicare tutto il file riusiamo lo stesso componente — i tip
@@ -443,7 +444,7 @@ export function SmartDocumentImportModal({
       setStep(3);
     } catch (e) {
       setClassifyStatus("failed");
-      setError(e instanceof Error ? e.message : String(e));
+      setError(messaggioErrore(e));
     }
   };
 
@@ -553,7 +554,7 @@ export function SmartDocumentImportModal({
         setStep(5);
       }
     } catch (e) {
-      toast.error(t("Linker errore: {messaggio}", { messaggio: e instanceof Error ? e.message : String(e) }));
+      toast.error(t("Linker errore: {messaggio}", { messaggio: messaggioErrore(e) }));
     } finally {
       setLinking(false);
     }
@@ -605,7 +606,7 @@ export function SmartDocumentImportModal({
       setLastAttachId(id);
       return id;
     } catch (e) {
-      toast.error(t("Allegato eccezione: {messaggio}", { messaggio: e instanceof Error ? e.message : String(e) }));
+      toast.error(t("Allegato eccezione: {messaggio}", { messaggio: messaggioErrore(e) }));
       return null;
     }
   };
@@ -1107,7 +1108,7 @@ export function SmartDocumentImportModal({
                             // Re-run linker per cercare di nuovo (ora con il fornitore esistente, troverà OdA se ce ne sono)
                             await runLinker(linkerResult.doc_type, ddt, result?.file);
                           } catch (e) {
-                            toast.error(`Errore: ${e instanceof Error ? e.message : String(e)}`);
+                            toast.error(`Errore: ${messaggioErrore(e)}`);
                           }
                         }}
                       >

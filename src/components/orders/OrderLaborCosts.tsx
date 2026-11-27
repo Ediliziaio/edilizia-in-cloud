@@ -35,6 +35,7 @@ import {
 import type { SubappaltatoreConDashboard } from "@/types/subappaltatori";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
   AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from "@/components/ui/alert-dialog";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 /** Il nome da mostrare: nome e cognome, altrimenti l'email, altrimenti una parola. */
 function nomePersona(p: { first_name: string | null; last_name: string | null; email: string | null } | null, t: ReturnType<typeof useT>): string {
@@ -196,7 +197,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
           await assignOfficeEmployee(orderId, { userId: formUserId });
         }
       } catch (e) {
-        avvisoCosti = e instanceof Error ? e.message : String(e);
+        avvisoCosti = messaggioErrore(e);
       }
       return { avvisoCosti };
     },

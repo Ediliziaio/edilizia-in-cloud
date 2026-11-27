@@ -29,6 +29,7 @@ import { FacciateLocalImageField } from "./FacciateLocalImageField";
 import { useFacDirtyGuard } from "./useFacDirtyGuard";
 import { clearFacDraft, getFacDraft, putFacDraft } from "./facDraftRecovery";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export interface FacciateTemplateEditorProps {
   moduleId: FullFacModuleId; template: FullFacTemplate; saved: boolean;
@@ -101,7 +102,7 @@ export function FacciateTemplateEditor({ moduleId, template, saved, save, onDirt
     setSaving(true); setError(""); const token = generation.current;
     const snapshot = structuredClone(form);
     try { await save(snapshot); if (token === generation.current) { setBaseline(JSON.stringify(snapshot)); setPersisted(true); setStatus("Modello salvato."); } }
-    catch (e) { if (token === generation.current) setError(e instanceof Error ? e.message : String(e)); }
+    catch (e) { if (token === generation.current) setError(messaggioErrore(e)); }
     finally { saveInFlight.current = false; if (token === generation.current) setSaving(false); }
   };
   const fixture = useMemo(() => buildFacModulePreview(form.company_id, form, moduleId), [form, moduleId]);

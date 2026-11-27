@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Plus, Pencil, Trash2, Loader2, Wallet } from "lucide-react";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export interface ProvRiga { line_id: string; etichetta: string; base: string; base_valore: number; percentuale: number; importo: number; }
 export interface ServiceBilling {
@@ -115,12 +116,12 @@ export function ServiceBillingsDialog({
       if (error) throw error;
     },
     onSuccess: () => { invalidate(); toast.success("Incasso salvato"); setForm(null); },
-    onError: (e: unknown) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e: unknown) => toast.error("Errore", { description: messaggioErrore(e) }),
   });
   const del = useMutation({
     mutationFn: async (id: string) => { const { error } = await sb().from("aedix_service_billings").delete().eq("id", id); if (error) throw error; },
     onSuccess: () => { invalidate(); toast.success("Eliminato"); setDeleteId(null); },
-    onError: (e: unknown) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e: unknown) => toast.error("Errore", { description: messaggioErrore(e) }),
   });
 
   const tot = useMemo(() => ({

@@ -30,6 +30,7 @@ import type {
   AgentToolPermission, AgentMemoryItem, AgentEvaluation,
   AgentPerformance, AgentMissionHealth, AgentToolHealth,
 } from "./shared";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export function AgentsMissionTab() {
   const queryClient = useQueryClient();
@@ -341,7 +342,7 @@ export function AgentsMissionTab() {
     },
     onError: (e) =>
       toast.error("Memoria non salvata", {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       }),
   });
 

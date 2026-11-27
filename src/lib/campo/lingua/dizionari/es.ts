@@ -31653,6 +31653,8 @@ const dizionario: Dizionario = {
   "Data di arrivo non disponibile": "Fecha de llegada no disponible",
   "Consegnata dallo SDI il {data_ricezione_sdi}": "Entregada por el SDI el {data_ricezione_sdi}",
   "Nessun residuo": "Ningún saldo pendiente",
+  "Segnata, non registrata": "Marcada, no registrada",
+  "Le rate risultano pagate, ma {importo} non hanno un pagamento registrato. Riconcilia il movimento di banca, oppure apri la fattura e usa «Segna pagata», che registra la scrittura.": "Los plazos aparecen pagados, pero {importo} no tienen un pago registrado. Concilia el movimiento bancario, o abre la factura y usa «Marcar pagada», que registra el asiento.",
   "Non letta": "No leída",
   "Letta": "Leída",
   "Già registrata (storico)": "Ya registrada (histórico)",
@@ -69391,5 +69393,6 @@ const dizionario: Dizionario = {
   "Elimina commessa {commessa}": "Eliminar la obra {commessa}",
   "Contatti / Lead": "Contactos / Clientes potenciales",
   "Segna come perso": "Marcar como perdido",
+  "Le scadenze già selezionate restano selezionate.": "Los vencimientos ya seleccionados siguen seleccionados.",
 };
 export default dizionario;

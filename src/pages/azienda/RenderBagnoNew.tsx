@@ -40,6 +40,7 @@ import { normalizeBathroomSceneAnalysis } from "@/modules/render-bagno/lib/bathr
 import { buildBathroomRenderConfig, ensureBathroomRenderConfig } from "@/modules/render-bagno/lib/bathroomRenderConfig";
 import { createRenderOriginalSignedUrl, uploadRenderOriginal } from "@/lib/render/renderStorage";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // ── Types ────────────────────────────────────────────────────────────
 type Step = 1 | 2 | 3 | 4;
@@ -284,7 +285,7 @@ export default function RenderBagnoNew() {
         })
         .eq("id", sid);
     } catch (err) {
-      setAnalysisError(t("Analisi AI non disponibile: {errore}", { errore: err instanceof Error ? err.message : String(err) }));
+      setAnalysisError(t("Analisi AI non disponibile: {errore}", { errore: messaggioErrore(err) }));
       await supabase
         .from("render_bagno_sessions")
         .update({ stato: "analysis_done" })

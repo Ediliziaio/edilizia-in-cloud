@@ -34,6 +34,7 @@ import {
   type RataDaIncassare,
 } from "@/lib/rateBankMatch";
 import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Props {
   open: boolean;
@@ -180,7 +181,7 @@ export function RiconciliaRateBancaDialog({
       queryClient.invalidateQueries({ queryKey: ["primaNota"] });
     } catch (e) {
       toast.error(t("Riconciliazione non riuscita"), {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       });
     } finally {
       setConfirming(null);

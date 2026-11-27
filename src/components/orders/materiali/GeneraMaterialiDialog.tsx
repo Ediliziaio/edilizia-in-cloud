@@ -264,7 +264,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
       { voci: c.voci, file: [], totaleDocumento: null, titolo: c.titolo, origine: "preventivo" },
       {
         onSuccess: ({ id }) => { setComputoId(id); toast.info(c.quoteNumber ? tr("Uso il computo del preventivo {numero}", { numero: c.quoteNumber }) : tr("Uso il computo del preventivo"), { description: tr("{n} voci, con misure e capitoli: il file non serve.", { n: c.voci.length }) }); },
-        onError: (e) => toast.error(tr("Computo del preventivo non copiato"), { description: e instanceof Error ? e.message : String(e) }),
+        onError: (e) => toast.error(tr("Computo del preventivo non copiato"), { description: messaggioErrore(e) }),
       },
     );
   }, [open, senzaComputo, dalPreventivo.data, salvaComputo]);
@@ -292,7 +292,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
           if (nonArchiviati.length) toast.info(tr("Computo salvato con le sue voci"), { description: tr("Il file originale ({file}) non è archiviato: si conservano PDF, Excel, PriMus e foto.", { file: nonArchiviati.join(", ") }) });
           if (riusato) toast.info(tr("Questo computo è già nella commessa: uso quello"), { description: tr("Nessun doppione: i materiali generati prima e non ordinati si aggiornano quando salvi.") });
         },
-        onError: (e) => toast.error(tr("Computo non salvato"), { description: e instanceof Error ? e.message : String(e) }),
+        onError: (e) => toast.error(tr("Computo non salvato"), { description: messaggioErrore(e) }),
       },
     );
   };
@@ -475,7 +475,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, computoInizi
       qc.invalidateQueries({ queryKey: ["scomposizioni"] });
       qc.invalidateQueries({ queryKey: ["genera-materiali", orderId, companyId] });
     } catch (e) {
-      toast.error(tr("Proposta non riuscita"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Proposta non riuscita"), { description: messaggioErrore(e) });
     } finally {
       setProponendo(false);
     }

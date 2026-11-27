@@ -19,6 +19,7 @@ import type { EditorState } from "@/pages/azienda/fatturazione/editor/useEditorS
 import type { AnagraficaAzienda, DocumentoFiscale } from "@/types/fatturazione";
 import { toast } from "sonner";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Props {
   documento: EditorState;
@@ -89,7 +90,7 @@ export function AnteprimaXmlFattura({ documento, azienda, scale = 1, mostraStamp
       const foglio = fatturaXmlTabellareHtml(xml, { direzione: 'emessa', dentroIframe: true });
       return { foglio, errore: null, sezioni: sezioniFatturaXml(xml), versione: versioneFatturaXml(xml) };
     } catch (e) {
-      return { foglio: null, errore: e instanceof Error ? e.message : String(e), sezioni: [], versione: "" };
+      return { foglio: null, errore: messaggioErrore(e), sezioni: [], versione: "" };
     }
   }, [documento, azienda, archiviato, originale, erroreOriginale]);
   const foglio = esito?.foglio;

@@ -41,6 +41,7 @@ import {
 } from "@/lib/controlloGestione/indiciBanca";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { testoGrezzoErrore } from "@/lib/messaggioErrore";
 
 interface TabPianoIndustrialeProps {
   scenarioId: string | null;
@@ -50,9 +51,7 @@ interface TabPianoIndustrialeProps {
 function isNoScenarioError(err: unknown): boolean {
   if (!err) return false;
   const msg =
-    err instanceof Error
-      ? err.message
-      : String((err as { message?: string })?.message ?? err);
+    testoGrezzoErrore(err);
   return /scenario/i.test(msg) && /(non trov|esegui bootstrap|base)/i.test(msg);
 }
 

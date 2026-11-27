@@ -23,6 +23,7 @@ import {
   type TipoFornitore,
 } from "@/lib/fornitori/tipiFornitore";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 /**
  * Tipi dei fornitori: ogni cedente delle fatture ricevute, col tipo proposto e il
@@ -189,7 +190,7 @@ export default function TipiFornitoriPage() {
         try {
           await salvaTipo(companyId!, c, tipo);
         } catch (e) {
-          errori.push(`${c.nome}: ${e instanceof Error ? e.message : String(e)}`);
+          errori.push(`${c.nome}: ${messaggioErrore(e)}`);
           // Senza permesso è inutile continuare: ogni riga darebbe lo stesso errore.
           if (/permesso/i.test(String(e instanceof Error ? e.message : e))) break;
         }

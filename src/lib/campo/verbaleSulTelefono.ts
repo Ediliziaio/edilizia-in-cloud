@@ -7,6 +7,7 @@
  * visto, con la sua impronta, e quello senza rete non esiste.
  */
 import type { AcceptanceContent } from "../../../supabase/functions/collaudo-commessa/model";
+import { testoGrezzoErrore } from "@/lib/messaggioErrore";
 
 export interface VerbaleSulTelefono {
   content: AcceptanceContent;
@@ -54,6 +55,6 @@ export function cancellaVerbaleSulTelefono(utente: string | undefined, commessa:
 export function erroreDiRete(e: unknown): boolean {
   if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
   const nome = e && typeof e === "object" && "name" in e ? String((e as { name: unknown }).name) : "";
-  const msg = e instanceof Error ? e.message : String(e ?? "");
+  const msg = testoGrezzoErrore(e);
   return nome === "FunctionsFetchError" || /failed to fetch|network|load failed|failed to send a request/i.test(msg);
 }

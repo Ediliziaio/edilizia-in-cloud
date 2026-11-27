@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { markSurveyConverted } from "@/lib/api/surveys";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { ID_AVVISO_SALVATAGGIO_FALLITO, motivoSalvataggioNonRiuscito } from "@/lib/preventivatore/salvataggioFallito";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // Gli elenchi filtrano per l'azienda aperta. Le regole del database bastano a
 // chi lavora nella sua azienda, ma a un super admin entrato in un'azienda
@@ -203,7 +204,7 @@ export function useDuplicaProgetto() {
       qc.invalidateQueries({ queryKey: ["sr-progetti"] });
     },
     onError: (e) => toast.error("Duplica revisione fallita", {
-      description: e instanceof Error ? e.message : String(e),
+      description: messaggioErrore(e),
     }),
   });
 }

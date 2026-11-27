@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { TemplateSchema } from "@/types/surveys";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Esito { schema: TemplateSchema; avvisi: string[] }
 
@@ -65,7 +66,7 @@ export function GeneraModelloAi({ categoria, esito, onEsito }: {
       }
       onEsito({ schema: risposta.schema, avvisi: risposta.avvisi ?? [] });
     } catch (e) {
-      setErrore(e instanceof Error ? e.message : String(e));
+      setErrore(messaggioErrore(e));
     } finally {
       setInCorso(false);
     }

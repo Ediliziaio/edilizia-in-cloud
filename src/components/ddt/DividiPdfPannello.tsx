@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { dividiFile, gruppiDaTagli, tagliProposti, type PdfDaDividere } from "@/lib/ddt/dividiPdf";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export function DividiPdfPannello({ pdf, onDiviso, onTogli }: {
   pdf: PdfDaDividere;
@@ -38,7 +39,7 @@ export function DividiPdfPannello({ pdf, onDiviso, onTogli }: {
       }
       onDiviso(pezzi, leggi);
     } catch (e) {
-      toast.error(tr("Non sono riuscito a dividere il PDF"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Non sono riuscito a dividere il PDF"), { description: messaggioErrore(e) });
       setLavoro(false);
     }
   };

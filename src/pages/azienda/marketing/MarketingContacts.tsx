@@ -60,6 +60,7 @@ import { cn } from "@/lib/utils";
 import { BOTTONE_NUOVO, BOTTONE_SECONDARIO } from "@/components/orders/TestataScheda";
 import { CercaConFiltri, PannelloFiltri, PilloleFiltro, RigaMobile } from "@/components/mobile/FiltriMobile";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 const traduciColonneContatti: TraduciPreferenza = valore => {
   if (!Array.isArray(valore) || !valore.every(v => typeof v === "string")) return null;
   const visibili = new Set<string>(valore);
@@ -646,7 +647,7 @@ export default function MarketingContacts() {
       setSalvaListaOpen(false);
       setNomeListaDinamica("");
     },
-    onError: (e) => toast.error(t("Lista non salvata"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Lista non salvata"), { description: messaggioErrore(e) }),
   });
   const qualityFilter = isQualityFilter(urlFilters.quality) ? urlFilters.quality : "all";
   const setQualityFilter = useCallback((value: ContactQualityFilter) => {

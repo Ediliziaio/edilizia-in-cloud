@@ -29,6 +29,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { GRUPPI_CASSA, VOCI_CASSA, VOCE_PER_CHIAVE, type VoceCassa } from "@/lib/controlloGestione/vociCassa";
 import { SEZIONI, useCatalogoCassa, useSalvaVoceCassa, type FlussoVoce, type VoceCatalogo } from "@/lib/finance/cassaVoci";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 type Filtro = "tutte" | "attive" | "spente" | "archiviate" | "azienda";
 const FILTRI: { key: Filtro; label: string }[] = [
@@ -97,7 +98,7 @@ export function CategorieCassaConfig() {
   const cambia = (id: string, dati: Record<string, unknown>, ok?: string) =>
     salva.mutate({ id, dati }, {
       onSuccess: () => ok && toast.success(ok),
-      onError: (e) => toast.error(t("Non salvato"), { description: e instanceof Error ? e.message : String(e) }),
+      onError: (e) => toast.error(t("Non salvato"), { description: messaggioErrore(e) }),
     });
   const apriChiudi = (id: string) => setAperte((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
@@ -256,7 +257,7 @@ function EditorVoce({ voce, catalogo, puoModificare, salva, onAggiunta }: {
   const foglia = voce.livello === "voce" || voce.livello === "sottovoce";
   const puoAggiungere = puoModificare && (voce.livello === "area" || voce.livello === "categoria" || voce.livello === "voce");
   const esito = {
-    onError: (e: unknown) => toast.error(t("Non salvato"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e: unknown) => toast.error(t("Non salvato"), { description: messaggioErrore(e) }),
   };
 
   return (

@@ -20,6 +20,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { LIVELLI, LIVELLI_SUPERADMIN, type AmbitoConnettore, type LivelloConnettore } from "@/lib/aiConnector";
+import { testoGrezzoErrore } from "@/lib/messaggioErrore";
 
 // La colonna nuova non è ancora nei tipi generati.
 type LetturaAzienda = { from: (t: string) => { select: (c: string) => { eq: (k: string, v: string) => {
@@ -140,7 +141,7 @@ export default function OAuthConsent() {
       setStato("concluso");
       window.location.href = data.redirect_url;
     } catch (e) {
-      const message = traduciErrore(e instanceof Error ? e.message : String(e));
+      const message = traduciErrore(testoGrezzoErrore(e));
       setErrore(oauthApproved ? `${message} Il collegamento aziendale non è stato salvato. Avvia una nuova connessione dall'assistente.` : message);
       setStato(oauthApproved ? "errore" : "consenso");
     }

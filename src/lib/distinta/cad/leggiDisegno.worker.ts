@@ -5,6 +5,7 @@
  * disegno ridotto a quello che serve per contare.
  */
 import { LettoreDxf, riconosciFormato } from "./leggiDxf";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export type MessaggioWorker =
   | { tipo: "avanzamento"; letti: number; totale: number }
@@ -43,6 +44,6 @@ ctx.onmessage = async (ev: MessageEvent<{ file: File }>) => {
     manda({ tipo: "fatto", disegno: lettore.fine() });
   } catch (e) {
     const memoria = e instanceof RangeError || /memory|allocation/i.test(String(e));
-    manda({ tipo: "errore", codice: memoria ? "memoria" : "lettura", messaggio: e instanceof Error ? e.message : String(e) });
+    manda({ tipo: "errore", codice: memoria ? "memoria" : "lettura", messaggio: messaggioErrore(e) });
   }
 };

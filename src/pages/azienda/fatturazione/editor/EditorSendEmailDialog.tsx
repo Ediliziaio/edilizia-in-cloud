@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import type { ClienteSnapshot } from "@/types/fatturazione";
 import type { EditorState } from "./useEditorState";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const TIPO_LABELS: Record<string, string> = {
   fattura: "Fattura", fattura_pa: "Fattura PA", proforma: "Proforma",
@@ -162,7 +163,7 @@ export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Pr
       try { sessionStorage.removeItem(chiave); } catch { /* solo memoria */ }
       onOpenChange(false);
     } catch (err) {
-      toast.error(t("Errore invio email"), { description: err instanceof Error ? err.message : String(err) });
+      toast.error(t("Errore invio email"), { description: messaggioErrore(err) });
     } finally {
       setIsSending(false);
       sendingRef.current = false;

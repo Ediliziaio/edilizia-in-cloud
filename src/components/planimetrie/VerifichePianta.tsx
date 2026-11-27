@@ -13,6 +13,7 @@ import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
 import { controlloPrimaDellUso } from "../../../shared/planimetrie/verificaDocumento.ts";
 import { useControlloPrimaDellUso } from "@/hooks/useVerificaPlanimetria";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const NOMI = NOMI_VERIFICA;
 
@@ -54,7 +55,7 @@ export function VerifichePianta({ documento, titolo, ambito, nomeStato, modifica
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 30_000);
     } catch (e) {
-      toast.error(t("Relazione non creata"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Relazione non creata"), { description: messaggioErrore(e) });
     } finally {
       setPdf(false);
     }

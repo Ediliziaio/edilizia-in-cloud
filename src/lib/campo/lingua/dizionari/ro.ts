@@ -31748,6 +31748,8 @@ const dizionario: Dizionario = {
   "Data di arrivo non disponibile": "Data sosirii nu e disponibilă",
   "Consegnata dallo SDI il {data_ricezione_sdi}": "Livrată de SDI la {data_ricezione_sdi}",
   "Nessun residuo": "Niciun rest",
+  "Segnata, non registrata": "Marcată, neînregistrată",
+  "Le rate risultano pagate, ma {importo} non hanno un pagamento registrato. Riconcilia il movimento di banca, oppure apri la fattura e usa «Segna pagata», che registra la scrittura.": "Ratele apar plătite, dar {importo} nu au o plată înregistrată. Reconciliază mișcarea bancară sau deschide factura și folosește «Marchează plătită», care înregistrează înscrierea.",
   "Non letta": "Necitită",
   "Letta": "Citită",
   "Già registrata (storico)": "Deja înregistrată (istoric)",
@@ -69428,5 +69430,6 @@ const dizionario: Dizionario = {
   "Elimina commessa {commessa}": "Șterge lucrarea {commessa}",
   "Contatti / Lead": "Contacte / Leaduri",
   "Segna come perso": "Marchează ca pierdut",
+  "Le scadenze già selezionate restano selezionate.": "Scadențele deja selectate rămân selectate.",
 };
 export default dizionario;

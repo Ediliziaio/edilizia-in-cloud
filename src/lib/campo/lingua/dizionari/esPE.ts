@@ -3919,5 +3919,6 @@ const dizionario: Dizionario = {
   "Incassi su più banche? Scrivile una volta sola e poi le scegli da qui.": "¿Cobras en varios bancos? Agrégalos una sola vez y luego los eliges aquí.",
   "Aggiungi una manutenzione": "Agregar un mantenimiento",
   "Interventi che nessuno paga: ore, trasferte e materiale a nostro carico.": "Intervenciones que nadie paga: horas, traslados y material a nuestro cargo.",
+  "Le scadenze già selezionate restano selezionate.": "Los vencimientos ya seleccionados siguen seleccionados.",
 };
 export default dizionario;

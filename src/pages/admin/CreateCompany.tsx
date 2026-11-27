@@ -68,6 +68,7 @@ import type { CompanySector } from "@/types/auth";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
 import { cn } from "@/lib/utils";
+import { testoGrezzoErrore } from "@/lib/messaggioErrore";
 
 /* -------------------------------------------------------------------------- */
 /*  Schema                                                                    */
@@ -327,7 +328,7 @@ export default function CreateCompany() {
           body: JSON.stringify(body),
         });
       } catch (networkErr) {
-        const msg = networkErr instanceof Error ? networkErr.message : String(networkErr);
+        const msg = testoGrezzoErrore(networkErr);
         throw new Error(
           `Impossibile contattare il server Supabase (${msg}). Verifica la connessione.`,
           { cause: networkErr },

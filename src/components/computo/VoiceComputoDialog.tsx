@@ -40,6 +40,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { formatCurrency } from "@/lib/formatters";
 import type { ComputoVoceLocal } from "@/types/computo";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { testoGrezzoErrore } from "@/lib/messaggioErrore";
 
 interface RigaGenerata {
   item_category?: string;
@@ -276,7 +277,7 @@ export function VoiceComputoDialog({
         });
       }, 1000);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = testoGrezzoErrore(err);
       if (msg.includes("NotAllowed") || msg.includes("Permission")) {
         toast.error(tr("Permesso microfono negato. Scrivi la descrizione."));
       } else {

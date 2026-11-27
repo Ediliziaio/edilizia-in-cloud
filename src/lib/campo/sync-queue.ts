@@ -10,6 +10,7 @@
  */
 import { isOnline } from "./network-status";
 import { idBozzaTecnica, nomeBozzaTecnica, type BozzaTecnica, type DatiBozzaTecnica } from "./bozzaTecnica";
+import { testoGrezzoErrore } from "@/lib/messaggioErrore";
 
 export type SyncItemType =
   | "documento_ddt"
@@ -539,7 +540,7 @@ async function processQueueUnlocked(lockEsclusivo = false): Promise<void> {
           await terminaTentativo(item, inizio);
           continue;
         }
-        const message = error instanceof Error ? error.message : String(error);
+        const message = testoGrezzoErrore(error);
         const inCampo = item.type === "prelievo" || item.type === "rapportino" || isInvioTecnico(item.type);
         const reteInterrotta = inCampo && !(
           error instanceof SyncPermanentError

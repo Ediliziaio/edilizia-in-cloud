@@ -1,5 +1,6 @@
 import { lazy } from "react";
 import type { ComponentType, LazyExoticComponent } from "react";
+import { testoGrezzoErrore } from "@/lib/messaggioErrore";
 
 // Durante la finestra di propagazione di un deploy Cloudflare l'HTML nuovo può
 // arrivare prima dei chunk → l'import dinamico fallisce. Chrome inoltre
@@ -19,7 +20,7 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 // dynamically imported module: https://…/Pagina-Hash.js"); Safari/Firefox no
 // → per loro si ritenta la factory originale, che non memoizza il fallimento.
 export function failedChunkUrl(err: unknown): string | null {
-  const msg = err instanceof Error ? err.message : String(err ?? "");
+  const msg = testoGrezzoErrore(err);
   const match = msg.match(/https?:\/\/[^\s'"<>\)]+/);
   if (!match) return null;
   try {

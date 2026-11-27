@@ -13313,5 +13313,6 @@ const dizionario: Dizionario = {
   "Interventi che nessuno paga: ore, trasferte e materiale a nostro carico.": "Intervenciones que nadie paga: horas, traslados y material a nuestro cargo.",
   "La manutenzione è già stata registrata. Riprova per completare quello che manca senza rifare quello che è già salvato. Chiudendo, lasci il completamento a metà.": "El mantenimiento ya está registrado. Probá de nuevo para completar lo que falta sin repetir lo que ya está guardado. Si cerrás, el mantenimiento se queda a medias.",
   "Non riesco a leggere la manutenzione. Riprova.": "No puedo leer el mantenimiento. Probá de nuevo.",
+  "Le scadenze già selezionate restano selezionate.": "Los vencimientos que ya elegiste siguen seleccionados.",
 };
 export default dizionario;

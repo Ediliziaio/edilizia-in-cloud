@@ -31653,6 +31653,8 @@ const dizionario: Dizionario = {
   "Data di arrivo non disponibile": "تاريخ الوصول ما كاينش",
   "Consegnata dallo SDI il {data_ricezione_sdi}": "وصّلها SDI نهار {data_ricezione_sdi}",
   "Nessun residuo": "حتى باقي",
+  "Segnata, non registrata": "معلمة، ما مسجلاش",
+  "Le rate risultano pagate, ma {importo} non hanno un pagamento registrato. Riconcilia il movimento di banca, oppure apri la fattura e usa «Segna pagata», che registra la scrittura.": "الأقساط باينة مخلصة، ولكن {importo} ما عندهومش أداء مسجل. طابق الحركة البنكية، ولا حل الفاتورة واستعمل «علّم بلي تخلصات»، اللي كتسجل القيد.",
   "Non letta": "ما تقراتش",
   "Letta": "تقرات",
   "Già registrata (storico)": "مسجلة ديجا (أرشيف قديم)",
@@ -69391,5 +69393,6 @@ const dizionario: Dizionario = {
   "Elimina commessa {commessa}": "حيد الورش {commessa}",
   "Contatti / Lead": "جهات الاتصال / العملاء المحتملون",
   "Segna come perso": "علّم عليه كخاسر",
+  "Le scadenze già selezionate restano selezionate.": "الآجال اللي ختاريتي كيبقاو مختارين.",
 };
 export default dizionario;

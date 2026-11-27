@@ -3,11 +3,11 @@
  * parlano già italiano, e quei messaggi passano così; quelli del browser, di supabase-js, del
  * database e di una edge function diventano una frase. Mai «Edge Function returned a non-2xx».
  */
-const RETE = /failed to fetch|failed to send|networkerror|network request|load failed|fetch failed|relay error/i;
-const SESSIONE = /\bjwt\b|unauthorized|invalid claim|not authenticated|auth session/i;
-const TROPPO_GRANDE = /too large|exceeded the maximum|\b413\b/i;
-const TEMPO = /timeout|timed out|\baborted\b|\b504\b|gateway/i;
-const TECNICO = new RegExp([
+export const RETE = /failed to fetch|failed to send|networkerror|network request|load failed|fetch failed|relay error/i;
+export const SESSIONE = /\bjwt\b|unauthorized|invalid claim|not authenticated|auth session/i;
+export const TROPPO_GRANDE = /too large|exceeded the maximum|\b413\b/i;
+export const TEMPO = /timeout|timed out|\baborted\b|\b504\b|gateway/i;
+export const TECNICO = new RegExp([
   "edge function", "non-2xx", "typeerror", "referenceerror", "syntaxerror", "cannot read", "undefined", "is not a function",
   "unexpected token", "internal server", "bad request", "forbidden", "not found", "row-level", "permission denied", "violates",
   "duplicate key", "relation \"", "column \"", "does not exist", "invalid input", "null value", "bucket", "object not",

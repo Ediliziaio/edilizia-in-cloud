@@ -16,6 +16,7 @@ import{DraftAiReview}from'../dossier/DraftAiReview';
 import { DraftCompanyData } from './DraftCompanyData';
 import { draftMarkers } from './draft-review';
 import { cn } from '@/lib/utils';
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 type View='split'|'write'|'preview'|'pdf';
 const views=[{id:'write',label:'Scrittura',icon:PenLine},{id:'split',label:'Affiancati',icon:Columns2},{id:'preview',label:'Anteprima testo',icon:Eye},{id:'pdf',label:'PDF',icon:FileText}] as const;
@@ -53,7 +54,7 @@ function DraftEditor({draft}:{draft:AiDraft}){
   });
  }
  async function exportFile(format:'docx'|'pdf'){
-  setExporting(true);try{const result=await api.ai<{document:GareDocument;stale:boolean;missing_fields:string[]}>('export-draft',{draft_id:draft.id,format,revision,confirmed:true});await refresh();downloadBlob(await api.blob(result.document),result.document.name);toast.success(result.document.unresolved_fields?'Bozza salvata con dati da completare: approvazione bloccata':'Bozza salvata nel fascicolo per la revisione');}catch(e){toast.error(e instanceof Error?e.message:String(e));}finally{setExporting(false);}
+  setExporting(true);try{const result=await api.ai<{document:GareDocument;stale:boolean;missing_fields:string[]}>('export-draft',{draft_id:draft.id,format,revision,confirmed:true});await refresh();downloadBlob(await api.blob(result.document),result.document.name);toast.success(result.document.unresolved_fields?'Bozza salvata con dati da completare: approvazione bloccata':'Bozza salvata nel fascicolo per la revisione');}catch(e){toast.error(messaggioErrore(e));}finally{setExporting(false);}
  }
  return <>
   <button type="button" onClick={async()=>{if(await persist())navigate(`/azienda/gare/partecipazioni/${draft.participation_id}?tab=ai`);}} className="mb-3 inline-flex items-center gap-2 text-xs text-muted-foreground"><ArrowLeft className="h-3.5 w-3.5"/>Torna all’Assistente AI</button>

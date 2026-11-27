@@ -21,6 +21,7 @@ import {
   type ModuloConModelli,
 } from "@/lib/moduli/modelloPreventivo";
 import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface InterventoScelto { id: string; title: string }
 
@@ -86,7 +87,7 @@ export function ModelloDelPreventivo({ modulo, tabella, interventi, progetto, sn
       await onAggiornato();
       toast.success(t("Modello aggiornato"), { description: t("Il PDF ora usa il modello di adesso.") });
     } catch (e) {
-      toast.error(t("Modello non aggiornato"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Modello non aggiornato"), { description: messaggioErrore(e) });
     } finally {
       lock.current = false;
       setInCorso(false);

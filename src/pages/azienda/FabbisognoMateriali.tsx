@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { VerificaDatiMaterialeDialog } from "@/components/orders/materiali/VerificaDatiMateriale";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const COLORE: Record<Urgenza, string> = {
   ritardo: "border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200",
@@ -151,7 +152,7 @@ export default function FabbisognoMateriali({ orderId, inFinestra = false }: { o
       void qc.invalidateQueries({ queryKey: ["materiali-per-fase"] });
       void qc.invalidateQueries({ queryKey: ["piano-acquisti-computo"] });
     },
-    onError: (e) => toast.error(t("Fornitore non assegnato"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Fornitore non assegnato"), { description: messaggioErrore(e) }),
   });
   const [conferma, setConferma] = useState(false);
   const ordina = useOrdinaDalFabbisogno();
@@ -183,7 +184,7 @@ export default function FabbisognoMateriali({ orderId, inFinestra = false }: { o
       for (const e of ferme) toast.error(t("{commessa} · {fornitore}: bozza non creata", { commessa: e.commessa ?? t("Commessa"), fornitore: e.fornitore ?? t("fornitore") }), { description: e.errore, duration: 12_000 });
       setScelti(new Set());
     } catch (e) {
-      toast.error(t("Bozze non create"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Bozze non create"), { description: messaggioErrore(e) });
     }
   };
 
@@ -707,7 +708,7 @@ function DataServe({ r, puoDatare }: { r: RigaFabbisogno; puoDatare: boolean }) 
     if (nuova === scritta) return;
     imposta.mutate({ ids: [r.order_item_id], data: nuova }, {
       onSuccess: () => toast.success(nuova ? t("{name}: serve il {nuova}", { name: String(r.name ?? ""), nuova: String(data(nuova) ?? "") }) : t("{name}: serve all'inizio della fase", { name: String(r.name ?? "") })),
-      onError: (e) => { setValore(scritta ?? ""); toast.error(t("Data non salvata"), { description: e instanceof Error ? e.message : String(e) }); },
+      onError: (e) => { setValore(scritta ?? ""); toast.error(t("Data non salvata"), { description: messaggioErrore(e) }); },
     });
   };
   // Chiuso è una riga: «serve il 15 dic (inizio fase)»; si apre il campo solo per cambiarla.

@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useProfiloCliente, useSalvaSoglie, type Benchmark, type ProfiloCliente, type Soglia } from "./useMktConsole";
 import { eur } from "./formato";
 import type { ClienteMarketing } from "./provvigioni";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const SETTORI = [
   { value: "serramenti", label: "Serramenti / infissi" },
@@ -133,7 +134,7 @@ function SoglieForm({ cliente, profilo, soglia, benchmark, oggi, onChiudi }: { c
       toast.success("Soglie salvate: valgono da oggi", { description: "Il semaforo e le regole le usano dal prossimo ricalcolo." });
       onChiudi();
     } catch (e) {
-      toast.error("Soglie non salvate", { description: e instanceof Error ? e.message : String(e) });
+      toast.error("Soglie non salvate", { description: messaggioErrore(e) });
     }
   };
 

@@ -39,6 +39,7 @@ import { leggiComputoSenzaAi } from "@/lib/orders/contrattoDaComputo";
 import { PianoContrattoCollegato } from "./contratto/PianoContrattoCollegato";
 import { fasiOperativePerEstratto, pianoOperativoContratto } from "@/lib/orders/pianoOperativoContratto";
 import { AnalisiGiaCollegataError, commessaDellaLettura, cercaLetturaContratto, contestoLetturaContratto, elencaLettureContratto, improntaFileContratto, indicazioniLetturaContratto, salvaLetturaContratto, type LetturaContrattoSalvata } from "@/lib/orders/lettureContrattoSalvate";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const ACCEPTED = [".pdf", ".xpwe", ".xlsx", ".jpg", ".jpeg", ".png", ".webp", ".heic"];
 const MAX_SIZE = 18 * 1024 * 1024;
@@ -322,7 +323,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
       setTestoDocumento(testo);
       await archiviaAnalisi(parsed, { bucket, path, name: fileName, mime, size: file?.size }, file);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(messaggioErrore(e));
       if (e instanceof AnalisiGiaCollegataError) setCommessaCollegata(e.orderId);
     } finally {
       setBusy(false);

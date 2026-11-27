@@ -16,6 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { ACCEPT_DOCUMENTI_DDT, erroreDocumento } from "@/lib/ddt/preparaDocumento";
 import { BUCKET_DOCUMENTO_ODA as BUCKET, caricaDocumentoOda, eliminaDocumentoOda, registraDocumentoOda } from "@/lib/orders/documentoOda";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Props {
   odaId: string;
@@ -61,7 +62,7 @@ export function OdaDocumentoCard({
       window.open(data.signedUrl, "_blank", "noopener,noreferrer");
     } catch (e) {
       toast.error(t("Documento non apribile"), {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       });
     } finally {
       setBusy(false);
@@ -91,7 +92,7 @@ export function OdaDocumentoCard({
       // Se il riferimento non è salvato, si toglie soltanto il nuovo upload.
       if (caricato) await eliminaDocumentoOda(caricato);
       toast.error(t("Caricamento non riuscito"), {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       });
     } finally {
       setBusy(false);
@@ -113,7 +114,7 @@ export function OdaDocumentoCard({
         });
     } catch (e) {
       toast.error(t("Il documento non è stato rimosso"), {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       });
     } finally {
       setBusy(false);

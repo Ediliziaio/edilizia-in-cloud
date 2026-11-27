@@ -116,6 +116,7 @@ import { conSaldoFinale, importoSaldoFinale, senzaRateVuote, sommaRateNonSaldo }
 import { datiLavoroDaEmessa, riconciliaEmessa } from "@/lib/fatturazione/collegamentiImportate";
 import { isNotaCredito } from "@/lib/fatturazione/registroVendite";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 /** Le rate con cui si apre il modulo: quelle del modello scelto dall'azienda per le commesse nuove (importi a zero finché non c'è il totale), o le due di sempre. */
 const rateDiPartenza = (modello: ModelloPagamento | null): Installment[] =>
@@ -1402,7 +1403,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           // Viaggia con l'esito fino a onSuccess: la copia in coda dello stesso file non si carica una seconda volta.
           result.originaleInCommessa = originaleInCommessa;
         } catch (e) {
-          toast.warning(t("Commessa creata, ma l'originale del contratto non è nei documenti"), { description: e instanceof Error ? e.message : String(e), duration: 12000 });
+          toast.warning(t("Commessa creata, ma l'originale del contratto non è nei documenti"), { description: messaggioErrore(e), duration: 12000 });
         }
       }
       const firmaConfermata = dataFirmaVerificata(contractSource, new Date().toLocaleDateString("en-CA"));
@@ -1529,7 +1530,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
               duration: 10000,
             });
           } catch (e) {
-            toast.warning(t("Commessa creata, computo da caricare nella scheda Computo"), { description: e instanceof Error ? e.message : String(e), duration: 15000 });
+            toast.warning(t("Commessa creata, computo da caricare nella scheda Computo"), { description: messaggioErrore(e), duration: 15000 });
           }
         }
       }

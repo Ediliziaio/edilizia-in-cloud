@@ -22,6 +22,7 @@ import { avviaRenderStanza } from "@/lib/planimetrie/render/renderInSerie";
 import { chiaviRenderPianta } from "@/lib/planimetrie/render/renderDallaPianta";
 import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Props {
   documento: Planimetria;
@@ -113,7 +114,7 @@ export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livello
       setTimeout(() => URL.revokeObjectURL(url), 30_000);
       toast.success(tr("PDF prima e dopo pronto"));
     } catch (e) {
-      toast.error(tr("PDF non creato"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("PDF non creato"), { description: messaggioErrore(e) });
     } finally {
       setPdfInCorso(false);
     }
@@ -136,7 +137,7 @@ export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livello
       queryClient.invalidateQueries({ queryKey: chiaviRenderPianta.dellaPianta(planimetriaId) });
       queryClient.invalidateQueries({ queryKey: ["render-credits", effectiveCompany.id] });
     } catch (e) {
-      toast.error(tr("Render non avviati"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Render non avviati"), { description: messaggioErrore(e) });
     } finally {
       setRenderInCorso(false);
     }
@@ -154,7 +155,7 @@ export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livello
       setFattiBozza(null);
       toast.success(tr("Avanzamento salvato: {percento}%", { percento: String(av.percento ?? "") }));
     } catch (e) {
-      toast.error(tr("Avanzamento non salvato"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Avanzamento non salvato"), { description: messaggioErrore(e) });
     }
   };
 

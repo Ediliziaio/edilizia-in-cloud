@@ -17,6 +17,7 @@ import { esportaSvg, vistaDaPlanimetria } from "@/lib/planimetrie/esporta";
 import { conVendita, NOMI_STATO_VENDITA, riepilogoVendite, unitaDellEdificio, type Unita } from "@/lib/planimetrie/unita";
 import { STATI_VENDITA, type Planimetria, type StatoVendita, type VenditaUnita } from "../../../shared/planimetrie/modello.ts";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface Props {
   documento: Planimetria;
@@ -83,7 +84,7 @@ export function UnitaEdificio({ documento, titolo, planimetriaId, versione, sola
       setBozza({});
       toast.success(t("Listino salvato"));
     } catch (e) {
-      toast.error(t("Listino non salvato"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Listino non salvato"), { description: messaggioErrore(e) });
     }
   };
 
@@ -109,7 +110,7 @@ export function UnitaEdificio({ documento, titolo, planimetriaId, versione, sola
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 30_000);
     } catch (e) {
-      toast.error(t("Scheda non creata"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Scheda non creata"), { description: messaggioErrore(e) });
     } finally {
       setPdf(null);
     }

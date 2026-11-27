@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { usePermissions } from "@/hooks/usePermissions";
 import { readAllPages } from "@/lib/personale/readAllPages";
 import { fiscalCommand } from "@/lib/fatturazione/fiscalCommands";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export interface F24Entry {
   id: string;
@@ -188,7 +189,7 @@ export function useF24(anno?: number) {
       qc.invalidateQueries({ queryKey: ["cashflow"] });
       toast.success("F24 segnato pagato con la quietanza");
     },
-    onError: (e) => toast.error("F24 non segnato pagato", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("F24 non segnato pagato", { description: messaggioErrore(e) }),
   });
 
   const entries = f24Query.data ?? [];

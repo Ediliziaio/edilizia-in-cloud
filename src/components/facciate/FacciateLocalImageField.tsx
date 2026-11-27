@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { TemplateImageFieldView } from "@/components/preventivi/TemplateImageFieldView";
 import { readLocalTemplateImage } from "@/lib/moduli-vendita/localTemplateImage";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 /** Deliberately has no bucket, company storage, Supabase client or online branch. */
 export function FacciateLocalImageField({ label, value, onChange }: {
@@ -16,7 +17,7 @@ export function FacciateLocalImageField({ label, value, onChange }: {
         if (!file) return;
         setBusy(true); setError("");
         try { onChange(await readLocalTemplateImage(file)); }
-        catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+        catch (e) { setError(messaggioErrore(e)); }
         finally { setBusy(false); if (input.current) input.current.value = ""; }
       }} />;
 }

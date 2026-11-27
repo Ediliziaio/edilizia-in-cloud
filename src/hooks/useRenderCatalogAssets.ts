@@ -5,6 +5,7 @@ import {
   type RenderCatalogAsset,
   type RenderCatalogVerticale,
 } from "@/lib/render/renderCatalog";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface State {
   assets: RenderCatalogAsset[];
@@ -27,7 +28,7 @@ export function useRenderCatalogAssets(companyId: string | undefined, verticale:
         const urls = await signRenderCatalogUrls(assets.map((a) => a.storage_path));
         if (alive) setState({ assets, urls, loading: false, error: null });
       } catch (e) {
-        if (alive) setState({ assets: [], urls: {}, loading: false, error: e instanceof Error ? e.message : String(e) });
+        if (alive) setState({ assets: [], urls: {}, loading: false, error: messaggioErrore(e) });
       }
     })();
     return () => { alive = false; };

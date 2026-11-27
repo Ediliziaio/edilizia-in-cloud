@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { VariationContext } from "./VariationEditor";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const MAX_FILE = 18 * 1024 * 1024;
 const MAX_TESTO = 30000;
@@ -81,7 +82,7 @@ export function VarianteDaDocumento({ companyId, context, onBozza }: {
         ? { description: avvisi.join(" "), duration: 15000 }
         : { description: t("Chiudendo resta come bozza: al cliente parte solo quando la mandi tu.") });
     } catch (e) {
-      setErrore(e instanceof Error ? e.message : String(e));
+      setErrore(messaggioErrore(e));
       setLeggo(false);
     }
   };

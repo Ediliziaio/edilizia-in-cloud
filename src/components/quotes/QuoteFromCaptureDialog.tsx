@@ -40,6 +40,7 @@ import {
 import { CaptureReviewPanel } from "./CaptureReviewPanel";
 import { AIExtractionProgress } from "./AIExtractionProgress";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const MAX_AUDIO_SECONDS = 180; // 3 min
 const MAX_IMAGES = 10;
@@ -299,7 +300,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
       }, 1000);
     } catch (e) {
       toast.error(t("Permesso microfono negato"), {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       });
     }
   };
@@ -379,7 +380,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
         }
       } catch (err) {
         toast.error(t("Errore lettura PDF"), {
-          description: err instanceof Error ? err.message : String(err),
+          description: messaggioErrore(err),
         });
       } finally {
         setPdfProcessing(false);
@@ -496,7 +497,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
       setPhase("review");
     } catch (e) {
       toast.error(t("Errore"), {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       });
       setPhase("input");
     }
@@ -545,7 +546,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
       setPhase("review");
     } catch (e) {
       toast.error(t("Errore nella ripetizione"), {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       });
       setPhase("review");
     }

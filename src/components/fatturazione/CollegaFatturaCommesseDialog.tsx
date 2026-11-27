@@ -30,6 +30,7 @@ import { leggiRiferimentiFattura } from "../../../shared/acquisti/riferimentiFat
 import { aperturaDallaCommessa, bolleDellaFattura, DESTINAZIONE_MAGAZZINO, magazzinoDaVoci, magazzinoInNetto, problemaRipartizione, quotaMagazzinoDelCosto, righeMagazzinoDelCosto, quoteDaVoci, quoteDelCosto, quoteLordeInNette, residuoDaAssegnare, vociFattura, type QuotaCommessa, type RigaFatturaXml } from "@/lib/fatturazione/ripartizioneFattura";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -261,7 +262,7 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
       for (const k of ["fattura-collega-commesse", "fatture-ricevute", "fatture-costi-commesse", "fattura-ricevuta-riepilogo", "margin"]) void queryClient.invalidateQueries({ queryKey: [k] });
       onChiudi();
     } catch (e) {
-      toast.error(t("Collegamento non salvato"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Collegamento non salvato"), { description: messaggioErrore(e) });
     } finally {
       setSalvataggio(false);
     }

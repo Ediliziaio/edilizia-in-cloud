@@ -44,6 +44,7 @@ import {
 } from "@/components/admin/clienti-marketing/provvigioni";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 interface ProductLineLite { id: string; nome: string; colore: string | null; }
 interface PackageLite { id: string; nome: string; prezzo: number; product_line_id: string; }
@@ -274,12 +275,12 @@ export default function AdminServiceClients() {
       }
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin", "service-clients"] }); qc.invalidateQueries({ queryKey: ["admin", "commission-lines"] }); qc.invalidateQueries({ queryKey: ["clienti-marketing"] }); qc.invalidateQueries({ queryKey: ["admin", "servizi-fatturato"] }); qc.invalidateQueries({ queryKey: ["admin", "service-billings-all"] }); toast.success(isEdit ? "Cliente-servizio aggiornato" : "Cliente-servizio creato"); setDialogOpen(false); },
-    onError: (e: unknown) => toast.error("Errore nel salvataggio", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e: unknown) => toast.error("Errore nel salvataggio", { description: messaggioErrore(e) }),
   });
   const del = useMutation({
     mutationFn: async (id: string) => { const { error } = await sb().from("aedix_service_clients").delete().eq("id", id); if (error) throw error; },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin", "service-clients"] }); qc.invalidateQueries({ queryKey: ["clienti-marketing"] }); qc.invalidateQueries({ queryKey: ["admin", "servizi-fatturato"] }); qc.invalidateQueries({ queryKey: ["admin", "service-billings-all"] }); toast.success("Eliminato"); setDeleteTarget(null); },
-    onError: (e: unknown) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e: unknown) => toast.error("Errore", { description: messaggioErrore(e) }),
   });
   // Cambio stato rapido dalla lista (senza aprire il dialog completo).
   const setStato = useMutation({
@@ -288,7 +289,7 @@ export default function AdminServiceClients() {
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin", "service-clients"] }); qc.invalidateQueries({ queryKey: ["clienti-marketing"] }); qc.invalidateQueries({ queryKey: ["admin", "servizi-fatturato"] }); qc.invalidateQueries({ queryKey: ["admin", "service-billings-all"] }); },
-    onError: (e: unknown) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e: unknown) => toast.error("Errore", { description: messaggioErrore(e) }),
   });
 
   const openNew = () => {
@@ -324,7 +325,7 @@ export default function AdminServiceClients() {
         const loaded = ((data ?? []) as any[]).map((l) => ({ id: l.id as string, etichetta: (l.etichetta ?? "") as string, base: (l.base ?? "fatturato") as string, percentuale: Number(l.percentuale) || 0 }));
         setCommLines(loaded.length ? loaded : [{ etichetta: "", base: "fatturato", percentuale: 0 }]);
       } catch (e) {
-        toast.error("Impossibile caricare le provvigioni", { description: e instanceof Error ? e.message : String(e) });
+        toast.error("Impossibile caricare le provvigioni", { description: messaggioErrore(e) });
         setCommLines([{ etichetta: "", base: "fatturato", percentuale: 0 }]);
       }
     }

@@ -41,6 +41,7 @@ import { ContatoriFiltro } from "./ContatoriFiltro";
 import { RiquadroCommessa, StatoPill, TabellaCommessa, type ColonnaTabella, type TonoStato } from "./TabellaCommessa";
 import { useCostiCommessa } from "./OrderCostiCommessa";
 import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // Alcune tabelle non sono ancora nei tipi generati: contratto locale.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -683,7 +684,7 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
       void queryClient.invalidateQueries({ queryKey: ["commessa-fatture-fornitori"] });
       void queryClient.invalidateQueries({ queryKey: ["margin"] });
     } catch (e) {
-      toast.error(fallita, { description: e instanceof Error ? e.message : String(e) });
+      toast.error(fallita, { description: messaggioErrore(e) });
     } finally {
       setOccupata(null);
     }

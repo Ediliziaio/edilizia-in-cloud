@@ -18,6 +18,7 @@ import {
   STATI_REVISIONE, TIPI_DOCUMENTO, etichettaStato, haRevisione, linkDopoApprovazione, proponiDopoApprovazione, testoRevisione,
   type DatiRevisione,
 } from "@/lib/commesse/revisioniDocumenti";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // La funzione è nuova e non è ancora nei tipi generati.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -84,7 +85,7 @@ export function RevisioneDocumentoDialog({ open, onOpenChange, doc }: {
       }
       onOpenChange(false);
     },
-    onError: (e: unknown) => toast.error(tr("Non riesco a salvare la revisione"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e: unknown) => toast.error(tr("Non riesco a salvare la revisione"), { description: messaggioErrore(e) }),
   });
 
   return (

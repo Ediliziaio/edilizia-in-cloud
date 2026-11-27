@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // Niente parole tecniche per chi collega la casella (founder, 25/09/2026: un
 // cliente ha pensato che Gmail non funzionasse per un avviso tecnico). Il
@@ -102,7 +103,7 @@ export default function EmailOAuthCallbackPage() {
       } catch (e) {
         setStatus("error");
         setMessage(t("Non siamo riusciti a completare il collegamento. {riprova}", { riprova: t(RIPROVA) }));
-        setDettaglio(e instanceof Error ? e.message : String(e));
+        setDettaglio(messaggioErrore(e));
         console.error("[email-oauth-callback]", e);
       }
     })();

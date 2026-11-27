@@ -55,6 +55,7 @@ import {
   QuoteChip,
 } from "@/components/marketing/preventivi/ui/builderUI";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export default function QuoteDetail() {
   const t = useT();
@@ -141,7 +142,7 @@ export default function QuoteDetail() {
       toast.success(t("Preventivo inviato in PDF"), { description: t("Email con allegato mandata a {email}.", { email: String(email ?? "") }) });
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(id) });
     } catch (e) {
-      toast.error(t("Invio non riuscito"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Invio non riuscito"), { description: messaggioErrore(e) });
     } finally {
       setInviandoPdf(false);
     }
@@ -169,7 +170,7 @@ export default function QuoteDetail() {
       navigate("/azienda/marketing/preventivi");
     } catch (e) {
       toast.error(t("Non sono riuscito a spostarlo nel cestino"), {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       });
     } finally {
       setCestinando(false);
@@ -201,7 +202,7 @@ export default function QuoteDetail() {
       navigate(`/azienda/marketing/preventivi/${nuovoId}/modifica`);
     } catch (e) {
       toast.error(t("Operazione non riuscita"), {
-        description: e instanceof Error ? e.message : String(e),
+        description: messaggioErrore(e),
       });
     } finally {
       setDuplicando(false);

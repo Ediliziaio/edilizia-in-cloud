@@ -42,6 +42,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const ContractImportDialog = lazy(() => import("@/components/orders/ContractImportDialog").then((m) => ({ default: m.ContractImportDialog })));
 
@@ -107,7 +108,7 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
       const giaNeiDocumenti = !!origine?.path?.startsWith(`${orderId}/`);
       setLettura({ ex, origine: origine ?? null, file: file ?? null, piano, commessa, vociEsistenti, giaNeiDocumenti, noteInterne: (o.data as { internal_notes?: string | null }).internal_notes ?? null });
     } catch (e) {
-      toast.error(t("Non riesco a leggere la commessa"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Non riesco a leggere la commessa"), { description: messaggioErrore(e) });
     } finally {
       setPreparo(false);
     }
@@ -195,13 +196,13 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
           }
           fatti.push(t("contratto nei documenti"));
         } catch (e) {
-          toast.error(t("Il contratto originale non è stato salvato nei documenti"), { description: e instanceof Error ? e.message : String(e) });
+          toast.error(t("Il contratto originale non è stato salvato nei documenti"), { description: messaggioErrore(e) });
         }
       }
       toast.success(t("Contratto applicato alla commessa"), { description: fatti.length ? fatti.join(" · ") : t("Nessuna modifica scelta.") });
       setLettura(null);
     } catch (e) {
-      toast.error(t("Contratto non applicato"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(t("Contratto non applicato"), { description: messaggioErrore(e) });
     } finally {
       setSalvo(false);
       queryClient.invalidateQueries({ predicate: (q) => q.queryKey.includes(orderId) });

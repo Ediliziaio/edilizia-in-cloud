@@ -175,6 +175,39 @@ describe("popup e registro dei movimenti", () => {
     expect(mock.rpc.mock.calls.every(c => ["bank_movimento_dettaglio", "bank_candidati_movimento", "cassa_voci_movimenti", "tesoreria_controparti", "tesoreria_conti", "tesoreria_classifica_movimento", "tesoreria_esito_movimento"].includes(c[0]))).toBe(true);
   });
 
+  // 27/11/2026: distinta RiBa da 94.856 €, decine di scadenze spuntate, una ricerca in
+  // timeout e la ripartizione spariva con tutte le scelte. L'errore ora sta sopra e le scelte restano.
+  it("una ricerca che va in timeout non cancella le scadenze già scelte", async () => {
+    const tx = structuredClone(movement);
+    tx.links.financial = [];
+    mock.load.mockResolvedValue({ rows: [tx], count: 1, totals: [] });
+    const a = { key: "a", tipo: "documento", id: "a", titolo: "Fattura Alfa", residuo: 300 };
+    const b = { key: "b", tipo: "documento", id: "b", titolo: "Fattura Beta", residuo: 400 };
+    let lento = true;
+    mock.rpc.mockImplementation(async (name: string, args: { p_search?: string }) => {
+      if (name === "bank_movimento_dettaglio") return structuredClone(tx);
+      if (name === "bank_candidati_movimento") {
+        if (args.p_search === "Beta" && lento) throw new Error("L’operazione ha impiegato troppo tempo. Riprova.");
+        return args.p_search === "Beta" ? [b] : [a];
+      }
+      return [];
+    });
+    view(<TransactionsFeed companyId="company" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Collega fatture e pagamenti: Bonifico Alfa Beta" }));
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Scegli Fattura Alfa" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Cerca documenti da collegare" }), { target: { value: "Beta" } });
+    expect(await screen.findByText(/impiegato troppo tempo/)).toBeInTheDocument();
+    expect(screen.getByText(/Le scadenze già selezionate restano selezionate/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Importo per Fattura Alfa")).toHaveValue("300,00");
+    expect(screen.getByRole("textbox", { name: "Cerca documenti da collegare" })).toHaveValue("Beta");
+    lento = false;
+    fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Scegli Fattura Beta" }));
+    expect(screen.getByLabelText("Importo per Fattura Alfa")).toHaveValue("300,00");
+    expect(screen.getByLabelText("Importo per Fattura Beta")).toHaveValue("200,00");
+    await waitFor(() => expect(screen.queryByText(/impiegato troppo tempo/)).not.toBeInTheDocument());
+  });
+
   it("apre dalla destra e mostra tutti i documenti, le commesse, il mezzo e le note", async () => {
     view(<TransactionsFeed companyId="company" />);
     fireEvent.click(

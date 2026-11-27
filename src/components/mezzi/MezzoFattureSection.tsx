@@ -18,13 +18,14 @@ import { Button } from "@/components/ui/button";
 
 import { tutteLePagine } from "@/lib/fatturazione/registroVendite";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const RipartoCarburanteDialog = lazy(() => import("./RipartoCarburanteDialog"));
 const RiepilogoFatturaRicevuta = lazy(() => import("@/components/fatturazione/RiepilogoFatturaRicevuta").then(m => ({ default: m.RiepilogoFatturaRicevuta })));
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
-const errore = (e: unknown) => toast.error("Non riuscito", { description: e instanceof Error ? e.message : String(e) });
+const errore = (e: unknown) => toast.error("Non riuscito", { description: messaggioErrore(e) });
 
 interface Riga {
   id: string; fattura_ricevuta_id: string; importo: number | null; confermata: boolean; origine: string;

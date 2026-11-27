@@ -38,6 +38,7 @@ import {
 } from "@/lib/planimetrie/esporta";
 import type { Planimetria, StatoPianta, Tetto } from "../../../shared/planimetrie/modello.ts";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 /** I disegni della tavola completa: i quattro prospetti e una sezione a metà, sulla parte lunga. */
 export function disegniDellaTavola(stato: StatoPianta | null | undefined, tetto?: Tetto | null, piani?: PianoProspetto[]): Disegno2D[] {
@@ -358,7 +359,7 @@ export function EsportaPiantaDialog({
       const q = preventivi.data?.find((x) => x.id === preventivoId);
       toast.success(formato === "fascicolo" ? tr("Fascicolo completo allegato al preventivo") : tr("Pianta allegata al preventivo"), { description: tr("{numero} — esce in fondo al PDF del preventivo (se «schede tecniche» è acceso).", { numero: q?.quote_number ?? "" }) });
     } catch (e) {
-      toast.error(tr("Allegato non riuscito"), { description: e instanceof Error ? e.message : String(e) });
+      toast.error(tr("Allegato non riuscito"), { description: messaggioErrore(e) });
     } finally {
       setAllegando(false);
       setFaseFascicolo("");

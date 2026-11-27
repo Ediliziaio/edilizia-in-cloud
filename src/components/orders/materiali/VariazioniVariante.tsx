@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { chiaviMateriali } from "@/hooks/useMaterialiPerFase";
 import { chiaveVariazioni, useVariazioniVariante } from "@/hooks/useVariazioniVariante";
 import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -34,7 +35,7 @@ export function VariazioniVariante({ orderId, puoDecidere }: { orderId: string; 
       qc.invalidateQueries({ queryKey: ["order-items", orderId] });
       qc.invalidateQueries({ queryKey: ["acquisti-da-fare"] });
     },
-    onError: (e: unknown) => toast.error(t("Non riesco a salvare"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e: unknown) => toast.error(t("Non riesco a salvare"), { description: messaggioErrore(e) }),
   });
 
   if (variazioni.length === 0) return null;

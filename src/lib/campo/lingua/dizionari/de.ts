@@ -31653,6 +31653,8 @@ const dizionario: Dizionario = {
   "Data di arrivo non disponibile": "Eingangsdatum nicht verfügbar",
   "Consegnata dallo SDI il {data_ricezione_sdi}": "Vom SDI zugestellt am {data_ricezione_sdi}",
   "Nessun residuo": "Kein Restbetrag",
+  "Segnata, non registrata": "Markiert, nicht erfasst",
+  "Le rate risultano pagate, ma {importo} non hanno un pagamento registrato. Riconcilia il movimento di banca, oppure apri la fattura e usa «Segna pagata», che registra la scrittura.": "Die Raten erscheinen bezahlt, aber für {importo} ist keine Zahlung erfasst. Gleiche die Bankbewegung ab oder öffne die Rechnung und nutze «Als bezahlt markieren», das die Buchung erfasst.",
   "Non letta": "Ungelesen",
   "Letta": "Gelesen",
   "Già registrata (storico)": "Bereits erfasst (Altbestand)",
@@ -69391,5 +69393,6 @@ const dizionario: Dizionario = {
   "Elimina commessa {commessa}": "Auftrag {commessa} löschen",
   "Contatti / Lead": "Kontakte / Leads",
   "Segna come perso": "Als verloren markieren",
+  "Le scadenze già selezionate restano selezionate.": "Bereits ausgewählte Fälligkeiten bleiben ausgewählt.",
 };
 export default dizionario;

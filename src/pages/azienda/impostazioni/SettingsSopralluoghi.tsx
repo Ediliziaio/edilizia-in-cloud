@@ -56,6 +56,7 @@ import { userErrorMessage } from "@/lib/userErrorMessage";
 import { AvvisoSolaLetturaImpostazioni } from "@/components/impostazioni/AvvisoSolaLetturaImpostazioni";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 const CATEGORY_ICON: Record<string, string> = {
   infissi: "🪟",
@@ -508,7 +509,7 @@ export function TemplateDetailDialog({
         parsed = JSON.parse(jsonText);
       } catch (e) {
         throw new ErroreControllo(
-          t("Errore di sintassi: controlla virgole, parentesi e virgolette. Nulla è stato salvato. ({dettaglio})", { dettaglio: e instanceof Error ? e.message : String(e) }),
+          t("Errore di sintassi: controlla virgole, parentesi e virgolette. Nulla è stato salvato. ({dettaglio})", { dettaglio: messaggioErrore(e) }),
           { cause: e },
         );
       }

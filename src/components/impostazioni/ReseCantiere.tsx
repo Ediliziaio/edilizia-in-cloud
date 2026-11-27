@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { IPOTESI_PREDEFINITE } from "../../../shared/piano-cantiere/calcolo.ts";
 import { tabellaPartenza, UNITA_A_PAROLE, type ResaPartenza } from "../../../shared/piano-cantiere/resePartenza.ts";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -56,7 +57,7 @@ export function ReseCantiere({ companyId, puoModificare }: { companyId: string; 
       void qc.invalidateQueries({ queryKey: ["rese-cantiere", companyId] });
       void qc.invalidateQueries({ queryKey: ["piano-cantiere"] });
     },
-    onError: (e) => toast.error(t("Resa non salvata"), { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error(t("Resa non salvata"), { description: messaggioErrore(e) }),
   });
 
   if (rese.isLoading) return <p className="px-4 py-3 text-sm text-muted-foreground">{t("Carico le rese…")}</p>;
