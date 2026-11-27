@@ -137,7 +137,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
     setCreandoRendiconto(rapportinoId);
     try {
       const nuovo = await rendicontoDaRapportino(rapportinoId);
-      toast.success(t("Rendiconto creato in bozza"));
+      toast.success(t("Rendiconto del giorno aperto: controlla i prezzi e conferma"));
       if (onApriRendiconto) onApriRendiconto(nuovo);
     } catch (e) {
       toast.error(messaggioErrore(e, t("Rendiconto non creato")));

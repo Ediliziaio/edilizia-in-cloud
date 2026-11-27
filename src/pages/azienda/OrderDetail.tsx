@@ -2219,11 +2219,9 @@ function OrderDetailInner() {
             </div>}
             {vistaCantiere === "giornale" && <div id="section-giornale" className="scroll-mt-24"><GiornaleLavoriContenuto key={id} orderIdFisso={id!} /></div>}
             {vistaCantiere === "rendiconti" && <div id="section-rendiconti" className="scroll-mt-24 space-y-3">
-              <p className="text-xs text-muted-foreground">{t("Il foglio per il committente, giorno per giorno, con i prezzi. I confermati entrano nel rendiconto del periodo.")}</p>
               <ErrorBoundary><RendicontiGiornalieri key={id} orderId={id!} apriId={rendicontoDaAprire} onApriConsumato={() => setRendicontoDaAprire(null)} /></ErrorBoundary>
             </div>}
             {vistaCantiere === "diario" && <>
-            <p className="mb-3 text-xs text-muted-foreground">{t("Il diario del cantiere: chi c'era, ore, mezzi, avanzamento. Resta interno.")}</p>
             <div id="section-rapportini" className="scroll-mt-24 space-y-4">
               {/* I pulsanti «Rapportino lavori / trasporti» stanno in testa all'elenco; qui resta la finestra che apre Silvio. */}
               {permissions.canEditOrders && <RapportiniUfficio orderId={id!} senzaPulsante aperta={scriviRapportini} onApertaChange={setScriviRapportini} />}

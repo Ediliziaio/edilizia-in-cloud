@@ -9,7 +9,7 @@ export const CANTIERE_VIEWS = [
   { value: "ufficio", label: "Attività", description: "Tutte le attività della commessa: contratto, ordini, pratiche, fatture e il resto, con chi le fa e quando scadono." },
   { value: "squadra", label: "Ore e persone", description: "Chi ha lavorato, quante ore, se tornano con le timbrature. L’ufficio inserisce le ore qui." },
   // «Diario» si chiama Rapportini (31/10/2026): è lì che si leggono, si approvano e si scrivono.
-  { value: "diario", label: "Rapportini", description: "Rapportini, foto e aggiornamenti dal cantiere; anche scritti dall'ufficio." },
+  { value: "diario", label: "Rapportini", description: "Il diario del cantiere: chi c'era, ore, mezzi, avanzamento. Resta interno." },
   // Rapportini = diario interno; Rendiconti = il foglio per il committente, coi prezzi (27/11/2026).
   { value: "rendiconti", label: "Rendiconti", description: "Il foglio per il committente, giorno per giorno, con i prezzi. I confermati entrano nel rendiconto del periodo." },
   { value: "giornale", label: "Giornale lavori", description: "Il giornale di questa commessa, una pagina per ogni giorno, da preparare, firmare e condividere." },
