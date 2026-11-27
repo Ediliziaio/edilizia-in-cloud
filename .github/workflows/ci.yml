@@ -125,6 +125,9 @@ jobs:
           src/test/logic/scadenzarioFontiDatabase.test.ts
           src/test/logic/commesseScadenza.test.ts
           src/test/logic/primaNotaEliminaCostoDatabase.test.ts
+          src/test/logic/pagamentoCostoPermessiDatabase.test.ts
+          src/test/ui/togliPagamentoCosto.test.tsx
+          src/test/ui/pagamentoRicevuta.test.tsx
           src/test/logic/finanzaRevisioniDatabase.test.ts
           src/test/logic/financialLiveRefresh.test.ts
           src/test/ui/financialLive.test.tsx
