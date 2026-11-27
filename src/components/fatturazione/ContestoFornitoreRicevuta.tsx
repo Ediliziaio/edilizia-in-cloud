@@ -9,7 +9,8 @@ import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function haScadenzeAperte(f: FatturaConScadenze): boolean {
   if (nonSiPaga(f.tipo_documento ?? "") || f.pagata_il || ["annullata", "scartata", "rifiutata"].includes(f.stato ?? "")) return false;
-  return !f.scadenze.length || f.scadenze.some(r => r.stato !== "pagata" && r.stato !== "stornata" && r.residuo !== 0);
+  const pagabili = new Set(["da pagare", "avvisata", "insoluta", "pagamento parziale", "da verificare"]);
+  return !f.scadenze.length || f.scadenze.some(r => pagabili.has(r.stato) && r.residuo !== 0);
 }
 
 export function ContestoFornitoreRicevuta({ companyId, fatturaId, supplierId, piva, cf, paese, onApriFattura, onChiudi }: {

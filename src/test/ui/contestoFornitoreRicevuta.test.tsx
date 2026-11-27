@@ -46,6 +46,18 @@ it("filtra le fatture pagate senza nasconderle definitivamente", () => {
   expect(screen.getByText("Fattura F2")).toBeVisible();
 });
 
+it("il filtro da pagare non include rate richiamate o da bloccare", () => {
+  finto.dati = [
+    { ...documento("F1"), scadenze: [{ id: "r1", numero: 1, scadenza: null, importo: 100, residuo: 100, metodo: null, stato: "richiamata", prevista: false }] },
+    { ...documento("F2"), scadenze: [{ id: "r2", numero: 1, scadenza: null, importo: 100, residuo: 100, metodo: null, stato: "da bloccare", prevista: false }] },
+  ];
+  monta();
+  fireEvent.click(screen.getByRole("button", { name: "Da pagare" }));
+  expect(screen.queryByText("Fattura F1")).toBeNull();
+  expect(screen.queryByText("Fattura F2")).toBeNull();
+  expect(screen.getByText("Nessuna fattura da pagare trovata.")).toBeVisible();
+});
+
 it("consente di riprovare se la lettura delle scadenze fallisce", () => {
   finto.errore = true;
   monta();
