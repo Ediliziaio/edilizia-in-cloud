@@ -22,10 +22,11 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Plus, Pencil, Trash2, Loader2, CheckCircle2, Circle, AlertTriangle,
-  Euro, Lock, Tags, FileWarning, Search,
+  Euro, Lock, Tags, Search,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "@/hooks/usePermissions";
+import { Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
 import { parseDecimalITStrict, formatDecimalIT } from "@/lib/parseDecimalIT";
@@ -80,36 +81,6 @@ interface TariffaListino {
 interface Override { id: string; tariffa_id: string; prezzo_unitario: number; nota: string | null }
 interface Fase { id: string; name: string | null }
 interface Operaio { id: string; nome: string }
-
-/**
- * Una cosa che un rapportino approvato ha prodotto e che non è (ancora) un
- * importo. Quattro sorgenti, perché fino al 27/11/2026 la rete di sicurezza
- * guardava solo la manodopera: un rapportino con nove ore di camion e nessuna
- * ora uomo valorizzabile non compariva da nessuna parte.
- */
-type Sorgente = "manodopera" | "voce_libera" | "mezzo" | "materiale";
-
-interface RimastoFuori {
-  rapportino_id: string;
-  data_lavoro: string;
-  sorgente: Sorgente;
-  riferimento_id: string | null;
-  descrizione: string | null;
-  quantita: number | null;
-  unita: string | null;
-  vendita_proposta: number | null;
-  motivo: string | null;
-}
-
-/** L'ordine in cui le sorgenti si leggono: prima le persone, poi le cose. */
-const ORDINE_SORGENTI: Sorgente[] = ["manodopera", "voce_libera", "mezzo", "materiale"];
-
-const ETICHETTA_SORGENTE: Record<Sorgente, string> = {
-  manodopera: "Manodopera",
-  voce_libera: "Voci del rapportino",
-  mezzo: "Mezzi",
-  materiale: "Materiali",
-};
 
 interface Props {
   orderId: string;
@@ -202,26 +173,6 @@ export function RendicontoAppalto({
     },
   });
 
-  /**
-   * Tutto quello che i rapportini approvati hanno prodotto e che non è
-   * diventato una riga, col motivo. La vista lo calcola col database, quindi
-   * la pagina non ripete la regola: il riquadro e la funzione che crea le
-   * righe raccontano la stessa verità.
-   */
-  const daRendicontare = useQuery({
-    queryKey: ["rapportini-da-rendicontare", orderId],
-    enabled: vedeImporti,
-    queryFn: async (): Promise<RimastoFuori[]> => {
-      const { data, error } = await (supabase as any)
-        .from("v_rapportini_da_rendicontare")
-        .select("rapportino_id, data_lavoro, sorgente, riferimento_id, descrizione, quantita, unita, vendita_proposta, motivo")
-        .eq("order_id", orderId)
-        .order("data_lavoro", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as RimastoFuori[];
-    },
-  });
-
   const fasi = useQuery({
     queryKey: ["appalto-fasi", orderId],
     queryFn: async (): Promise<Fase[]> => {
@@ -261,17 +212,6 @@ export function RendicontoAppalto({
 
   const totali = useMemo(() => totaliRendiconto(righe.data ?? []), [righe.data]);
 
-  /** Il «rimasto fuori» raggruppato per sorgente: quattro elenchi corti si
-      leggono, un elenco lungo di venti righe mescolate no. */
-  const perSorgente = useMemo(() => {
-    const m = new Map<Sorgente, RimastoFuori[]>();
-    for (const x of daRendicontare.data ?? []) {
-      const lista = m.get(x.sorgente);
-      if (lista) lista.push(x); else m.set(x.sorgente, [x]);
-    }
-    return m;
-  }, [daRendicontare.data]);
-
   const tariffaScelta = form?.tariffa_id ? mappaTariffe.get(form.tariffa_id) ?? null : null;
   const giornoForm = form?.data ?? new Date().toLocaleDateString("en-CA");
   const tariffeDisponibili = useMemo(
@@ -305,40 +245,6 @@ export function RendicontoAppalto({
           ? tr("La maggiorazione deve essere tra −100 e 200%.") : null;
 
   /* ── Scritture ── */
-
-  // Rapportini già approvati, o listino sistemato dopo: la riga nasce qui.
-  // Una funzione per sorgente, perché le tre strade sono diverse davvero: la
-  // manodopera si ricalcola dalle presenze, una voce si riapplica, un mezzo si
-  // valorizza dal listino con le ore scritte in cantiere.
-  const recupera = useMutation({
-    mutationFn: async (x: RimastoFuori) => {
-      const chiama = async (fn: string, args: Record<string, unknown>) => {
-        const { error } = await (supabase as any).rpc(fn, args);
-        if (error) throw new Error(error.message);
-      };
-      if (x.sorgente === "manodopera") {
-        return chiama("appalto_rendiconto_recupera", { p_rapportino_id: x.rapportino_id });
-      }
-      if (x.sorgente === "voce_libera") {
-        if (!x.riferimento_id) throw new Error(tr("Voce senza riferimento"));
-        return chiama("rapportino_voce_recupera", { p_voce_id: x.riferimento_id });
-      }
-      if (x.sorgente === "mezzo") {
-        if (!x.riferimento_id) throw new Error(tr("Mezzo senza riferimento"));
-        return chiama("rapportino_mezzo_rendiconta", {
-          p_rapportino_id: x.rapportino_id, p_mezzo_id: x.riferimento_id,
-        });
-      }
-      // I materiali non hanno un prezzo da nessuna parte: la riga la scrive
-      // l'ufficio, e dirlo è più onesto che far finta di provarci.
-      throw new Error(tr("I materiali si scrivono a mano, qui sopra."));
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["appalto-rendiconto"] });
-      queryClient.invalidateQueries({ queryKey: ["rapportini-da-rendicontare", orderId] });
-    },
-    onError: (e: unknown) => toast({ title: e instanceof Error ? e.message : tr("Riga non creata"), variant: "destructive" }),
-  });
 
   const salva = useMutation({
     mutationFn: async (f: Partial<Riga>) => {
@@ -380,7 +286,6 @@ export function RendicontoAppalto({
     onSuccess: () => {
       setForm(null); setQtaGrezza(""); setPrezzoGrezzo(""); setCostoGrezzo("");
       queryClient.invalidateQueries({ queryKey: ["appalto-rendiconto"] });
-      queryClient.invalidateQueries({ queryKey: ["rapportini-da-rendicontare", orderId] });
       toast({ title: tr("Riga salvata") });
     },
     onError: (e) => {
@@ -406,7 +311,6 @@ export function RendicontoAppalto({
     onSuccess: () => {
       setDaEliminare(null);
       queryClient.invalidateQueries({ queryKey: ["appalto-rendiconto"] });
-      queryClient.invalidateQueries({ queryKey: ["rapportini-da-rendicontare", orderId] });
       toast({ title: tr("Riga eliminata") });
     },
     onError: (e) => toast({ title: tr("Non eliminata"), description: e instanceof Error ? e.message : tr("Riprova"), variant: "destructive" }),
@@ -645,76 +549,13 @@ export function RendicontoAppalto({
         </div>
       </QuoteCard>
 
-      {/* Quello che i rapportini hanno prodotto e non è ancora un importo.
-          Niente salti silenziosi: una giornata approvata e non rendicontata è
-          lavoro che nessuno fattura, e senza questo elenco non lo scopri.
-          Fino al 27/11/2026 qui si vedeva solo la manodopera: nove ore di
-          camion sparivano. */}
-      {(daRendicontare.data ?? []).length > 0 && (
-        <QuoteCard
-          title={tr("Rimasto fuori dal rendiconto")}
-          icon={<FileWarning className="h-4 w-4 text-amber-600" />}
-          subtitle={tr("Quello che i rapportini approvati hanno prodotto e che non è ancora un importo.")}
-        >
-          <div className="space-y-4">
-            {ORDINE_SORGENTI.filter((s) => perSorgente.has(s)).map((s) => (
-              <div key={s}>
-                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                  {tr(ETICHETTA_SORGENTE[s])} · {perSorgente.get(s)!.length}
-                </p>
-                <div className="space-y-2">
-                  {perSorgente.get(s)!.map((x, i) => (
-                    <div
-                      key={`${x.rapportino_id}-${x.riferimento_id ?? i}`}
-                      className="flex items-start justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50/50 p-2.5"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-900">
-                          {giornoIT(x.data_lavoro)}
-                          {x.descrizione ? ` · ${x.descrizione}` : ""}
-                        </p>
-                        <p className="text-xs text-slate-600">
-                          {[
-                            x.quantita != null
-                              ? `${formatDecimalIT(x.quantita, { minDecimals: 0, maxDecimals: 2 })} ${tr(etichettaUnita(x.unita ?? "cad"))}`
-                              : null,
-                            x.vendita_proposta != null ? euro(x.vendita_proposta, true) : null,
-                          ].filter(Boolean).join(" × ")}
-                        </p>
-                        {/* Motivo vuoto: si può creare la riga. */}
-                        {x.motivo
-                          ? <p className="text-xs text-amber-800">{x.motivo}</p>
-                          : <p className="text-xs text-emerald-700">{tr("Pronto: il prezzo c'è, la riga si può creare.")}</p>}
-                        {/* D2: 47 voci su 137 avevano vendita 1,00 — un chiusino
-                            in ghisa non costa un euro. È il campo obbligatorio
-                            compilato per uscire dalla schermata, e diventerebbe
-                            una riga di fattura da un euro. */}
-                        {x.vendita_proposta != null && x.vendita_proposta <= 1 && (
-                          <p className="text-xs font-medium text-destructive">
-                            {tr("Prezzo probabilmente non inserito: controllalo prima di fatturare.")}
-                          </p>
-                        )}
-                      </div>
-                      {!x.motivo && x.sorgente !== "materiale" && (
-                        <Button
-                          size="sm" variant="outline" className="shrink-0"
-                          disabled={recupera.isPending}
-                          onClick={() => recupera.mutate(x)}
-                        >
-                          {tr("Crea riga")}
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-            <p className="text-xs text-muted-foreground">
-              {tr("Se manca un prezzo, sistemalo dove nasce: il listino del contratto, la voce del rapportino, la scheda del mezzo. Oppure scrivi la riga a mano qui sopra.")}
-            </p>
-          </div>
-        </QuoteCard>
-      )}
+      {/* Dal 27/11/2026 il rapportino non scrive più nel rendiconto: il foglio per il committente è il
+          rendiconto giornaliero (Cantiere → Rendiconti), e i confermati finiscono qui sopra. */}
+      <p className="text-xs text-muted-foreground">
+        {tr("Le righe di ogni giorno si scrivono in")}{" "}
+        <Link className="font-medium underline underline-offset-2" to="?tab=cantiere&vista_cantiere=rendiconti">{tr("Cantiere → Rendiconti")}</Link>
+        {". "}{tr("Quelli confermati entrano in questo rendiconto.")}
+      </p>
 
       {/* Eccezioni di prezzo di questo cantiere */}
       {contrattoId && (

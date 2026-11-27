@@ -45,6 +45,9 @@ import { QuadroEconomicoRapportino } from "@/components/orders/QuadroEconomicoRa
 import { CostiDaCompletareCommessa } from "@/components/orders/CostiDaCompletareCommessa";
 import { RifiutaRapportinoDialog, useDecisioneRapportino } from "@/components/orders/DecisioneRapportino";
 import { orePersoneRapportino } from "@/lib/campo/orePersone";
+import { rendicontoDaRapportino } from "@/lib/rendiconti/rendicontiGiornalieri";
+import { messaggioErrore } from "@/lib/messaggioErrore";
+import { toast } from "sonner";
 
 const NESSUN_VIAGGIO: ReadonlySet<string> = new Set();
 
@@ -55,6 +58,8 @@ interface Props {
   soloDaApprovare?: boolean;
   rapportinoIniziale?: string | null;
   onChiudiRapportinoIniziale?: () => void;
+  /** Dopo «Crea il rendiconto di questo giorno»: porta alla vista Rendiconti e lo apre. */
+  onApriRendiconto?: (rendicontoId: string) => void;
 }
 
 const fmtSafeDate = (value: string | null | undefined, pattern: string) => {
@@ -119,13 +124,27 @@ const presenzeDi = (r: RigaOre) => (Array.isArray(r.presenze) ? (r.presenze as A
 const haPresenze = (r: RigaOre) => presenzeDi(r).length > 0;
 export { orePersoneRapportino };
 
-export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApprovare = false, rapportinoIniziale = null, onChiudiRapportinoIniziale }: Props) {
+export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApprovare = false, rapportinoIniziale = null, onChiudiRapportinoIniziale, onApriRendiconto }: Props) {
   const qc = useQueryClient();
   const t = useT();
   const { schema: moduloCantiere } = useModuloRapportino(orderId);
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
-  const { canEditOrders, canViewCosts } = usePermissions();
+  const { canEditOrders, canViewCosts, canViewOrderAmounts } = usePermissions();
+  const [creandoRendiconto, setCreandoRendiconto] = useState<string | null>(null);
+  // Il rapportino è il diario interno: il foglio per il committente è un documento suo, che nasce in bozza.
+  const creaRendiconto = async (rapportinoId: string) => {
+    setCreandoRendiconto(rapportinoId);
+    try {
+      const nuovo = await rendicontoDaRapportino(rapportinoId);
+      toast.success(t("Rendiconto creato in bozza"));
+      if (onApriRendiconto) onApriRendiconto(nuovo);
+    } catch (e) {
+      toast.error(messaggioErrore(e, t("Rendiconto non creato")));
+    } finally {
+      setCreandoRendiconto(null);
+    }
+  };
 
   // Stato della vista legato alla commessa: nessun frame con la pagina o il
   // rapporto espanso della commessa precedente, né reset asincrono delle scelte.
@@ -589,6 +608,11 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                               <StoricoSpazio rapportinoId={r.id} />
                               <AzioniRapportino report={r} orderId={orderId} onFatto={() => setExpandedId(null)} />
                               <PulsantePdfRapportino report={r} orderId={orderId} />
+                              {canEditOrders && canViewOrderAmounts && stato !== "rifiutato" && !r.annullato_at && (
+                                <Button size="sm" variant="outline" disabled={creandoRendiconto === r.id} onClick={() => void creaRendiconto(r.id)}>
+                                  {t("Crea il rendiconto di questo giorno")}
+                                </Button>
+                              )}
                               {puoDecidereSu(r.user_id) && stato === "rifiutato" && !r.annullato_at && !(r as { ufficio_employee_id?: string | null }).ufficio_employee_id && (
                                 <Button
                                   size="sm"

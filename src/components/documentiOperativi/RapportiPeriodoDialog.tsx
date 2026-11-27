@@ -16,6 +16,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -57,14 +60,19 @@ export function RapportiPeriodoDialog({
   const [preparazione, setPreparazione] = useState<string | null>(null);
   const operazione = useRef<AbortController | null>(null);
   const qc = useQueryClient();
-  const approvati = righe.filter((r) => statoDi(r) === "approvato");
+  const approvatiVeri = righe.filter((r) => statoDi(r) === "approvato");
+  // Bozza (27/11/2026): con rapportini da approvare si può stampare anche quelli; il PDF dice «BOZZA». Il rifiutato mai.
+  const [conBozza, setConBozza] = useState(false);
+  const inviati = righe.filter((r) => statoDi(r) === "inviato");
+  const usaBozza = conBozza && inviati.length > 0;
+  const approvati = usaBozza ? [...approvatiVeri, ...inviati] : approvatiVeri;
   // I documenti si compilano dai soli approvati: chi aspetta l'approvazione va detto, se no sembra che manchi (25/11/2026).
   const daApprovare = righe.filter((r) => statoDi(r) === "inviato").length;
   const nessunoApprovato = daApprovare
     ? t(daApprovare === 1 ? "Nessun rapportino approvato: {n} è ancora da approvare" : "Nessun rapportino approvato: {n} sono ancora da approvare", { n: daApprovare })
     : t("Nessun rapportino approvato in questo periodo");
   const cantieri = [...new Map(approvati.map((r) => [r.order_id, r])).values()];
-  const scope = `${companyId}:${orderId ?? ""}:${mese}:${conDatiEconomici}:${approvati.map((r) => `${r.id}:${r.updated_at ?? ""}`).join(",")}`;
+  const scope = `${companyId}:${usaBozza}:${orderId ?? ""}:${mese}:${conDatiEconomici}:${approvati.map((r) => `${r.id}:${r.updated_at ?? ""}`).join(",")}`;
   const busy = preparazione === scope;
   useEffect(
     () => () => {
@@ -81,7 +89,7 @@ export function RapportiPeriodoDialog({
     setPreparazione(scope);
     try {
       const documento = rapporto === "rendiconto-trasporti"
-        ? await preparaRendicontoTrasporti(companyId, orderId, approvati, mese, controller.signal)
+        ? await preparaRendicontoTrasporti(companyId, orderId, approvati, mese, controller.signal, usaBozza)
         : await preparaRapportoEconomia(
         approvati.filter((r) => r.order_id === orderId),
         mese,
@@ -109,6 +117,7 @@ export function RapportiPeriodoDialog({
           : undefined,
         controller.signal,
         () => leggiDestinatarioRapporto(companyId, orderId),
+        usaBozza,
       );
       if (controller.signal.aborted) return;
       setDoc(documento);
@@ -175,6 +184,18 @@ export function RapportiPeriodoDialog({
             align="start"
             className="max-w-[calc(100vw-2rem)]"
           >
+            {inviati.length > 0 && (
+              <>
+                <DropdownMenuRadioGroup value={usaBozza ? "bozza" : "approvati"} onValueChange={(v) => setConBozza(v === "bozza")}>
+                  <DropdownMenuRadioItem value="approvati" onSelect={(e) => e.preventDefault()}>{t("Solo approvati")}</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="bozza" onSelect={(e) => e.preventDefault()}>
+                    {t("Anche quelli da approvare")}
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+                {usaBozza && <p className="px-2 pb-1 text-xs text-amber-700">{t("Il PDF riporterà «BOZZA – contiene rapportini non approvati».")}</p>}
+                <DropdownMenuSeparator />
+              </>
+            )}
             <DropdownMenuItem
               disabled={!approvati.length}
               onSelect={() => avvia("economia")}

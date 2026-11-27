@@ -69394,5 +69394,10 @@ const dizionario: Dizionario = {
   "Contatti / Lead": "Kontakte / Leads",
   "Segna come perso": "Als verloren markieren",
   "Le scadenze già selezionate restano selezionate.": "Bereits ausgewählte Fälligkeiten bleiben ausgewählt.",
+  "Il foglio per il committente, giorno per giorno, con i prezzi. I confermati entrano nel rendiconto del periodo.": "Das Blatt für den Auftraggeber, Tag für Tag, mit Preisen. Bestätigte gehen in die Abrechnung des Zeitraums ein.",
+  "Il diario del cantiere: chi c'era, ore, mezzi, avanzamento. Resta interno.": "Das Bautagebuch: wer da war, Stunden, Fahrzeuge, Fortschritt. Es bleibt intern.",
+  "Solo approvati": "Nur freigegebene",
+  "Anche quelli da approvare": "Auch die noch freizugebenden",
+  "Il PDF riporterà «BOZZA – contiene rapportini non approvati».": "Das PDF trägt «ENTWURF – enthält nicht freigegebene Berichte».",
 };
 export default dizionario;

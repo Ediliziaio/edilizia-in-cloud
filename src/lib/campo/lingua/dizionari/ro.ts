@@ -69431,5 +69431,10 @@ const dizionario: Dizionario = {
   "Contatti / Lead": "Contacte / Leaduri",
   "Segna come perso": "Marchează ca pierdut",
   "Le scadenze già selezionate restano selezionate.": "Scadențele deja selectate rămân selectate.",
+  "Il foglio per il committente, giorno per giorno, con i prezzi. I confermati entrano nel rendiconto del periodo.": "Foaia pentru beneficiar, zi de zi, cu prețuri. Cele confirmate intră în decontul perioadei.",
+  "Il diario del cantiere: chi c'era, ore, mezzi, avanzamento. Resta interno.": "Jurnalul șantierului: cine a fost, ore, utilaje, progres. Rămâne intern.",
+  "Solo approvati": "Doar cele aprobate",
+  "Anche quelli da approvare": "Și cele de aprobat",
+  "Il PDF riporterà «BOZZA – contiene rapportini non approvati».": "PDF-ul va afișa «CIORNĂ – conține rapoarte neaprobate».",
 };
 export default dizionario;

@@ -3,7 +3,7 @@ import {afterEach, beforeAll, beforeEach, expect, it, vi} from "vitest";
 import {RendicontoAppalto} from "@/components/orders/RendicontoAppalto";
 
 const m = vi.hoisted(() => ({
-  righe: [] as unknown[], daFare: [] as unknown[],
+  righe: [] as unknown[],
   costi: true, margini: true,
 }));
 vi.mock("@/hooks/use-toast", () => ({useToast: () => ({toast: vi.fn()})}));
@@ -30,7 +30,6 @@ vi.mock("@tanstack/react-query", () => ({
       data: [{id: "t1", tipo: "trasporto", codice: null, descrizione: "Viaggio", unita_misura: "viaggio", prezzo_unitario: 60, valido_dal: null, valido_al: null, attivo: true, maggiorazione_straordinario_pct: null, maggiorazione_festivo_pct: null}],
       isLoading: false,
     };
-    if (k === "rapportini-da-rendicontare") return {data: m.daFare, isLoading: false};
     if (k === "appalto-eccezioni") return {data: [{id: "o1", tariffa_id: "t1", prezzo_unitario: 80, nota: "qui 80"}], isLoading: false};
     return {data: [] as unknown[], isLoading: false};
   },
@@ -51,7 +50,7 @@ beforeAll(() => {
     };
   }
 });
-beforeEach(() => {m.righe = [riga()]; m.daFare = []; m.costi = true; m.margini = true;});
+beforeEach(() => {m.righe = [riga()]; m.costi = true; m.margini = true;});
 afterEach(cleanup);
 
 const draw = (p: Partial<Parameters<typeof RendicontoAppalto>[0]> = {}) => render(
@@ -118,60 +117,11 @@ it("chi non può modificare non vede i pulsanti di scrittura", () => {
   expect(screen.queryByRole("button", {name: "Elimina la riga"})).not.toBeInTheDocument();
 });
 
-const fuori = (o: Record<string, unknown> = {}) => ({
-  rapportino_id: "p1", data_lavoro: "2026-10-22", sorgente: "manodopera",
-  riferimento_id: null as string | null, descrizione: "Mario Rossi",
-  quantita: 8, unita: "ora", vendita_proposta: null as number | null,
-  motivo: null as string | null, ...o,
-});
-
-it("un rapportino approvato che non è diventato una riga si vede, col motivo", () => {
-  m.daFare = [fuori({motivo: "Nessuna tariffa di manodopera per Operaio specializzato in vigore il 22/10/2026"})];
-  draw();
-  expect(screen.getByText("Rimasto fuori dal rendiconto")).toBeVisible();
-  expect(screen.getByText(/22\/10\/26/)).toBeVisible();
-  expect(screen.getByText(/Nessuna tariffa di manodopera/)).toBeVisible();
-});
-
-it("senza rapportini rimasti fuori la sezione non c'è: niente riquadri vuoti", () => {
+// Dal 27/11/2026 il rapportino non scrive più nel rendiconto: niente «rimasto fuori», una riga rimanda ai Rendiconti.
+it("rimanda a Cantiere → Rendiconti invece del vecchio «rimasto fuori»", () => {
   draw();
   expect(screen.queryByText("Rimasto fuori dal rendiconto")).not.toBeInTheDocument();
-});
-
-// Fino al 27/11/2026 qui si vedeva solo la manodopera: nove ore di camion
-// sparivano senza che niente lo dicesse. Ogni sorgente ha il suo elenco.
-it("anche i mezzi e le voci rimasti fuori si vedono, raggruppati per sorgente", () => {
-  m.daFare = [
-    fuori({sorgente: "mezzo", riferimento_id: "mz1", descrizione: "CAMION 3 ASSI · XX000XX", quantita: 9,
-      motivo: "Il mezzo non ha una voce di listino per la vendita: impostala sulla scheda del mezzo, oppure scrivi la riga a mano"}),
-    fuori({sorgente: "voce_libera", riferimento_id: "v1", descrizione: "CHIUSINO GHISA 50X50", quantita: 1, unita: "cad",
-      motivo: "Prezzo di vendita non indicato: mettilo sulla voce, oppure scrivi la riga a mano"}),
-  ];
-  draw();
-  expect(screen.getByText("Mezzi · 1")).toBeVisible();
-  expect(screen.getByText("Voci del rapportino · 1")).toBeVisible();
-  expect(screen.getByText(/CAMION 3 ASSI/)).toBeVisible();
-  expect(screen.getByText(/Il mezzo non ha una voce di listino/)).toBeVisible();
-});
-
-// Un chiusino in ghisa non costa un euro: è il campo obbligatorio compilato per
-// uscire dalla schermata. 47 voci su 137 alla prima misura su un'impresa vera.
-it("un prezzo a 1,00 viene segnalato come probabilmente non inserito", () => {
-  m.daFare = [fuori({sorgente: "voce_libera", riferimento_id: "v1", descrizione: "MARMI",
-    quantita: 16, unita: "ml", vendita_proposta: 1})];
-  draw();
-  expect(screen.getByText(/Prezzo probabilmente non inserito/)).toBeVisible();
-});
-
-it("senza motivo si può creare la riga; un materiale no, si scrive a mano", () => {
-  m.daFare = [
-    fuori({sorgente: "voce_libera", riferimento_id: "v1", descrizione: "FERRO D'ARMATURA", vendita_proposta: 2.2}),
-    fuori({sorgente: "materiale", riferimento_id: null, descrizione: "Sacchi massetto", quantita: 2, unita: "pz",
-      motivo: "I materiali segnati in cantiere non si valorizzano da soli: aggiungili come voce del rapportino, oppure scrivi la riga a mano"}),
-  ];
-  draw();
-  // una sola «Crea riga»: quella della voce. Il materiale non ne ha.
-  expect(screen.getAllByRole("button", {name: "Crea riga"})).toHaveLength(1);
+  expect(screen.getByRole("link", {name: "Cantiere → Rendiconti"})).toHaveAttribute("href", "?tab=cantiere&vista_cantiere=rendiconti");
 });
 
 it("le righe nate da un rapportino si distinguono da quelle scritte a mano", () => {

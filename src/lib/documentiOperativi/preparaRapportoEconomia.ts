@@ -13,8 +13,10 @@ export async function preparaRapportoEconomia(
   leggiQuadro?: (id: string) => Promise<QuadroPerRapporto | null>,
   signal?: AbortSignal,
   leggiDestinatario?: () => Promise<DocumentoOperativo["destinatario"]>,
+  /** Bozza: include anche i rapportini inviati e non ancora approvati (il rifiutato mai). */
+  conDaApprovare = false,
 ) {
-  const approvati = righe.filter((r) => statoDi(r) === "approvato");
+  const approvati = righe.filter((r) => statoDi(r) === "approvato" || (conDaApprovare && statoDi(r) === "inviato"));
   if (!approvati.length)
     throw new Error(
       "Approva almeno un rapportino per preparare il riepilogo lavori.",
@@ -40,8 +42,9 @@ export async function preparaRapportoEconomia(
   }
   if (signal?.aborted)
     throw new DOMException("Preparazione annullata", "AbortError");
-  const documento = rapportoEconomiaDaRapportini(approvati, periodo, quadri);
+  const documento = rapportoEconomiaDaRapportini(approvati, periodo, quadri, conDaApprovare);
   if (destinatario) documento.destinatario = destinatario;
+  if (approvati.some((r) => statoDi(r) !== "approvato")) documento.bozza = true;
   if (!documento.righe.length)
     throw new Error(
       "I rapportini approvati non contengono ancora descrizioni, ore o quantità: completa i dati del lavoro.",

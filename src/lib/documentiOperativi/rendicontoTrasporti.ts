@@ -41,9 +41,9 @@ type LetturaVoci = {
   range: (da: number, a: number) => LetturaVoci;
   abortSignal: (signal: AbortSignal) => PromiseLike<{ data: VocePerRendicontoTrasporti[] | null; error: unknown }>;
 };
-type Argomenti = { p_company_id: string; p_order_id: string; p_rapportini: string[] };
+type Argomenti = { p_company_id: string; p_order_id: string; p_rapportini: string[]; p_anche_da_approvare?: boolean };
 
-async function leggiVoci(companyId: string, orderId: string, ids: string[], signal: AbortSignal) {
+async function leggiVoci(companyId: string, orderId: string, ids: string[], signal: AbortSignal, conDaApprovare = false) {
   const db = supabase as unknown as {
     rpc: (nome: "rapportini_voci_approvate_per_trasporti", argomenti: Argomenti) => LetturaVoci;
   };
@@ -55,6 +55,7 @@ async function leggiVoci(companyId: string, orderId: string, ids: string[], sign
       signal.throwIfAborted();
       const { data, error } = await db.rpc("rapportini_voci_approvate_per_trasporti", {
         p_company_id: companyId, p_order_id: orderId, p_rapportini,
+        ...(conDaApprovare ? { p_anche_da_approvare: true } : {}),
       }).order("data").order("id").range(da, da + pagina - 1).abortSignal(signal);
       if (error) throw new Error("Non riesco a leggere i viaggi approvati. Riprova.");
       voci.push(...(data ?? []));
@@ -70,11 +71,14 @@ export async function preparaRendicontoTrasporti(
   rapportini: readonly RapportinoCompleto[],
   periodo: string,
   signal: AbortSignal,
+  /** Bozza: include anche i rapportini inviati e non ancora approvati (il rifiutato mai). */
+  conDaApprovare = false,
 ): Promise<DocumentoOperativo> {
-  const approvati = rapportini.filter((r) => r.order_id === orderId && statoDi(r) === "approvato");
+  const approvati = rapportini.filter((r) => r.order_id === orderId && (statoDi(r) === "approvato" || (conDaApprovare && statoDi(r) === "inviato")));
+  const bozza = approvati.some((r) => statoDi(r) !== "approvato");
   if (!approvati.length) throw new Error("Approva almeno un rapportino con viaggi per questa commessa.");
   const ids = [...new Set(approvati.map((r) => r.id))];
-  const righe = viaggiDelRendiconto(await leggiVoci(companyId, orderId, ids, signal));
+  const righe = viaggiDelRendiconto(await leggiVoci(companyId, orderId, ids, signal, bozza));
   signal.throwIfAborted();
   if (!righe.length) throw new Error("Nessun viaggio nei rapportini approvati della commessa per il periodo scelto.");
 
@@ -98,5 +102,6 @@ export async function preparaRendicontoTrasporti(
     commessa,
     luogo: approvati[0].order?.work_address,
     righe,
+    ...(bozza ? { bozza: true } : {}),
   };
 }

@@ -69431,5 +69431,10 @@ const dizionario: Dizionario = {
   "Contatti / Lead": "Kontakte / Klientë potencialë",
   "Segna come perso": "Shëno si të humbur",
   "Le scadenze già selezionate restano selezionate.": "Afatet e zgjedhura mbeten të zgjedhura.",
+  "Il foglio per il committente, giorno per giorno, con i prezzi. I confermati entrano nel rendiconto del periodo.": "Fleta për porositësin, ditë pas dite, me çmimet. Të konfirmuarat hyjnë në llogarinë e periudhës.",
+  "Il diario del cantiere: chi c'era, ore, mezzi, avanzamento. Resta interno.": "Ditari i kantierit: kush ishte, orët, mjetet, ecuria. Mbetet i brendshëm.",
+  "Solo approvati": "Vetëm të miratuarat",
+  "Anche quelli da approvare": "Edhe ato për t'u miratuar",
+  "Il PDF riporterà «BOZZA – contiene rapportini non approvati».": "PDF-ja do të shkruajë «DRAFT – përmban raporte të pamiratuara».",
 };
 export default dizionario;

@@ -10,6 +10,8 @@ export const CANTIERE_VIEWS = [
   { value: "squadra", label: "Ore e persone", description: "Chi ha lavorato, quante ore, se tornano con le timbrature. L’ufficio inserisce le ore qui." },
   // «Diario» si chiama Rapportini (31/10/2026): è lì che si leggono, si approvano e si scrivono.
   { value: "diario", label: "Rapportini", description: "Rapportini, foto e aggiornamenti dal cantiere; anche scritti dall'ufficio." },
+  // Rapportini = diario interno; Rendiconti = il foglio per il committente, coi prezzi (27/11/2026).
+  { value: "rendiconti", label: "Rendiconti", description: "Il foglio per il committente, giorno per giorno, con i prezzi. I confermati entrano nel rendiconto del periodo." },
   { value: "giornale", label: "Giornale lavori", description: "Il giornale di questa commessa, una pagina per ogni giorno, da preparare, firmare e condividere." },
   { value: "collaudo", label: "Consegna e assistenza", description: "Collaudi, verbali, riserve e interventi di assistenza." },
   { value: "sicurezza", label: "Sicurezza", description: "POS, PSC, notifica, PiMUS, DURC: cosa serve in questo cantiere e cosa manca." },
@@ -17,7 +19,8 @@ export const CANTIERE_VIEWS = [
 export type CantiereView = typeof CANTIERE_VIEWS[number]["value"];
 export const ECONOMIA_VIEWS = [
   // Solo sulle commesse in appalto: OrderDetail la toglie dalle altre, dove
-  // non avrebbe niente da mostrare.
+  // non avrebbe niente da mostrare. È il rendiconto del PERIODO: somma i rendiconti
+  // giornalieri confermati (Cantiere → Rendiconti) e le righe scritte a mano.
   { value: "rendiconto", label: "Rendiconto", description: "Quello che hai fatto per il committente, tradotto in quello che devi fatturare." },
   { value: "margini", label: "Margini e costi", description: "Risultato della commessa, scostamenti e costi da verificare." },
   { value: "pagamenti", label: "Fatture e Incassi", description: "Rate del cliente, fatture collegate, incassi e movimenti bancari della commessa." },

@@ -32,6 +32,25 @@ import {
 } from "@/lib/campo/prezzoVoceRapportino";
 import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
+/** Da dove viene il costo orario del mezzo: scritto a mano sulla scheda o stimato dalle fatture (27/11/2026). */
+function FonteCostoMezzo({ mezzoId, haCosto }: { mezzoId: string; haCosto: boolean }) {
+  const t = useT();
+  const { data } = useQuery({
+    queryKey: ["mezzo-costo-orario", mezzoId],
+    enabled: haCosto,
+    retry: false,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data: d, error } = await (supabase as unknown as { rpc: (n: string, a: object) => PromiseLike<{ data: { manuale?: number | null } | null; error: unknown }> })
+        .rpc("mezzo_costo_orario_leggi", { p_mezzo: mezzoId });
+      if (error) throw error;
+      return d;
+    },
+  });
+  if (!haCosto || !data) return <>{t("quota interna")}</>;
+  return <>{data.manuale != null ? `${t("quota interna")} · ${t("scritto a mano")}` : `${t("quota interna")} · ${t("stimato dalle fatture")}`}</>;
+}
+
 interface Riga {
   emp: string | null; nome: string; ditta: boolean; ore: number; costo_orario: number | null; costo: number | null;
   unita: string | null; quantita: number | null; prezzo: number | null; ricavo: number | null; prezzo_fonte?: FontePrezzo | null;
@@ -269,7 +288,7 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
             <span className="text-xs text-muted-foreground">
               {ore(Number(m.ore))}{m.ore_stimate ? ` ${t("stimate")}` : ""}{m.noleggio ? ` · ${t("noleggio")}` : m.costo_orario != null ? ` × ${euro(m.costo_orario)}/h` : ` · ${t("costo orario mancante")}`}
             </span>
-            <span className="text-right text-xs text-muted-foreground">{m.noleggio ? "" : t("quota interna")}</span>
+            <span className="text-right text-xs text-muted-foreground">{m.noleggio ? "" : <FonteCostoMezzo mezzoId={m.mezzo_id} haCosto={m.costo_orario != null} />}</span>
             {vedeImporti && (
               <>
                 <span className="text-xs text-blue-800">

@@ -74,6 +74,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { OrderCommessaSummary } from "@/components/orders/OrderCommessaSummary";
 const SubappaltatoriCommessa = lazy(() => import("@/components/orders/SubappaltatoriCommessa").then(m => ({ default: m.SubappaltatoriCommessa })));
 const OrdineRapportiniCampo = lazy(() => import("@/components/orders/OrdineRapportiniCampo").then(m => ({ default: m.OrdineRapportiniCampo })));
+const RendicontiGiornalieri = lazy(() => import("@/components/orders/RendicontiGiornalieri").then(m => ({ default: m.RendicontiGiornalieri })));
 const MaterialiPerFase = lazy(() => import("@/components/orders/materiali/MaterialiPerFase"));
 // Le viste di economia e cantiere si caricano quando si aprono (31/10/2026):
 // prima erano tutte nel pacchetto del dettaglio, oltre 1 MB scaricato anche
@@ -470,6 +471,7 @@ function OrderDetailInner() {
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   // «Rapportini dai documenti» dal menu Silvio AI apre «Scrivi rapportini» nella vista Rapportini.
   const [scriviRapportini, setScriviRapportini] = useState(false);
+  const [rendicontoDaAprire, setRendicontoDaAprire] = useState<string | null>(null);
   const [editedNotes, setEditedNotes] = useState("");
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -2216,12 +2218,17 @@ function OrderDetailInner() {
               <ErrorBoundary><PianoMezziCantiere key={id} orderId={id!} conViaggi /></ErrorBoundary>
             </div>}
             {vistaCantiere === "giornale" && <div id="section-giornale" className="scroll-mt-24"><GiornaleLavoriContenuto key={id} orderIdFisso={id!} /></div>}
+            {vistaCantiere === "rendiconti" && <div id="section-rendiconti" className="scroll-mt-24 space-y-3">
+              <p className="text-xs text-muted-foreground">{t("Il foglio per il committente, giorno per giorno, con i prezzi. I confermati entrano nel rendiconto del periodo.")}</p>
+              <ErrorBoundary><RendicontiGiornalieri key={id} orderId={id!} apriId={rendicontoDaAprire} onApriConsumato={() => setRendicontoDaAprire(null)} /></ErrorBoundary>
+            </div>}
             {vistaCantiere === "diario" && <>
+            <p className="mb-3 text-xs text-muted-foreground">{t("Il diario del cantiere: chi c'era, ore, mezzi, avanzamento. Resta interno.")}</p>
             <div id="section-rapportini" className="scroll-mt-24 space-y-4">
               {/* I pulsanti «Rapportino lavori / trasporti» stanno in testa all'elenco; qui resta la finestra che apre Silvio. */}
               {permissions.canEditOrders && <RapportiniUfficio orderId={id!} senzaPulsante aperta={scriviRapportini} onApertaChange={setScriviRapportini} />}
               <DaApprovareCommessa orderId={id!} onApriRapportini={() => document.getElementById("rapportini-campo-elenco")?.scrollIntoView({ behavior: "smooth", block: "start" })} />
-              <div id="rapportini-campo-elenco" className="scroll-mt-24"><OrdineRapportiniCampo orderId={id!} /></div>
+              <div id="rapportini-campo-elenco" className="scroll-mt-24"><OrdineRapportiniCampo orderId={id!} onApriRendiconto={(rid) => { setRendicontoDaAprire(rid); navigateTo({ tab: "cantiere", cantiereView: "rendiconti" }); }} /></div>
             </div>
             <div id="section-foto" className="space-y-4 scroll-mt-24">
               <OrdineFotoCantiere orderId={id!} />

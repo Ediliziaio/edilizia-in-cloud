@@ -69394,5 +69394,10 @@ const dizionario: Dizionario = {
   "Contatti / Lead": "Contacts / Prospects",
   "Segna come perso": "Marquer comme perdu",
   "Le scadenze già selezionate restano selezionate.": "Les échéances déjà sélectionnées restent sélectionnées.",
+  "Il foglio per il committente, giorno per giorno, con i prezzi. I confermati entrano nel rendiconto del periodo.": "La feuille pour le client, jour par jour, avec les prix. Les confirmées entrent dans le relevé de la période.",
+  "Il diario del cantiere: chi c'era, ore, mezzi, avanzamento. Resta interno.": "Le journal du chantier : qui était là, heures, engins, avancement. Il reste interne.",
+  "Solo approvati": "Seulement les approuvés",
+  "Anche quelli da approvare": "Aussi ceux à approuver",
+  "Il PDF riporterà «BOZZA – contiene rapportini non approvati».": "Le PDF indiquera «BROUILLON – contient des rapports non approuvés».",
 };
 export default dizionario;

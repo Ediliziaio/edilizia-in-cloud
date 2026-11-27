@@ -10,6 +10,7 @@ import {
   type DocumentoOperativo,
   type RigaDocumentoOperativo,
   titoloDocumento,
+  testoBozza,
   testoInversioneContabile,
   senzaPrezzi,
   footerAzienda,
@@ -92,7 +93,9 @@ export function creaPdfOperativo(
   const corpo = modello.dimensioneTesto || pagina.corpo;
   const standard = rendiconto
     ? { ...STANDARD_DOCUMENTI.trasporti, titoloPdf: titoloDocumento(d), destinatario: "COMMITTENTE", condizioni: "Conferma del rendiconto" }
-    : STANDARD_DOCUMENTI[d.tipo];
+    : d.rendicontoGiornaliero
+      ? { ...STANDARD_DOCUMENTI[d.tipo], titoloPdf: titoloDocumento(d), destinatario: "COMMITTENTE" }
+      : STANDARD_DOCUMENTI[d.tipo];
   const safe = (v: string) =>
     v
       .replace(/\u00a0/g, " ")
@@ -125,8 +128,9 @@ export function creaPdfOperativo(
     font(stileRiquadro.etichettaCorpo, false, TENUE);
     pdf.text(safe(t).toUpperCase(), x, base, { align, charSpace: mm(0.5) });
   };
-  const titolo = safe(modello.titolo || standard.titoloPdf);
-  const sottotitolo = [`N. ${safe(d.numero)}`, d.data ? dataIt(d.data) : ""].filter(Boolean).join(" · ");
+  // Il titolo personalizzato del rapporto in economia non vale per il rendiconto giornaliero.
+  const titolo = safe((d.rendicontoGiornaliero ? "" : modello.titolo) || standard.titoloPdf) + (d.bozza ? " (BOZZA)" : "");
+  const sottotitolo = [`N. ${safe(d.numero)}`, d.data ? dataIt(d.data) : "", d.bozza ? safe(testoBozza(d)) : ""].filter(Boolean).join(" · ");
   let y = mm(pagina.margineAlto);
 
   /** Testata: logo a sinistra su bianco, titolo e numero · data a destra, filetto d'accento sotto. */

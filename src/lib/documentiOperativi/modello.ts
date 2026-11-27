@@ -43,6 +43,10 @@ export interface RigaDocumentoOperativo {
 export interface DocumentoOperativo {
   /** Il rendiconto dei viaggi approvati è intestato al cliente della commessa. */
   rendicontoTrasporti?: boolean;
+  /** Compilato anche con rapportini non ancora approvati: il PDF lo dichiara in testata (27/11/2026). */
+  bozza?: boolean;
+  /** Rendiconto giornaliero per il committente (27/11/2026): titolo e scritta di bozza suoi. */
+  rendicontoGiornaliero?: boolean;
   prezziDaConfermare?: boolean;
   riguardaLavori?: boolean;
   fornitoreId?: string;
@@ -93,8 +97,12 @@ export interface DocumentoOperativo {
   righe: RigaDocumentoOperativo[];
   totali?: { imponibile: number; iva: number; totale: number };
 }
-export const titoloDocumento = (d: Pick<DocumentoOperativo, "tipo" | "rendicontoTrasporti">) =>
-  d.rendicontoTrasporti ? "Rendiconto trasporti" : TITOLI[d.tipo];
+export const TESTO_BOZZA_NON_APPROVATI = "BOZZA – contiene rapportini non approvati";
+export const TESTO_BOZZA_RENDICONTO = "BOZZA – rendiconto non ancora confermato";
+export const testoBozza = (d: Pick<DocumentoOperativo, "rendicontoGiornaliero">) =>
+  d.rendicontoGiornaliero ? TESTO_BOZZA_RENDICONTO : TESTO_BOZZA_NON_APPROVATI;
+export const titoloDocumento = (d: Pick<DocumentoOperativo, "tipo" | "rendicontoTrasporti" | "rendicontoGiornaliero">) =>
+  d.rendicontoTrasporti ? "Rendiconto trasporti" : d.rendicontoGiornaliero ? "Rendiconto giornaliero" : TITOLI[d.tipo];
 export const importiIvaEsclusa = (d: DocumentoOperativo) => d.tipo === "economia" || !!d.rendicontoTrasporti;
 export type ClausolaInversione = "a" | "a-ter";
 export const CLAUSOLE_INVERSIONE: { value: ClausolaInversione; label: string; norma: string }[] = [
@@ -339,6 +347,7 @@ export function applicaModelloAlDocumento<T extends DocumentoOperativo>(
 export function dettagliDocumento(d: DocumentoOperativo): [string, string][] {
   return (
     [
+      ["Stato", d.bozza ? testoBozza(d) : null],
       ["Commessa", d.commessa],
       ["Nostro codice cliente", d.codiceCliente],
       [

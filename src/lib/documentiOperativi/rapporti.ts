@@ -34,8 +34,9 @@ export function rapportoEconomiaDaRapportini(
   righe: RapportinoCompleto[],
   mese: string,
   quadri: ReadonlyMap<string, QuadroPerRapporto> = new Map(),
+  conDaApprovare = false,
 ): DocumentoOperativo {
-  const approvati = righe.filter((r) => statoDi(r) === "approvato");
+  const approvati = righe.filter((r) => statoDi(r) === "approvato" || (conDaApprovare && statoDi(r) === "inviato"));
   const ids = new Set(approvati.map((r) => r.order_id));
   const unica = ids.size === 1 ? approvati[0]?.order : null;
   const date = approvati.map((r) => r.data_lavoro).sort();

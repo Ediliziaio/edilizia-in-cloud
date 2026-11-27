@@ -262,3 +262,36 @@ it("la scelta della commessa spiega che compaiono solo quelle con rapportini app
   fireEvent.click(await screen.findByRole("menuitem", { name: /Riepilogo lavori approvati/ }));
   expect(await screen.findByText(/Compaiono solo le commesse con rapportini approvati nel periodo\. 1 rapportino è ancora da approvare/)).toBeInTheDocument();
 });
+
+describe("Bozza con rapportini da approvare (27/11/2026)", () => {
+  it("senza la scelta «Anche quelli da approvare» i documenti restano spenti", async () => {
+    apri([{ ...r, id: "r2", stato: "inviato" }]);
+    menu();
+    expect(await screen.findByRole("menuitemradio", { name: "Solo approvati" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Riepilogo lavori approvati/ })).toHaveAttribute("data-disabled");
+  });
+  it("scegliendo «Anche quelli da approvare» il riepilogo si compila e il documento è BOZZA", async () => {
+    apri([{ ...r, id: "r2", stato: "inviato" }]);
+    menu();
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Anche quelli da approvare" }));
+    const voce = await screen.findByRole("menuitem", { name: /Riepilogo lavori approvati/ });
+    expect(voce).not.toHaveAttribute("data-disabled");
+    fireEvent.click(voce);
+    await screen.findByRole("dialog", { name: "Documento pronto" });
+    const documento = JSON.parse(screen.getByTestId("documento").textContent!) as DocumentoOperativo;
+    expect(documento.bozza).toBe(true);
+  });
+  it("il rifiutato non entra mai, nemmeno in bozza", async () => {
+    apri([{ ...r, id: "r2", stato: "rifiutato" }]);
+    menu();
+    expect(screen.queryByRole("menuitemradio", { name: "Anche quelli da approvare" })).toBeNull();
+    expect(screen.getByRole("menuitem", { name: /Riepilogo lavori approvati/ })).toHaveAttribute("data-disabled");
+  });
+  it("con soli approvati il documento non è bozza", async () => {
+    apri([r]);
+    menu();
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Riepilogo lavori approvati/ }));
+    await screen.findByRole("dialog", { name: "Documento pronto" });
+    expect((JSON.parse(screen.getByTestId("documento").textContent!) as DocumentoOperativo).bozza).toBeUndefined();
+  });
+});

@@ -69394,5 +69394,10 @@ const dizionario: Dizionario = {
   "Contatti / Lead": "Contacts / Leads",
   "Segna come perso": "Mark as lost",
   "Le scadenze già selezionate restano selezionate.": "Items already selected stay selected.",
+  "Il foglio per il committente, giorno per giorno, con i prezzi. I confermati entrano nel rendiconto del periodo.": "The sheet for the client, day by day, with prices. Confirmed ones go into the period statement.",
+  "Il diario del cantiere: chi c'era, ore, mezzi, avanzamento. Resta interno.": "The site diary: who was there, hours, vehicles, progress. It stays internal.",
+  "Solo approvati": "Approved only",
+  "Anche quelli da approvare": "Also those awaiting approval",
+  "Il PDF riporterà «BOZZA – contiene rapportini non approvati».": "The PDF will show «DRAFT – contains unapproved reports».",
 };
 export default dizionario;

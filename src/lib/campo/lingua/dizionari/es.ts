@@ -69394,5 +69394,10 @@ const dizionario: Dizionario = {
   "Contatti / Lead": "Contactos / Clientes potenciales",
   "Segna come perso": "Marcar como perdido",
   "Le scadenze già selezionate restano selezionate.": "Los vencimientos ya seleccionados siguen seleccionados.",
+  "Il foglio per il committente, giorno per giorno, con i prezzi. I confermati entrano nel rendiconto del periodo.": "La hoja para el cliente, día a día, con los precios. Las confirmadas entran en el resumen del periodo.",
+  "Il diario del cantiere: chi c'era, ore, mezzi, avanzamento. Resta interno.": "El diario de obra: quién estuvo, horas, vehículos, avance. Queda interno.",
+  "Solo approvati": "Solo aprobados",
+  "Anche quelli da approvare": "También los pendientes de aprobar",
+  "Il PDF riporterà «BOZZA – contiene rapportini non approvati».": "El PDF indicará «BORRADOR – contiene partes no aprobados».",
 };
 export default dizionario;

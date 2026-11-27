@@ -19,7 +19,7 @@ import { useUfficiAttivi } from "@/hooks/useUffici";
 import { TaskAssignmentFields } from "@/components/tasks/TaskAssignmentFields";
 import { taskAssignment } from "@/lib/attivita/taskAssignment";
 import { campoWorkDay } from "@/lib/campo/workDay";
-import { messaggioErrore } from "@/lib/campo/messaggioErrore";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";

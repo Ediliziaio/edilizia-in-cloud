@@ -69394,5 +69394,10 @@ const dizionario: Dizionario = {
   "Contatti / Lead": "جهات الاتصال / العملاء المحتملون",
   "Segna come perso": "علّم عليه كخاسر",
   "Le scadenze già selezionate restano selezionate.": "الآجال اللي ختاريتي كيبقاو مختارين.",
+  "Il foglio per il committente, giorno per giorno, con i prezzi. I confermati entrano nel rendiconto del periodo.": "الورقة ديال الزبون، نهار بنهار، بالأثمنة. اللي تأكدو كيدخلو فالحساب ديال المدة.",
+  "Il diario del cantiere: chi c'era, ore, mezzi, avanzamento. Resta interno.": "اليومية ديال الورشة: شكون كان، السوايع، الآلات، التقدم. كتبقى داخلية.",
+  "Solo approvati": "غير اللي تقبلو",
+  "Anche quelli da approvare": "حتى اللي باقي خاصهم يتقبلو",
+  "Il PDF riporterà «BOZZA – contiene rapportini non approvati».": "الـPDF غادي يكتب «مسودة – فيها تقارير ما تقبلوش».",
 };
 export default dizionario;
