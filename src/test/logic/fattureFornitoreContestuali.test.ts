@@ -28,7 +28,8 @@ describe("contesto del fornitore nella fattura ricevuta", () => {
     expect(f.scadenze[0]).toMatchObject({ prevista: true, residuo: null, importo: 120, stato: "da verificare" });
   });
   it("conserva le rate già registrate senza costo e non duplica quelle dello scadenzario", () => {
-    const comune = { id: "r1", numero: 1, scadenza: "2027-02-28", importo: 100, metodo: "riba", stato: "da_pagare", pagata_il: null };
+    const comune: { id: string; numero: number; scadenza: string; importo: number; metodo: string; stato: string; pagata_il: string | null } =
+      { id: "r1", numero: 1, scadenza: "2027-02-28", importo: 100, metodo: "riba", stato: "da_pagare", pagata_il: null };
     const rate = completaRateFornitore([{ ...comune, fattura_id: "F1", residuo: 30, fornitore: "F" }], [
       { ...comune, fattura_ricevuta_id: "F1" },
       { ...comune, id: "r2", numero: 2, fattura_ricevuta_id: "F2" },

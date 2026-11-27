@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
 import { beforeEach, expect, it, vi } from "vitest";
 import { ContestoFornitoreRicevuta } from "@/components/fatturazione/ContestoFornitoreRicevuta";
 import type { FatturaConScadenze } from "@/hooks/useFattureFornitoreContestuali";

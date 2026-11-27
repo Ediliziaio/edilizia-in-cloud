@@ -6,7 +6,7 @@ import { useFattureFornitoreContestuali } from "@/hooks/useFattureFornitoreConte
 
 const stato = vi.hoisted(() => ({ chiamate: [] as Array<{ tipo: string; azienda?: string; ids?: string[]; filtro?: string }>, errore: false }));
 vi.mock("@/integrations/supabase/client", () => {
-  const fatture: Array<Record<string, unknown>> = Array.from({ length: 101 }, (_, i) => ({ id: `F${i}`, numero_fattura: `F${i}`, data_fattura: "2026-11-01", tipo_documento: "TD01", stato: "letta", pagata_il: null, totale_documento: 100, company_cost_id: "costo", piano_pagamento: [] }));
+  const fatture = Array.from({ length: 101 }, (_, i): Record<string, unknown> => ({ id: `F${i}`, numero_fattura: `F${i}`, data_fattura: "2026-11-01", tipo_documento: "TD01", stato: "letta", pagata_il: null, totale_documento: 100, company_cost_id: "costo", piano_pagamento: [] }));
   function catena(tipo: string) {
     let azienda: string | undefined, ids: string[] = [], filtro: string | undefined;
     const q = {
