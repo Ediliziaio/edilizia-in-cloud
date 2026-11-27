@@ -215,6 +215,8 @@ interface FatturaRicevuta {
   /** Protocollo del cantiere: la commessa generale e il numero dentro quella («Che12»). */
   protocollo_commessa_id?: string | null;
   protocollo_commessa_numero?: number | null;
+  /** Protocollo «Spese generali»: la fattura sta nella cartella delle spese di struttura («SG12»). */
+  protocollo_spese_generali?: boolean | null;
 }
 
 /**
@@ -595,7 +597,7 @@ export default function FattureRicevutePage() {
       let q = supabase
         .from("fatture_ricevute" as never)
         .select(
-          "id, da_leggere, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, ritenuta_importo, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale, categoria_ai, sottocategoria_ai, categoria_confidenza, storico_esterno, fornitore_id, note_interne, piano_pagamento, netto_a_pagare, rettifica_motivo, riepilogo_iva, aliquota_reverse_charge, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, pdf_storage_bucket, pdf_storage_path, protocollo_commessa_id, protocollo_commessa_numero" as never,
+          "id, da_leggere, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, ritenuta_importo, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale, categoria_ai, sottocategoria_ai, categoria_confidenza, storico_esterno, fornitore_id, note_interne, piano_pagamento, netto_a_pagare, rettifica_motivo, riepilogo_iva, aliquota_reverse_charge, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, pdf_storage_bucket, pdf_storage_path, protocollo_commessa_id, protocollo_commessa_numero, protocollo_spese_generali" as never,
         )
         .eq("company_id", companyId!)
         .order("data_fattura", { ascending: false })

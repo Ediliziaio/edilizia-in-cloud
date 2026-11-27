@@ -23,6 +23,11 @@ import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const errore = (e: unknown) => e instanceof Error ? e.message : typeof e === "object" && e && "message" in e ? String((e as { message: unknown }).message) : String(e);
 
+/** La cartella «Spese generali»: non è una commessa, è il valore scelto nel select del dialog. */
+export const SPESE_GENERALI = "__spese_generali__";
+/** La sigla di default delle spese generali, quando l'azienda non ne ha scelta una sua. */
+export const SIGLA_SPESE_GENERALI_DEFAULT = "SG";
+
 export interface CantiereProtocollo { id: string; codice: string; descrizione: string | null; sigla: string | null }
 
 /** «Che12»: la sigla attaccata al numero. Senza sigla si legge il codice della commessa. */
@@ -30,10 +35,11 @@ export function etichettaProtocolloCantiere(cantiere: { sigla?: string | null; c
   if (!numero) return null;
   return `${cantiere?.sigla || cantiere?.codice || "?"}${numero}`;
 }
-/** Il protocollo come sta sulla fattura: la commessa e il numero dentro quella. */
+/** Il protocollo come sta sulla fattura: la commessa (o le spese generali) e il numero dentro. */
 export interface FatturaPerProtocolloCommessa {
   id: string; numero_fattura: string; cedente_ragione_sociale: string; stato: string;
   protocollo_commessa_id?: string | null; protocollo_commessa_numero?: number | null;
+  protocollo_spese_generali?: boolean | null;
 }
 
 export function useProtocolliCommessa(companyId: string | null | undefined) {
@@ -52,15 +58,25 @@ export function useProtocolliCommessa(companyId: string | null | undefined) {
       return righe.map((o): CantiereProtocollo => ({ id: o.id, codice: o.order_code ?? "Commessa", descrizione: o.description, sigla: o.protocollo_sigla }));
     },
   });
-  // I numeri già dati, di tutta l'azienda: due colonne, senza il filtro anno della pagina
-  // (un cantiere a cavallo di due anni ha un solo progressivo).
+  // I numeri già dati, di tutta l'azienda: cantieri e spese generali, senza il filtro anno della
+  // pagina (un cantiere a cavallo di due anni ha un solo progressivo).
   const numeri = useQuery({
     queryKey: ["protocollo-cantieri-numeri", companyId], enabled: !!companyId,
-    queryFn: async () => await tutteLePagine<{ protocollo_commessa_id: string; protocollo_commessa_numero: number }>(
+    queryFn: async () => await tutteLePagine<{ protocollo_commessa_id: string | null; protocollo_commessa_numero: number; protocollo_spese_generali: boolean | null }>(
       (da, a) => supabase.from("fatture_ricevute" as never)
-        .select("protocollo_commessa_id, protocollo_commessa_numero")
-        .eq("company_id", companyId!).not("protocollo_commessa_id", "is", null)
-        .order("protocollo_commessa_id").order("protocollo_commessa_numero").range(da, a) as never),
+        .select("protocollo_commessa_id, protocollo_commessa_numero, protocollo_spese_generali")
+        .eq("company_id", companyId!).not("protocollo_commessa_numero", "is", null)
+        .or("protocollo_commessa_id.not.is.null,protocollo_spese_generali.is.true")
+        .order("protocollo_commessa_numero").range(da, a) as never),
+  });
+  // La sigla della cartella spese generali (default «SG»), una per azienda.
+  const siglaSpese = useQuery({
+    queryKey: ["protocollo-spese-generali-sigla", companyId], enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("company_sigla_spese_generali_leggi" as never, { p_company: companyId } as never);
+      if (error) throw error;
+      return (typeof data === "string" && data) || SIGLA_SPESE_GENERALI_DEFAULT;
+    },
   });
   const lettura = useQuery({
     queryKey: ["iva-permesso-lettura", companyId], enabled: !!companyId,
@@ -81,10 +97,20 @@ export function useProtocolliCommessa(companyId: string | null | undefined) {
   const perCantiere = useMemo(() => {
     const m = new Map<string, { quante: number; ultimo: number }>();
     for (const n of numeri.data ?? []) {
+      if (!n.protocollo_commessa_id) continue;
       const r = m.get(n.protocollo_commessa_id) ?? { quante: 0, ultimo: 0 };
       m.set(n.protocollo_commessa_id, { quante: r.quante + 1, ultimo: Math.max(r.ultimo, n.protocollo_commessa_numero) });
     }
     return m;
+  }, [numeri.data]);
+  // Il conto delle spese generali: quante fatture e l'ultimo numero dato.
+  const spese = useMemo(() => {
+    let quante = 0, ultimo = 0;
+    for (const n of numeri.data ?? []) {
+      if (!n.protocollo_spese_generali) continue;
+      quante += 1; ultimo = Math.max(ultimo, n.protocollo_commessa_numero);
+    }
+    return { quante, ultimo };
   }, [numeri.data]);
   const elenco = useMemo(() => cantieri.data ?? [], [cantieri.data]);
   const diId = useMemo(() => new Map(elenco.map(c => [c.id, c])), [elenco]);
@@ -92,19 +118,29 @@ export function useProtocolliCommessa(companyId: string | null | undefined) {
     qc.invalidateQueries({ queryKey: ["protocollo-cantieri", companyId] }),
     qc.invalidateQueries({ queryKey: ["protocollo-cantieri-numeri", companyId] }),
   ]); };
+  const sgSigla = siglaSpese.data ?? SIGLA_SPESE_GENERALI_DEFAULT;
   return {
     cantieri: elenco,
-    /** Acceso quando almeno un cantiere ha la sigla: senza sigle la colonna non serve. */
-    attivo: elenco.some(c => !!c.sigla),
-    visibile: lettura.data === true && elenco.some(c => !!c.sigla),
+    /** La sigla della cartella spese generali (default «SG»). */
+    sgSigla,
+    /** Acceso quando c'è una cartella in uso: un cantiere con la sigla o fatture nelle spese generali. */
+    attivo: elenco.some(c => !!c.sigla) || spese.quante > 0,
+    visibile: lettura.data === true && (elenco.some(c => !!c.sigla) || spese.quante > 0),
     puoScrivere: scrittura.data === true,
     quante: (id: string) => perCantiere.get(id)?.quante ?? 0,
     prossimo: (id: string) => (perCantiere.get(id)?.ultimo ?? 0) + 1,
-    /** «Che12»: la sigla del cantiere e il numero, attaccati come li scrive l'azienda. */
-    etichetta: (f: FatturaPerProtocolloCommessa) => f.protocollo_commessa_id
+    /** Le spese generali: quante fatture e il prossimo numero libero. */
+    speseQuante: spese.quante,
+    speseProssimo: spese.ultimo + 1,
+    /** «Che12» per il cantiere, «SG12» per le spese generali. */
+    etichetta: (f: FatturaPerProtocolloCommessa) => f.protocollo_spese_generali
+      ? (f.protocollo_commessa_numero ? `${sgSigla}${f.protocollo_commessa_numero}` : null)
+      : f.protocollo_commessa_id
       ? etichettaProtocolloCantiere(diId.get(f.protocollo_commessa_id), f.protocollo_commessa_numero)
       : null,
-    nomeCantiere: (id: string | null | undefined) => {
+    nomeCantiere: (f: FatturaPerProtocolloCommessa | string | null | undefined) => {
+      if (f && typeof f === "object" && f.protocollo_spese_generali) return `${sgSigla} · Spese generali`;
+      const id = typeof f === "string" ? f : f?.protocollo_commessa_id;
       const c = id ? diId.get(id) : undefined;
       return c ? [c.sigla, c.codice, c.descrizione].filter(Boolean).join(" · ") : null;
     },
@@ -119,12 +155,17 @@ export function CellaProtocolloCommessa({ fattura, protocolli }: { fattura: Fatt
   const [cantiere, setCantiere] = useState("");
   const [numero, setNumero] = useState("");
   const etichetta = protocolli.etichetta(fattura);
-  const scelto = cantiere || fattura.protocollo_commessa_id || "";
+  const scelto = cantiere || (fattura.protocollo_spese_generali ? SPESE_GENERALI : fattura.protocollo_commessa_id) || "";
   const salva = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.rpc("fattura_ricevuta_protocolla_commessa" as never, {
-        p_fattura: fattura.id, p_commessa: scelto || null, p_numero: numero ? Number(numero) : null,
-      } as never);
+      const rpc = scelto === SPESE_GENERALI
+        ? supabase.rpc("fattura_ricevuta_protocolla_spese_generali" as never, {
+            p_fattura: fattura.id, p_numero: numero ? Number(numero) : null,
+          } as never)
+        : supabase.rpc("fattura_ricevuta_protocolla_commessa" as never, {
+            p_fattura: fattura.id, p_commessa: scelto || null, p_numero: numero ? Number(numero) : null,
+          } as never);
+      const { data, error } = await rpc;
       if (error) throw error;
       return data as unknown as { sigla: string | null; codice: string | null; numero: number };
     },
@@ -147,9 +188,9 @@ export function CellaProtocolloCommessa({ fattura, protocolli }: { fattura: Fatt
   const numeroValido = !numero || (Number.isInteger(Number(numero)) && Number(numero) > 0);
   const inCorso = salva.isPending || togli.isPending;
   return <>
-    <button type="button" onClick={() => { setCantiere(fattura.protocollo_commessa_id ?? ""); setNumero(""); setAperto(true); }}
+    <button type="button" onClick={() => { setCantiere(fattura.protocollo_spese_generali ? SPESE_GENERALI : fattura.protocollo_commessa_id ?? ""); setNumero(""); setAperto(true); }}
       className={etichetta ? "whitespace-nowrap font-mono text-sm tabular-nums underline-offset-2 hover:underline" : "whitespace-nowrap text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"}
-      title={etichetta ? protocolli.nomeCantiere(fattura.protocollo_commessa_id) ?? "" : t("Assegna il protocollo del cantiere")}>
+      title={etichetta ? protocolli.nomeCantiere(fattura) ?? "" : t("Assegna il protocollo del cantiere")}>
       {etichetta ?? t("Assegna")}
     </button>
     <Dialog open={aperto} onOpenChange={v => { if (!inCorso) setAperto(v); }}>
@@ -165,12 +206,13 @@ export function CellaProtocolloCommessa({ fattura, protocolli }: { fattura: Fatt
               onChange={e => { setCantiere(e.target.value); setNumero(""); }}>
               <option value="">{t("Quello collegato alla fattura")}</option>
               {protocolli.cantieri.map(c => <option key={c.id} value={c.id}>{[c.sigla, c.codice, c.descrizione].filter(Boolean).join(" · ")}</option>)}
+              <option value={SPESE_GENERALI}>{t("{sigla} · Spese generali", { sigla: protocolli.sgSigla })}</option>
             </UniformSelect>
           </div>
           <div className="space-y-1">
             <Label htmlFor={`protc-numero-${fattura.id}`}>{t("Numero")}</Label>
             <Input id={`protc-numero-${fattura.id}`} type="number" min="1" step="1" inputMode="numeric" value={numero}
-              placeholder={scelto ? t("{numero} (il prossimo)", { numero: String(protocolli.prossimo(scelto)) }) : t("il prossimo del cantiere")}
+              placeholder={scelto === SPESE_GENERALI ? t("{numero} (il prossimo)", { numero: String(protocolli.speseProssimo) }) : scelto ? t("{numero} (il prossimo)", { numero: String(protocolli.prossimo(scelto)) }) : t("il prossimo del cantiere")}
               onChange={e => setNumero(e.target.value)} />
           </div>
           <DialogFooter className="gap-2">
@@ -180,7 +222,7 @@ export function CellaProtocolloCommessa({ fattura, protocolli }: { fattura: Fatt
               {salva.isPending ? t("Salvo…") : etichetta ? t("Cambia protocollo") : numero ? t("Assegna {numero}", { numero: String(numero) }) : t("Assegna il prossimo")}
             </Button>
           </DialogFooter>
-        </fieldset> : <p className="text-sm text-muted-foreground">{protocolli.nomeCantiere(fattura.protocollo_commessa_id) ?? ""}</p>}
+        </fieldset> : <p className="text-sm text-muted-foreground">{protocolli.nomeCantiere(fattura) ?? ""}</p>}
       </DialogContent>
     </Dialog>
   </>;
@@ -195,7 +237,10 @@ export function NumeraProtocolliCommesse({ companyId, protocolli }: { companyId:
   const [aperto, setAperto] = useState(false);
   const [sigle, setSigle] = useState<Record<string, string>>({});
   const [primi, setPrimi] = useState<Record<string, string>>({});
+  const [sgSigla, setSgSigla] = useState<string | null>(null);
+  const [sgPrimo, setSgPrimo] = useState("");
   const sigla = (c: CantiereProtocollo) => sigle[c.id] ?? c.sigla ?? "";
+  const sgSiglaValore = sgSigla ?? protocolli.sgSigla;
   const salvaSigla = useMutation({
     mutationFn: async ({ id, valore }: { id: string; valore: string }) => {
       const { error } = await supabase.rpc("commessa_sigla_protocollo" as never, { p_commessa: id, p_sigla: valore } as never);
@@ -203,6 +248,29 @@ export function NumeraProtocolliCommesse({ companyId, protocolli }: { companyId:
     },
     onSuccess: () => protocolli.ricarica(),
     onError: e => toast.error(t("Sigla non salvata"), { description: errore(e), duration: 10000 }),
+  });
+  const salvaSiglaSpese = useMutation({
+    mutationFn: async (valore: string) => {
+      const { error } = await supabase.rpc("company_sigla_spese_generali" as never, { p_company: companyId, p_sigla: valore } as never);
+      if (error) throw error;
+    },
+    onSuccess: () => protocolli.ricarica(),
+    onError: e => toast.error(t("Sigla non salvata"), { description: errore(e), duration: 10000 }),
+  });
+  const numeraSpese = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.rpc("fatture_ricevute_protocolla_spese_generali_blocco" as never,
+        { p_company: companyId, p_primo: sgPrimo.trim() ? Number(sgPrimo) : null } as never);
+      if (error) throw error;
+      return data as unknown as { sigla: string; quante: number; primo: number | null; ultimo: number | null };
+    },
+    onSuccess: async r => {
+      await protocolli.ricarica(); setSgPrimo("");
+      if (!r.quante) { toast.success(t("Nessuna fattura da mettere nelle spese generali")); return; }
+      toast.success(t("{n} fatture nelle spese generali", { n: String(r.quante) }),
+        { description: `${r.sigla}${r.primo}–${r.sigla}${r.ultimo}`, duration: 12000 });
+    },
+    onError: e => toast.error(t("Protocolli non assegnati"), { description: errore(e), duration: 10000 }),
   });
   const numera = useMutation({
     mutationFn: async () => {
@@ -239,7 +307,7 @@ export function NumeraProtocolliCommesse({ companyId, protocolli }: { companyId:
     <Button variant="outline" className="max-sm:hidden" onClick={() => setAperto(true)}>
       {protocolli.attivo ? t("Protocolli di cantiere") : t("Protocolli per cantiere")}
     </Button>
-    <Dialog open={aperto} onOpenChange={v => { if (!numera.isPending) setAperto(v); }}>
+    <Dialog open={aperto} onOpenChange={v => { if (!numera.isPending && !numeraSpese.isPending) setAperto(v); }}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t("Protocolli divisi per cantiere")}</DialogTitle>
@@ -267,12 +335,36 @@ export function NumeraProtocolliCommesse({ companyId, protocolli }: { companyId:
                 placeholder={String(protocolli.prossimo(c.id))} onChange={e => setPrimi(p => ({ ...p, [c.id]: e.target.value }))} />
             </div>
           </div>)}
+          {/* La cartella «Spese generali»: le fatture che non sono di nessun cantiere. */}
+          <div className="grid grid-cols-[1fr_6rem_6rem] items-end gap-2 rounded-md border border-dashed p-2">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{t("Spese generali")}</p>
+              <p className="text-xs text-muted-foreground">{protocolli.speseQuante
+                ? t("{n} già protocollate, ultimo {ultimo}", { n: String(protocolli.speseQuante), ultimo: `${sgSiglaValore}${protocolli.speseProssimo - 1}` })
+                : t("le fatture senza cantiere (telefonia, luce, affitto…)")}</p>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="sigla-spese-generali" className="text-xs">{t("Sigla")}</Label>
+              <Input id="sigla-spese-generali" value={sgSiglaValore} maxLength={8} placeholder={t("Es. SG")}
+                disabled={salvaSiglaSpese.isPending || numeraSpese.isPending}
+                onChange={e => setSgSigla(e.target.value)}
+                onBlur={() => { const v = sgSiglaValore.trim(); if (v !== protocolli.sgSigla) salvaSiglaSpese.mutate(v); }} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="primo-spese-generali" className="text-xs">{t("Parti da")}</Label>
+              <Input id="primo-spese-generali" type="number" min="1" step="1" inputMode="numeric" value={sgPrimo}
+                placeholder={String(protocolli.speseProssimo)} onChange={e => setSgPrimo(e.target.value)} />
+            </div>
+          </div>
         </div>
-        <p className="text-xs text-muted-foreground">{t("«Parti da» serve per proseguire una numerazione tenuta altrove: lascialo vuoto per continuare dall'ultimo. Le fatture già protocollate tengono il loro numero, e quelle non collegate a nessun cantiere restano senza.")}</p>
-        <DialogFooter>
+        <p className="text-xs text-muted-foreground">{t("«Parti da» serve per proseguire una numerazione tenuta altrove: lascialo vuoto per continuare dall'ultimo. Le fatture già protocollate tengono il loro numero. Quelle non collegate a nessun cantiere le metti nelle spese generali col pulsante qui sotto.")}</p>
+        <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => setAperto(false)}>{t("Chiudi")}</Button>
-          <Button disabled={numera.isPending || !protocolli.cantieri.some(c => !!sigla(c).trim())} onClick={() => numera.mutate()}>
-            {numera.isPending ? t("Numerazione…") : t("Numera le fatture senza protocollo")}
+          <Button variant="outline" disabled={numera.isPending || numeraSpese.isPending} onClick={() => numeraSpese.mutate()}>
+            {numeraSpese.isPending ? t("Numerazione…") : t("Numera le spese generali")}
+          </Button>
+          <Button disabled={numera.isPending || numeraSpese.isPending || !protocolli.cantieri.some(c => !!sigla(c).trim())} onClick={() => numera.mutate()}>
+            {numera.isPending ? t("Numerazione…") : t("Numera i cantieri")}
           </Button>
         </DialogFooter>
       </DialogContent>

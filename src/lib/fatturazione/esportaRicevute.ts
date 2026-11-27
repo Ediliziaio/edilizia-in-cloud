@@ -20,6 +20,8 @@ export interface RigaRicevuta {
   /** Protocollo del cantiere, «Che12»: la commessa generale e il numero dentro quella. */
   protocollo_commessa_id?: string | null;
   protocollo_commessa_numero?: number | null;
+  /** Protocollo «Spese generali», «SG12»: la fattura sta nella cartella delle spese di struttura. */
+  protocollo_spese_generali?: boolean | null;
 }
 
 const TIPI: Record<string, string> = {

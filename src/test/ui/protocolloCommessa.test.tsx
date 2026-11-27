@@ -17,10 +17,16 @@ const fattura: FatturaPerProtocolloCommessa = { id: "f1", numero_fattura: "53", 
 
 function finto(over: Partial<ProtocolliCommessa> = {}): ProtocolliCommessa {
   const base: ProtocolliCommessa = {
-    cantieri: CANTIERI, attivo: true, visibile: true, puoScrivere: true,
-    quante: () => 12, prossimo: () => 13,
-    etichetta: f => etichettaProtocolloCantiere(CANTIERI.find(c => c.id === f.protocollo_commessa_id), f.protocollo_commessa_numero),
-    nomeCantiere: id => CANTIERI.find(c => c.id === id)?.codice ?? null,
+    cantieri: CANTIERI, sgSigla: "SG", attivo: true, visibile: true, puoScrivere: true,
+    quante: () => 12, prossimo: () => 13, speseQuante: 0, speseProssimo: 1,
+    etichetta: f => f.protocollo_spese_generali
+      ? (f.protocollo_commessa_numero ? `SG${f.protocollo_commessa_numero}` : null)
+      : etichettaProtocolloCantiere(CANTIERI.find(c => c.id === f.protocollo_commessa_id), f.protocollo_commessa_numero),
+    nomeCantiere: f => {
+      if (f && typeof f === "object" && f.protocollo_spese_generali) return "SG · Spese generali";
+      const id = typeof f === "string" ? f : f?.protocollo_commessa_id;
+      return CANTIERI.find(c => c.id === id)?.codice ?? null;
+    },
     ricarica: vi.fn(async () => {}),
   };
   return { ...base, ...over };
@@ -85,8 +91,39 @@ describe("protocollo di cantiere delle fatture ricevute", () => {
     fireEvent.change(sigla, { target: { value: "Call" } });
     fireEvent.blur(sigla);
     await waitFor(() => expect(rpc).toHaveBeenCalledWith("commessa_sigla_protocollo", { p_commessa: "o2", p_sigla: "Call" }));
-    fireEvent.click(screen.getByRole("button", { name: "Numera le fatture senza protocollo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Numera i cantieri" }));
     await waitFor(() => expect(rpc).toHaveBeenCalledWith("fatture_ricevute_protocolla_cantieri", { p_company: "az1" }));
+  });
+
+  it("si può mettere una fattura nelle spese generali", async () => {
+    rpc.mockResolvedValue({ data: { spese_generali: true, sigla: "SG", numero: 7 }, error: null });
+    cella(finto());
+    fireEvent.click(screen.getByRole("button", { name: "Assegna" }));
+    const scelta = document.querySelector("select") as HTMLSelectElement;
+    fireEvent.change(scelta, { target: { value: "__spese_generali__" } });
+    // Il prossimo numero delle spese generali, non del cantiere.
+    expect(screen.getByPlaceholderText("1 (il prossimo)")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Assegna il prossimo" }));
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith("fattura_ricevuta_protocolla_spese_generali",
+      { p_fattura: "f1", p_numero: null }));
+  });
+
+  it("col protocollo spese generali mostra «SG7»", () => {
+    cella(finto(), { ...fattura, protocollo_spese_generali: true, protocollo_commessa_numero: 7 });
+    expect(screen.getByRole("button", { name: "SG7" })).toBeTruthy();
+  });
+
+  it("la sigla e la numerazione delle spese generali partono dal loro pulsante", async () => {
+    rpc.mockResolvedValue({ data: { sigla: "SG", quante: 9, primo: 1, ultimo: 9 }, error: null });
+    render(<QueryClientProvider client={new QueryClient()}><NumeraProtocolliCommesse companyId="az1" protocolli={finto()} /></QueryClientProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "Protocolli di cantiere" }));
+    const sigla = screen.getByLabelText("Sigla", { selector: "#sigla-spese-generali" }) as HTMLInputElement;
+    expect(sigla.value).toBe("SG");
+    fireEvent.change(sigla, { target: { value: "SPG" } });
+    fireEvent.blur(sigla);
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith("company_sigla_spese_generali", { p_company: "az1", p_sigla: "SPG" }));
+    fireEvent.click(screen.getByRole("button", { name: "Numera le spese generali" }));
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith("fatture_ricevute_protocolla_spese_generali_blocco", { p_company: "az1", p_primo: null }));
   });
 
   it("dove i cantieri non ci sono, il pulsante non compare", () => {
@@ -99,7 +136,7 @@ describe("protocollo di cantiere delle fatture ricevute", () => {
     expect(pagina).toContain('protocolliCantiere.visibile && colonne.has("protocollo_cantiere")');
     expect(pagina).toContain("<CellaProtocolloCommessa fattura={f}");
     expect(pagina).toContain("<NumeraProtocolliCommesse");
-    // Le due colonne nuove vanno chieste per nome: la lista non fa select("*").
-    expect(pagina).toMatch(/protocollo_commessa_id, protocollo_commessa_numero" as never/);
+    // Le colonne del protocollo vanno chieste per nome: la lista non fa select("*").
+    expect(pagina).toMatch(/protocollo_commessa_id, protocollo_commessa_numero, protocollo_spese_generali" as never/);
   });
 });
