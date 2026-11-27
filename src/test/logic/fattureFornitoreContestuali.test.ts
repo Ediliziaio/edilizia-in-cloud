@@ -55,4 +55,13 @@ describe("contesto del fornitore nella fattura ricevuta", () => {
     expect(list[0].scadenze).toHaveLength(0);
     expect(list[1].scadenze).toHaveLength(1);
   });
+  it("mantiene il saldo della fattura distinto dal residuo della rata", () => {
+    const [f] = unisciFattureScadenze([fattura("F1")], [
+      { id: "r1", fattura_id: "F1", numero: 1, scadenza: "2027-01-30", importo: 100, residuo: null, metodo: "riba", stato: "da_pagare", pagata_il: null, fornitore: "F" },
+    ], [{ id: "F1", residuo: 250 }, { id: "altra", residuo: 1 }]);
+    expect(f.residuoFattura).toBe(250);
+    expect(f.scadenze[0].residuo).toBeNull();
+    expect(unisciFattureScadenze([fattura("F2")], [], [{ id: "F2", residuo: 0 }])[0].residuoFattura).toBe(0);
+    expect(unisciFattureScadenze([fattura("F3")], [], [{ id: "F3", residuo: null }])[0].residuoFattura).toBeNull();
+  });
 });

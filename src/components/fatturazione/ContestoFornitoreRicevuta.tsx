@@ -11,7 +11,8 @@ function haScadenzeAperte(f: FatturaConScadenze): boolean {
   if (nonSiPaga(f.tipo_documento ?? "") || ["annullata", "scartata", "rifiutata"].includes(f.stato ?? "")) return false;
   const pagabili = new Set(["da pagare", "avvisata", "insoluta", "pagamento parziale", "da verificare"]);
   // Se ci sono rate, prevalgono sul vecchio indicatore di pagamento della fattura.
-  return f.scadenze.length ? f.scadenze.some(r => pagabili.has(r.stato) && r.residuo !== 0) : !f.pagata_il;
+  return f.scadenze.length ? f.scadenze.some(r => pagabili.has(r.stato) && r.residuo !== 0)
+    : f.residuoFattura != null ? f.residuoFattura > 0 : !f.pagata_il;
 }
 
 export function ContestoFornitoreRicevuta({ companyId, fatturaId, supplierId, piva, cf, paese, onApriFattura, onChiudi }: {
@@ -51,14 +52,16 @@ export function ContestoFornitoreRicevuta({ companyId, fatturaId, supplierId, pi
           {f.id === fatturaId ? <span className="shrink-0 rounded bg-primary/10 px-1.5 py-1 text-xs text-primary">{t("Aperta")}</span>
             : <Button size="sm" variant="outline" className="h-8 shrink-0 px-2 text-xs" aria-label={t("Apri fattura {numero}", { numero: f.numero_fattura || "—" })} onClick={() => onApriFattura(f.id)}>{t("Apri")}</Button>}
         </div>
+        {!nonSiPaga(f.tipo_documento ?? "") && !["annullata", "scartata", "rifiutata"].includes(f.stato ?? "") &&
+          <p className="mt-1 text-xs text-muted-foreground">{f.residuoFattura == null ? t("Residuo fattura da verificare") : <>{t("Residuo fattura")} <span className="font-medium text-foreground tabular-nums">{formatCurrency(f.residuoFattura)}</span></>}</p>}
         {["annullata", "scartata", "rifiutata"].includes(f.stato ?? "") ? <p className="mt-2 text-xs text-muted-foreground">{t("Documento non pagabile")} · {f.stato}</p>
           : nonSiPaga(f.tipo_documento ?? "") ? <p className="mt-2 text-xs text-muted-foreground">{t("Nota di credito o documento non pagabile")}</p>
-          : !f.scadenze.length ? <p className="mt-2 text-xs text-muted-foreground">{f.pagata_il ? t("Pagata") : t("Scadenze non indicate")}</p>
+          : !f.scadenze.length ? <p className="mt-2 text-xs text-muted-foreground">{f.residuoFattura === 0 ? t("Nessun residuo da pagare") : f.residuoFattura == null && f.pagata_il ? t("Pagata") : t("Scadenze non indicate")}</p>
           : <ul className="mt-2 divide-y border-t">{f.scadenze.map(r => <li key={r.id} className="flex items-start justify-between gap-2 py-1.5 text-xs">
             <div className="min-w-0"><p>{t("Rata {numero}", { numero: r.numero })} · {r.scadenza ? formatDateShort(r.scadenza) : t("Senza data")}</p>
               <p className="text-muted-foreground">{r.metodo ? `${gruppoMetodo(r.metodo) === "riba" ? "Ri.Ba." : etichettaMetodo(r.metodo) ?? r.metodo} · ` : ""}{r.prevista ? t("Da fattura, da verificare") : r.stato}</p></div>
             <div className="shrink-0 text-right tabular-nums"><p>{r.importo == null ? "—" : formatCurrency(r.importo)}</p>
-              <p className="text-muted-foreground">{r.stato === "pagata" ? t("Pagata") : r.residuo == null ? t("Residuo da verificare") : `${t("Residuo")} ${formatCurrency(r.residuo)}`}</p></div>
+              <p className="text-muted-foreground">{r.stato === "pagata" ? t("Pagata") : r.residuo == null ? t("Residuo rata da verificare") : `${t("Residuo rata")} ${formatCurrency(r.residuo)}`}</p></div>
           </li>)}</ul>}
       </li>)}</ul>{righe.length > limite && <Button variant="outline" size="sm" className="mt-2 w-full" onClick={() => setLimite(limite + 20)}>
         {t("Mostra altre fatture")} · {t("{n} rimanenti", { n: righe.length - limite })}

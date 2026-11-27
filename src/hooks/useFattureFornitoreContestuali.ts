@@ -15,7 +15,8 @@ export type ScadenzaFornitore = {
   id: string; numero: number; scadenza: string | null; importo: number | null; residuo: number | null;
   metodo: string | null; stato: string; prevista: boolean;
 };
-export type FatturaConScadenze = FatturaFornitore & { scadenze: ScadenzaFornitore[] };
+type SaldoFattura = { id: string; residuo: number | null };
+export type FatturaConScadenze = FatturaFornitore & { scadenze: ScadenzaFornitore[]; residuoFattura: number | null };
 
 function dataScadenza(valore: string | null): string | null {
   const data = valore?.slice(0, 10) ?? "";
@@ -60,7 +61,8 @@ export function filtriFornitore(supplierId?: string | null, piva?: string | null
 }
 
 /** Le rate registrate prevalgono sul piano XML; un residuo sconosciuto resta sconosciuto. */
-export function unisciFattureScadenze(fatture: FatturaFornitore[], rate: RataScadenzario[]): FatturaConScadenze[] {
+export function unisciFattureScadenze(fatture: FatturaFornitore[], rate: RataScadenzario[], saldi: SaldoFattura[] = []): FatturaConScadenze[] {
+  const saldoPerFattura = new Map(saldi.map(s => [s.id, s.residuo]));
   const perFattura = new Map<string, RataScadenzario[]>();
   for (const rata of rate) if (rata.fattura_id) {
     const presenti = perFattura.get(rata.fattura_id) ?? [];
@@ -77,7 +79,7 @@ export function unisciFattureScadenze(fatture: FatturaFornitore[], rate: RataSca
       residuo: null as number | null, metodo: r.metodo, stato: r.pagataIl || f.pagata_il ? "pagata" : "da verificare", prevista: true,
     }));
     scadenze.sort((a, b) => (a.scadenza ?? "9999-12-31").localeCompare(b.scadenza ?? "9999-12-31") || a.numero - b.numero);
-    return { ...f, scadenze };
+    return { ...f, scadenze, residuoFattura: saldoPerFattura.get(f.id) ?? null };
   }).sort((a, b) => (b.data_fattura ?? "").localeCompare(a.data_fattura ?? "") || a.id.localeCompare(b.id));
 }
 
@@ -100,6 +102,11 @@ export function useFattureFornitoreContestuali({ companyId, fatturaId, supplierI
       const ids = fatture.map(f => f.id);
       const rate: RataScadenzario[] = [];
       const dirette: RataDiretta[] = [];
+      // Questo saldo è già disponibile nell'elenco delle fatture ricevute e non
+      // espone i movimenti di Prima Nota. È il totale del documento, non della rata.
+      const saldi = ids.length ? await tutteLePagine<SaldoFattura>((from, to) => db.rpc("fatture_ricevute_saldi", {
+        p_company_id: companyId, p_anno: null,
+      }).select("id,residuo").order("id").range(from, to)) : [];
       // Batch limitati per non superare la lunghezza delle richieste PostgREST.
       for (let i = 0; i < ids.length; i += 100) {
         const blocco = ids.slice(i, i + 100);
@@ -109,7 +116,7 @@ export function useFattureFornitoreContestuali({ companyId, fatturaId, supplierI
           .select("id,numero,scadenza,importo,metodo,stato,pagata_il,updated_at,fattura_ricevuta_id")
           .eq("company_id", companyId).in("fattura_ricevuta_id", blocco).order("id").range(from, to)));
       }
-      return unisciFattureScadenze(fatture, completaRateFornitore(rate, dirette));
+      return unisciFattureScadenze(fatture, completaRateFornitore(rate, dirette), saldi);
     },
     staleTime: 0,
   });
