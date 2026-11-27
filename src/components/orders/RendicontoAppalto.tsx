@@ -62,6 +62,8 @@ import { useT } from "@/lib/campo/lingua/LinguaCampo";
 /* ─── Tipi ─────────────────────────────────────────────────────────── */
 
 interface Riga {
+  /** Riga di un rendiconto giornaliero: si modifica solo da Cantiere → Rendiconti (27/11/2026). */
+  rendiconto_giornaliero_id?: string | null;
   id: string; data: string; tariffa_id: string | null;
   descrizione: string; unita_misura: string; prezzo_unitario: number;
   quantita: number; maggiorazione_pct: number; importo: number;
@@ -503,7 +505,7 @@ export function RendicontoAppalto({
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1">
-                          {puoModificare && r.stato !== "in_sal" ? (
+                          {puoModificare && r.stato !== "in_sal" && !r.rendiconto_giornaliero_id ? (
                             <Button
                               variant="ghost" size="icon"
                               aria-label={r.stato === "confermata" ? tr("Riporta in bozza") : tr("Conferma la riga")}
@@ -522,7 +524,12 @@ export function RendicontoAppalto({
                               <Lock className="h-3.5 w-3.5 text-slate-400" />
                             </span>
                           )}
-                          {puoModificare && r.stato !== "in_sal" && (
+                          {puoModificare && r.rendiconto_giornaliero_id && r.stato !== "in_sal" && (
+                            <span title={tr("Fa parte di un rendiconto giornaliero: si modifica da Cantiere → Rendiconti")}>
+                              <Lock className="h-3.5 w-3.5 text-slate-400" />
+                            </span>
+                          )}
+                          {puoModificare && r.stato !== "in_sal" && !r.rendiconto_giornaliero_id && (
                             <>
                               <Button variant="ghost" size="icon" aria-label={tr("Modifica la riga")}
                                 onClick={() => {

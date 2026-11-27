@@ -56,7 +56,7 @@ export interface DettaglioRendiconto {
   righe: RigaRendiconto[];
 }
 
-export interface EsitoDaRapportini { prova: boolean; da_creare: number; gia_fatti: number; gia_nel_rendiconto: number; creati: string[] }
+export interface EsitoDaRapportini { prova: boolean; da_creare: number; gia_fatti: number; gia_nel_rendiconto: number; creati: string[]; errori?: { rapportino_id: string; errore: string }[] }
 
 type Esito<T> = PromiseLike<{ data: T | null; error: unknown }>;
 interface Costruttore {

@@ -56,6 +56,8 @@ export function RendicontiGiornalieri({ orderId, apriId, onApriConsumato }: {
     onSuccess: (r) => {
       setProva(null);
       toast.success(tr("{n} rendiconti creati in bozza", { n: r.creati.length }));
+      // Un rapportino difettoso non ferma gli altri: chi non è passato va detto, col motivo.
+      if (r.errori?.length) toast.error(tr("{n} rapportini non trasformati: {motivo}", { n: r.errori.length, motivo: r.errori[0].errore }));
       void qc.invalidateQueries({ queryKey: ["rendiconti-giornalieri", orderId] });
     },
     onError: (e) => toast.error(messaggioErrore(e, tr("Rendiconti non creati"))),

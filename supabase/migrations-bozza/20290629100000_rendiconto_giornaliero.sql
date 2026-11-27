@@ -90,10 +90,13 @@ create index if not exists appalto_rendiconto_giornaliero_idx
 -- Il prezzo del giornaliero lo calcola rendiconto_giornaliero_salva con la regola unica
 -- (cantiere → committente → generale → a mano) e non pretende il contratto sulla commessa:
 -- il listino del committente arriva anche da orders.customer_id.
+-- Resta SECURITY DEFINER con search_path '' come in produzione: legge orders, che la
+-- restrittiva office_financial_select nasconde a chi non ha importi + costi + margini.
 create or replace function public.appalto_rendiconto_prepara()
 returns trigger
 language plpgsql
-set search_path = public
+security definer
+set search_path = ''
 as $function$
 declare
   v_ord record;
@@ -179,24 +182,37 @@ $function$;
 create or replace function private.rendiconto_giornaliero_righe_guardia()
 returns trigger
 language plpgsql
-set search_path = public
+set search_path = ''
 as $function$
 declare
   v_rg uuid := coalesce(case when tg_op <> 'INSERT' then old.rendiconto_giornaliero_id end,
                         case when tg_op <> 'DELETE' then new.rendiconto_giornaliero_id end);
-  v_num integer;
+  v_testata record;
 begin
   if v_rg is null or coalesce(current_setting('eic.rendiconto_giornaliero', true), '') = '1' then
     return coalesce(new, old);
   end if;
+  -- Cascate e «set null» delle chiavi esterne (testata, commessa, persona, mezzo, fase, listino
+  -- cancellati, purga dell'azienda) arrivano da un trigger di sistema: passano.
+  if pg_trigger_depth() > 1 then
+    return coalesce(new, old);
+  end if;
+  select numero, stato into v_testata from public.rendiconti_giornalieri where id = v_rg;
+  if not found then
+    return coalesce(new, old);
+  end if;
+  -- Il rendiconto del periodo (appalto_sal_crea, annullo, fattura) sposta solo stato e sal_id,
+  -- e solo su righe di un giornaliero già confermato: mai da bozza a confermata o indietro.
   if tg_op = 'UPDATE'
+     and v_testata.stato = 'confermato'
      and new.rendiconto_giornaliero_id is not distinct from old.rendiconto_giornaliero_id
+     and old.stato in ('confermata', 'in_sal', 'fatturata')
+     and new.stato in ('confermata', 'in_sal', 'fatturata')
      and (to_jsonb(new) - array['stato','sal_id','importo','margine','updated_at','confermata_da','confermata_at'])
          = (to_jsonb(old) - array['stato','sal_id','importo','margine','updated_at','confermata_da','confermata_at']) then
     return new;
   end if;
-  select numero into v_num from public.rendiconti_giornalieri where id = v_rg;
-  raise exception 'Questa riga fa parte del rendiconto del giorno n. %: si modifica da lì', v_num
+  raise exception 'Questa riga fa parte del rendiconto del giorno n. %: si modifica da lì', v_testata.numero
     using errcode = '42501';
 end;
 $function$;
@@ -299,6 +315,12 @@ begin
 
   perform set_config('eic.rendiconto_giornaliero', '1', true);
 
+  if v_id is null and nullif(p->>'rapportino_id', '') is not null and not exists (
+    select 1 from public.campo_rapportini cr
+     where cr.id = (p->>'rapportino_id')::uuid and cr.order_id = v_order) then
+    raise exception 'Il rapportino non è di questa commessa' using errcode = '23514';
+  end if;
+
   if v_id is null then
     perform pg_advisory_xact_lock(hashtextextended('rendiconto_giornaliero:' || v_order::text, 0));
     insert into public.rendiconti_giornalieri (company_id, order_id, data, numero, descrizione_lavori, note, rapportino_id)
@@ -321,7 +343,10 @@ begin
   for v_r in select value from jsonb_array_elements(coalesce(p->'righe', '[]'::jsonb)) loop
     v_i := v_i + 1;
     v_q := coalesce(nullif(replace(v_r->>'quantita', ',', '.'), '')::numeric, 0);
-    if v_q <= 0 then continue; end if;
+    if v_q <= 0 then
+      raise exception 'La riga «%» ha quantità 0: scrivila o toglila', coalesce(nullif(btrim(v_r->>'descrizione'), ''), 'senza nome')
+        using errcode = '22023';
+    end if;
     v_listino := nullif(v_r->>'listino_voce_id', '')::uuid;
     if v_listino is not null and not exists (
       select 1 from public.tariffe_aziendali t where t.id = v_listino and t.company_id = v_company) then
@@ -363,8 +388,8 @@ begin
       case when not v_a_mano then nullif(v_prezzo->>'appalto_tariffa_id', '')::uuid end,
       v_descr, v_unita, v_pu, v_q,
       coalesce(nullif(v_r->>'maggiorazione_pct', '')::numeric, 0),
-      case when v_emp is not null then round(v_q * nullif(public.costo_orario_calcolato(v_emp), 0), 2)
-           when v_costo_u is not null then round(v_q * v_costo_u, 2) end,
+      -- Il costo orario della persona NON si scrive qui: la riga la legge chi ha solo gli importi.
+      case when v_emp is null and v_costo_u is not null then round(v_q * v_costo_u, 2) end,
       v_emp, nullif(v_r->>'fase_id', '')::uuid, 'manuale', 'bozza', nullif(btrim(v_r->>'note'), ''),
       v_mezzo, false, v_id,
       case when v_r->>'categoria' in ('manodopera','mezzo','trasporto','materiale','voce') then v_r->>'categoria'
@@ -522,7 +547,8 @@ begin
              'quantita', case when m->>'ore' ~ '^[0-9]+([.,][0-9]+)?$' and replace(m->>'ore', ',', '.')::numeric > 0
                               then replace(m->>'ore', ',', '.')::numeric else 1 end,
              'mezzo_id', mz.id, 'listino_voce_id', mz.tariffa_id,
-             'note', case when not (m->>'ore' ~ '^[0-9]+([.,][0-9]+)?$') then 'Ore del mezzo non scritte nel rapportino' end))
+             'note', case when not (m->>'ore' ~ '^[0-9]+([.,][0-9]+)?$' and replace(m->>'ore', ',', '.')::numeric > 0)
+                          then 'Ore del mezzo non scritte nel rapportino: 1 da correggere' end))
       from jsonb_array_elements(case when jsonb_typeof(v_r.mezzi_usati) = 'array' then v_r.mezzi_usati else '[]'::jsonb end) m
       left join public.mezzi mz on mz.id = case when m->>'mezzo_id' ~* '^[0-9a-f-]{36}$' then (m->>'mezzo_id')::uuid end
                                and mz.company_id = v_r.company_id), '[]'::jsonb);
@@ -594,6 +620,7 @@ security definer
 set search_path = public
 as $function$
 declare v record; v_creati integer := 0; v_gia integer := 0; v_vecchi integer := 0; v_ids uuid[] := '{}';
+        v_errori jsonb := '[]'::jsonb;
 begin
   perform private.rendiconto_giornaliero_puo_scrivere(p_order_id);
   for v in
@@ -610,13 +637,19 @@ begin
   loop
     if v.ha_rg then v_gia := v_gia + 1; continue; end if;
     if v.ha_vecchie then v_vecchi := v_vecchi + 1; continue; end if;
-    v_creati := v_creati + 1;
-    if not p_prova then
-      v_ids := v_ids || public.rendiconto_giornaliero_da_rapportino(v.id);
+    if p_prova then
+      v_creati := v_creati + 1;
+    else
+      begin
+        v_ids := v_ids || public.rendiconto_giornaliero_da_rapportino(v.id);
+        v_creati := v_creati + 1;
+      exception when others then
+        v_errori := v_errori || jsonb_build_array(jsonb_build_object('rapportino_id', v.id, 'errore', sqlerrm));
+      end;
     end if;
   end loop;
   return jsonb_build_object('prova', p_prova, 'da_creare', v_creati, 'gia_fatti', v_gia,
-                            'gia_nel_rendiconto', v_vecchi, 'creati', v_ids);
+                            'gia_nel_rendiconto', v_vecchi, 'creati', v_ids, 'errori', v_errori);
 end;
 $function$;
 
@@ -631,7 +664,8 @@ grant execute on function private.rendiconto_dai_rapportini() to authenticated;
 create or replace function public.appalto_rendiconto_da_rapportino()
 returns trigger
 language plpgsql
-set search_path = public
+security definer
+set search_path = ''
 as $function$
 declare v_errore text;
 begin
@@ -674,7 +708,7 @@ create or replace function public.rapportino_voce_applica(p_voce_id uuid)
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $function$
 declare v public.rapportino_voci_libere%rowtype; v_r record; v_costo numeric; v_cost_id uuid; v_ric numeric;
 begin

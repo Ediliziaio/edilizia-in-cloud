@@ -133,8 +133,12 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
     void qc.invalidateQueries({ queryKey: ["appalto-rendiconto"] });
   };
   const errore = (e: unknown) => toast.error(messaggioErrore(e, tr("Operazione non riuscita")));
+  const senzaQuantita = righe.find((r) => !(r.quantita > 0));
   const salva = useMutation({
-    mutationFn: () => salvaRendiconto(bozza()),
+    mutationFn: () => {
+      if (senzaQuantita) throw new Error(tr("La riga «{nome}» ha quantità 0: scrivila o toglila", { nome: senzaQuantita.descrizione || tr("senza nome") }));
+      return salvaRendiconto(bozza());
+    },
     onSuccess: async (nuovo) => { await dopo(nuovo); toast.success(tr("Rendiconto salvato")); },
     onError: errore,
   });
@@ -283,7 +287,7 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
         )}
         <DialogFooter className="gap-1.5 sm:justify-between">
           <div className="flex gap-1.5">
-            {puoModificare && id && stato !== "annullato" && !salSigillato && (
+            {puoModificare && id && stato === "bozza" && !salSigillato && (
               <Button type="button" variant="outline" size="sm" disabled={occupato}
                 onClick={() => { if (window.confirm(tr("Annullare questo rendiconto?"))) cambiaStato.mutate("annulla"); }}>{tr("Annulla rendiconto")}</Button>
             )}
