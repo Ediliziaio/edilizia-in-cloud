@@ -58,6 +58,16 @@ it("il filtro da pagare non include rate richiamate o da bloccare", () => {
   expect(screen.getByText("Nessuna fattura da pagare trovata.")).toBeVisible();
 });
 
+it("mostra una rata ancora aperta anche se la vecchia spunta della fattura dice pagata", () => {
+  finto.dati = [{ ...documento("F1"), pagata_il: "2026-11-01", scadenze: [
+    { id: "r1", numero: 1, scadenza: null, importo: 100, residuo: 70, metodo: null, stato: "pagamento parziale", prevista: false },
+  ] }];
+  monta();
+  fireEvent.click(screen.getByRole("button", { name: "Da pagare" }));
+  expect(screen.getByText("Fattura F1")).toBeVisible();
+  expect(screen.getByText(/Residuo 70,00/)).toBeVisible();
+});
+
 it("consente di riprovare se la lettura delle scadenze fallisce", () => {
   finto.errore = true;
   monta();

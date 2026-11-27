@@ -8,9 +8,10 @@ import { nonSiPaga } from "@/lib/fatturazione/noteDiCredito";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 function haScadenzeAperte(f: FatturaConScadenze): boolean {
-  if (nonSiPaga(f.tipo_documento ?? "") || f.pagata_il || ["annullata", "scartata", "rifiutata"].includes(f.stato ?? "")) return false;
+  if (nonSiPaga(f.tipo_documento ?? "") || ["annullata", "scartata", "rifiutata"].includes(f.stato ?? "")) return false;
   const pagabili = new Set(["da pagare", "avvisata", "insoluta", "pagamento parziale", "da verificare"]);
-  return !f.scadenze.length || f.scadenze.some(r => pagabili.has(r.stato) && r.residuo !== 0);
+  // Se ci sono rate, prevalgono sul vecchio indicatore di pagamento della fattura.
+  return f.scadenze.length ? f.scadenze.some(r => pagabili.has(r.stato) && r.residuo !== 0) : !f.pagata_il;
 }
 
 export function ContestoFornitoreRicevuta({ companyId, fatturaId, supplierId, piva, cf, paese, onApriFattura, onChiudi }: {
