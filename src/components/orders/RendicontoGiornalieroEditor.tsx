@@ -7,7 +7,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, RefreshCw, X } from "lucide-react";
+import { Copy, Loader2, Plus, RefreshCw, Save, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -19,14 +19,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrderWorkPhases } from "@/hooks/useOrderWorkPhases";
 import { useMezzi } from "@/hooks/useMezzi";
 import { PulsantePdfRendiconto } from "@/components/orders/PulsantePdfRendiconto";
-import { CercaNelListino } from "@/components/orders/CercaNelListino";
+import { CercaVoceRendiconto } from "@/components/orders/CercaVoceRendiconto";
+import { avvisoUnita } from "@/components/orders/CercaNelListino";
+import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
+import { leggiDestinatarioRapporto } from "@/lib/documentiOperativi/destinatarioRapporto";
 import { formatCurrency } from "@/lib/formatters";
 import { messaggioErrore } from "@/lib/messaggioErrore";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import type { VoceListino } from "@/lib/campo/prezzoVoceRapportino";
 import {
-  CATEGORIE, ETICHETTA_FONTE, annullaRendiconto, chiaveRiga, confermaRendiconto, importoRiga, leggiRendiconto,
-  rendicontoDelGiorno, riapriRendiconto, salvaRendiconto, senzaPrezzo, type CategoriaRiga, type RigaRendiconto, type StatoRendiconto,
+  CATEGORIE, ETICHETTA_FONTE, annullaRendiconto, chiaveRiga, confermaRendiconto, elencoRendiconti, importoRiga, leggiRendiconto,
+  puoCopiare, rendicontoCopia, rendicontoDelGiorno, riapriRendiconto, salvaPrezzoPerCommittente, salvaRendiconto, senzaPrezzo,
+  type CategoriaRiga, type RigaRendiconto, type StatoRendiconto, type VoceListinoCommittente,
 } from "@/lib/rendiconti/rendicontiGiornalieri";
 
 const oggi = () => new Date().toLocaleDateString("en-CA");
@@ -74,7 +79,39 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
   const [aggiungendo, setAggiungendo] = useState<CategoriaRiga | null>(null);
   const [rapportiniNuovi, setRapportiniNuovi] = useState(0);
 
+  const permessi = usePermissions();
+  const puoSalvarePrezzo = (permessi.isAdmin || permessi.canEditCustomers) && permessi.canViewOrderAmounts;
+  const [conStraord, setConStraord] = useState<Set<string>>(new Set());
+  const [copiando, setCopiando] = useState(false);
+  const [origineCopia, setOrigineCopia] = useState("");
+  const sezione = useRef<HTMLElement>(null);
   const { employees } = useOrderWorkPhases(orderId);
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  // Ditte della commessa: le stesse del rapportino dell'ufficio.
+  const ditte = useQuery({
+    queryKey: ["rapportini-ufficio-ditte", companyId, orderId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data: d, error } = await (supabase as unknown as { from: (t: string) => any }) // eslint-disable-line @typescript-eslint/no-explicit-any
+        .from("order_external_teams").select("team:external_teams(name, subappaltatore_id)").eq("order_id", orderId);
+      if (error) throw error;
+      const visti = new Set<string>();
+      return ((d ?? []) as Array<{ team: { name: string; subappaltatore_id: string | null } | null }>)
+        .filter((r) => r.team?.subappaltatore_id && !visti.has(r.team.subappaltatore_id) && visti.add(r.team.subappaltatore_id))
+        .map((r) => ({ id: r.team!.subappaltatore_id!, nome: r.team!.name }));
+    },
+  });
+  const committente = useQuery({
+    queryKey: ["rendiconto-giornaliero-committente", companyId, orderId],
+    enabled: !!companyId && puoSalvarePrezzo,
+    queryFn: async () => (await leggiDestinatarioRapporto(companyId!, orderId)).nome,
+  });
+  const elenco = useQuery({
+    queryKey: ["rendiconti-giornalieri", orderId],
+    enabled: copiando,
+    queryFn: () => elencoRendiconti(orderId),
+  });
   const { data: mezzi = [] } = useMezzi();
   const ordine = useQuery({
     queryKey: ["rendiconto-giornaliero-ordine", orderId],
@@ -110,7 +147,8 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
     const cat = CATEGORIE.find((c) => c.valore === r.categoria)!;
     setRighe((rs) => [...rs, {
       chiave: chiaveRiga(), descrizione: "", unita: cat.unita, quantita: 1, prezzo_unitario: null, prezzo_a_mano: false,
-      prezzo_fonte: null, listino_voce_id: null, employee_id: null, mezzo_id: null, fase_id: null, note: null, ...r,
+      prezzo_fonte: null, listino_voce_id: null, appalto_tariffa_id: null, employee_id: null, subappaltatore_id: null,
+      mezzo_id: null, fase_id: null, maggiorazione_pct: 0, note: null, ...r,
     }]);
   };
   const daListino = (categoria: CategoriaRiga, v: VoceListino) => {
@@ -122,8 +160,16 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
       // Un prodotto del listino prodotti non ha una voce di listino voci: il suo prezzo si scrive.
       prezzo_a_mano: prodotto && v.prezzo != null,
       prezzo_fonte: prodotto ? (v.prezzo != null ? "manuale" : "mancante") : v.fonte,
+      avviso_unita: avvisoUnita(v),
     });
   };
+  // Voce del listino del committente (anche non collegata al generale): il prezzo viene da lì.
+  const daCommittente = (categoria: CategoriaRiga, v: VoceListinoCommittente) =>
+    aggiungi({
+      categoria, descrizione: v.descrizione, unita: v.unita || "cad", appalto_tariffa_id: v.appalto_tariffa_id,
+      listino_voce_id: v.tariffa_id ?? null, prezzo_unitario: v.prezzo ?? null, prezzo_a_mano: false,
+      prezzo_fonte: v.prezzo == null ? "mancante" : "committente",
+    });
 
   const bozza = () => ({ id, order_id: orderId, data, descrizione_lavori: lavori, note, righe });
   const dopo = async (idSalvato: string) => {
@@ -147,7 +193,53 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
   const conferma = useMutation({
     mutationFn: async () => { const nuovo = await salvaRendiconto(bozza()); setId(nuovo); await confermaRendiconto(nuovo); return nuovo; },
     onSuccess: async (nuovo) => { await dopo(nuovo); toast.success(tr("Rendiconto confermato")); },
-    onError: async (e) => { errore(e); if (id) await dopo(id).catch((): void => undefined); },
+    onError: async (e) => {
+      errore(e);
+      if (id) await dopo(id).catch((): void => undefined);
+      // Righe senza prezzo: si scorre alla prima, col bordo ambra.
+      setTimeout(() => sezione.current?.querySelector('[data-senza-prezzo="true"]')?.scrollIntoView({ block: "center", behavior: "smooth" }), 80);
+    },
+  });
+  const salvaPrezzoCommittente = useMutation({
+    mutationFn: async (r: RigaRendiconto) => ({
+      r, esito: await salvaPrezzoPerCommittente(orderId, r.listino_voce_id!, r.prezzo_unitario ?? 0, r.unita, r.descrizione),
+    }),
+    onSuccess: ({ r, esito }) => {
+      aggiorna(r.chiave, { appalto_tariffa_id: esito.appalto_tariffa_id, prezzo_a_mano: false, prezzo_fonte: "committente" });
+      const nome = committente.data || tr("committente");
+      toast.success(esito.contratto_creato
+        ? tr("Salvato nel listino di {nome}: ho creato l'accordo con le condizioni predefinite", { nome })
+        : tr("Salvato nel listino di {nome}", { nome }));
+      void qc.invalidateQueries({ queryKey: ["appalto-tariffe"] });
+    },
+    onError: errore,
+  });
+  // Un solo comando: riapre il confermato e ne aggiunge le voci dei rapportini nuovi.
+  const riapriEAggiungi = useMutation({
+    mutationFn: async () => {
+      await riapriRendiconto(id!);
+      const r = await rendicontoDelGiorno(orderId, data);
+      return { idSalvato: id!, r };
+    },
+    onSuccess: async ({ idSalvato, r }) => {
+      await dopo(r.id ?? idSalvato);
+      if (r.aggiunti > 0) toast.success(tr("Prese le voci di {n} rapportini", { n: r.rapportini }));
+    },
+    onError: errore,
+  });
+  const copiaGiorno = useMutation({
+    mutationFn: async () => {
+      // Con un rendiconto già salvato si salva prima, così la data scelta qui è quella a cui si copia.
+      if (id) await salvaRendiconto(bozza());
+      return rendicontoCopia(origineCopia, data);
+    },
+    onSuccess: async (r) => {
+      setCopiando(false); setOrigineCopia("");
+      await dopo(r.id);
+      caricato.current = rendicontoId ?? r.id;
+      toast.success(tr(r.copiate === 1 ? "Copiata {n} riga" : "Copiate {n} righe", { n: r.copiate }));
+    },
+    onError: errore,
   });
   const cambiaStato = useMutation({
     mutationFn: async (azione: "riapri" | "annulla") => {
@@ -158,7 +250,7 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
     onSuccess: async (v) => { if (v) await dopo(v); },
     onError: errore,
   });
-  const occupato = salva.isPending || conferma.isPending || cambiaStato.isPending;
+  const occupato = salva.isPending || conferma.isPending || cambiaStato.isPending || riapriEAggiungi.isPending || copiaGiorno.isPending;
 
   const nomeStato: Record<StatoRendiconto, string> = { bozza: tr("Bozza"), confermato: tr("Confermato"), annullato: tr("Annullato") };
 
@@ -167,6 +259,11 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
     if (!p) return;
     aggiungi({ categoria: "manodopera", descrizione: p.label, unita: "ora", quantita: 8, employee_id: p.id, listino_voce_id: ordine.data ?? null,
       prezzo_fonte: ordine.data ? null : "mancante" });
+  };
+  const aggiungiDitta = (idDitta: string) => {
+    const d = ditte.data?.find((x) => x.id === idDitta);
+    if (!d) return;
+    aggiungi({ categoria: "manodopera", descrizione: d.nome, unita: "ora", quantita: 8, subappaltatore_id: d.id });
   };
   const aggiungiMezzo = (idMezzo: string) => {
     const m = mezzi.find((x) => x.id === idMezzo);
@@ -213,6 +310,11 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
                 ? tr(rapportiniNuovi === 1 ? "C'è {n} rapportino nuovo di questo giorno: le sue voci non sono ancora qui." : "Ci sono {n} rapportini nuovi di questo giorno: le loro voci non sono ancora qui.", { n: rapportiniNuovi })
                 : tr(rapportiniNuovi === 1 ? "C'è {n} rapportino nuovo di questo giorno: riapri il rendiconto per aggiungerne le voci." : "Ci sono {n} rapportini nuovi di questo giorno: riapri il rendiconto per aggiungerne le voci.", { n: rapportiniNuovi })}
             </span>
+            {stato === "confermato" && puoModificare && (
+              <Button type="button" size="sm" variant="outline" className="h-7 gap-1 bg-background text-xs" disabled={occupato} onClick={() => riapriEAggiungi.mutate()}>
+                {riapriEAggiungi.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}{tr("Riapri e aggiungi le voci")}
+              </Button>
+            )}
             {stato === "bozza" && modificabile && (
               <Button type="button" size="sm" variant="outline" className="h-7 gap-1 bg-background text-xs" disabled={occupato || prendiNuovi.isPending} onClick={() => prendiNuovi.mutate()}>
                 {prendiNuovi.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}{tr("Aggiungi le voci dei rapportini nuovi")}
@@ -221,12 +323,30 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
           </div>
         )}
         {lettura.isLoading ? <p className="py-6 text-center text-sm text-muted-foreground">{tr("Caricamento…")}</p> : (
-          <section aria-label={tr("Rendiconto del giorno")} className="space-y-3 rounded-lg border p-3">
+          <section ref={sezione} aria-label={tr("Rendiconto del giorno")} className="space-y-3 rounded-lg border p-3">
             <div className="flex flex-wrap items-end gap-2">
               <label className="grid gap-1 text-xs text-muted-foreground">{tr("Giorno")}
                 <Input type="date" aria-label={tr("Data")} className="h-9 w-40 text-foreground" value={data} disabled={!modificabile} onChange={(e) => setData(e.target.value)} />
               </label>
             </div>
+            {modificabile && puoCopiare(stato, righe.length) && (
+              <div className="space-y-1">
+                <Button type="button" variant="outline" size="sm" className="h-8 gap-1" disabled={occupato} onClick={() => setCopiando((c) => !c)}>
+                  <Copy className="h-3.5 w-3.5" />{tr("Copia da un altro giorno")}
+                </Button>
+                {copiando && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <OfficeSelect value={origineCopia} label={tr("Rendiconto da copiare")} className="h-8 min-w-[14rem] flex-1" placeholder={tr("Scegli il giorno da copiare…")}
+                      onValueChange={setOrigineCopia}
+                      options={(elenco.data ?? []).filter((x) => x.id !== id && x.stato !== "annullato" && x.righe > 0)
+                        .map((x) => ({ value: x.id, label: `${x.data} · n. ${x.numero} · ${x.righe} ${tr("righe")}` }))} />
+                    <Button type="button" size="sm" className="h-8" disabled={!origineCopia || occupato} onClick={() => copiaGiorno.mutate()}>
+                      {copiaGiorno.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}{tr("Copia le righe")}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
             <label className="grid gap-1 text-xs text-muted-foreground">{tr("Cosa si è fatto")}
               <Textarea rows={2} maxLength={4000} aria-label={tr("Lavori del giorno")} className="text-foreground" value={lavori} disabled={!modificabile}
                 onChange={(e) => setLavori(e.target.value)} placeholder={tr("Cosa si è fatto, per il committente")} />
@@ -240,25 +360,47 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
                   {dentro.length > 0 && (
                     <ul aria-label={tr(c.titolo)} className="divide-y rounded-md border">
                       {dentro.map((r) => {
-                        const legata = !!(r.employee_id || r.mezzo_id);
+                        const legata = !!(r.employee_id || r.mezzo_id || r.subappaltatore_id);
+                        const mancante = senzaPrezzo(r);
+                        const conVoce = !!(r.listino_voce_id || r.appalto_tariffa_id);
+                        const mostraStraord = c.valore === "manodopera" && (r.maggiorazione_pct > 0 || conStraord.has(r.chiave));
+                        const salvabile = puoSalvarePrezzo && modificabile && r.prezzo_a_mano && !!r.listino_voce_id && !r.appalto_tariffa_id && (r.prezzo_unitario ?? 0) > 0;
                         return (
-                          <li key={r.chiave} className="flex flex-wrap items-center gap-2 px-2 py-0.5">
+                          <li key={r.chiave} data-senza-prezzo={mancante ? "true" : undefined}
+                            className={`flex flex-wrap items-center gap-2 px-2 py-0.5 ${mancante ? "border-l-2 border-amber-400 bg-amber-50/40" : ""}`}>
                             <div className="min-w-[8rem] flex-1">
                               {legata
                                 ? <span className="block truncate text-sm">{r.descrizione}</span>
                                 : <Input aria-label={tr("Descrizione")} className="h-7 text-sm" value={r.descrizione} disabled={!modificabile}
                                     onChange={(e) => aggiorna(r.chiave, { descrizione: e.target.value })} />}
                               <span className="block text-[11px]">{fonteRiga(r)}</span>
+                              {r.avviso_unita && <span role="alert" className="block text-[11px] text-amber-700">{r.avviso_unita}</span>}
+                              {salvabile && (
+                                <button type="button" disabled={salvaPrezzoCommittente.isPending} onClick={() => salvaPrezzoCommittente.mutate(r)}
+                                  className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-blue-800 underline-offset-2 hover:underline">
+                                  <Save className="h-3 w-3" />{tr("Salva questo prezzo per il committente")}
+                                </button>
+                              )}
                             </div>
                             <Numero etichetta={tr("Quantità")} className="h-7 w-20 text-right" disabled={!modificabile} valore={r.quantita}
                               onCambia={(n) => aggiorna(r.chiave, { quantita: n })} />
-                            {legata || r.listino_voce_id
+                            {legata || conVoce
                               ? <span className="w-10 text-xs text-muted-foreground">{r.unita}</span>
                               : <Input aria-label={tr("Unità")} className="h-7 w-12 text-xs" value={r.unita} disabled={!modificabile}
                                   onChange={(e) => aggiorna(r.chiave, { unita: e.target.value })} />}
+                            {mostraStraord && (
+                              <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                <Numero etichetta={tr("Maggiorazione straordinario %")} className="h-7 w-14 text-right" disabled={!modificabile} valore={r.maggiorazione_pct}
+                                  onCambia={(n) => aggiorna(r.chiave, { maggiorazione_pct: n })} />{tr("% straord.")}
+                              </span>
+                            )}
                             <Numero etichetta={tr("Prezzo")} className="h-7 w-20 text-right" disabled={!modificabile} valore={r.prezzo_unitario}
                               onCambia={(n) => aggiorna(r.chiave, { prezzo_unitario: n, prezzo_a_mano: true, prezzo_fonte: "manuale" })} />
                             <span className="w-20 text-right text-sm font-medium tabular-nums">{r.prezzo_unitario == null ? "—" : formatCurrency(importoRiga(r))}</span>
+                            {modificabile && c.valore === "manodopera" && !mostraStraord && (
+                              <button type="button" className="text-[11px] text-muted-foreground underline-offset-2 hover:underline"
+                                onClick={() => setConStraord((x) => new Set(x).add(r.chiave))}>{tr("+% straord.")}</button>
+                            )}
                             {modificabile && (
                               <button type="button" aria-label={tr("Togli la riga")} className="text-muted-foreground hover:text-rose-600"
                                 onClick={() => setRighe((rs) => rs.filter((x) => x.chiave !== r.chiave))}><X className="h-4 w-4" /></button>
@@ -274,6 +416,11 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
                         <OfficeSelect value="" label={tr("Aggiungi persona")} className="h-8 min-w-[12rem] flex-1 text-muted-foreground"
                           placeholder={tr("+ Aggiungi persona…")} onValueChange={(v) => { if (v) aggiungiPersona(v); }}
                           options={employees.map((e) => ({ value: e.id, label: e.label }))} />
+                      )}
+                      {c.valore === "manodopera" && (ditte.data ?? []).length > 0 && (
+                        <OfficeSelect value="" label={tr("Aggiungi ditta")} className="h-8 min-w-[10rem] flex-1 text-muted-foreground"
+                          placeholder={tr("+ Aggiungi ditta…")} onValueChange={(v) => { if (v) aggiungiDitta(v); }}
+                          options={(ditte.data ?? []).map((d) => ({ value: d.id, label: d.nome }))} />
                       )}
                       {c.valore === "mezzo" && (
                         <OfficeSelect value="" label={tr("Aggiungi mezzo")} className="h-8 min-w-[12rem] flex-1 text-muted-foreground"
@@ -291,8 +438,9 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
                     </div>
                   )}
                   {modificabile && aggiungendo === c.valore && c.valore !== "manodopera" && c.valore !== "mezzo" && (
-                    <CercaNelListino dove={{ orderId, data }} conProdotti={c.valore === "materiale"}
-                      onScegli={(v) => { daListino(c.valore, v); setAggiungendo(null); }} />
+                    <CercaVoceRendiconto orderId={orderId} data={data} conProdotti={c.valore === "materiale"}
+                      onScegliCommittente={(v) => { daCommittente(c.valore, v); setAggiungendo(null); }}
+                      onScegliGenerale={(v) => { daListino(c.valore, v); setAggiungendo(null); }} />
                   )}
                 </Blocco>
               );

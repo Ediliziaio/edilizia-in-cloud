@@ -1,7 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
-import { CATEGORIE, importoRiga, leggiRendiconto, type DettaglioRendiconto } from "@/lib/rendiconti/rendicontiGiornalieri";
+import { CATEGORIE, importoRiga, leggiRendiconto, type DettaglioRendiconto, type RigaRendiconto } from "@/lib/rendiconti/rendicontiGiornalieri";
 import { leggiDestinatarioRapporto } from "./destinatarioRapporto";
 import type { DocumentoOperativo } from "./modello";
+
+/** La maggiorazione sta nella descrizione («+25% straord.»); l'importo la include già (importoRiga). */
+export const descrizioneRiga = (r: Pick<RigaRendiconto, "descrizione" | "maggiorazione_pct">) =>
+  r.maggiorazione_pct > 0 ? `${r.descrizione} (+${String(r.maggiorazione_pct).replace(".", ",")}% straord.)` : r.descrizione;
 
 /**
  * Il rendiconto giornaliero come documento operativo (27/11/2026): testata col committente, righe per
@@ -16,7 +20,7 @@ export function documentoDaRendiconto(
   const { testata } = d;
   const righe = CATEGORIE.flatMap((c) =>
     d.righe.filter((r) => r.categoria === c.valore).map((r) => ({
-      descrizione: r.descrizione,
+      descrizione: descrizioneRiga(r),
       unita: r.unita,
       quantita: r.quantita,
       prezzo: r.prezzo_unitario,

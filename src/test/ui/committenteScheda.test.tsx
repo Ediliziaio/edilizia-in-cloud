@@ -269,6 +269,15 @@ it("le voci spente dalla sostituzione non contano e si vedono solo a richiesta",
   expect(screen.getByText("Voce vecchia")).toBeVisible();
 });
 
+it("un avviso dice quante voci del listino non sono collegate al generale (27/11/2026)", async () => {
+  stato.tabelle.appalto_tariffe = [tariffa, { ...tariffa, id: "r2", descrizione: "Collegata", tariffa_id: "g1" }];
+  mostra();
+  await apri("Listino concordato");
+  expect(await screen.findByText("Giornata uomo")).toBeVisible();
+  expect(screen.getByRole("status")).toHaveTextContent("1 voce non collegata al listino generale");
+  expect(screen.getByRole("link", { name: /Collegale nella pagina del contratto/ })).toBeVisible();
+});
+
 it("in testata i soldi veri del committente, e cosa fare adesso", async () => {
   mostra();
   const incassare = (await screen.findAllByText("Da incassare")).find((e) => e.tagName === "SPAN" && e.closest("button"))!.closest("button")!;

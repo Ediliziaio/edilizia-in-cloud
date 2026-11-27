@@ -69421,5 +69421,10 @@ const dizionario: Dizionario = {
   "+ Aggiungi mezzo…": "+ Añadir vehículo…",
   "da 1 rapportino": "de 1 parte",
   "1 rapportino nuovo": "1 parte nuevo",
+  "Voce del listino generale": "Partida de la lista de precios general",
+  "Collegale nella pagina del contratto": "Vincúlalas en la página del contrato",
+  "Forse è: {nome}": "Quizá sea: {nome}",
+  "{n} voce non collegata al listino generale: i rendiconti la trovano solo cercandola a mano.": "{n} partida sin vincular a la lista general: los partes diarios solo la encuentran buscándola a mano.",
+  "{n} voci non collegate al listino generale: i rendiconti le trovano solo cercandole a mano.": "{n} partidas sin vincular a la lista general: los partes diarios solo las encuentran buscándolas a mano.",
 };
 export default dizionario;

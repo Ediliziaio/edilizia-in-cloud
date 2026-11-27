@@ -49,10 +49,31 @@ export interface RigaRendiconto {
   prezzo_a_mano: boolean;
   prezzo_fonte: FonteRiga | null;
   listino_voce_id: string | null;
+  /** Voce del listino del committente usata (colonna `tariffa_id`): il prezzo viene da lì, collegata o no al generale. */
+  appalto_tariffa_id: string | null;
   employee_id: string | null;
+  /** Ditta (subappaltatore): senza voce scelta prende la tariffa della ditta. */
+  subappaltatore_id: string | null;
   mezzo_id: string | null;
   fase_id: string | null;
+  /** Maggiorazione (straordinario): importo = quantità × prezzo × (1 + %/100). */
+  maggiorazione_pct: number;
   note: string | null;
+  /** Solo in editor: la voce scelta ha un'unità diversa da quella del generale (non va al database). */
+  avviso_unita?: string | null;
+}
+
+/** Una voce del listino del committente, come la dà `rendiconto_listino_committente`. */
+export interface VoceListinoCommittente {
+  appalto_tariffa_id: string;
+  tariffa_id: string | null;
+  codice: string | null;
+  descrizione: string;
+  unita: string;
+  prezzo: number | null;
+  fonte: FonteRiga | string;
+  tipo?: string | null;
+  collegata: boolean;
 }
 
 export interface DettaglioRendiconto {
@@ -85,7 +106,7 @@ async function chiama<T>(funzione: string, args: object): Promise<T> {
 }
 
 export const COLONNE_TESTATA = "id, order_id, data, numero, stato, descrizione_lavori, note, rapportino_id, righe, totale, senza_prezzo, sal_id, rapportini, rapportini_nuovi";
-const COLONNE_RIGHE = "id, categoria, descrizione, unita_misura, quantita, prezzo_unitario, prezzo_a_mano, prezzo_fonte, listino_voce_id, employee_id, mezzo_id, fase_id, note, ordine";
+const COLONNE_RIGHE = "id, categoria, descrizione, unita_misura, quantita, prezzo_unitario, prezzo_a_mano, prezzo_fonte, listino_voce_id, tariffa_id, employee_id, subappaltatore_id, mezzo_id, fase_id, maggiorazione_pct, note, ordine";
 
 const comeNumero = (x: unknown) => (x == null ? 0 : Number(x));
 
@@ -130,9 +151,12 @@ export async function leggiRendiconto(id: string): Promise<DettaglioRendiconto> 
       prezzo_a_mano: x.prezzo_a_mano === true,
       prezzo_fonte: (x.prezzo_fonte as FonteRiga | null) ?? null,
       listino_voce_id: (x.listino_voce_id as string | null) ?? null,
+      appalto_tariffa_id: (x.tariffa_id as string | null) ?? null,
       employee_id: (x.employee_id as string | null) ?? null,
+      subappaltatore_id: (x.subappaltatore_id as string | null) ?? null,
       mezzo_id: (x.mezzo_id as string | null) ?? null,
       fase_id: (x.fase_id as string | null) ?? null,
+      maggiorazione_pct: comeNumero(x.maggiorazione_pct),
       note: (x.note as string | null) ?? null,
     })),
   };
@@ -156,9 +180,14 @@ export function payloadSalva(b: BozzaRendiconto) {
       descrizione: r.descrizione,
       unita: r.unita,
       quantita: r.quantita,
-      ...(r.prezzo_a_mano || !r.listino_voce_id ? { prezzo_unitario: r.prezzo_unitario ?? 0 } : {}),
+      // Il prezzo si manda solo se scritto a mano o se non c'è nessuna voce (generale o del committente).
+      ...(r.prezzo_a_mano || (!r.listino_voce_id && !r.appalto_tariffa_id && !r.subappaltatore_id) ? { prezzo_unitario: r.prezzo_unitario ?? 0 } : {}),
       prezzo_a_mano: r.prezzo_a_mano,
       ...(r.listino_voce_id ? { listino_voce_id: r.listino_voce_id } : {}),
+      // Con il prezzo a mano la voce del committente non si manda: il prezzo lo ha scritto l'utente.
+      ...(r.appalto_tariffa_id && !r.prezzo_a_mano ? { appalto_tariffa_id: r.appalto_tariffa_id } : {}),
+      ...(r.subappaltatore_id ? { subappaltatore_id: r.subappaltatore_id } : {}),
+      ...(r.maggiorazione_pct > 0 ? { maggiorazione_pct: r.maggiorazione_pct } : {}),
       ...(r.employee_id ? { employee_id: r.employee_id } : {}),
       ...(r.mezzo_id ? { mezzo_id: r.mezzo_id } : {}),
       ...(r.fase_id ? { fase_id: r.fase_id } : {}),
@@ -178,8 +207,36 @@ export const rendicontoDelGiorno = (orderId: string, data: string) =>
 export const rendicontiDaRapportini = (orderId: string, prova: boolean, dal: string | null = null, al: string | null = null) =>
   chiama<EsitoDaRapportini>("rendiconti_giornalieri_da_rapportini", { p_order_id: orderId, p_dal: dal, p_al: al, p_prova: prova });
 
-export const importoRiga = (r: Pick<RigaRendiconto, "quantita" | "prezzo_unitario">) =>
-  Math.round((r.quantita || 0) * (r.prezzo_unitario ?? 0) * 100) / 100;
+export const importoRiga = (r: Pick<RigaRendiconto, "quantita" | "prezzo_unitario"> & { maggiorazione_pct?: number | null }) =>
+  Math.round((r.quantita || 0) * (r.prezzo_unitario ?? 0) * (1 + (r.maggiorazione_pct ?? 0) / 100) * 100) / 100;
+
+export const rendicontoCopia = (origine: string, data: string) =>
+  chiama<{ id: string; numero: number; stato: StatoRendiconto; copiate: number }>("rendiconto_giornaliero_copia", { p_origine: origine, p_data: data });
+
+export const listinoCommittente = (orderId: string, data: string, testo: string) =>
+  chiama<VoceListinoCommittente[]>("rendiconto_listino_committente", { p_order_id: orderId, p_data: data, p_testo: testo, p_limite: 20 });
+
+export const salvaPrezzoPerCommittente = (orderId: string, listinoVoceId: string, prezzo: number, unita?: string, descrizione?: string) =>
+  chiama<{ appalto_tariffa_id: string; contratto_id: string; contratto_creato: boolean }>("listino_committente_salva_prezzo", {
+    p_order_id: orderId, p_listino_voce_id: listinoVoceId, p_prezzo: prezzo,
+    ...(unita ? { p_unita: unita } : {}), ...(descrizione ? { p_descrizione: descrizione } : {}),
+  });
+
+/** Voci del committente prima, poi quelle del generale (senza ripetere quelle già collegate). */
+export function unisciVoci<G extends { tariffa_id?: string }>(committente: VoceListinoCommittente[], generale: G[]) {
+  const collegate = new Set(committente.map((v) => v.tariffa_id).filter(Boolean));
+  return {
+    committente,
+    generale: generale.filter((v) => !v.tariffa_id || !collegate.has(v.tariffa_id)),
+  };
+}
+
+/** Il rendiconto è vuoto e in bozza: si può riempire copiando un altro giorno. */
+export const puoCopiare = (stato: StatoRendiconto, nRighe: number) => stato === "bozza" && nRighe === 0;
+
+/** Unità scritta nella riga ≠ unità della voce scelta (ora ≠ giornata, mq ≠ pz): la quantità va riscritta. */
+export const avvisoUnitaVoce = (unitaRiga: string, unitaVoce: string | null | undefined) =>
+  !!unitaVoce && unitaRiga.trim().toLowerCase() !== unitaVoce.trim().toLowerCase();
 
 export const ETICHETTA_FONTE: Record<FonteRiga, string> = {
   cantiere: "prezzo di cantiere",
@@ -190,5 +247,6 @@ export const ETICHETTA_FONTE: Record<FonteRiga, string> = {
 };
 
 /** Una riga è «senza prezzo» come la vede il database: prezzo 0 non scritto a mano. */
-export const senzaPrezzo = (r: Pick<RigaRendiconto, "prezzo_unitario" | "prezzo_a_mano" | "listino_voce_id" | "prezzo_fonte">) =>
-  !r.prezzo_a_mano && (r.prezzo_fonte === "mancante" || (r.prezzo_unitario != null && r.prezzo_unitario === 0) || (r.prezzo_unitario == null && !r.listino_voce_id));
+export const senzaPrezzo = (r: Pick<RigaRendiconto, "prezzo_unitario" | "prezzo_a_mano" | "listino_voce_id" | "prezzo_fonte"> & Partial<Pick<RigaRendiconto, "appalto_tariffa_id" | "subappaltatore_id">>) =>
+  !r.prezzo_a_mano && (r.prezzo_fonte === "mancante" || (r.prezzo_unitario != null && r.prezzo_unitario === 0)
+    || (r.prezzo_unitario == null && !r.listino_voce_id && !r.appalto_tariffa_id && !r.subappaltatore_id));

@@ -69421,5 +69421,10 @@ const dizionario: Dizionario = {
   "+ Aggiungi mezzo…": "+ Add vehicle…",
   "da 1 rapportino": "from 1 report",
   "1 rapportino nuovo": "1 new report",
+  "Voce del listino generale": "General price list item",
+  "Collegale nella pagina del contratto": "Link them on the contract page",
+  "Forse è: {nome}": "Maybe: {nome}",
+  "{n} voce non collegata al listino generale: i rendiconti la trovano solo cercandola a mano.": "{n} item not linked to the general price list: daily statements only find it when searched by hand.",
+  "{n} voci non collegate al listino generale: i rendiconti le trovano solo cercandole a mano.": "{n} items not linked to the general price list: daily statements only find them when searched by hand.",
 };
 export default dizionario;

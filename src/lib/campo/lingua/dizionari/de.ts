@@ -69421,5 +69421,10 @@ const dizionario: Dizionario = {
   "+ Aggiungi mezzo…": "+ Fahrzeug hinzufügen…",
   "da 1 rapportino": "aus 1 Bericht",
   "1 rapportino nuovo": "1 neuer Bericht",
+  "Voce del listino generale": "Position der allgemeinen Preisliste",
+  "Collegale nella pagina del contratto": "Auf der Vertragsseite verknüpfen",
+  "Forse è: {nome}": "Vielleicht: {nome}",
+  "{n} voce non collegata al listino generale: i rendiconti la trovano solo cercandola a mano.": "{n} Position ist nicht mit der allgemeinen Preisliste verknüpft: Die Tagesabrechnungen finden sie nur durch manuelle Suche.",
+  "{n} voci non collegate al listino generale: i rendiconti le trovano solo cercandole a mano.": "{n} Positionen sind nicht mit der allgemeinen Preisliste verknüpft: Die Tagesabrechnungen finden sie nur durch manuelle Suche.",
 };
 export default dizionario;

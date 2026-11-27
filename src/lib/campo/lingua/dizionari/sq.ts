@@ -69458,5 +69458,10 @@ const dizionario: Dizionario = {
   "+ Aggiungi mezzo…": "+ Shto mjet…",
   "da 1 rapportino": "nga 1 raport",
   "1 rapportino nuovo": "1 raport i ri",
+  "Voce del listino generale": "Zë nga lista e përgjithshme e çmimeve",
+  "Collegale nella pagina del contratto": "Lidhi te faqja e kontratës",
+  "Forse è: {nome}": "Ndoshta është: {nome}",
+  "{n} voce non collegata al listino generale: i rendiconti la trovano solo cercandola a mano.": "{n} zë i palidhur me listën e përgjithshme: raportet ditore e gjejnë vetëm duke e kërkuar me dorë.",
+  "{n} voci non collegate al listino generale: i rendiconti le trovano solo cercandole a mano.": "{n} zëra të palidhur me listën e përgjithshme: raportet ditore i gjejnë vetëm duke i kërkuar me dorë.",
 };
 export default dizionario;

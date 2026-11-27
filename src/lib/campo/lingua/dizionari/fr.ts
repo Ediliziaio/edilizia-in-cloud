@@ -69421,5 +69421,10 @@ const dizionario: Dizionario = {
   "+ Aggiungi mezzo…": "+ Ajouter un engin…",
   "da 1 rapportino": "d'1 rapport",
   "1 rapportino nuovo": "1 nouveau rapport",
+  "Voce del listino generale": "Poste du tarif général",
+  "Collegale nella pagina del contratto": "Les lier dans la page du contrat",
+  "Forse è: {nome}": "Peut-être : {nome}",
+  "{n} voce non collegata al listino generale: i rendiconti la trovano solo cercandola a mano.": "{n} poste non lié au tarif général : les relevés journaliers ne le trouvent qu'en le cherchant à la main.",
+  "{n} voci non collegate al listino generale: i rendiconti le trovano solo cercandole a mano.": "{n} postes non liés au tarif général : les relevés journaliers ne les trouvent qu'en les cherchant à la main.",
 };
 export default dizionario;

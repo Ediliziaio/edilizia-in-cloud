@@ -69458,5 +69458,10 @@ const dizionario: Dizionario = {
   "+ Aggiungi mezzo…": "+ Adaugă utilaj…",
   "da 1 rapportino": "din 1 raport",
   "1 rapportino nuovo": "1 raport nou",
+  "Voce del listino generale": "Articol din lista generală de prețuri",
+  "Collegale nella pagina del contratto": "Leagă-le în pagina contractului",
+  "Forse è: {nome}": "Poate este: {nome}",
+  "{n} voce non collegata al listino generale: i rendiconti la trovano solo cercandola a mano.": "{n} articol nelegat de lista generală: rapoartele zilnice îl găsesc doar căutându-l manual.",
+  "{n} voci non collegate al listino generale: i rendiconti le trovano solo cercandole a mano.": "{n} articole nelegate de lista generală: rapoartele zilnice le găsesc doar căutându-le manual.",
 };
 export default dizionario;

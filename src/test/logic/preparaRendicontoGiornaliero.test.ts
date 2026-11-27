@@ -5,7 +5,8 @@ import type { DettaglioRendiconto, RigaRendiconto } from "@/lib/rendiconti/rendi
 
 const riga = (o: Partial<RigaRendiconto>): RigaRendiconto => ({
   chiave: "x", categoria: "voce", descrizione: "Voce", unita: "cad", quantita: 1, prezzo_unitario: 10, prezzo_a_mano: false,
-  prezzo_fonte: "generale", listino_voce_id: null, employee_id: null, mezzo_id: null, fase_id: null, note: null, ...o,
+  prezzo_fonte: "generale", listino_voce_id: null, appalto_tariffa_id: null, employee_id: null, subappaltatore_id: null, mezzo_id: null, fase_id: null,
+  maggiorazione_pct: 0, note: null, ...o,
 });
 const dett = (stato: "bozza" | "confermato"): DettaglioRendiconto => ({
   testata: { id: "g", order_id: "o", data: "2026-11-20", numero: 7, stato, descrizione_lavori: "Massetto", note: null, rapportino_id: null, righe: 2, totale: 0, senza_prezzo: 0, sal_id: null, rapportini: 0, rapportini_nuovi: 0 },
@@ -20,4 +21,16 @@ it("raggruppa per categoria, calcola gli importi e marca la bozza", () => {
 
 it("un rendiconto confermato non è una bozza", () => {
   expect(documentoDaRendiconto(dett("confermato"), { nome: "C" }, null).bozza).toBeUndefined();
+});
+
+it("la ditta è una riga di manodopera col suo nome, e la maggiorazione sta in descrizione e importo", () => {
+  const d = dett("bozza");
+  d.righe = [
+    riga({ categoria: "manodopera", descrizione: "Edil Sud srl", subappaltatore_id: "s1", unita: "ora", quantita: 8, prezzo_unitario: 20 }),
+    riga({ categoria: "manodopera", descrizione: "Mario", unita: "ora", quantita: 2, prezzo_unitario: 30, maggiorazione_pct: 25 }),
+  ];
+  const r = documentoDaRendiconto(d, { nome: "C" }, null).righe;
+  expect(r.map((x) => [x.gruppo, x.descrizione, x.importo])).toEqual([
+    ["Manodopera", "Edil Sud srl", 160], ["Manodopera", "Mario (+25% straord.)", 75],
+  ]);
 });

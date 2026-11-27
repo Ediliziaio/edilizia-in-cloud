@@ -69421,5 +69421,10 @@ const dizionario: Dizionario = {
   "+ Aggiungi mezzo…": "+ ضيف معدة…",
   "da 1 rapportino": "من تقرير واحد",
   "1 rapportino nuovo": "تقرير جديد واحد",
+  "Voce del listino generale": "بند من قايمة الأسعار العامة",
+  "Collegale nella pagina del contratto": "اربطهم في صفحة العقد",
+  "Forse è: {nome}": "ممكن يكون: {nome}",
+  "{n} voce non collegata al listino generale: i rendiconti la trovano solo cercandola a mano.": "{n} بند مش مربوط بالقايمة العامة: التقارير اليومية مابتلاقيهوش غير لو دورت عليه بإيدك.",
+  "{n} voci non collegate al listino generale: i rendiconti le trovano solo cercandole a mano.": "{n} بنود مش مربوطة بالقايمة العامة: التقارير اليومية مابتلاقيهاش غير لو دورت عليها بإيدك.",
 };
 export default dizionario;

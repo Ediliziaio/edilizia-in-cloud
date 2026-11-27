@@ -18,6 +18,8 @@
  *
  * Fase 1 del Modulo Appaltatori (28/10/2026) — vedi docs/piano-commessa-appalto.md.
  */
+import { VoceGeneralePicker } from "@/components/committenti/VoceGeneralePicker";
+import type { VoceGenerale } from "@/lib/appalto/abbinaListino";
 import { useCondizioniDocumento } from "@/hooks/useCondizioniDocumento";
 import { datiDaAccordo } from "@/lib/contratti/contrattoCliente";
 import { caricaDatiSocietari } from "../../../supabase/functions/_shared/datiSocietari";
@@ -124,6 +126,8 @@ interface Tariffa {
   descrizione: string; unita_misura: string; prezzo_unitario: number;
   maggiorazione_straordinario_pct: number | null; maggiorazione_festivo_pct: number | null;
   qualifica: string | null; note: string | null; ordine: number; attivo: boolean;
+  /** Voce del listino generale a cui è collegata (null: non collegata). */
+  tariffa_id?: string | null;
 }
 
 interface Lavoro {
@@ -372,6 +376,21 @@ export default function CommittenteDetail() {
     onError: (e) => toast({ title: tr("PDF non generato"), description: e instanceof Error ? e.message : tr("Riprova"), variant: "destructive" }),
   });
 
+  const listinoGenerale = useQuery({
+    queryKey: ["listino-generale-voci", companyId], enabled: !!companyId && vedeImporti && puoModificare, staleTime: 60_000,
+    queryFn: async () => {
+      const tutte: VoceGenerale[] = [];
+      for (let da = 0; da < 5000; da += 1000) {
+        const { data, error } = await (supabase as any).from("tariffe_aziendali").select("id, codice, nome").eq("company_id", companyId).eq("attivo", true)
+          .order("nome").order("id").range(da, da + 999);
+        if (error) throw error;
+        tutte.push(...((data ?? []) as VoceGenerale[]));
+        if ((data ?? []).length < 1000) break;
+      }
+      return tutte;
+    },
+  });
+
   const salvaTariffa = useMutation({
     mutationFn: async (f: Partial<Tariffa>) => {
       const dove = await assicuraContratto(supabase as any, {
@@ -392,6 +411,7 @@ export default function CommittenteDetail() {
         note: f.note || null,
         ordine: Number(f.ordine ?? 0),
         attivo: f.attivo !== false,
+        ...(f.tariffa_id !== undefined ? { tariffa_id: f.tariffa_id } : {}),
       };
       if (f.id) {
         const { error } = await (supabase as any).from("appalto_tariffe").update(riga).eq("id", f.id);
@@ -515,6 +535,7 @@ export default function CommittenteDetail() {
   );
   const tariffeInUso = (tariffe.data ?? []).filter((t) => t.attivo);
   const tariffeFuoriUso = (tariffe.data ?? []).filter((t) => !t.attivo);
+  const tariffeScollegate = tariffeInUso.filter((t) => !t.tariffa_id).length;
   const conteggi: Record<string, number | undefined> = {
     contratti: elencoContratti.length,
     listino: vedeImporti ? tariffeInUso.length : undefined,
@@ -699,6 +720,14 @@ export default function CommittenteDetail() {
                 </li>
               ))}
             </ul>
+            {tariffeScollegate > 0 && contrattoAttivo && (
+              <p role="status" className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
+                {tr(tariffeScollegate === 1
+                  ? "{n} voce non collegata al listino generale: i rendiconti la trovano solo cercandola a mano."
+                  : "{n} voci non collegate al listino generale: i rendiconti le trovano solo cercandole a mano.", { n: tariffeScollegate })}{" "}
+                <Link className="font-medium underline" to={`/azienda/committenti/${id}/contratto/${contrattoAttivo.id}`}>{tr("Collegale nella pagina del contratto")}</Link>
+              </p>
+            )}
             {tariffeFuoriUso.length > 0 && (
               <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setVediFuoriUso(!vediFuoriUso)}>
                 {vediFuoriUso ? tr("Nascondi le voci fuori uso") : tr(tariffeFuoriUso.length === 1 ? "Mostra {n} voce fuori uso" : "Mostra {n} voci fuori uso", { n: tariffeFuoriUso.length })}
@@ -1049,6 +1078,13 @@ export default function CommittenteDetail() {
                 <Label>{tr("Codice")}</Label>
                 <Input value={tariffaForm.codice ?? ""} onChange={(e) => setTariffaForm({ ...tariffaForm, codice: e.target.value })} />
               </div>
+              {puoModificare && (
+                <div className="sm:col-span-2">
+                  <Label>{tr("Voce del listino generale")}</Label>
+                  <VoceGeneralePicker voci={listinoGenerale.data ?? []} valoreId={tariffaForm.tariffa_id} descrizione={tariffaForm.descrizione ?? ""}
+                    codice={tariffaForm.codice} onScegli={(v) => setTariffaForm({ ...tariffaForm, tariffa_id: v?.id ?? null })} />
+                </div>
+              )}
               {tariffaForm.tipo === "manodopera" && (
                 <div className="sm:col-span-2">
                   <Label>{tr("Qualifica")}</Label>
