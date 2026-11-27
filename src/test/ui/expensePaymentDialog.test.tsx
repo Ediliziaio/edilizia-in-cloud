@@ -13,7 +13,7 @@ beforeEach(()=>{
   fake.readonly=false;fake.treasury=false;fake.paid=0;fake.total=1220;fake.fail=false;fake.conti=[];fake.movimenti=[];fake.rpc.mockReset();
   vi.stubGlobal('BroadcastChannel',undefined);
   fake.rpc.mockImplementation(async(name:string,args:Record<string,unknown>)=>{
-    if(name==='dettaglio_pagamento_costo')return {data:{id:'cost',nome:'Fattura DEMO',totale:fake.total,pagato:fake.paid,residuo:Math.round((fake.total-fake.paid)*100)/100,da_verificare:false,movimenti:fake.movimenti},error:null};
+    if(name==='dettaglio_pagamento_costo')return {data:{id:'cost',nome:'Fattura DEMO',totale:fake.total,pagato:fake.paid,residuo:Math.round((fake.total-fake.paid)*100)/100,da_verificare:false,puo_registrare_pagamento:true,puo_togliere_pagamento:true,movimenti:fake.movimenti},error:null};
     if(name==='registra_pagamento_costo'||name==='registra_pagamento_costo_con_conto'){
       if(fake.fail)return {data:null,error:{message:'Connessione interrotta, esito da verificare'}};
       fake.paid+=Number(args.p_importo);

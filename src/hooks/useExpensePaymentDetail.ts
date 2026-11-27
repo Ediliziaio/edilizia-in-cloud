@@ -5,6 +5,9 @@ export interface ExpensePaymentDetail {
   id: string; company_id: string; nome: string; totale: number; pagato: number; residuo: number; da_verificare: boolean;
   compensato?: number;
   puo_compensare?: boolean;
+  /** Autorizzazioni effettive calcolate dal server per questa azienda e questo costo. */
+  puo_registrare_pagamento?: boolean;
+  puo_togliere_pagamento?: boolean;
   /**
    * Per le fatture ricevute: la parte che risulta pagata (segnata nel gestionale di prima o a mano)
    * ma senza un movimento che lo provi. Un'informazione, non un allarme (23/11/2026).

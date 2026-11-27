@@ -32,7 +32,7 @@ beforeEach(() => {
   stato.candidati = [radius];
   stato.rpc.mockReset();
   stato.rpc.mockImplementation(async (nome: string): Promise<Risposta> => {
-    if (nome === "dettaglio_pagamento_costo") return { data: { id: "costo", company_id: "vulcano", nome: "Fattura 262700691224 - Radius", totale: 3325.92, pagato: 0, residuo: 3325.92, da_verificare: false, senza_prova: 0, movimenti: [] }, error: null };
+    if (nome === "dettaglio_pagamento_costo") return { data: { id: "costo", company_id: "vulcano", nome: "Fattura 262700691224 - Radius", totale: 3325.92, pagato: 0, residuo: 3325.92, da_verificare: false, senza_prova: 0, puo_registrare_pagamento: true, puo_togliere_pagamento: true, movimenti: [] }, error: null };
     if (nome === "pagamenti_banca_candidati_costo") return { data: { candidati: stato.candidati, puo_collegare: stato.puoCollegare }, error: null };
     if (nome === "bank_conferma_ripartizione") return { data: { resto: 0 }, error: null };
     throw new Error(`RPC inattesa ${nome}`);

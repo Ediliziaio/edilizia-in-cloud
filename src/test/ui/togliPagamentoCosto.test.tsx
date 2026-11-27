@@ -27,6 +27,7 @@ interface Movimento {
 const fake = vi.hoisted(() => ({
   rpc: vi.fn(),
   readonly: false,
+  permesso: true,
   movimenti: [] as Movimento[],
 }));
 
@@ -46,12 +47,13 @@ const pagamento = (p: Partial<Movimento> = {}): Movimento => ({
 
 beforeEach(() => {
   fake.readonly = false;
+  fake.permesso = true;
   fake.movimenti = [pagamento()];
   fake.rpc.mockReset();
   vi.stubGlobal("BroadcastChannel", undefined);
   fake.rpc.mockImplementation(async (name: string) => {
     if (name === "dettaglio_pagamento_costo") {
-      return { data: { id: "cost", company_id: "az", nome: "Fattura SILTE", totale: 1220, pagato: 400, residuo: 820, da_verificare: false, movimenti: fake.movimenti }, error: null };
+      return { data: { id: "cost", company_id: "az", nome: "Fattura SILTE", totale: 1220, pagato: 400, residuo: 820, da_verificare: false, puo_registrare_pagamento: fake.permesso, puo_togliere_pagamento: fake.permesso, movimenti: fake.movimenti }, error: null };
     }
     if (name === "pagamento_costo_annulla") return { data: { via: "saldo_rapido", annullato: true }, error: null };
     throw new Error(`RPC inattesa ${name}`);
@@ -98,5 +100,13 @@ describe("togliere un pagamento dal pannello della fattura", () => {
     monta();
     await screen.findByText("Fattura SILTE");
     expect(screen.queryByRole("button", { name: "Togli" })).toBeNull();
+  });
+
+  it("non offre azioni quando il server concede solo la lettura dei costi", async () => {
+    fake.permesso = false;
+    monta();
+    await screen.findByText("Fattura SILTE");
+    expect(screen.queryByRole("button", { name: "Togli" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Registra pagamento" })).toBeNull();
   });
 });

@@ -7,6 +7,7 @@ const company=id(1), other=id(2), bank=id(3), second=id(4), conto=id(5), parent=
 beforeAll(async () => {
   await pg.exec(`create role anon;create role authenticated;create role service_role;create schema private;create schema auth;
     create function auth.uid() returns uuid language sql as $$select '${id(10)}'::uuid$$;
+    create function auth.jwt() returns jsonb language sql as $$select '{"role":"authenticated"}'::jsonb$$;
     create table bank_accounts(id uuid primary key,company_id uuid,display_name text,account_name text,is_active boolean);
     create table bank_transactions(id uuid primary key,company_id uuid,account_id uuid);
     create table contabilita_conti(id uuid primary key,company_id uuid,codice text,descrizione text,natura text,movimentabile boolean,attivo boolean,mastro_id uuid,codice_standard text);
@@ -32,9 +33,19 @@ beforeAll(async () => {
       if v is null then insert into prima_nota_entries(id,company_id,cost_id,payment_request_id,amount,direction,entry_date,payment_method)
       select gen_random_uuid(),company_id,id,p_richiesta,p_importo,'uscita',p_data,p_metodo from company_costs where id=p_costo returning id into v;end if;
       return jsonb_build_object('prima_nota_id',v);end$$;
-    create function dettaglio_pagamento_costo(uuid) returns jsonb language sql set search_path='public' as $$select jsonb_build_object('movimenti',jsonb_agg(jsonb_build_object('storno_di',p.reversal_of))) from prima_nota_entries p where cost_id=$1$$;`);
+    create function dettaglio_pagamento_costo(uuid) returns jsonb language plpgsql set search_path='public' as $$
+      declare c public.company_costs;begin select * into c from company_costs where id=$1;
+      return jsonb_build_object('id',c.id,'company_id',c.company_id,'movimenti',(select jsonb_agg(jsonb_build_object('storno_di',p.reversal_of)) from prima_nota_entries p where cost_id=$1));end$$;`);
   await pg.exec(await readFile("supabase/migrations/20290421195000_pagamenti_costi_conto_effettivo.sql", "utf8"));
   await pg.exec(await readFile("supabase/migrations/20290421195000_pagamenti_costi_conto_effettivo.sql", "utf8"));
+  await pg.exec(`create function contabilita_puo_leggere(uuid) returns boolean language sql as $$select $1='${company}'::uuid$$;
+    create function has_permission_for_company(uuid,text,uuid) returns boolean language sql as $$select $3='${company}'::uuid$$;
+    create function user_can_write_accountant_company(uuid) returns boolean language sql as $$select false$$;
+    create function utente_sola_lettura(uuid) returns boolean language sql as $$select false$$;
+    create function puo_vedere_costi(uuid,uuid) returns boolean language sql as $$select true$$;
+    create function get_my_company_id() returns uuid language sql as $$select '${company}'::uuid$$`);
+  // Verifica il nuovo percorso autorizzato insieme al vero trigger dei conti.
+  await pg.exec(await readFile("supabase/migrations/20290627101000_registra_pagamenti_permessi_staff.sql", "utf8"));
 }, 30000);
 beforeEach(async () => {
   await pg.exec(`truncate prima_nota_entries,invoice_payments,invoices,bank_transactions,bank_accounts,contabilita_conti,company_costs cascade;

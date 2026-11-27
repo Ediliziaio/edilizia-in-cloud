@@ -44,9 +44,9 @@ export function ExpensePaymentDialog({ costId, onClose, importoProposto, apriInR
   const [contoScelto, setConto] = useState('');
   const detail = useExpensePaymentDetail(costId);
   const dati = detail.data;
-  // Togliere un pagamento è un'operazione sui costi come registrarlo: stesso accesso.
-  const puoTogliere = permissions.canViewCosts && !permissions.solaLettura;
-  const puoRegistrare = !!dati && !dati.da_verificare && dati.residuo > 0 && permissions.canViewCosts && !permissions.solaLettura;
+  // Il server conosce anche la delega effettiva e la compatibilità con la Prima Nota.
+  const puoTogliere = dati?.puo_togliere_pagamento === true && !permissions.solaLettura;
+  const puoRegistrare = !!dati && !dati.da_verificare && dati.residuo > 0 && dati.puo_registrare_pagamento === true && !permissions.solaLettura;
   const editing = editingScelto || (apriInRegistrazione && !formChiuso && puoRegistrare && !compensazione);
   const proposta = dati ? Math.round(Math.min(importoProposto != null && importoProposto > 0 ? importoProposto : dati.residuo, dati.residuo) * 100) / 100 : 0;
   const amount = amountScritto ?? (apriInRegistrazione && dati ? String(proposta) : '');
@@ -133,7 +133,7 @@ export function ExpensePaymentDialog({ costId, onClose, importoProposto, apriInR
         {d?.puo_compensare && !d.da_verificare && d.residuo > 0 && !editing && !compensazione && (
           <Button variant="outline" onClick={() => setCompensazione(true)}>{t("Compensa con un anticipo")}</Button>
         )}
-        {d && !compensazione && !d.da_verificare && d.residuo>0 && permissions.canViewCosts && !permissions.solaLettura && <Button disabled={pay.isPending || detail.isFetching || (editing && (importo == null || importo<=0 || Math.round(importo*100)>Math.round(d.residuo*100) || !date || date>oggi || conti.isFetching || conti.isError || (disponibili.length>0 && !scelto)))} onClick={() => {if(editing) pay.mutate(); else {setAmount(String(d.residuo));resetRequest();setEditing(true);}}}>{pay.isPending ? t("Registrazione…") : editing ? t("Conferma pagamento") : t("Registra pagamento")}</Button>}
+        {d && !compensazione && puoRegistrare && <Button disabled={pay.isPending || detail.isFetching || (editing && (importo == null || importo<=0 || Math.round(importo*100)>Math.round(d.residuo*100) || !date || date>oggi || conti.isFetching || conti.isError || (disponibili.length>0 && !scelto)))} onClick={() => {if(editing) pay.mutate(); else {setAmount(String(d.residuo));resetRequest();setEditing(true);}}}>{pay.isPending ? t("Registrazione…") : editing ? t("Conferma pagamento") : t("Registra pagamento")}</Button>}
   </>;
   // Dentro il riepilogo della fattura (23/11/2026): niente secondo popup, il pannello si apre lì.
   if (inline) return <div className="space-y-3" data-pagamento-in-linea="">

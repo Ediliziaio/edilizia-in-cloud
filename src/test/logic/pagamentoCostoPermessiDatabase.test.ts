@@ -8,6 +8,7 @@ const id = (n: number) => `c0000000-0000-4000-a000-${String(n).padStart(12, "0")
 const costo = id(1), pagamento = id(10), altroPagamento = id(11);
 const versione = "2026-11-27T10:00:00Z";
 const correzione = "supabase/migrations/20290627100000_pagamento_costo_permessi_staff.sql";
+const correzionePagamenti = "supabase/migrations/20290627101000_registra_pagamenti_permessi_staff.sql";
 let db: PGlite;
 
 beforeAll(async () => {
@@ -29,22 +30,28 @@ beforeAll(async () => {
     create function public.puo_vedere_documenti_fornitore() returns boolean language sql as $$select current_setting('test.costs',true)='yes'$$;
     create function public.e_super_admin_dentro(uuid) returns boolean language sql as $$select false$$;
     create function public.user_can_write_accountant_company(uuid) returns boolean language sql as $$select false$$;
+    create function public.has_permission_for_company(uuid,text,uuid) returns boolean language sql as $$select $3='${azienda}' and (current_setting('test.manage',true)='yes' or current_setting('test.admin',true)='yes')$$;
+    create function public.contabilita_puo_leggere(uuid) returns boolean language sql as $$select $1='${azienda}' and (current_setting('test.ledger',true)='yes' or current_setting('test.admin',true)='yes')$$;
     create function public.costo_stornato_da_note(uuid) returns numeric language sql as $$select 0::numeric$$;
     create function public.anticipi_compensati_costo(uuid,uuid,date) returns numeric language sql as $$select 0::numeric$$;
     create function public.anticipi_compensazioni_costo(uuid,uuid,date) returns table(data date) language sql as $$select null::date where false$$;
     create function public.anticipo_costo_ha_storico(uuid,uuid) returns boolean language sql as $$select false$$;
     create table public.companies(id uuid primary key);
     insert into public.companies values ('${azienda}'), ('${altraAzienda}');
-    create table public.company_costs(id uuid primary key,company_id uuid,name text,amount numeric,vat_rate numeric,is_paid boolean default false,paid_date date,annullato_il timestamptz,due_date date,updated_at timestamptz);
+    create table public.company_costs(id uuid primary key,company_id uuid,name text,amount numeric,vat_rate numeric,is_paid boolean default false,paid_date date,annullato_il timestamptz,due_date date,updated_at timestamptz,order_id uuid,supplier_id uuid);
     create table public.prima_nota_entries(id uuid primary key default gen_random_uuid(),company_id uuid,cost_id uuid,invoice_id uuid,is_auto boolean default false,auto_source text,direction text,amount numeric,
       entry_date date,updated_at timestamptz default '${versione}',bank_transaction_id uuid,documento_fiscale_id uuid,movimento_id uuid,unita_movimento_id uuid,sal_sub_id uuid,
-      payment_request_id uuid,description text,scadenza_id uuid,reversal_of uuid references public.prima_nota_entries(id),category text,order_id uuid,supplier_id uuid,bank_account_id uuid,account_label text,payment_method text,created_by uuid);
+      payment_request_id uuid,description text,scadenza_id uuid,reversal_of uuid references public.prima_nota_entries(id),category text,order_id uuid,supplier_id uuid,bank_account_id uuid,account_label text,payment_method text,created_by uuid,conto_liquidita_id uuid,reference_number text,payment_payload jsonb);
     create table public.scadenze(id uuid primary key,company_id uuid,cost_id uuid,direction text,amount numeric,paid_amount numeric,status text,due_date date,paid_date date,
       prima_nota_entry_id uuid references public.prima_nota_entries(id) on delete set null);
     create table public.fatture_ricevute(company_id uuid,company_cost_id uuid,tipo_documento text,totale_documento numeric,stato text,pagata_il date,pagamento_segnato_da uuid,pagamento_segnato_at timestamptz,id uuid primary key default gen_random_uuid());
     create table public.invoice_payments(company_id uuid,reference text);
     create table public.sal_sub_pagamenti(prima_nota_id uuid references public.prima_nota_entries(id));
-    create table public.bank_reconciliations(prima_nota_id uuid,unmatched_at timestamptz);
+    create table public.bank_reconciliations(prima_nota_id uuid,unmatched_at timestamptz,transaction_id uuid);
+    create table public.bank_accounts(id uuid,company_id uuid,is_active boolean);
+    create view public.bank_accounts_operativi as select * from public.bank_accounts where current_setting('test.banks',true)='yes';
+    create table public.contabilita_conti(id uuid,company_id uuid,attivo boolean,movimentabile boolean,natura text);
+    create table public.bank_transactions(id uuid,company_id uuid,transaction_type text,currency text,amount numeric,linked_invoice_id uuid,linked_installment_id uuid,linked_scadenza_id uuid,linked_cost_id uuid,reconciliation_status text,reconciled_at timestamptz);
     create table public.unita_movimenti(prima_nota_id uuid,storno_prima_nota_id uuid);
     create table public.rate_fornitori(id uuid primary key,company_id uuid,company_cost_id uuid,stato text,importo numeric,pagata_il date,scadenza date,updated_at timestamptz default '${versione}');
     create table private.saldi_rapidi_fatture_ricevute(id uuid,company_id uuid,movimento_id uuid,fattura_id uuid,costo_id uuid,annullato_at timestamptz,segnato_at timestamptz,
@@ -53,7 +60,8 @@ beforeAll(async () => {
     grant select,insert,update,delete on all tables in schema public to authenticated;
     alter table public.prima_nota_entries enable row level security;
     create policy lettura on public.prima_nota_entries for select to authenticated using(company_id='${azienda}' and (current_setting('test.admin',true)='yes' or current_setting('test.ledger',true)='yes'));
-    create policy aggiornamento on public.prima_nota_entries for update to authenticated using(company_id='${azienda}' and current_setting('test.admin',true)='yes');
+    create policy inserimento on public.prima_nota_entries for insert to authenticated with check(company_id='${azienda}' and (current_setting('test.admin',true)='yes' or current_setting('test.ledger',true)='yes'));
+    create policy aggiornamento on public.prima_nota_entries for update to authenticated using(company_id='${azienda}' and (current_setting('test.admin',true)='yes' or current_setting('test.ledger',true)='yes'));
     create policy eliminazione on public.prima_nota_entries for delete to authenticated using(company_id='${azienda}' and current_setting('test.admin',true)='yes');
   `);
   await db.exec(readFileSync("src/test/fixtures/finance-deletion-helpers.sql", "utf8"));
@@ -62,6 +70,14 @@ beforeAll(async () => {
   const sincronizzazione = compensazioni.match(/CREATE OR REPLACE FUNCTION public\.spesa_pagamento_sincronizza\(p_costo uuid\)[\s\S]*?end \$function\$;/i)?.[0];
   if (!sincronizzazione) throw new Error("Funzione di sincronizzazione non trovata");
   await db.exec(sincronizzazione);
+  const registra = compensazioni.match(/CREATE OR REPLACE FUNCTION public\.registra_pagamento_costo\(p_costo uuid[\s\S]*?end \$function\$;/i)?.[0];
+  if (!registra) throw new Error("Funzione di registrazione non trovata");
+  await db.exec(registra);
+  const conto = readFileSync("supabase/migrations/20290421195000_pagamenti_costi_conto_effettivo.sql", "utf8");
+  await db.exec(conto.slice(conto.indexOf("CREATE OR REPLACE FUNCTION public.registra_pagamento_costo_con_conto"), conto.indexOf("REVOKE ALL ON FUNCTION public.registra_pagamento_costo_con_conto")));
+  const storno = readFileSync("supabase/migrations/20281028060010_pagamenti_spese_collaudo_correzioni.sql", "utf8");
+  await db.exec(storno.slice(storno.indexOf("create or replace function public.storna_pagamenti_costo"), storno.indexOf("create or replace function public.dettaglio_pagamento_costo")));
+  await db.exec(storno.slice(storno.indexOf("create or replace function public.registra_pagamenti_costi"), storno.indexOf("revoke all on function public.dettaglio_pagamento_costo")));
   const rapido = readFileSync("supabase/migrations/20290430150100_annulla_saldo_fattura_ricevuta_singolo.sql", "utf8");
   for (const nome of ["private.blocca_saldo_rapido_ricevuta", "private.conserva_date_scadenze_saldo_rapido", "public.annulla_saldo_fattura_ricevuta"]) {
     const inizio = rapido.indexOf(`create or replace function ${nome}(`);
@@ -78,10 +94,14 @@ beforeAll(async () => {
   const vecchia = readFileSync("supabase/migrations/20290618100000_togli_il_pagamento_dalla_fattura.sql", "utf8");
   await db.exec(vecchia.slice(0, vecchia.indexOf("CREATE OR REPLACE FUNCTION public.dettaglio_pagamento_costo")));
   if (existsSync(correzione)) await db.exec(readFileSync(correzione, "utf8"));
+  await db.exec(`create function public.dettaglio_pagamento_costo(p_costo uuid) returns jsonb language plpgsql security definer set search_path='' as $$
+    declare c public.company_costs; begin select * into c from public.company_costs where id=p_costo;
+    return jsonb_build_object('id',c.id,'company_id',c.company_id,'nome',c.name); end $$;`);
+  if (existsSync(correzionePagamenti)) await db.exec(readFileSync(correzionePagamenti, "utf8"));
 }, 20_000);
 afterAll(async () => { await db.close(); });
 beforeEach(async () => {
-  await db.exec(`begin; set local test.persona='${id(999)}'; set local test.blocked='no'; set local test.admin='no'; set local test.readonly='no'; set local test.costs='yes'; set local test.ledger='yes';
+  await db.exec(`begin; set local test.persona='${id(999)}'; set local test.blocked='no'; set local test.admin='no'; set local test.readonly='no'; set local test.costs='yes'; set local test.manage='yes'; set local test.ledger='yes'; set local test.banks='no';
     insert into public.company_costs(id,company_id,name,amount,vat_rate,due_date) values ('${costo}','${azienda}','Costo prova',273,22,current_date);
     insert into public.prima_nota_entries(id,company_id,cost_id,is_auto,auto_source,direction,amount,entry_date,description,payment_request_id)
     values ('${pagamento}','${azienda}','${costo}',true,'company_cost_payment','uscita',333.06,current_date,'Pagamento di prova','${pagamento}');`);
@@ -99,6 +119,159 @@ async function togli(p = pagamento, v = versione) {
     throw e;
   }
 }
+
+async function operazione(sql: string, params: unknown[] = []) {
+  await db.exec("savepoint tentativo");
+  try {
+    const risultato = await db.query(sql, params);
+    await db.exec("release savepoint tentativo");
+    return risultato;
+  } catch (e) {
+    await db.exec("rollback to savepoint tentativo; release savepoint tentativo");
+    throw e;
+  }
+}
+
+it.each(["yes", "no"])("registra un pagamento autorizzato anche con accesso prima nota = %s", async (ledger) => {
+  await db.exec(`delete from public.prima_nota_entries where id='${pagamento}';
+    insert into public.scadenze values ('${id(80)}','${azienda}','${costo}','uscita',333.06,0,'da_pagare',current_date,null,null);
+    set local test.ledger='${ledger}'; set local role authenticated;`);
+  const sql = "select public.registra_pagamento_costo_con_conto($1,$2,100,current_date,'bonifico',null,null,null) risultato";
+  expect((await operazione(sql, [costo, id(81)])).rows[0]).toMatchObject({ risultato: { pagato: 100, residuo: 233.06 } });
+  expect((await operazione(sql, [costo, id(81)])).rows[0]).toMatchObject({ risultato: { gia_registrato: true } });
+  await db.exec("reset role");
+  expect((await db.query("select count(*)::int n, sum(amount) totale from public.prima_nota_entries where cost_id=$1", [costo])).rows[0]).toEqual({ n: 1, totale: "100" });
+  expect((await db.query("select status, paid_amount from public.scadenze where cost_id=$1", [costo])).rows[0]).toEqual({ status: "parziale", paid_amount: "100" });
+});
+
+it("considera un acconto preesistente anche senza accesso alla prima nota", async () => {
+  await db.exec(`update public.prima_nota_entries set amount=100 where id='${pagamento}';
+    insert into public.scadenze values ('${id(80)}','${azienda}','${costo}','uscita',333.06,100,'parziale',current_date,current_date,'${pagamento}');
+    set local test.ledger='no'; set local role authenticated;`);
+  const r = await operazione("select public.registra_pagamento_costo_con_conto($1,$2,100,current_date,'bonifico',null,null,null) risultato", [costo, id(81)]);
+  expect(r.rows[0]).toMatchObject({ risultato: { pagato: 200, residuo: 133.06 } });
+  await db.exec("reset role");
+  expect((await db.query("select status, paid_amount from public.scadenze where cost_id=$1", [costo])).rows[0]).toEqual({ status: "parziale", paid_amount: "200" });
+});
+
+it("storna un acconto anche quando l'operatore non vede la prima nota", async () => {
+  await db.exec(`update public.prima_nota_entries set amount=100 where id='${pagamento}';
+    insert into public.scadenze values ('${id(80)}','${azienda}','${costo}','uscita',333.06,100,'parziale',current_date,current_date,'${pagamento}');
+    set local test.ledger='no'; set local role authenticated;`);
+  await operazione("select public.storna_pagamenti_costo($1)", [costo]);
+  await db.exec("reset role");
+  expect((await db.query("select count(*)::int n from public.prima_nota_entries where reversal_of=$1", [pagamento])).rows[0]).toEqual({ n: 1 });
+  expect((await db.query("select status, paid_amount from public.scadenze where cost_id=$1", [costo])).rows[0]).toEqual({ status: "da_pagare", paid_amount: "0" });
+});
+
+it("registra in blocco più costi della stessa azienda senza accesso alla prima nota", async () => {
+  await db.exec(`delete from public.prima_nota_entries where id='${pagamento}';
+    insert into public.company_costs(id,company_id,name,amount,vat_rate) values ('${id(2)}','${azienda}','Altro costo',50,0);
+    set local test.ledger='no'; set local role authenticated;`);
+  await operazione("select public.registra_pagamenti_costi($1::uuid[],current_date,false)", [[costo, id(2), costo]]);
+  expect((await db.query("select count(*)::int n from public.prima_nota_entries")).rows[0]).toEqual({ n: 0 });
+  await db.exec("reset role");
+  expect((await db.query("select count(*)::int n, sum(amount) totale from public.prima_nota_entries")).rows[0]).toEqual({ n: 2, totale: "383.06" });
+  expect((await db.query("select count(*)::int n from public.company_costs where is_paid")).rows[0]).toEqual({ n: 2 });
+});
+
+it("annulla interamente un'operazione in blocco se un costo non può essere pagato", async () => {
+  await db.exec(`delete from public.prima_nota_entries where id='${pagamento}';
+    insert into public.company_costs(id,company_id,name,amount,vat_rate,is_paid) values ('${id(2)}','${azienda}','Pagamento storico',50,0,true);
+    set local test.ledger='no'; set local role authenticated;`);
+  await expect(operazione("select public.registra_pagamenti_costi($1::uuid[],current_date,false)", [[costo, id(2)]])).rejects.toThrow();
+  await db.exec("reset role");
+  expect((await db.query("select count(*)::int n from public.prima_nota_entries")).rows[0]).toEqual({ n: 0 });
+  expect((await db.query("select is_paid from public.company_costs where id=$1", [costo])).rows[0]).toEqual({ is_paid: false });
+});
+
+it("rifiuta costi inesistenti o di un'altra azienda nelle operazioni in blocco", async () => {
+  await db.exec(`insert into public.company_costs(id,company_id,name,amount,vat_rate) values ('${id(2)}','${altraAzienda}','Altro costo',50,0);
+    set local role authenticated;`);
+  await expect(operazione("select public.registra_pagamenti_costi($1::uuid[],current_date,false)", [[costo, id(2)]])).rejects.toThrow(/stessa azienda/);
+  await expect(operazione("select public.registra_pagamenti_costi($1::uuid[],current_date,false)", [[costo, id(3)]])).rejects.toThrow(/stessa azienda/);
+  await db.exec("reset role");
+  expect((await db.query("select count(*)::int n from public.prima_nota_entries")).rows[0]).toEqual({ n: 1 });
+});
+
+it.each(["blocked", "readonly", "costs"])("non registra né storna se manca il requisito %s", async (requisito) => {
+  await db.exec(`set local test.${requisito}='${requisito === "costs" ? "no" : "yes"}'; set local role authenticated;`);
+  await expect(operazione("select public.registra_pagamento_costo_con_conto($1,$2,100,current_date,'bonifico',null,null,null)", [costo, id(81)])).rejects.toMatchObject({ code: "42501" });
+  await expect(operazione("select public.registra_pagamenti_costi($1::uuid[],current_date,false)", [[costo]])).rejects.toMatchObject({ code: "42501" });
+  await expect(operazione("select public.storna_pagamenti_costo($1)", [costo])).rejects.toMatchObject({ code: "42501" });
+  await expect(operazione("select private.registra_pagamento_costo_con_conto_autorizzato($1,$2,100,current_date,'bonifico',null,null,null)", [costo, id(81)])).rejects.toMatchObject({ code: "42501" });
+  await expect(operazione("select private.storna_pagamenti_costo_autorizzato($1)", [costo])).rejects.toMatchObject({ code: "42501" });
+  await db.exec("reset role");
+  expect((await db.query("select count(*)::int n from public.prima_nota_entries")).rows[0]).toEqual({ n: 1 });
+});
+
+it("non espone le API privilegiate agli utenti anonimi e lascia invoker quelle pubbliche", async () => {
+  const r = await db.query<{ nome: string; definer: boolean; anon: boolean }>(`select p.proname nome,p.prosecdef definer,has_function_privilege('anon',p.oid,'execute') anon
+    from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'
+      and p.proname in ('registra_pagamento_costo_con_conto','storna_pagamenti_costo','registra_pagamenti_costi') order by p.proname`);
+  expect(r.rows).toHaveLength(3);
+  expect(r.rows.every(x => !x.definer && !x.anon)).toBe(true);
+});
+
+it("la sola lettura dei costi non concede i nuovi permessi sui pagamenti", async () => {
+  await db.exec("set local test.manage='no'; set local test.ledger='no'; set local role authenticated");
+  expect((await operazione("select public.dettaglio_pagamento_costo($1) r", [costo])).rows[0]).toMatchObject({ r: { puo_registrare_pagamento: false, puo_togliere_pagamento: false } });
+  await expect(togli()).rejects.toMatchObject({ code: "42501" });
+  await expect(operazione("select public.registra_pagamento_costo_con_conto($1,$2,100,current_date,'bonifico',null,null,null)", [costo, id(81)])).rejects.toMatchObject({ code: "42501" });
+  await expect(operazione("select public.registra_pagamenti_costi($1::uuid[],current_date,false)", [[costo]])).rejects.toMatchObject({ code: "42501" });
+  await expect(operazione("select public.storna_pagamenti_costo($1)", [costo])).rejects.toMatchObject({ code: "42501" });
+  await db.exec("reset role");
+  expect((await db.query("select count(*)::int n from public.prima_nota_entries")).rows[0]).toEqual({ n: 1 });
+});
+
+it("mantiene le vecchie registrazioni consentite dalla prima nota senza abilitare la nuova eliminazione", async () => {
+  await db.exec(`delete from public.prima_nota_entries where id='${pagamento}'; set local test.manage='no'; set local test.ledger='yes'; set local role authenticated;`);
+  expect((await operazione("select public.dettaglio_pagamento_costo($1) r", [costo])).rows[0]).toMatchObject({ r: { puo_registrare_pagamento: true, puo_togliere_pagamento: false } });
+  const r = await operazione("select public.registra_pagamento_costo_con_conto($1,$2,100,current_date,'bonifico',null,null,null) risultato", [costo, id(81)]);
+  const nuovoId = (r.rows[0] as { risultato: { prima_nota_id: string } }).risultato.prima_nota_id;
+  const v = (await db.query<{updated_at: Date}>("select updated_at from public.prima_nota_entries where id=$1", [nuovoId])).rows[0].updated_at;
+  await expect(togli(nuovoId, new Date(v).toISOString())).rejects.toMatchObject({ code: "42501" });
+  await operazione("select public.storna_pagamenti_costo($1)", [costo]);
+  await db.exec("reset role");
+  expect((await db.query("select count(*)::int n from public.prima_nota_entries where reversal_of=$1", [nuovoId])).rows[0]).toEqual({ n: 1 });
+});
+
+it("non consente di usare conti bancari o contabili nascosti, inattivi o di un'altra azienda", async () => {
+  await db.exec(`delete from public.prima_nota_entries where id='${pagamento}';
+    insert into public.bank_accounts values ('${id(82)}','${azienda}',true),('${id(83)}','${altraAzienda}',true),('${id(84)}','${azienda}',false);
+    insert into public.contabilita_conti values ('${id(85)}','${azienda}',true,true,'attivo'),('${id(86)}','${altraAzienda}',true,true,'attivo');
+    set local test.ledger='no'; set local test.banks='no'; set local role authenticated;`);
+  const sql = "select public.registra_pagamento_costo_con_conto($1,$2,100,current_date,'bonifico',null,$3,$4)";
+  await expect(operazione(sql, [costo, id(81), id(82), null])).rejects.toMatchObject({ code: "23514" });
+  await expect(operazione(sql, [costo, id(81), null, id(85)])).rejects.toMatchObject({ code: "23514" });
+  await db.exec("set local test.ledger='yes'; set local test.banks='yes'");
+  await expect(operazione(sql, [costo, id(81), id(83), null])).rejects.toMatchObject({ code: "23514" });
+  await expect(operazione(sql, [costo, id(81), id(84), null])).rejects.toMatchObject({ code: "23514" });
+  await expect(operazione(sql, [costo, id(81), null, id(86)])).rejects.toMatchObject({ code: "23514" });
+  await operazione(sql, [costo, id(81), id(82), id(85)]);
+  await expect(operazione(sql, [costo, id(81), null, id(85)])).rejects.toMatchObject({ code: "PT409" });
+  await db.exec("reset role");
+  expect((await db.query("select count(*)::int n from public.prima_nota_entries")).rows[0]).toEqual({ n: 1 });
+});
+
+it.each(["banca", "sal", "unita", "saldo rapido"])("non storna movimenti collegati a %s", async (tipo) => {
+  if (tipo === "banca") await db.exec(`insert into public.bank_reconciliations(prima_nota_id) values ('${pagamento}')`);
+  if (tipo === "sal") await db.exec(`insert into public.sal_sub_pagamenti values ('${pagamento}')`);
+  if (tipo === "unita") await db.exec(`insert into public.unita_movimenti values ('${pagamento}',null)`);
+  if (tipo === "saldo rapido") await db.exec(`insert into private.saldi_rapidi_fatture_ricevute(company_id,costo_id,movimento_id) values ('${azienda}','${costo}','${pagamento}')`);
+  await db.exec("set local test.ledger='no'; set local role authenticated");
+  await expect(operazione("select public.storna_pagamenti_costo($1)", [costo])).rejects.toThrow(/collegato/);
+  await db.exec("reset role");
+  expect((await db.query("select count(*)::int n from public.prima_nota_entries")).rows[0]).toEqual({ n: 1 });
+});
+
+it("non duplica gli storni quando il comando viene ripetuto", async () => {
+  await db.exec("set local test.ledger='no'; set local role authenticated");
+  await operazione("select public.storna_pagamenti_costo($1)", [costo]);
+  await operazione("select public.storna_pagamenti_costo($1)", [costo]);
+  await db.exec("reset role");
+  expect((await db.query("select count(*)::int n from public.prima_nota_entries where reversal_of=$1", [pagamento])).rows[0]).toEqual({ n: 1 });
+});
 
 it.each([
   { nome: "Chiara: accesso a prima nota", ledger: "yes", user: id(991) },
@@ -169,7 +342,7 @@ it("non elimina un pagamento bancario collegato", async () => {
 });
 
 it.each(["banca", "sal", "unita"])("non scollega un pagamento con collegamento esterno a %s", async (tipo) => {
-  if (tipo === "banca") await db.exec(`insert into public.bank_reconciliations values ('${pagamento}',null)`);
+  if (tipo === "banca") await db.exec(`insert into public.bank_reconciliations(prima_nota_id,unmatched_at) values ('${pagamento}',null)`);
   if (tipo === "sal") await db.exec(`insert into public.sal_sub_pagamenti values ('${pagamento}')`);
   if (tipo === "unita") await db.exec(`insert into public.unita_movimenti values ('${pagamento}',null)`);
   await db.exec("set local role authenticated");
