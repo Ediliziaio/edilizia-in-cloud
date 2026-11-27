@@ -155,7 +155,7 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
     setRighe((rs) => [...rs, {
       chiave: chiaveRiga(), descrizione: "", unita: cat.unita, quantita: 1, prezzo_unitario: null, prezzo_a_mano: false,
       prezzo_fonte: null, listino_voce_id: null, appalto_tariffa_id: null, employee_id: null, subappaltatore_id: null,
-      mezzo_id: null, fase_id: null, maggiorazione_pct: 0, note: null, ...r,
+      mezzo_id: null, fase_id: null, da_rapportino_id: null, maggiorazione_pct: 0, note: null, ...r,
     }]);
   };
   const daListino = (categoria: CategoriaRiga, v: VoceListino) => {

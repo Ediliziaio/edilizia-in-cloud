@@ -11,8 +11,9 @@
 -- (`order_work_phases_visibili`, migrazioni 20290327110000/110100):
 --  1. il costo si riscrive nella riga (persone: ore equivalenti × costo orario della scheda;
 --     ditte e voci: il costo della voce di listino, come già oggi);
---  2. ad `authenticated` si toglie il SELECT su `costo_interno` e `margine` (GRANT per
---     colonna su tutte le altre): un `select("*")` sulla tabella grezza fallisce per tutti;
+--  2. il browser smette di leggerli dalla tabella e passa dalla vista (il GRANT per colonna
+--     che chiude davvero la porta sta nella 20290629210000, che toglie un permesso e si
+--     applica col via del titolare);
 --  3. il browser legge da `appalto_rendiconto_righe_visibili` (security_invoker: stesse
 --     righe, stesse policy), dove costo e margine arrivano solo a chi ha «Costi» per quella
 --     commessa, e `null` agli altri.
@@ -245,20 +246,6 @@ begin
   return v_id;
 end;
 $function$;
-
--- ── 2. Costo e margine non si leggono più dalla tabella ─────────────────────────
-
--- Un `select("*")` dal browser sulla tabella grezza ora fallisce per tutti, amministratori
--- compresi: si passa dalla vista. Le scritture (INSERT/UPDATE/DELETE) non cambiano.
-revoke select on public.appalto_rendiconto_righe from authenticated;
-grant select (
-  id, company_id, order_id, data, tariffa_id, descrizione, unita_misura, prezzo_unitario,
-  quantita, maggiorazione_pct, importo, employee_id, fase_id, origine, rapportino_id,
-  extra_contratto, stato, confermata_da, confermata_at, note, created_by, created_at,
-  updated_at, sal_id, voce_libera_id, mezzo_id, rendiconto_giornaliero_id, categoria,
-  listino_voce_id, prezzo_fonte, prezzo_a_mano, ordine, subappaltatore_id, da_rapportino_id
-) on public.appalto_rendiconto_righe to authenticated;
-revoke all on public.appalto_rendiconto_righe from anon;
 
 -- ── 3. La vista che il browser legge ───────────────────────────────────────────
 

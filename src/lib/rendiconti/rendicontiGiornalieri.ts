@@ -58,6 +58,9 @@ export interface RigaRendiconto {
   subappaltatore_id: string | null;
   mezzo_id: string | null;
   fase_id: string | null;
+  /** Da quale rapportino viene la riga: va rimandato al salvataggio, se no il legame si perde e
+   *  un rapportino rifiutato dopo non toglie più le sue voci dalla bozza. */
+  da_rapportino_id: string | null;
   /** Maggiorazione (straordinario): importo = quantità × prezzo × (1 + %/100). */
   maggiorazione_pct: number;
   note: string | null;
@@ -109,7 +112,7 @@ async function chiama<T>(funzione: string, args: object): Promise<T> {
 }
 
 export const COLONNE_TESTATA = "id, order_id, data, numero, stato, descrizione_lavori, note, rapportino_id, righe, totale, senza_prezzo, sal_id, rapportini, rapportini_nuovi, rapportini_ritirati";
-const COLONNE_RIGHE = "id, categoria, descrizione, unita_misura, quantita, prezzo_unitario, prezzo_a_mano, prezzo_fonte, listino_voce_id, tariffa_id, employee_id, subappaltatore_id, mezzo_id, fase_id, maggiorazione_pct, note, ordine";
+const COLONNE_RIGHE = "id, categoria, descrizione, unita_misura, quantita, prezzo_unitario, prezzo_a_mano, prezzo_fonte, listino_voce_id, tariffa_id, employee_id, subappaltatore_id, mezzo_id, fase_id, da_rapportino_id, maggiorazione_pct, note, ordine";
 
 const comeNumero = (x: unknown) => (x == null ? 0 : Number(x));
 
@@ -184,6 +187,7 @@ export async function leggiRendiconto(id: string): Promise<DettaglioRendiconto> 
       subappaltatore_id: (x.subappaltatore_id as string | null) ?? null,
       mezzo_id: (x.mezzo_id as string | null) ?? null,
       fase_id: (x.fase_id as string | null) ?? null,
+      da_rapportino_id: (x.da_rapportino_id as string | null) ?? null,
       maggiorazione_pct: comeNumero(x.maggiorazione_pct),
       note: (x.note as string | null) ?? null,
     })),
@@ -219,6 +223,7 @@ export function payloadSalva(b: BozzaRendiconto) {
       ...(r.employee_id ? { employee_id: r.employee_id } : {}),
       ...(r.mezzo_id ? { mezzo_id: r.mezzo_id } : {}),
       ...(r.fase_id ? { fase_id: r.fase_id } : {}),
+      ...(r.da_rapportino_id ? { da_rapportino_id: r.da_rapportino_id } : {}),
       ...(r.note ? { note: r.note } : {}),
     })),
   };
