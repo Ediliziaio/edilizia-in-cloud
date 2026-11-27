@@ -5,6 +5,7 @@ import {
   orderDetailLocation,
   resolveOrderDetailDestination,
   resolveCantiereView,
+  resolveSezioneDiario,
   resolveEconomiaView,
   resolveMaterialiView,
   resolveCostiView,
@@ -147,6 +148,20 @@ describe("Navigazione unica della commessa", () => {
     expect(resolveCantiereView("?vista_cantiere=squadra", "section-assistenza")).toBe("collaudo");
     expect(resolveCantiereView("?vista_cantiere=diario", "section-sopralluoghi")).toBe("sopralluoghi");
     expect(resolveOrderDetailDestination("?tab=panoramica", "#section-assistenza")).toEqual({tab: "cantiere", section: "section-assistenza"});
+  });
+  it("i Rendiconti non sono una scheda: stanno dentro Rapportini, e i vecchi link ci arrivano", () => {
+    expect(CANTIERE_VIEWS.map(v => v.value)).not.toContain("rendiconti");
+    expect(resolveCantiereView("?vista_cantiere=rendiconti")).toBe("diario");
+    expect(resolveSezioneDiario("?vista_cantiere=rendiconti")).toBe("rendiconti");
+    expect(resolveSezioneDiario("?vista_cantiere=diario&sezione=rendiconti")).toBe("rendiconti");
+    expect(resolveSezioneDiario("?vista_cantiere=diario")).toBe("rapportini");
+    expect(orderDetailLocation("?tab=cantiere", {tab:"cantiere",cantiereView:"diario",sezioneDiario:"rendiconti"}))
+      .toEqual({search:"?tab=cantiere&vista_cantiere=diario&sezione=rendiconti",hash:""});
+    // Tornando ai Rapportini, o cambiando vista, la sezione non resta appesa.
+    expect(orderDetailLocation("?tab=cantiere&vista_cantiere=diario&sezione=rendiconti", {tab:"cantiere",cantiereView:"diario"}))
+      .toEqual({search:"?tab=cantiere&vista_cantiere=diario",hash:""});
+    expect(orderDetailLocation("?tab=cantiere&vista_cantiere=rendiconti", {tab:"cantiere",cantiereView:"diario"}))
+      .toEqual({search:"?tab=cantiere&vista_cantiere=diario",hash:""});
   });
   it("colloca Rilievi e sopralluoghi subito dopo Cronoprogramma e conserva le ancore", () => {
     const index = CANTIERE_VIEWS.findIndex(view => view.value === "cronoprogramma");

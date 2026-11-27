@@ -8,7 +8,7 @@ const riga = (o: Partial<RigaRendiconto>): RigaRendiconto => ({
   prezzo_fonte: "generale", listino_voce_id: null, employee_id: null, mezzo_id: null, fase_id: null, note: null, ...o,
 });
 const dett = (stato: "bozza" | "confermato"): DettaglioRendiconto => ({
-  testata: { id: "g", order_id: "o", data: "2026-11-20", numero: 7, stato, descrizione_lavori: "Massetto", note: null, rapportino_id: null, righe: 2, totale: 0, senza_prezzo: 0, sal_id: null },
+  testata: { id: "g", order_id: "o", data: "2026-11-20", numero: 7, stato, descrizione_lavori: "Massetto", note: null, rapportino_id: null, righe: 2, totale: 0, senza_prezzo: 0, sal_id: null, rapportini: 0, rapportini_nuovi: 0 },
   righe: [riga({ categoria: "materiale", descrizione: "Sabbia", quantita: 2, prezzo_unitario: 5 }), riga({ categoria: "manodopera", descrizione: "Mario", unita: "ora", quantita: 8, prezzo_unitario: 30 })],
 });
 

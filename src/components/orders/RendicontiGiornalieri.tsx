@@ -1,13 +1,14 @@
 /**
- * Cantiere → Rendiconti (27/11/2026): il foglio per il committente, giorno per giorno, coi prezzi.
- * Si scrive direttamente (senza un rapportino) oppure nasce in bozza da un rapportino. I confermati
- * entrano nel rendiconto del periodo (Finanza → Rendiconto). Senza il permesso sugli importi
+ * Cantiere → Rapportini → Rendiconti al committente (27/11/2026): il foglio per il committente, un rendiconto
+ * PER GIORNO, coi prezzi. Nasce prendendo le voci di tutti i rapportini di quel giorno (o si scrive a mano);
+ * i confermati entrano nel rendiconto del periodo (Finanza → Rendiconto). Senza il permesso sugli importi
  * la scheda dice perché non mostra l'elenco.
  */
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, Loader2, Plus, Wand2 } from "lucide-react";
 import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -15,10 +16,11 @@ import { formatCurrency } from "@/lib/formatters";
 import { messaggioErrore } from "@/lib/messaggioErrore";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { cn } from "@/lib/utils";
-import { elencoRendiconti, rendicontiDaRapportini, type EsitoDaRapportini, type StatoRendiconto } from "@/lib/rendiconti/rendicontiGiornalieri";
+import { elencoRendiconti, rendicontiDaRapportini, rendicontoDelGiorno, type EsitoDaRapportini, type StatoRendiconto } from "@/lib/rendiconti/rendicontiGiornalieri";
 import { PulsantePdfRendiconto } from "@/components/orders/PulsantePdfRendiconto";
 import { RendicontoGiornalieroEditor } from "@/components/orders/RendicontoGiornalieroEditor";
 
+const oggi = () => new Date().toLocaleDateString("en-CA");
 const giorno = (d: string) => { const [a, m, g] = d.split("-"); return `${g}/${m}/${a}`; };
 
 export function RendicontiGiornalieri({ orderId, apriId, onApriConsumato }: {
@@ -32,6 +34,8 @@ export function RendicontiGiornalieri({ orderId, apriId, onApriConsumato }: {
   const { canViewOrderAmounts, canEditOrders } = usePermissions();
   const [aperto, setAperto] = useState<{ id: string | null } | null>(null);
   const [prova, setProva] = useState<EsitoDaRapportini | null>(null);
+  // «Nuovo rendiconto del giorno» chiede prima il giorno: lo stesso giorno apre sempre lo stesso rendiconto.
+  const [scegliGiorno, setScegliGiorno] = useState<string | null>(null);
 
   const [apriVisto, setApriVisto] = useState<string | null>(null);
   if ((apriId ?? null) !== apriVisto) {
@@ -51,13 +55,23 @@ export function RendicontiGiornalieri({ orderId, apriId, onApriConsumato }: {
     onSuccess: setProva,
     onError: (e) => toast.error(messaggioErrore(e, tr("Controllo non riuscito"))),
   });
+  const apriGiorno = useMutation({
+    mutationFn: (data: string) => rendicontoDelGiorno(orderId, data),
+    onSuccess: (r) => {
+      setScegliGiorno(null);
+      if (r.aggiunti > 0) toast.success(tr("Prese le voci di {n} rapportini", { n: r.rapportini }));
+      void qc.invalidateQueries({ queryKey: ["rendiconti-giornalieri", orderId] });
+      setAperto({ id: r.id });
+    },
+    onError: (e) => toast.error(messaggioErrore(e, tr("Rendiconto non aperto"))),
+  });
   const crea = useMutation({
     mutationFn: () => rendicontiDaRapportini(orderId, false),
     onSuccess: (r) => {
       setProva(null);
       toast.success(tr("{n} rendiconti creati in bozza", { n: r.creati.length }));
       // Un rapportino difettoso non ferma gli altri: chi non è passato va detto, col motivo.
-      if (r.errori?.length) toast.error(tr("{n} rapportini non trasformati: {motivo}", { n: r.errori.length, motivo: r.errori[0].errore }));
+      if (r.errori?.length) toast.error(tr("{n} giorni non trasformati: {motivo}", { n: r.errori.length, motivo: r.errori[0].errore }));
       void qc.invalidateQueries({ queryKey: ["rendiconti-giornalieri", orderId] });
     },
     onError: (e) => toast.error(messaggioErrore(e, tr("Rendiconti non creati"))),
@@ -88,7 +102,7 @@ export function RendicontiGiornalieri({ orderId, apriId, onApriConsumato }: {
             <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs" disabled={calcola.isPending} onClick={() => calcola.mutate()}>
               {calcola.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}{tr("Crea dai rapportini")}
             </Button>
-            <Button type="button" size="sm" className="h-8 gap-1 px-3 text-xs font-semibold" onClick={() => setAperto({ id: null })}>
+            <Button type="button" size="sm" className="h-8 gap-1 px-3 text-xs font-semibold" onClick={() => setScegliGiorno(oggi())}>
               <Plus className="h-3.5 w-3.5" />{tr("Nuovo rendiconto del giorno")}
             </Button>
           </div>
@@ -97,7 +111,7 @@ export function RendicontiGiornalieri({ orderId, apriId, onApriConsumato }: {
 
       {elenco.isError && <p className="text-sm text-destructive">{messaggioErrore(elenco.error, tr("Elenco non caricato"))}</p>}
       {!elenco.isLoading && !elenco.isError && righe.length === 0 && (
-        <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">{tr("Nessun rendiconto. Scrivine uno per il giorno, o crealo dai rapportini già scritti.")}</p>
+        <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">{tr("Nessun rendiconto. Aprine uno per il giorno, o crealo dai rapportini già scritti.")}</p>
       )}
       {righe.length > 0 && (
         <ul className="divide-y rounded-lg border bg-card">
@@ -110,7 +124,9 @@ export function RendicontiGiornalieri({ orderId, apriId, onApriConsumato }: {
                 <span className="min-w-0 truncate">
                   <span className="sm:hidden">{giorno(r.data)} · </span>
                   {r.descrizione_lavori || <span className="text-muted-foreground">{tr("Senza descrizione")}</span>}
-                  <span className="ml-2 text-[11px] text-muted-foreground">{tr("{n} righe", { n: r.righe })}</span>
+                  <span className="ml-2 text-[11px] text-muted-foreground">{r.righe === 1 ? tr("1 riga") : tr("{n} righe", { n: r.righe })}</span>
+                  {r.rapportini > 0 && <span className="ml-2 text-[11px] text-muted-foreground">{r.rapportini === 1 ? tr("da 1 rapportino") : tr("da {n} rapportini", { n: r.rapportini })}</span>}
+                  {r.rapportini_nuovi > 0 && <span className="ml-2 text-[11px] font-medium text-amber-700">{r.rapportini_nuovi === 1 ? tr("1 rapportino nuovo") : tr("{n} rapportini nuovi", { n: r.rapportini_nuovi })}</span>}
                   {r.senza_prezzo > 0 && <span className="ml-2 text-[11px] font-medium text-amber-700">{tr("{n} senza prezzo", { n: r.senza_prezzo })}</span>}
                   {r.sal_id && <span className="ml-2 text-[11px] text-blue-800">{tr("nel rendiconto del periodo")}</span>}
                 </span>
@@ -130,26 +146,45 @@ export function RendicontiGiornalieri({ orderId, apriId, onApriConsumato }: {
           onClose={() => { setAperto(null); void qc.invalidateQueries({ queryKey: ["rendiconti-giornalieri", orderId] }); }} />
       )}
 
+      <Dialog open={scegliGiorno !== null} onOpenChange={(o) => { if (!o) setScegliGiorno(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{tr("Nuovo rendiconto del giorno")}</DialogTitle>
+            <DialogDescription>{tr("Se quel giorno ci sono rapportini, il rendiconto prende le loro voci.")}</DialogDescription>
+          </DialogHeader>
+          <label className="grid gap-1 text-xs text-muted-foreground">{tr("Giorno")}
+            <Input type="date" aria-label={tr("Giorno")} className="h-9 w-40" value={scegliGiorno ?? ""} onChange={(e) => setScegliGiorno(e.target.value)} />
+          </label>
+          <DialogFooter>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setScegliGiorno(null)}>{tr("Annulla")}</Button>
+            <Button type="button" size="sm" disabled={!scegliGiorno || apriGiorno.isPending} onClick={() => scegliGiorno && apriGiorno.mutate(scegliGiorno)}>
+              {apriGiorno.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}{tr("Apri")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!prova} onOpenChange={(o) => { if (!o) setProva(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{tr("Crea dai rapportini")}</DialogTitle>
             <DialogDescription>
-              {prova && prova.da_creare > 0
-                ? tr("Creo {n} rendiconti in bozza, uno per ogni rapportino inviato o approvato.", { n: prova.da_creare })
+              {prova && (prova.da_creare > 0 || prova.da_aggiornare > 0)
+                ? tr("Creo {n} rendiconti, uno per giorno; aggiorno {m} bozze.", { n: prova.da_creare, m: prova.da_aggiornare })
                 : tr("Non c'è niente da creare.")}
             </DialogDescription>
           </DialogHeader>
           {prova && (
             <ul className="space-y-0.5 text-sm text-muted-foreground">
+              <li>{tr("Giorni con rapportini: {n}", { n: prova.giorni })}</li>
               <li>{tr("Da creare: {n}", { n: prova.da_creare })}</li>
+              <li>{tr("Da aggiornare: {n}", { n: prova.da_aggiornare })}</li>
               <li>{tr("Già fatti: {n}", { n: prova.gia_fatti })}</li>
-              <li>{tr("Già nel rendiconto del periodo: {n}", { n: prova.gia_nel_rendiconto })}</li>
             </ul>
           )}
           <DialogFooter>
             <Button type="button" variant="ghost" size="sm" onClick={() => setProva(null)}>{tr("Chiudi")}</Button>
-            <Button type="button" size="sm" disabled={!prova || prova.da_creare === 0 || crea.isPending} onClick={() => crea.mutate()}>
+            <Button type="button" size="sm" disabled={!prova || (prova.da_creare === 0 && prova.da_aggiornare === 0) || crea.isPending} onClick={() => crea.mutate()}>
               {crea.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}{tr("Crea")}
             </Button>
           </DialogFooter>

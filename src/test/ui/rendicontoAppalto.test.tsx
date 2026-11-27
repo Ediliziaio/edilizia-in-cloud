@@ -121,7 +121,7 @@ it("chi non può modificare non vede i pulsanti di scrittura", () => {
 it("rimanda a Cantiere → Rendiconti invece del vecchio «rimasto fuori»", () => {
   draw();
   expect(screen.queryByText("Rimasto fuori dal rendiconto")).not.toBeInTheDocument();
-  expect(screen.getByRole("link", {name: "Cantiere → Rendiconti"})).toHaveAttribute("href", "?tab=cantiere&vista_cantiere=rendiconti");
+  expect(screen.getByRole("link", {name: "Cantiere → Rendiconti"})).toHaveAttribute("href", "?tab=cantiere&vista_cantiere=diario&sezione=rendiconti");
 });
 
 it("le righe nate da un rapportino si distinguono da quelle scritte a mano", () => {

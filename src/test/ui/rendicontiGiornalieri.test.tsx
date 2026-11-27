@@ -32,7 +32,7 @@ vi.mock("@/integrations/supabase/client", () => {
 
 const testata = (o: Record<string, unknown> = {}) => ({
   id: "g1", order_id: "o", data: "2026-11-20", numero: 3, stato: "bozza", descrizione_lavori: "Massetto piano terra",
-  note: null as string | null, rapportino_id: null as string | null, righe: 4, totale: 1250.5, senza_prezzo: 0, sal_id: null as string | null, ...o,
+  note: null as string | null, rapportino_id: null as string | null, righe: 4, totale: 1250.5, senza_prezzo: 0, sal_id: null as string | null, rapportini: 0, rapportini_nuovi: 0, ...o,
 });
 
 beforeAll(() => {
@@ -45,7 +45,10 @@ beforeAll(() => {
 beforeEach(() => {
   m.importi = true; m.modifica = true; m.tabelle = { v_rendiconti_giornalieri: [testata()], appalto_rendiconto_righe: [] };
   m.rpc.mockReset();
-  m.rpc.mockResolvedValue({ data: "g1", error: null });
+  m.rpc.mockImplementation(async (f: string) => ({
+    data: f === "rendiconto_giornaliero_del_giorno" ? { id: "g1", numero: 3, stato: "bozza", aggiunti: 0, rapportini: 0, nuovi: 0 } : "g1",
+    error: null,
+  }));
 });
 afterEach(cleanup);
 
@@ -77,12 +80,13 @@ it("senza il permesso sugli importi spiega perché non mostra l'elenco", () => {
 
 it("«Crea dai rapportini» prima prova e mostra i conteggi, poi crea", async () => {
   m.rpc.mockImplementation(async (f: string, a: { p_prova?: boolean }) => ({
-    data: f === "rendiconti_giornalieri_da_rapportini" ? { prova: a.p_prova, da_creare: 3, gia_fatti: 1, gia_nel_rendiconto: 2, creati: a.p_prova ? [] : ["x", "y", "z"] } : null,
+    data: f === "rendiconti_giornalieri_da_rapportini" ? { prova: a.p_prova, giorni: 4, da_creare: 3, da_aggiornare: 1, gia_fatti: 1, errori: [], creati: a.p_prova ? [] : ["x", "y", "z"] } : null,
     error: null,
   }));
   draw();
   fireEvent.click(await screen.findByRole("button", { name: /Crea dai rapportini/ }));
-  expect(await screen.findByText("Da creare: 3")).toBeVisible();
+  expect(await screen.findByText("Creo 3 rendiconti, uno per giorno; aggiorno 1 bozze.")).toBeVisible();
+  expect(screen.getByText("Giorni con rapportini: 4")).toBeVisible();
   expect(screen.getByText("Già fatti: 1")).toBeVisible();
   expect(m.rpc).toHaveBeenCalledWith("rendiconti_giornalieri_da_rapportini", { p_order_id: "o", p_dal: null, p_al: null, p_prova: true });
   fireEvent.click(screen.getByRole("button", { name: "Crea" }));
@@ -92,6 +96,8 @@ it("«Crea dai rapportini» prima prova e mostra i conteggi, poi crea", async ()
 async function nuovoConVoce() {
   draw();
   fireEvent.click(await screen.findByRole("button", { name: /Nuovo rendiconto del giorno/ }));
+  fireEvent.change(await screen.findByLabelText("Giorno"), { target: { value: "2026-11-20" } });
+  fireEvent.click(screen.getByRole("button", { name: "Apri" }));
   fireEvent.change(await screen.findByLabelText("Lavori del giorno"), { target: { value: "Posa" } });
   fireEvent.click(screen.getByRole("button", { name: "Aggiungi Altre voci" }));
   fireEvent.click(screen.getByRole("button", { name: "scegli-voce" }));
@@ -104,7 +110,8 @@ it("salva mandando il payload giusto: col listino il prezzo lo calcola il databa
   await waitFor(() => expect(m.rpc).toHaveBeenCalledWith("rendiconto_giornaliero_salva", expect.anything()));
   const p = (m.rpc.mock.calls.find((c) => c[0] === "rendiconto_giornaliero_salva")![1] as { p: Record<string, unknown> }).p;
   expect(p).toMatchObject({ order_id: "o", descrizione_lavori: "Posa" });
-  expect(p.id).toBeUndefined();
+  // Il rendiconto del giorno esiste già (lo ha aperto «del giorno»): si aggiorna, non se ne crea un altro.
+  expect(p.id).toBe("g1");
   expect(p.righe).toEqual([{ categoria: "voce", descrizione: "Posa pavimento", unita: "mq", quantita: 2.5, prezzo_a_mano: false, listino_voce_id: "t1" }]);
 });
 
@@ -115,4 +122,42 @@ it("un prezzo modificato diventa prezzo a mano", async () => {
   await waitFor(() => expect(m.rpc).toHaveBeenCalledWith("rendiconto_giornaliero_salva", expect.anything()));
   const p = (m.rpc.mock.calls.find((c) => c[0] === "rendiconto_giornaliero_salva")![1] as { p: { righe: Array<Record<string, unknown>> } }).p;
   expect(p.righe[0]).toMatchObject({ prezzo_unitario: 55.5, prezzo_a_mano: true, listino_voce_id: "t1" });
+});
+
+it("«Nuovo rendiconto del giorno» chiede il giorno e dice quanti rapportini ha preso", async () => {
+  m.rpc.mockImplementation(async (f: string) => ({
+    data: f === "rendiconto_giornaliero_del_giorno" ? { id: "g1", numero: 3, stato: "bozza", aggiunti: 7, rapportini: 2, nuovi: 0 } : "g1", error: null,
+  }));
+  const { toast } = await import("sonner");
+  draw();
+  fireEvent.click(await screen.findByRole("button", { name: /Nuovo rendiconto del giorno/ }));
+  fireEvent.change(await screen.findByLabelText("Giorno"), { target: { value: "2026-11-18" } });
+  fireEvent.click(screen.getByRole("button", { name: "Apri" }));
+  await waitFor(() => expect(m.rpc).toHaveBeenCalledWith("rendiconto_giornaliero_del_giorno", { p_order_id: "o", p_data: "2026-11-18" }));
+  await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Prese le voci di 2 rapportini"));
+  expect(await screen.findByLabelText("Lavori del giorno")).toBeVisible();
+});
+
+it("l'elenco dice da quanti rapportini nasce ogni rendiconto e quanti sono nuovi", async () => {
+  m.tabelle.v_rendiconti_giornalieri = [testata({ rapportini: 3, rapportini_nuovi: 1 })];
+  draw();
+  expect(await screen.findByText("da 3 rapportini")).toBeVisible();
+  expect(screen.getByText("1 rapportino nuovo")).toBeVisible();
+});
+
+it("in bozza con rapportini nuovi, il pulsante li aggiunge richiamando «del giorno»", async () => {
+  m.tabelle.v_rendiconti_giornalieri = [testata({ rapportini: 1, rapportini_nuovi: 2 })];
+  draw();
+  fireEvent.click(await screen.findByText(/Massetto piano terra/));
+  fireEvent.click(await screen.findByRole("button", { name: /Aggiungi le voci dei rapportini nuovi/ }));
+  await waitFor(() => expect(m.rpc).toHaveBeenCalledWith("rendiconto_giornaliero_del_giorno", { p_order_id: "o", p_data: "2026-11-20" }));
+  expect(m.rpc.mock.calls.map((c) => c[0])).toContain("rendiconto_giornaliero_salva");
+});
+
+it("confermato con rapportini nuovi: l'avviso chiede di riaprirlo, senza pulsante di aggiunta", async () => {
+  m.tabelle.v_rendiconti_giornalieri = [testata({ stato: "confermato", rapportini: 1, rapportini_nuovi: 1 })];
+  draw();
+  fireEvent.click(await screen.findByText(/Massetto piano terra/));
+  expect(await screen.findByText(/riapri il rendiconto per aggiungerne le voci/)).toBeVisible();
+  expect(screen.queryByRole("button", { name: /Aggiungi le voci dei rapportini nuovi/ })).not.toBeInTheDocument();
 });

@@ -4,6 +4,7 @@ import {
   orderDetailLocation,
   resolveOrderDetailDestination,
   resolveCantiereView,
+  resolveSezioneDiario,
   resolveEconomiaView,
   resolveMaterialiView,
   resolveCostiView,
@@ -22,6 +23,7 @@ export function useOrderDetailNavigation(ready: boolean) {
     location.hash,
   );
   const activeCantiereView = resolveCantiereView(location.search, section);
+  const sezioneDiario = resolveSezioneDiario(location.search);
   const activeEconomiaView = resolveEconomiaView(location.search, section);
   const activeMaterialiView = resolveMaterialiView(location.search, section);
   const activeCostiView = resolveCostiView(location.search, section);
@@ -102,5 +104,5 @@ export function useOrderDetailNavigation(ready: boolean) {
     return () => cancelAnimationFrame(frame);
   }, [ready, tab, section, location.key, location.search]);
 
-  return { activeTab: tab, activeCantiereView, activeEconomiaView, activeMaterialiView, activeCostiView, navigateTo };
+  return { activeTab: tab, activeCantiereView, sezioneDiario, activeEconomiaView, activeMaterialiView, activeCostiView, navigateTo };
 }

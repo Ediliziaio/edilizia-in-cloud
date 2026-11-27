@@ -9,9 +9,7 @@ export const CANTIERE_VIEWS = [
   { value: "ufficio", label: "Attività", description: "Tutte le attività della commessa: contratto, ordini, pratiche, fatture e il resto, con chi le fa e quando scadono." },
   { value: "squadra", label: "Ore e persone", description: "Chi ha lavorato, quante ore, se tornano con le timbrature. L’ufficio inserisce le ore qui." },
   // «Diario» si chiama Rapportini (31/10/2026): è lì che si leggono, si approvano e si scrivono.
-  { value: "diario", label: "Rapportini", description: "Il diario del cantiere: chi c'era, ore, mezzi, avanzamento. Resta interno." },
-  // Rapportini = diario interno; Rendiconti = il foglio per il committente, coi prezzi (27/11/2026).
-  { value: "rendiconti", label: "Rendiconti", description: "Il foglio per il committente, giorno per giorno, con i prezzi. I confermati entrano nel rendiconto del periodo." },
+  { value: "diario", label: "Rapportini", description: "Il diario del cantiere (chi c'era, ore, mezzi, avanzamento) e i rendiconti al committente, giorno per giorno, con i prezzi." },
   { value: "giornale", label: "Giornale lavori", description: "Il giornale di questa commessa, una pagina per ogni giorno, da preparare, firmare e condividere." },
   { value: "collaudo", label: "Consegna e assistenza", description: "Collaudi, verbali, riserve e interventi di assistenza." },
   { value: "sicurezza", label: "Sicurezza", description: "POS, PSC, notifica, PiMUS, DURC: cosa serve in questo cantiere e cosa manca." },
@@ -20,7 +18,7 @@ export type CantiereView = typeof CANTIERE_VIEWS[number]["value"];
 export const ECONOMIA_VIEWS = [
   // Solo sulle commesse in appalto: OrderDetail la toglie dalle altre, dove
   // non avrebbe niente da mostrare. È il rendiconto del PERIODO: somma i rendiconti
-  // giornalieri confermati (Cantiere → Rendiconti) e le righe scritte a mano.
+  // giornalieri confermati (Cantiere → Rapportini → Rendiconti) e le righe scritte a mano.
   { value: "rendiconto", label: "Rendiconto", description: "Quello che hai fatto per il committente, tradotto in quello che devi fatturare." },
   { value: "margini", label: "Margini e costi", description: "Risultato della commessa, scostamenti e costi da verificare." },
   { value: "pagamenti", label: "Fatture e Incassi", description: "Rate del cliente, fatture collegate, incassi e movimenti bancari della commessa." },
@@ -91,7 +89,16 @@ const CANTIERE_SECTIONS: Partial<Record<string, CantiereView>> = {
 export function resolveCantiereView(search: string, section?: string): CantiereView {
   if (section && Object.hasOwn(CANTIERE_SECTIONS, section)) return CANTIERE_SECTIONS[section]!;
   const view = new URLSearchParams(search).get("vista_cantiere");
+  // «Rendiconti» non è più una scheda (27/11/2026): i vecchi link arrivano nei Rapportini, sezione Rendiconti.
+  if (view === "rendiconti") return "diario";
   return CANTIERE_VIEWS.find(item => item.value === view)?.value ?? "lavorazioni";
+}
+
+/** Dentro «Rapportini»: il diario interno o i rendiconti al committente (parametro `sezione`). */
+export type SezioneDiario = "rapportini" | "rendiconti";
+export function resolveSezioneDiario(search: string): SezioneDiario {
+  const p = new URLSearchParams(search);
+  return p.get("sezione") === "rendiconti" || p.get("vista_cantiere") === "rendiconti" ? "rendiconti" : "rapportini";
 }
 
 export const ORDER_DETAIL_TABS = [
@@ -156,6 +163,8 @@ export interface OrderDetailDestination {
   tab: OrderDetailTab;
   section?: OrderDetailSection;
   cantiereView?: CantiereView;
+  /** Con la vista «diario»: quale delle due sezioni mostrare. */
+  sezioneDiario?: SezioneDiario;
   economiaView?: EconomiaView;
   materialiView?: MaterialiView;
   costiView?: CostiView;
@@ -220,7 +229,12 @@ export function orderDetailLocation(
     "tab",
     destination.section ? SECTION_TABS[destination.section] : destination.tab,
   );
-  if (destination.cantiereView) params.set("vista_cantiere", destination.cantiereView);
+  if (destination.cantiereView) {
+    params.set("vista_cantiere", destination.cantiereView);
+    // Cambiando vista la sezione non resta appesa; il vecchio alias «rendiconti» si ripulisce.
+    if (destination.cantiereView === "diario" && destination.sezioneDiario === "rendiconti") params.set("sezione", "rendiconti");
+    else params.delete("sezione");
+  }
   if (destination.economiaView) params.set("vista_economia", destination.economiaView === "documenti" ? "pagamenti" : destination.economiaView);
   if (destination.materialiView) params.set("vista_materiali", destination.materialiView);
   if (destination.costiView) params.set("vista_costi", destination.costiView);

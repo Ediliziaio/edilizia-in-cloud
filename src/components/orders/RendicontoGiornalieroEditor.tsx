@@ -1,16 +1,20 @@
 /**
  * Editor del rendiconto giornaliero (27/11/2026): data, lavori del giorno, righe per categoria coi prezzi.
+ * Stessa veste del rapportino dell'ufficio (RapportiniUfficio): stessa finestra, stessi blocchi titolati,
+ * stessa riga «nome + valore»; in più le colonne del prezzo e dell'importo.
  * Il prezzo lo decide il database: dopo ogni salvataggio si rilegge. Chi scrive un prezzo a mano lo segna
  * (prezzo_a_mano) e il listino non lo riscrive più. Conferma rifiuta le righe senza prezzo.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { OfficeSelect } from "@/components/orders/OfficeSelect";
+import { Blocco } from "@/components/orders/BloccoTitolato";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrderWorkPhases } from "@/hooks/useOrderWorkPhases";
 import { useMezzi } from "@/hooks/useMezzi";
@@ -22,7 +26,7 @@ import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import type { VoceListino } from "@/lib/campo/prezzoVoceRapportino";
 import {
   CATEGORIE, ETICHETTA_FONTE, annullaRendiconto, chiaveRiga, confermaRendiconto, importoRiga, leggiRendiconto,
-  riapriRendiconto, salvaRendiconto, senzaPrezzo, type CategoriaRiga, type RigaRendiconto, type StatoRendiconto,
+  rendicontoDelGiorno, riapriRendiconto, salvaRendiconto, senzaPrezzo, type CategoriaRiga, type RigaRendiconto, type StatoRendiconto,
 } from "@/lib/rendiconti/rendicontiGiornalieri";
 
 const oggi = () => new Date().toLocaleDateString("en-CA");
@@ -68,9 +72,7 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
   const [righe, setRighe] = useState<RigaRendiconto[]>([]);
   const [salSigillato, setSalSigillato] = useState(false);
   const [aggiungendo, setAggiungendo] = useState<CategoriaRiga | null>(null);
-  const [personaId, setPersonaId] = useState("");
-  const [mezzoId, setMezzoId] = useState("");
-  const [ore, setOre] = useState("8");
+  const [rapportiniNuovi, setRapportiniNuovi] = useState(0);
 
   const { employees } = useOrderWorkPhases(orderId);
   const { data: mezzi = [] } = useMezzi();
@@ -87,7 +89,7 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
   const applica = (d: Awaited<ReturnType<typeof leggiRendiconto>>) => {
     setId(d.testata.id); setStato(d.testata.stato); setNumero(d.testata.numero); setData(d.testata.data);
     setLavori(d.testata.descrizione_lavori ?? ""); setNote(d.testata.note ?? ""); setRighe(d.righe);
-    setSalSigillato(!!d.testata.sal_id);
+    setSalSigillato(!!d.testata.sal_id); setRapportiniNuovi(d.testata.rapportini_nuovi);
   };
   const lettura = useQuery({
     queryKey: ["rendiconto-giornaliero", rendicontoId],
@@ -160,23 +162,32 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
 
   const nomeStato: Record<StatoRendiconto, string> = { bozza: tr("Bozza"), confermato: tr("Confermato"), annullato: tr("Annullato") };
 
-  const aggiungiPersona = () => {
-    const p = employees.find((e) => e.id === personaId);
-    const q = Number(ore.replace(",", "."));
-    if (!p || !(q > 0)) return;
-    aggiungi({ categoria: "manodopera", descrizione: p.label, unita: "ora", quantita: q, employee_id: p.id, listino_voce_id: ordine.data ?? null,
+  const aggiungiPersona = (idPersona: string) => {
+    const p = employees.find((e) => e.id === idPersona);
+    if (!p) return;
+    aggiungi({ categoria: "manodopera", descrizione: p.label, unita: "ora", quantita: 8, employee_id: p.id, listino_voce_id: ordine.data ?? null,
       prezzo_fonte: ordine.data ? null : "mancante" });
-    setPersonaId(""); setAggiungendo(null);
   };
-  const aggiungiMezzo = () => {
-    const m = mezzi.find((x) => x.id === mezzoId);
-    const q = Number(ore.replace(",", "."));
-    if (!m || !(q > 0)) return;
+  const aggiungiMezzo = (idMezzo: string) => {
+    const m = mezzi.find((x) => x.id === idMezzo);
+    if (!m) return;
     const tariffa = (m as { tariffa_id?: string | null }).tariffa_id ?? null;
-    aggiungi({ categoria: "mezzo", descrizione: `${m.nome}${m.targa ? ` · ${m.targa}` : ""}`, unita: "ora", quantita: q, mezzo_id: m.id,
+    aggiungi({ categoria: "mezzo", descrizione: `${m.nome}${m.targa ? ` · ${m.targa}` : ""}`, unita: "ora", quantita: 8, mezzo_id: m.id,
       listino_voce_id: tariffa, prezzo_fonte: tariffa ? null : "mancante" });
-    setMezzoId(""); setAggiungendo(null);
   };
+  // Rapportini scritti dopo: si salva quello che c'è, poi il database aggiunge le loro voci e si rilegge.
+  const prendiNuovi = useMutation({
+    mutationFn: async () => {
+      const idSalvato = await salvaRendiconto(bozza());
+      const r = await rendicontoDelGiorno(orderId, data);
+      return { idSalvato, r };
+    },
+    onSuccess: async ({ idSalvato, r }) => {
+      await dopo(r.id ?? idSalvato);
+      if (r.aggiunti > 0) toast.success(tr("Prese le voci di {n} rapportini", { n: r.rapportini }));
+    },
+    onError: errore,
+  });
 
   const fonteRiga = (r: RigaRendiconto) => {
     if (senzaPrezzo(r)) return <span className="text-amber-700">{tr("prezzo da definire")}</span>;
@@ -186,130 +197,142 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto">
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {id && numero != null ? tr("Rendiconto n. {n}", { n: numero }) : tr("Nuovo rendiconto del giorno")}
-            {id && <span className="rounded border px-1.5 py-0 text-[11px] font-normal">{nomeStato[stato]}</span>}
+            {id && numero != null ? tr("Rendiconto n. {n}", { n: numero }) : rendicontoId ? tr("Rendiconto") : tr("Nuovo rendiconto del giorno")}
+            {id && !lettura.isLoading && <span className="rounded border px-1.5 py-0 text-[11px] font-normal">{nomeStato[stato]}</span>}
           </DialogTitle>
+          <DialogDescription>{tr("Il foglio per il committente: le voci del giorno, con quantità e prezzo. Il rapportino resta il diario interno.")}</DialogDescription>
         </DialogHeader>
         {salSigillato && <p className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900">{tr("È già nel rendiconto del periodo: non si modifica.")}</p>}
+        {rapportiniNuovi > 0 && !salSigillato && stato !== "annullato" && (
+          <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
+            <span>
+              {stato === "bozza"
+                ? tr(rapportiniNuovi === 1 ? "C'è {n} rapportino nuovo di questo giorno: le sue voci non sono ancora qui." : "Ci sono {n} rapportini nuovi di questo giorno: le loro voci non sono ancora qui.", { n: rapportiniNuovi })
+                : tr(rapportiniNuovi === 1 ? "C'è {n} rapportino nuovo di questo giorno: riapri il rendiconto per aggiungerne le voci." : "Ci sono {n} rapportini nuovi di questo giorno: riapri il rendiconto per aggiungerne le voci.", { n: rapportiniNuovi })}
+            </span>
+            {stato === "bozza" && modificabile && (
+              <Button type="button" size="sm" variant="outline" className="h-7 gap-1 bg-background text-xs" disabled={occupato || prendiNuovi.isPending} onClick={() => prendiNuovi.mutate()}>
+                {prendiNuovi.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}{tr("Aggiungi le voci dei rapportini nuovi")}
+              </Button>
+            )}
+          </div>
+        )}
         {lettura.isLoading ? <p className="py-6 text-center text-sm text-muted-foreground">{tr("Caricamento…")}</p> : (
-          <div className="space-y-3">
-            <div className="grid gap-2 sm:grid-cols-[10rem_1fr]">
-              <label className="text-xs text-muted-foreground">{tr("Data")}
-                <Input type="date" aria-label={tr("Data")} className="mt-0.5 h-8" value={data} disabled={!modificabile} onChange={(e) => setData(e.target.value)} />
-              </label>
-              <label className="text-xs text-muted-foreground">{tr("Lavori del giorno")}
-                <Input aria-label={tr("Lavori del giorno")} className="mt-0.5 h-8" value={lavori} disabled={!modificabile} onChange={(e) => setLavori(e.target.value)}
-                  placeholder={tr("Cosa si è fatto, per il committente")} />
+          <section aria-label={tr("Rendiconto del giorno")} className="space-y-3 rounded-lg border p-3">
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="grid gap-1 text-xs text-muted-foreground">{tr("Giorno")}
+                <Input type="date" aria-label={tr("Data")} className="h-9 w-40 text-foreground" value={data} disabled={!modificabile} onChange={(e) => setData(e.target.value)} />
               </label>
             </div>
-            <label className="block text-xs text-muted-foreground">{tr("Note")}
-              <Textarea aria-label={tr("Note")} rows={2} className="mt-0.5 text-sm" value={note} disabled={!modificabile} onChange={(e) => setNote(e.target.value)} />
+            <label className="grid gap-1 text-xs text-muted-foreground">{tr("Cosa si è fatto")}
+              <Textarea rows={2} maxLength={4000} aria-label={tr("Lavori del giorno")} className="text-foreground" value={lavori} disabled={!modificabile}
+                onChange={(e) => setLavori(e.target.value)} placeholder={tr("Cosa si è fatto, per il committente")} />
             </label>
 
             {CATEGORIE.map((c) => {
               const dentro = righe.filter((r) => r.categoria === c.valore);
+              const subtotale = dentro.reduce((t, r) => t + importoRiga(r), 0);
               return (
-                <section key={c.valore} aria-label={tr(c.titolo)} className="rounded-md border">
-                  <div className="flex items-center justify-between bg-muted/40 px-2 py-1">
-                    <h3 className="text-xs font-semibold">{tr(c.titolo)}{dentro.length > 0 ? ` · ${dentro.length}` : ""}</h3>
-                    {modificabile && (
-                      <Button type="button" variant="ghost" size="sm" className="h-6 gap-1 px-2 text-xs"
-                        aria-label={`${tr("Aggiungi")} ${tr(c.titolo)}`}
-                        onClick={() => setAggiungendo(aggiungendo === c.valore ? null : c.valore)}>
-                        <Plus className="h-3 w-3" />{tr("Aggiungi")}
-                      </Button>
-                    )}
-                  </div>
+                <Blocco key={c.valore} titolo={tr(c.titolo)} destra={dentro.length > 0 ? `${dentro.length} · ${formatCurrency(subtotale)}` : undefined}>
                   {dentro.length > 0 && (
-                    <ul className="divide-y">
-                      {dentro.map((r) => (
-                        <li key={r.chiave} className="grid grid-cols-[minmax(0,1fr)_4.5rem_4rem_5.5rem_5.5rem_1.5rem] items-center gap-1 px-2 py-1 max-sm:grid-cols-2">
-                          <div className="min-w-0">
-                            <Input aria-label={tr("Descrizione")} className="h-7 text-[13px]" value={r.descrizione} disabled={!modificabile}
-                              onChange={(e) => aggiorna(r.chiave, { descrizione: e.target.value })} />
-                            <p className="mt-0.5 text-[11px]">{fonteRiga(r)}</p>
-                          </div>
-                          <Numero etichetta={tr("Quantità")} className="h-7 text-right text-[13px]" disabled={!modificabile} valore={r.quantita}
-                            onCambia={(n) => aggiorna(r.chiave, { quantita: n })} />
-                          <Input aria-label={tr("Unità")} className="h-7 text-[13px]" value={r.unita} disabled={!modificabile}
-                            onChange={(e) => aggiorna(r.chiave, { unita: e.target.value })} />
-                          <Numero etichetta={tr("Prezzo")} className="h-7 text-right text-[13px]" disabled={!modificabile} valore={r.prezzo_unitario}
-                            onCambia={(n) => aggiorna(r.chiave, { prezzo_unitario: n, prezzo_a_mano: true, prezzo_fonte: "manuale" })} />
-                          <span className="text-right text-[13px] font-medium tabular-nums">{r.prezzo_unitario == null ? "—" : formatCurrency(importoRiga(r))}</span>
-                          {modificabile && <Button type="button" variant="ghost" size="icon" className="h-6 w-6" aria-label={tr("Togli la riga")}
-                            onClick={() => setRighe((rs) => rs.filter((x) => x.chiave !== r.chiave))}><Trash2 className="h-3.5 w-3.5" /></Button>}
-                        </li>
-                      ))}
+                    <ul aria-label={tr(c.titolo)} className="divide-y rounded-md border">
+                      {dentro.map((r) => {
+                        const legata = !!(r.employee_id || r.mezzo_id);
+                        return (
+                          <li key={r.chiave} className="flex flex-wrap items-center gap-2 px-2 py-0.5">
+                            <div className="min-w-[8rem] flex-1">
+                              {legata
+                                ? <span className="block truncate text-sm">{r.descrizione}</span>
+                                : <Input aria-label={tr("Descrizione")} className="h-7 text-sm" value={r.descrizione} disabled={!modificabile}
+                                    onChange={(e) => aggiorna(r.chiave, { descrizione: e.target.value })} />}
+                              <span className="block text-[11px]">{fonteRiga(r)}</span>
+                            </div>
+                            <Numero etichetta={tr("Quantità")} className="h-7 w-20 text-right" disabled={!modificabile} valore={r.quantita}
+                              onCambia={(n) => aggiorna(r.chiave, { quantita: n })} />
+                            {legata || r.listino_voce_id
+                              ? <span className="w-10 text-xs text-muted-foreground">{r.unita}</span>
+                              : <Input aria-label={tr("Unità")} className="h-7 w-12 text-xs" value={r.unita} disabled={!modificabile}
+                                  onChange={(e) => aggiorna(r.chiave, { unita: e.target.value })} />}
+                            <Numero etichetta={tr("Prezzo")} className="h-7 w-20 text-right" disabled={!modificabile} valore={r.prezzo_unitario}
+                              onCambia={(n) => aggiorna(r.chiave, { prezzo_unitario: n, prezzo_a_mano: true, prezzo_fonte: "manuale" })} />
+                            <span className="w-20 text-right text-sm font-medium tabular-nums">{r.prezzo_unitario == null ? "—" : formatCurrency(importoRiga(r))}</span>
+                            {modificabile && (
+                              <button type="button" aria-label={tr("Togli la riga")} className="text-muted-foreground hover:text-rose-600"
+                                onClick={() => setRighe((rs) => rs.filter((x) => x.chiave !== r.chiave))}><X className="h-4 w-4" /></button>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
-                  {modificabile && aggiungendo === c.valore && (
-                    <div className="space-y-1.5 border-t p-2">
+                  {modificabile && (
+                    <div className="flex flex-wrap items-center gap-2">
                       {c.valore === "manodopera" && (
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <select aria-label={tr("Persona")} className="h-8 rounded-md border bg-background px-2 text-sm" value={personaId} onChange={(e) => setPersonaId(e.target.value)}>
-                            <option value="">{tr("Scegli la persona")}</option>
-                            {employees.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
-                          </select>
-                          <Input aria-label={tr("Ore")} className="h-8 w-20" inputMode="decimal" value={ore} onChange={(e) => setOre(e.target.value)} />
-                          <Button type="button" size="sm" className="h-8" disabled={!personaId} onClick={aggiungiPersona}>{tr("Aggiungi persona")}</Button>
-                        </div>
+                        <OfficeSelect value="" label={tr("Aggiungi persona")} className="h-8 min-w-[12rem] flex-1 text-muted-foreground"
+                          placeholder={tr("+ Aggiungi persona…")} onValueChange={(v) => { if (v) aggiungiPersona(v); }}
+                          options={employees.map((e) => ({ value: e.id, label: e.label }))} />
                       )}
                       {c.valore === "mezzo" && (
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <select aria-label={tr("Mezzo")} className="h-8 rounded-md border bg-background px-2 text-sm" value={mezzoId} onChange={(e) => setMezzoId(e.target.value)}>
-                            <option value="">{tr("Scegli il mezzo")}</option>
-                            {mezzi.map((m) => <option key={m.id} value={m.id}>{m.nome}{m.targa ? ` · ${m.targa}` : ""}</option>)}
-                          </select>
-                          <Input aria-label={tr("Ore")} className="h-8 w-20" inputMode="decimal" value={ore} onChange={(e) => setOre(e.target.value)} />
-                          <Button type="button" size="sm" className="h-8" disabled={!mezzoId} onClick={aggiungiMezzo}>{tr("Aggiungi mezzo")}</Button>
-                        </div>
+                        <OfficeSelect value="" label={tr("Aggiungi mezzo")} className="h-8 min-w-[12rem] flex-1 text-muted-foreground"
+                          placeholder={tr("+ Aggiungi mezzo…")} onValueChange={(v) => { if (v) aggiungiMezzo(v); }}
+                          options={mezzi.map((m) => ({ value: m.id, label: `${m.nome}${m.targa ? ` · ${m.targa}` : ""}` }))} />
                       )}
                       {c.valore !== "manodopera" && c.valore !== "mezzo" && (
-                        <CercaNelListino dove={{ orderId, data }} conProdotti={c.valore === "materiale"}
-                          onScegli={(v) => { daListino(c.valore, v); setAggiungendo(null); }} />
+                        <Button type="button" variant="outline" size="sm" className="h-8" aria-label={`${tr("Aggiungi")} ${tr(c.titolo)}`}
+                          onClick={() => setAggiungendo(aggiungendo === c.valore ? null : c.valore)}>
+                          <Plus className="mr-1 h-3.5 w-3.5" />{tr("Aggiungi")}
+                        </Button>
                       )}
-                      <Button type="button" variant="outline" size="sm" className="h-7 text-xs"
+                      <Button type="button" variant="outline" size="sm" className="h-8"
                         onClick={() => { aggiungi({ categoria: c.valore }); setAggiungendo(null); }}>{tr("Riga libera, prezzo a mano")}</Button>
                     </div>
                   )}
-                </section>
+                  {modificabile && aggiungendo === c.valore && c.valore !== "manodopera" && c.valore !== "mezzo" && (
+                    <CercaNelListino dove={{ orderId, data }} conProdotti={c.valore === "materiale"}
+                      onScegli={(v) => { daListino(c.valore, v); setAggiungendo(null); }} />
+                  )}
+                </Blocco>
               );
             })}
+
+            <label className="grid gap-1 text-xs text-muted-foreground">{tr("Note (facoltative)")}
+              <Input aria-label={tr("Note")} maxLength={4000} className="text-foreground" value={note} disabled={!modificabile} onChange={(e) => setNote(e.target.value)} />
+            </label>
 
             <div className="flex items-center justify-between border-t pt-2 text-sm">
               <span className="text-xs text-amber-700">{senza > 0 ? tr("{n} senza prezzo", { n: senza }) : ""}</span>
               <span className="font-semibold">{tr("Totale")} <span className="tabular-nums">{formatCurrency(totale)}</span></span>
             </div>
-          </div>
+          </section>
         )}
-        <DialogFooter className="gap-1.5 sm:justify-between">
-          <div className="flex gap-1.5">
+        {!lettura.isLoading && <DialogFooter className="gap-1.5 sm:justify-between">
+          <div className="flex flex-wrap gap-1.5">
             {puoModificare && id && stato === "bozza" && !salSigillato && (
-              <Button type="button" variant="outline" size="sm" disabled={occupato}
+              <Button type="button" variant="outline" disabled={occupato}
                 onClick={() => { if (window.confirm(tr("Annullare questo rendiconto?"))) cambiaStato.mutate("annulla"); }}>{tr("Annulla rendiconto")}</Button>
             )}
-            {id && stato !== "annullato" && <PulsantePdfRendiconto rendicontoId={id} className="h-8 px-2.5 text-xs" />}
+            {id && stato !== "annullato" && <PulsantePdfRendiconto rendicontoId={id} className="h-10 px-4 text-sm" />}
             {puoModificare && id && stato === "confermato" && !salSigillato && (
-              <Button type="button" variant="outline" size="sm" disabled={occupato} onClick={() => cambiaStato.mutate("riapri")}>{tr("Riapri")}</Button>
+              <Button type="button" variant="outline" disabled={occupato} onClick={() => cambiaStato.mutate("riapri")}>{tr("Riapri")}</Button>
             )}
           </div>
           <div className="flex gap-1.5">
-            <Button type="button" variant="ghost" size="sm" onClick={onClose}>{tr("Chiudi")}</Button>
+            <Button type="button" variant="ghost" onClick={onClose}>{tr("Chiudi")}</Button>
             {modificabile && (
               <>
-                <Button type="button" variant="outline" size="sm" disabled={occupato} onClick={() => salva.mutate()}>
+                <Button type="button" variant="outline" disabled={occupato} onClick={() => salva.mutate()}>
                   {salva.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}{tr("Salva")}
                 </Button>
-                <Button type="button" size="sm" disabled={occupato || righe.length === 0} onClick={() => conferma.mutate()}>
+                <Button type="button" disabled={occupato || righe.length === 0} onClick={() => conferma.mutate()}>
                   {conferma.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}{tr("Conferma")}
                 </Button>
               </>
             )}
           </div>
-        </DialogFooter>
+        </DialogFooter>}
       </DialogContent>
     </Dialog>
   );

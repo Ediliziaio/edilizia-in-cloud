@@ -32,6 +32,7 @@ import { applicaParti, commessaDeiTrasporti, fasiDelGiorno, senzaViaggiVuoti, vo
   type GiornoUfficio, type PersonaPresenza, type RapportinoLetto,
 } from "@/lib/campo/rapportiniUfficio";
 import { OfficeSelect } from "./OfficeSelect";
+import { Blocco } from "./BloccoTitolato";
 import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 /** Un file in base64, senza il prefisso «data:…;base64,». */
@@ -559,18 +560,6 @@ function Finestra({ orderId, onFatto, tipoIniziale }: { orderId: string; onFatto
           {salva.isPending ? tr("Salvo…") : giorni.length === 1 ? tr("Salva il rapportino") : tr("Salva {n} rapportini", { n: giorni.length })}
         </Button>
       </DialogFooter>
-    </div>
-  );
-}
-
-function Blocco({ titolo, destra, children }: { titolo: string; destra?: string; children: ReactNode }) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-muted-foreground">{titolo}</p>
-        {destra && <p className="text-xs tabular-nums text-muted-foreground">{destra}</p>}
-      </div>
-      {children}
     </div>
   );
 }

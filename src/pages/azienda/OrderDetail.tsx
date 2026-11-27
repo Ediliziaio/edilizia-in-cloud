@@ -110,6 +110,7 @@ import { totaliCommessaAppalto, type RigaPerTotali } from "@/lib/appalto/rendico
 import { useConteggiCommessa } from "@/hooks/useConteggiCommessa";
 import { useAvanzamentoCommessa } from "@/hooks/useAvanzamentoCommessa";
 import { OrderDetailNavigation } from "@/components/orders/OrderDetailNavigation";
+import { SezioniDiario } from "@/components/orders/SezioniDiario";
 import { OrderViewTransition } from "@/components/orders/OrderViewTransition";
 import { useOrderDetailNavigation } from "@/hooks/useOrderDetailNavigation";
 import { CantiereViewNav, VISTE_SOLO_SCHERMO_GRANDE } from "@/components/orders/CantiereViewNav";
@@ -569,7 +570,7 @@ function OrderDetailInner() {
   const variationsEnabled = permissions.canViewOrderAmounts || permissions.canViewMargins;
   const variations = useOrderVariations(id, effectiveCompany?.id, variationsEnabled && schedaPronta);
   // The page stays on its loading/error shell until variants are resolved too.
-  const { activeTab, activeCantiereView, activeEconomiaView, activeMaterialiView, activeCostiView, navigateTo } = useOrderDetailNavigation(
+  const { activeTab, activeCantiereView, sezioneDiario, activeEconomiaView, activeMaterialiView, activeCostiView, navigateTo } = useOrderDetailNavigation(
     !!order?.id && !orderLoading && !(variationsEnabled && (variations.isPending || variations.isError)),
   );
   const { data: conteggioOfferte } = useConteggioRichiesteCommessa(id, companyId, activeTab === "articoli");
@@ -2218,15 +2219,17 @@ function OrderDetailInner() {
               <ErrorBoundary><PianoMezziCantiere key={id} orderId={id!} conViaggi /></ErrorBoundary>
             </div>}
             {vistaCantiere === "giornale" && <div id="section-giornale" className="scroll-mt-24"><GiornaleLavoriContenuto key={id} orderIdFisso={id!} /></div>}
-            {vistaCantiere === "rendiconti" && <div id="section-rendiconti" className="scroll-mt-24 space-y-3">
+            {vistaCantiere === "diario" && <SezioniDiario orderId={id!} value={sezioneDiario} nRapportini={conteggiViste?.rapportini}
+              onChange={(v) => navigateTo({ tab: "cantiere", cantiereView: "diario", sezioneDiario: v })} />}
+            {vistaCantiere === "diario" && sezioneDiario === "rendiconti" && <div id="section-rendiconti" className="scroll-mt-24 space-y-3">
               <ErrorBoundary><RendicontiGiornalieri key={id} orderId={id!} apriId={rendicontoDaAprire} onApriConsumato={() => setRendicontoDaAprire(null)} /></ErrorBoundary>
             </div>}
-            {vistaCantiere === "diario" && <>
+            {vistaCantiere === "diario" && sezioneDiario === "rapportini" && <>
             <div id="section-rapportini" className="scroll-mt-24 space-y-4">
               {/* I pulsanti «Rapportino lavori / trasporti» stanno in testa all'elenco; qui resta la finestra che apre Silvio. */}
               {permissions.canEditOrders && <RapportiniUfficio orderId={id!} senzaPulsante aperta={scriviRapportini} onApertaChange={setScriviRapportini} />}
               <DaApprovareCommessa orderId={id!} onApriRapportini={() => document.getElementById("rapportini-campo-elenco")?.scrollIntoView({ behavior: "smooth", block: "start" })} />
-              <div id="rapportini-campo-elenco" className="scroll-mt-24"><OrdineRapportiniCampo orderId={id!} onApriRendiconto={(rid) => { setRendicontoDaAprire(rid); navigateTo({ tab: "cantiere", cantiereView: "rendiconti" }); }} /></div>
+              <div id="rapportini-campo-elenco" className="scroll-mt-24"><OrdineRapportiniCampo orderId={id!} onApriRendiconto={(rid) => { setRendicontoDaAprire(rid); navigateTo({ tab: "cantiere", cantiereView: "diario", sezioneDiario: "rendiconti" }); }} /></div>
             </div>
             <div id="section-foto" className="space-y-4 scroll-mt-24">
               <OrdineFotoCantiere orderId={id!} />

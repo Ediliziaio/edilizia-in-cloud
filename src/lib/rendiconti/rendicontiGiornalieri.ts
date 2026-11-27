@@ -32,6 +32,10 @@ export interface RendicontoGiornaliero {
   totale: number;
   senza_prezzo: number;
   sal_id: string | null;
+  /** Rapportini del giorno già dentro questo rendiconto. */
+  rapportini: number;
+  /** Rapportini del giorno non ancora dentro (arrivati dopo, o scritti con il rendiconto già confermato). */
+  rapportini_nuovi: number;
 }
 
 export interface RigaRendiconto {
@@ -56,7 +60,11 @@ export interface DettaglioRendiconto {
   righe: RigaRendiconto[];
 }
 
-export interface EsitoDaRapportini { prova: boolean; da_creare: number; gia_fatti: number; gia_nel_rendiconto: number; creati: string[]; errori?: { rapportino_id: string; errore: string }[] }
+/** `giorni` = i giorni con rapportini non ancora dentro un rendiconto; si crea un rendiconto per giorno. */
+export interface EsitoDaRapportini { prova: boolean; giorni: number; da_creare: number; da_aggiornare: number; gia_fatti: number; creati: string[]; errori?: { data?: string; errore: string }[] }
+
+/** Il rendiconto vivo di un giorno: `aggiunti` righe prese dai rapportini, `nuovi` rapportini rimasti fuori perché è confermato. */
+export interface EsitoDelGiorno { id: string; numero: number; stato: StatoRendiconto; aggiunti: number; rapportini: number; nuovi: number }
 
 type Esito<T> = PromiseLike<{ data: T | null; error: unknown }>;
 interface Costruttore {
@@ -76,7 +84,7 @@ async function chiama<T>(funzione: string, args: object): Promise<T> {
   return data as T;
 }
 
-export const COLONNE_TESTATA = "id, order_id, data, numero, stato, descrizione_lavori, note, rapportino_id, righe, totale, senza_prezzo, sal_id";
+export const COLONNE_TESTATA = "id, order_id, data, numero, stato, descrizione_lavori, note, rapportino_id, righe, totale, senza_prezzo, sal_id, rapportini, rapportini_nuovi";
 const COLONNE_RIGHE = "id, categoria, descrizione, unita_misura, quantita, prezzo_unitario, prezzo_a_mano, prezzo_fonte, listino_voce_id, employee_id, mezzo_id, fase_id, note, ordine";
 
 const comeNumero = (x: unknown) => (x == null ? 0 : Number(x));
@@ -88,6 +96,7 @@ function leggiTestata(r: Record<string, unknown>): RendicontoGiornaliero {
     note: (r.note as string | null) ?? null, rapportino_id: (r.rapportino_id as string | null) ?? null,
     righe: comeNumero(r.righe), totale: comeNumero(r.totale), senza_prezzo: comeNumero(r.senza_prezzo),
     sal_id: (r.sal_id as string | null) ?? null,
+    rapportini: comeNumero(r.rapportini), rapportini_nuovi: comeNumero(r.rapportini_nuovi),
   };
 }
 
@@ -162,7 +171,10 @@ export const salvaRendiconto = (b: BozzaRendiconto) => chiama<string>("rendicont
 export const confermaRendiconto = (id: string) => chiama<unknown>("rendiconto_giornaliero_conferma", { p_id: id });
 export const riapriRendiconto = (id: string) => chiama<unknown>("rendiconto_giornaliero_riapri", { p_id: id });
 export const annullaRendiconto = (id: string) => chiama<unknown>("rendiconto_giornaliero_annulla", { p_id: id });
+/** Il rendiconto del giorno del rapportino: lo stesso per tutti i rapportini di quel giorno. */
 export const rendicontoDaRapportino = (rapportinoId: string) => chiama<string>("rendiconto_giornaliero_da_rapportino", { p_rapportino_id: rapportinoId });
+export const rendicontoDelGiorno = (orderId: string, data: string) =>
+  chiama<EsitoDelGiorno>("rendiconto_giornaliero_del_giorno", { p_order_id: orderId, p_data: data });
 export const rendicontiDaRapportini = (orderId: string, prova: boolean, dal: string | null = null, al: string | null = null) =>
   chiama<EsitoDaRapportini>("rendiconti_giornalieri_da_rapportini", { p_order_id: orderId, p_dal: dal, p_al: al, p_prova: prova });
 

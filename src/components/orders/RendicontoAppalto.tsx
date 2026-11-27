@@ -62,7 +62,7 @@ import { useT } from "@/lib/campo/lingua/LinguaCampo";
 /* ─── Tipi ─────────────────────────────────────────────────────────── */
 
 interface Riga {
-  /** Riga di un rendiconto giornaliero: si modifica solo da Cantiere → Rendiconti (27/11/2026). */
+  /** Riga di un rendiconto giornaliero: si modifica solo da Cantiere → Rapportini → Rendiconti (27/11/2026). */
   rendiconto_giornaliero_id?: string | null;
   id: string; data: string; tariffa_id: string | null;
   descrizione: string; unita_misura: string; prezzo_unitario: number;
@@ -560,7 +560,7 @@ export function RendicontoAppalto({
           rendiconto giornaliero (Cantiere → Rendiconti), e i confermati finiscono qui sopra. */}
       <p className="text-xs text-muted-foreground">
         {tr("Le righe di ogni giorno si scrivono in")}{" "}
-        <Link className="font-medium underline underline-offset-2" to="?tab=cantiere&vista_cantiere=rendiconti">{tr("Cantiere → Rendiconti")}</Link>
+        <Link className="font-medium underline underline-offset-2" to="?tab=cantiere&vista_cantiere=diario&sezione=rendiconti">{tr("Cantiere → Rendiconti")}</Link>
         {". "}{tr("Quelli confermati entrano in questo rendiconto.")}
       </p>
 
