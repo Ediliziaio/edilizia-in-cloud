@@ -52,6 +52,11 @@ const TABELLE_VERIFICATE: Record<string, string> = {
  */
 const VISTE_CHE_FILTRANO_DENTRO: Record<string, string> = {
   v_appalto_rapportini_da_rendicontare: "puo_vedere_commessa + has_permission_for_company('can_view_order_amounts')",
+  // 20290624100200: sostituisce quella sopra (che viene eliminata lì) ed
+  // estende la rete di sicurezza a voci, mezzi e materiali. Stessi controlli
+  // nel WHERE: la funzione che legge le presenze è SECURITY DEFINER, quindi il
+  // filtro per chi guarda sta nella vista e non si può dimenticare.
+  v_rapportini_da_rendicontare: "puo_vedere_commessa + has_permission_for_company('can_view_order_amounts')",
   // 20290314000002: security_barrier e diritti economici dentro (private.office_*_rights);
   // provate il 12/11/2026 con un cliente esterno: 0 righe in tutte.
   campo_rapportini_visibili: "private.office_order_rights(order_id)",
