@@ -85,6 +85,6 @@ Funzioni (definer, `REVOKE … FROM PUBLIC, anon`, GRANT ad `authenticated`, con
 
 ## Prima della pubblicazione
 
-- Migrazioni scritte in `supabase/migrations-bozza/` (fuori dalla cartella che va in produzione)
+- Migrazioni 20290629100000, 100100, 110000: APPLICATE e riallineate il 27/11/2026 col via del titolare
   e provate in transazioni annullate. Si applicano solo col via del titolare.
 - Trasformazione dei rapportini di Vulcano: prima `prova=true`, poi col titolare.

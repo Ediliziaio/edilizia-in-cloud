@@ -179,9 +179,12 @@ $function$;
 -- (importo e margine sono colonne generate: in un trigger BEFORE valgono null in NEW, vanno escluse
 -- dal confronto; una colonna generata nuova va aggiunta qui) ─────────────────────────────────
 -- Il rendiconto del periodo può ancora cambiare stato e sal_id (lo fa appalto_sal_crea).
+-- Definer: la testata si cerca senza RLS, così una riga non resta scoperta se chi la tocca
+-- non vede la testata.
 create or replace function private.rendiconto_giornaliero_righe_guardia()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $function$
 declare
