@@ -1,8 +1,14 @@
-/** Vista illustrativa del fabbricato: stessi poligoni e moduli della pianta.
- * Quote e pendenze sono convenzionali, non un rilievo dell’immobile reale.
+/** Vista del fabbricato: con la mappa usa la geometria geografica del 3D e del PDF.
+ * Gli schemi senza mappa mantengono quote e pendenze illustrative.
  */
-import { ingombroModulo, limitiDisegno, pannelliDaRivedere, type DisegnoCommercialeFv, type PuntoFv } from "./fvDisegnoCommerciale.ts";
-export function svgVistaTetto(piano: DisegnoCommercialeFv, lato = 0, copertura: "antracite" | "tegole" = "antracite") {
+import { verticiModulo, limitiDisegno, pannelliDaRivedere, type DisegnoCommercialeFv, type PuntoFv } from "./fvDisegnoCommerciale.ts";
+import { geometriaTettoDocumento, svgTettoDocumento } from "./fvTettoDocumento.ts";
+export function svgVistaTetto(piano: DisegnoCommercialeFv, lato = 0, copertura?: "antracite" | "tegole") {
+  if (piano.mappa) {
+    const tetto = geometriaTettoDocumento(piano);
+    if (!tetto) return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 440" role="img" aria-label="Tetto da verificare"><text x="20" y="60">Controlla i contorni delle falde sulla mappa prima di aprire il 3D.</text></svg>';
+    return svgTettoDocumento(tetto, "3d", lato);
+  }
   const b = limitiDisegno(piano), theta = lato * Math.PI / 2;
   const rot = (p: PuntoFv) => { const x=p.x-b.x-b.w/2,y=p.y-b.y-b.h/2;return {x:x*Math.cos(theta)-y*Math.sin(theta),y:x*Math.sin(theta)+y*Math.cos(theta)}; };
   const rettangolari = piano.falde.length === 2 && piano.falde.every(f => f.punti.length === 4 && f.punti.every(p => Math.abs(p.x-b.x)<.001 || Math.abs(p.x-b.x-b.w)<.001)) && piano.falde.every(f => f.punti.every(p => [b.y,b.y+b.h/2,b.y+b.h].some(y=>Math.abs(p.y-y)<.001)));
@@ -40,12 +46,13 @@ export function svgVistaTetto(piano: DisegnoCommercialeFv, lato = 0, copertura: 
     const passo=Math.max(.28,(maxy-miny)/65);
     for(let y=miny;y<=maxy;y+=passo) trama.push(`M${punto({x:minx,y})} L${punto({x:maxx,y})}`);
     const moduli=piano.pannelli.filter(p=>p.faldaId===f.id).map(p=>{
-      const r=ingombroModulo(p,piano.modulo),v=vertici(r.x,r.y,r.w,r.h),proj=v.map(q=>punto(q,quota(q)+.045)).join(" ");
+      const v=verticiModulo(p,piano.modulo),proj=v.map(q=>punto(q,quota(q)+.045)).join(" ");
+      const interpola=(a:PuntoFv,b:PuntoFv,t:number)=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t});
       const linee:string[]=[];
       for(const t of [1/3,2/3]){
-        const a={x:r.x,y:r.y+r.h*t},bb={x:r.x+r.w,y:a.y};linee.push(`M${punto(a,quota(a)+.05)} L${punto(bb,quota(bb)+.05)}`);
+        const a=interpola(v[0],v[3],t),bb=interpola(v[1],v[2],t);linee.push(`M${punto(a,quota(a)+.05)} L${punto(bb,quota(bb)+.05)}`);
       }
-      const a={x:r.x+r.w/2,y:r.y},bb={x:a.x,y:r.y+r.h};linee.push(`M${punto(a,quota(a)+.05)} L${punto(bb,quota(bb)+.05)}`);
+      const a=interpola(v[0],v[1],.5),bb=interpola(v[3],v[2],.5);linee.push(`M${punto(a,quota(a)+.05)} L${punto(bb,quota(bb)+.05)}`);
       return `<polygon points="${proj}" fill="${bad.has(p.id)?"#a74444":"url(#fv-render-black)"}" stroke="#50595d" stroke-width="1" stroke-linejoin="round"/><path d="${linee.join(" ")}" fill="none" stroke="#707c80" stroke-opacity=".28" stroke-width=".55"/>`;
     }).join("");
     return `<defs><clipPath id="${clip}"><polygon points="${contorno}"/></clipPath></defs><polygon points="${contorno}" fill="${roof}" stroke="#626b69" stroke-width="2" stroke-linejoin="round"/><path clip-path="url(#${clip})" d="${trama.join(" ")}" fill="none" stroke="#29332e" stroke-opacity=".13" stroke-width=".7"/>${moduli}`;

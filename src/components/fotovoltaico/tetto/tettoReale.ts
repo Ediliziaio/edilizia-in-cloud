@@ -1,6 +1,6 @@
 /** Proiezioni metriche tra falde, ortofoto e vista 3D del preventivo. */
 import { ShapeUtils, Vector2 } from "three";
-import { disponiModuliOttimizzati, ingombroModulo, poligonoValido, posizioneModuloValida, rettangoloNellaFalda, arrotondaMetro, type ModuloPosatoFv, type DisegnoCommercialeFv, type PuntoFv } from "../../../../supabase/functions/_shared/fvDisegnoCommerciale";
+import { disponiModuliOttimizzati, ingombroModulo, verticiModulo, normalizzaRotazioneModulo, poligonoValido, posizioneModuloValida, rettangoloNellaFalda, arrotondaMetro, type ModuloPosatoFv, type DisegnoCommercialeFv, type PuntoFv } from "../../../../supabase/functions/_shared/fvDisegnoCommerciale";
 export type P3 = {
     x: number;
     y: number;
@@ -178,7 +178,7 @@ export function pannelliDalDisegnoReale(edificio: EdificioReale, disegno: Disegn
             throw new Error("Falda sconosciuta nel rilievo.");
         let piano = ref.piano;
         const mondo = (x: number, y: number) => nelMondo(piano, x - ref.offset.x, y - ref.offset.y, .055);
-        const punti = [{ x: r.x, y: r.y }, { x: r.x + r.w, y: r.y }, { x: r.x + r.w, y: r.y + r.h }, { x: r.x, y: r.y + r.h }];
+        const punti = verticiModulo(m, disegno.modulo);
         const vertici = punti.map(p => { const v = mondo(p.x, p.y); if (!m.supporto)
             return v; const s = m.supporto, ang = s.inclinazione * Math.PI / 180, t = Math.tan(ang), quota = .15 + (s.verso === "y-" ? (p.y - r.y) * t : s.verso === "x-" ? (p.x - r.x) * t : (r.x + r.w - p.x) * t); return { x: v.x + piano.n.x * quota, y: v.y + piano.n.y * quota, z: v.z + piano.n.z * quota }; });
         if (m.supporto)
@@ -195,13 +195,14 @@ export function uvOrtofoto(edificio: EdificioReale, p: P3) {
     return { u: (p.x + edificio.origine.x - FOTO_BBOX.minX) / (FOTO_BBOX.maxX - FOTO_BBOX.minX), v: (p.y + edificio.origine.y - FOTO_BBOX.minY) / (FOTO_BBOX.maxY - FOTO_BBOX.minY) };
 }
 /** Movimento/rotazione atomici: un tentativo non valido non altera il disegno. */
-export function cambiaModuloReale(piano: DisegnoCommercialeFv, id: string, patch: Partial<Pick<ModuloPosatoFv, "x" | "y" | "faldaId" | "orizzontale">>): DisegnoCommercialeFv | null {
+export function cambiaModuloReale(piano: DisegnoCommercialeFv, id: string, patch: Partial<Pick<ModuloPosatoFv, "x" | "y" | "faldaId" | "orizzontale" | "rotazione">>): DisegnoCommercialeFv | null {
     const originale = piano.pannelli.find(p => p.id === id);
     if (!originale)
         return null;
     const next = { ...originale, ...patch };
-    if (![next.x, next.y].every(Number.isFinite))
+    if (![next.x, next.y, next.rotazione ?? 0].every(Number.isFinite))
         return null;
+    if (next.rotazione !== undefined) next.rotazione = normalizzaRotazioneModulo(next.rotazione);
     next.x = arrotondaMetro(next.x);
     next.y = arrotondaMetro(next.y);
     if (!posizioneModuloValida(piano, next))

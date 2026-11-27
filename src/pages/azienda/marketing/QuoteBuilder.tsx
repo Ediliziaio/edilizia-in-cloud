@@ -1989,13 +1989,9 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     imponibilePreventivo > 0 ? ((total / imponibilePreventivo) - 1) * 100 : 22;
 
   // #40 Governance — valutazione (non bloccante) doppia approvazione sul netto.
-  const approvazioneEsito = useMemo(
-    () =>
-      governanceCfg
-        ? valutaApprovazionePreventivo(governanceCfg, totaliPro.subtotale_netto)
-        : null,
-    [governanceCfg, totaliPro.subtotale_netto],
-  );
+  const approvazioneEsito = governanceCfg
+    ? valutaApprovazionePreventivo(governanceCfg, totaliPro.subtotale_netto)
+    : null;
 
   // La testata del preventivo com'è sullo schermo: la salva `handleSave` e la stampa il PDF vero a destra
   // (07/11/2026), così i due non possono dire cose diverse.

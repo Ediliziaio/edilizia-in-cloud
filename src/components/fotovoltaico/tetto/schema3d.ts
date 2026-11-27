@@ -1,6 +1,6 @@
 import { creaPianoReale, dot, sub, riferimentiTettoReale, type P3 } from "./tettoReale";
 import { edificioDaFalde, nuovaFalda, type RilievoRuntime } from "./rilievoLocale";
-import { ingombroModulo, limitiDisegno, type DisegnoCommercialeFv, type PuntoFv } from "../../../../supabase/functions/_shared/fvDisegnoCommerciale";
+import { ingombroModulo, verticiModulo, normalizzaRotazioneModulo, limitiDisegno, type DisegnoCommercialeFv, type PuntoFv } from "../../../../supabase/functions/_shared/fvDisegnoCommerciale";
 /** Vista metrica derivata dal disegno, senza attribuire un rilievo reale al cliente. */
 export function schemaDalDisegno(p: DisegnoCommercialeFv): {
     runtime: RilievoRuntime;
@@ -16,7 +16,11 @@ export function schemaDalDisegno(p: DisegnoCommercialeFv): {
         w: number;
         h: number;
     }) => { const qs = [{ x: r.x, y: r.y }, { x: r.x + r.w, y: r.y }, { x: r.x + r.w, y: r.y + r.h }, { x: r.x, y: r.y + r.h }].map(q => proietta(fid, q)), xs = qs.map(q => q.x), ys = qs.map(q => q.y); return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }; };
-    const piano = { ...creaPianoReale(edificio, p.modulo), distanzaBordo: p.distanzaBordo, spazioModuli: p.spazioModuli, pannelli: p.pannelli.map(m => { const r = rect(m.faldaId, ingombroModulo(m, p.modulo)); return { ...m, x: r.x, y: r.y }; }), ostacoli: p.ostacoli.map(o => { const f = p.falde.find(f => o.x >= Math.min(...f.punti.map(q => q.x)) && o.y >= Math.min(...f.punti.map(q => q.y)) && o.y < Math.max(...f.punti.map(q => q.y))) ?? p.falde[0]; return { ...o, ...rect(f.id, o) }; }) };
+    const piano = { ...creaPianoReale(edificio, p.modulo), distanzaBordo: p.distanzaBordo, spazioModuli: p.spazioModuli, pannelli: p.pannelli.map(m => {
+      const r = ingombroModulo(m, p.modulo), centro = proietta(m.faldaId, {x:r.x+r.w/2,y:r.y+r.h/2});
+      const [a,b] = verticiModulo(m,p.modulo).map(q=>proietta(m.faldaId,q));
+      return {...m,x:centro.x-r.w/2,y:centro.y-r.h/2,...(!m.supporto?{rotazione:normalizzaRotazioneModulo(Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI)}:{})};
+    }), ostacoli: p.ostacoli.map(o => { const f = p.falde.find(f => o.x >= Math.min(...f.punti.map(q => q.x)) && o.y >= Math.min(...f.punti.map(q => q.y)) && o.y < Math.max(...f.punti.map(q => q.y))) ?? p.falde[0]; return { ...o, ...rect(f.id, o) }; }) };
     return { runtime: { edificio, orto: null, modello: null, fonte: null }, piano };
 }
 export const RUNTIME_VUOTO: RilievoRuntime = { edificio: edificioDaFalde([], false), orto: null, modello: null, fonte: null };

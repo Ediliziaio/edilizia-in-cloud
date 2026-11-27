@@ -415,6 +415,28 @@ it("prepara il tetto 2D/3D anche senza pannello senza inventare potenza o prezzo
  expect(screen.getByLabelText("Numero pannelli")).toHaveValue(12);
 });
 
+it("riprende in configurazione la stessa falda e i pannelli orientati salvati nella fase Tetto",async()=>{
+ stato.id="progetto-mappa";
+ const {pianoDaMappaFv}=await import("@/components/fotovoltaico/tetto/mappaGeometria");
+ const {disponiModuliAutomaticamente}=await import("../../../supabase/functions/_shared/fvDisegnoCommerciale");
+ const posizione={lat:45,lng:9};
+ const piano=disponiModuliAutomaticamente(pianoDaMappaFv({versione:1,origine:posizione,ricerca:{indirizzo:"Via Roma 4",posizione},distanzaOstacoli:.3,falde:[{id:"tetto-cliente",nome:"Falda del cliente",punti:[{x:0,y:0},{x:18,y:0},{x:18,y:12},{x:0,y:12}],inclinazione:30,azimut:180,inclinazioneStimata:true}]},{corto:1.134,lungo:1.762,stimato:true}),4,false,undefined,27);
+ seminaBozza(4,{latitudine:45,longitudine:9,layout_overlay:piano,numero_pannelli_scelti:4,potenza_kwp:1.8});monta();
+ fireEvent.click(await screen.findByRole("button",{name:"Disponi pannelli sul tetto"}));
+ const primo=screen.getByRole("dialog",{name:"Pannelli sul tetto selezionato"});
+ await within(primo).findByRole("button",{name:"Pannelli sulla mappa"});
+ expect(within(primo).queryByRole("button",{name:"Capannone"})).toBeNull();
+ fireEvent.click(within(primo).getByRole("button",{name:"Conserva disposizione sul tetto"}));
+ fireEvent.click(screen.getByRole("button",{name:/^Avanti/}));await arrivaAllaFase5();
+ fireEvent.click(screen.getByRole("button",{name:"Modifica disposizione pannelli"}));
+ const secondo=screen.getByRole("dialog",{name:"Piano di posa dei pannelli"});
+ expect(await within(secondo).findByRole("button",{name:"Pannelli sulla mappa"})).toHaveAttribute("aria-pressed","true");
+ expect(within(secondo).getByRole("button",{name:"Modulo foto 1"})).toBeTruthy();
+ fireEvent.click(within(secondo).getByRole("button",{name:"Pianta delle falde"}));
+ expect(within(secondo).getByRole("button",{name:"Modulo 1"})).toHaveAttribute("transform",expect.stringContaining("rotate(27 "));
+ expect(within(secondo).getByText("FALDA DEL CLIENTE",{exact:true})).toBeTruthy();
+});
+
 it("l'analisi solare non riscrive bollette modificate mentre la stima è in corso", async()=>{
   const {analisiConsumiIniziale}=await import("../../../supabase/functions/_shared/fvBollette");
   const analisi={...analisiConsumiIniziale(),correzioni:{consumoAnnuo:6000,costiEvitabiliAnnui:1440}};

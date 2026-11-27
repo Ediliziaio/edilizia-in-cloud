@@ -1,4 +1,5 @@
 import type { Object3D } from "three";
+import { puntiFaldaInQuota } from "../../../../supabase/functions/_shared/fvGeometriaFalda";
 import { pianoDellaFaccia, dot, sub, nelMondo, riferimentiTettoReale, creaPianoReale, type EdificioReale, type FacciaReale, type P3 } from "./tettoReale";
 import { leggiDisegnoCommerciale, disponiModuliOttimizzati, rettangoloNellaFalda, type DisegnoCommercialeFv, type PuntoFv } from "../../../../supabase/functions/_shared/fvDisegnoCommerciale";
 export type Affine = [
@@ -128,10 +129,7 @@ export function edificioDaFalde(falde: FacciaReale[], paretiIllustrative: boolea
     return { id: "rilievo-cliente", origine: { x: 0, y: 0, z: 0 }, attributi: { paretiIllustrative }, facce };
 }
 export function faldaDaOrto(punti: PuntoFv[], gronda: number, pendenza: number, azimut: number, id: string): FacciaReale {
-    if (![gronda, pendenza, azimut].every(Number.isFinite) || gronda < .5 || gronda > 150 || pendenza < 0 || pendenza > 75)
-        throw new Error("Inserisci una quota da 0,5 a 150 m e una pendenza da 0 a 75°.");
-    const ang = azimut * Math.PI / 180, d = { x: Math.sin(ang), y: Math.cos(ang) }, massimo = Math.max(...punti.map(p => p.x * d.x + p.y * d.y));
-    return nuovaFalda(punti.map(p => ({ ...p, z: gronda + (massimo - p.x * d.x - p.y * d.y) * Math.tan(pendenza * Math.PI / 180) })), id, "Falda da ortofoto");
+    return nuovaFalda(puntiFaldaInQuota(punti, gronda, pendenza, azimut), id, "Falda da ortofoto");
 }
 export function quoteEdificio(ed: EdificioReale) { const ps = ed.facce.filter(f => f.tipo === "RoofSurface").flatMap(f => f.anelli.flat()), modello = typeof ed.attributi.altezzaModello === "number" ? ed.attributi.altezzaModello : 0; return { gronda: ps.length ? Math.min(...ps.map(p => p.z)) : 0, altezza: Math.max(modello, ps.length ? Math.max(...ps.map(p => p.z)) : 0) }; }
 export function funzioneAltezza(ed: EdificioReale, altezza: number | null): (z: number) => number {

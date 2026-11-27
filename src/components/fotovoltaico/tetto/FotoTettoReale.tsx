@@ -59,6 +59,7 @@ export function FotoTettoReale({ piano, onChange, modificabile, selezione, onSel
         versione: number;
         vista: Vista;
     } | null>(null);
+    const [orizzontale, setOrizzontale] = useState(false), [rotazione, setRotazione] = useState(0);
     const svg = useRef<SVGSVGElement>(null), drag = useRef<Drag | null>(null), seriale = useRef(0);
     const nota = notifica?.piano === piano ? notifica.testo : "";
     const setNota = (testo: string) => setNotifica({ testo, piano });
@@ -107,6 +108,8 @@ export function FotoTettoReale({ piano, onChange, modificabile, selezione, onSel
     <button type="button" aria-pressed={!navigazioneMappa && tool === "seleziona"} onClick={() => { onScegliStrumento?.(); setTool("seleziona"); setNota(""); }}>{t("Seleziona e trascina")}</button>
     <button type="button" disabled={!modificabile || (!!piano.industriale && piano.industriale.posa !== "aderente")} aria-pressed={!navigazioneMappa && tool === "pannello"} onClick={() => { onScegliStrumento?.(); setTool("pannello"); setNota(""); }}>{t("Aggiungi pannello sulla foto")}</button>
     <button type="button" disabled={!modificabile} aria-pressed={!navigazioneMappa && tool === "ostacolo"} onClick={() => { onScegliStrumento?.(); setTool("ostacolo"); setNota(""); }}>{t("Segna ostacolo sulla foto")}</button>
+    {tool === "pannello" && <><button type="button" disabled={!modificabile} aria-pressed={!orizzontale} onClick={() => setOrizzontale(false)}>{t("Nuovi pannelli verticali")}</button><button type="button" disabled={!modificabile} aria-pressed={orizzontale} onClick={() => setOrizzontale(true)}>{t("Nuovi pannelli orizzontali")}</button><label>{t("Rotazione (°)")}<input aria-label={t("Rotazione nuovi pannelli sulla foto")} type="number" min={0} max={359} step={1} value={rotazione} disabled={!modificabile} onChange={e => {const n=Number(e.target.value);if(Number.isFinite(n)&&n>=0&&n<360)setRotazione(n);}}/></label></>}
+
     {!mostraImmagineIntera&&<><button type="button" aria-label={t("Avvicina la foto")} onClick={() => zoom(.8)}>+</button><button type="button" aria-label={t("Allontana la foto")} onClick={() => zoom(1.25)}>−</button></>}
   </div><div style={sfondoMappa ? {position:"relative",aspectRatio:"640/440",width:"100%",overflow:"hidden",borderRadius:12} : undefined}>
   {sfondoMappa}
@@ -131,7 +134,7 @@ export function FotoTettoReale({ piano, onChange, modificabile, selezione, onSel
                     setNota(t("Limite di {n} moduli raggiunto.", { n: limiteModuliDisegno(piano) }));
                     return;
                 }
-                const m = { id: numeroId("foto-modulo-", piano.pannelli.map(m => m.id)), faldaId: f.id, x: arrotondaMetro(p.x - piano.modulo.corto / 2), y: arrotondaMetro(p.y - piano.modulo.lungo / 2), orizzontale: false };
+                const m = { id: numeroId("foto-modulo-", piano.pannelli.map(m => m.id)), faldaId: f.id, x: arrotondaMetro(p.x - (orizzontale ? piano.modulo.lungo : piano.modulo.corto) / 2), y: arrotondaMetro(p.y - (orizzontale ? piano.modulo.corto : piano.modulo.lungo) / 2), orizzontale, rotazione };
                 if (!posizioneModuloValida(piano, m)) {
                     setNota(t("Il pannello qui non entra: rispetta bordo, ingombri e moduli vicini."));
                     return;
