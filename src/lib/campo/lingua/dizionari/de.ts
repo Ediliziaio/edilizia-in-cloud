@@ -69436,5 +69436,8 @@ const dizionario: Dizionario = {
   "Cantiere → Rendiconti": "Baustelle → Abrechnungen",
   "Quelli confermati entrano in questo rendiconto.": "Bestätigte fließen in diese Abrechnung ein.",
   "{n} rapportini rifiutati dentro: riaprilo e controlla": "{n} abgelehnte Berichte enthalten: wieder öffnen und prüfen",
+  "1 mezzo": "1 Fahrzeug",
+  "1 trasporto": "1 Transport",
+  "{n} trasporti": "{n} Transporte",
 };
 export default dizionario;

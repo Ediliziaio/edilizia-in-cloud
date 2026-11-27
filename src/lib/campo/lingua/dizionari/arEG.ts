@@ -69436,5 +69436,8 @@ const dizionario: Dizionario = {
   "Cantiere → Rendiconti": "الموقع ← الحسابات",
   "Quelli confermati entrano in questo rendiconto.": "اللي اتأكدت بتدخل في الحساب ده.",
   "{n} rapportini rifiutati dentro: riaprilo e controlla": "{n} تقارير مرفوضة جواه: افتحه تاني وراجع",
+  "1 mezzo": "معدة واحدة",
+  "1 trasporto": "نقلة واحدة",
+  "{n} trasporti": "{n} نقلات",
 };
 export default dizionario;

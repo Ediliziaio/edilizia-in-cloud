@@ -69436,5 +69436,8 @@ const dizionario: Dizionario = {
   "Cantiere → Rendiconti": "Chantier → Relevés",
   "Quelli confermati entrano in questo rendiconto.": "Les confirmés entrent dans ce relevé.",
   "{n} rapportini rifiutati dentro: riaprilo e controlla": "{n} rapports refusés dedans : rouvrez-le et vérifiez",
+  "1 mezzo": "1 engin",
+  "1 trasporto": "1 transport",
+  "{n} trasporti": "{n} transports",
 };
 export default dizionario;

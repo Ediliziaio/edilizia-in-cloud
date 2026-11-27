@@ -69436,5 +69436,8 @@ const dizionario: Dizionario = {
   "Cantiere → Rendiconti": "Site → Statements",
   "Quelli confermati entrano in questo rendiconto.": "Confirmed ones go into this statement.",
   "{n} rapportini rifiutati dentro: riaprilo e controlla": "{n} rejected reports inside: reopen it and check",
+  "1 mezzo": "1 vehicle",
+  "1 trasporto": "1 haul",
+  "{n} trasporti": "{n} hauls",
 };
 export default dizionario;

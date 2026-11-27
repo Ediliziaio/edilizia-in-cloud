@@ -69473,5 +69473,8 @@ const dizionario: Dizionario = {
   "Cantiere → Rendiconti": "Șantier → Deconturi",
   "Quelli confermati entrano in questo rendiconto.": "Cele confirmate intră în acest decont.",
   "{n} rapportini rifiutati dentro: riaprilo e controlla": "{n} rapoarte respinse în interior: redeschide-l și verifică",
+  "1 mezzo": "1 utilaj",
+  "1 trasporto": "1 transport",
+  "{n} trasporti": "{n} transporturi",
 };
 export default dizionario;

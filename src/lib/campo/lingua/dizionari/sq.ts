@@ -69473,5 +69473,8 @@ const dizionario: Dizionario = {
   "Cantiere → Rendiconti": "Kantieri → Llogaritë",
   "Quelli confermati entrano in questo rendiconto.": "Të konfirmuarat hyjnë në këtë llogari.",
   "{n} rapportini rifiutati dentro: riaprilo e controlla": "{n} raporte të refuzuara brenda: rihape dhe kontrollo",
+  "1 mezzo": "1 mjet",
+  "1 trasporto": "1 transport",
+  "{n} trasporti": "{n} transporte",
 };
 export default dizionario;
