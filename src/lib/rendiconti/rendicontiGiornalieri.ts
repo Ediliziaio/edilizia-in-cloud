@@ -278,3 +278,55 @@ export const ETICHETTA_FONTE: Record<FonteRiga, string> = {
 export const senzaPrezzo = (r: Pick<RigaRendiconto, "prezzo_unitario" | "prezzo_a_mano" | "listino_voce_id" | "prezzo_fonte"> & Partial<Pick<RigaRendiconto, "appalto_tariffa_id" | "subappaltatore_id">>) =>
   !r.prezzo_a_mano && (r.prezzo_fonte === "mancante" || (r.prezzo_unitario != null && r.prezzo_unitario === 0)
     || (r.prezzo_unitario == null && !r.listino_voce_id && !r.appalto_tariffa_id && !r.subappaltatore_id));
+
+/** Una voce proposta dal database per manodopera, mezzo o ditta (`rendiconto_voci_predefinite`). */
+export interface VocePredefinita {
+  listino_voce_id: string | null;
+  unita: string | null;
+  prezzo: number | null;
+  fonte: FonteRiga | null;
+  unita_diverse?: boolean;
+  unita_generale?: string | null;
+  prezzo_generale?: number | null;
+  descrizione?: string | null;
+  codice?: string | null;
+  appalto_tariffa_id?: string | null;
+  maggiorazione_straordinario_pct?: number | null;
+}
+export interface VociPredefinite {
+  data?: string;
+  manodopera?: VocePredefinita | null;
+  mezzi?: Array<VocePredefinita & { mezzo_id: string }>;
+  ditte?: Array<VocePredefinita & { subappaltatore_id: string }>;
+}
+/** Voce, unità e prezzo con cui nascono le righe aggiunte a mano. Senza il permesso importi risponde `{}`. */
+export const vociPredefinite = (orderId: string, data: string) =>
+  chiama<VociPredefinite | null>("rendiconto_voci_predefinite", { p_order_id: orderId, p_data: data });
+
+const numeroIt = (n: number) => String(Math.round(n * 100) / 100).replace(".", ",");
+
+/**
+ * Le ore digitate nella quantità dell'unità della voce, come fa il database (`private.quantita_per_unita`):
+ * giornata e uomo_giorno 0,5 fino a 4 h, 1 oltre; ora = le ore; altre unità 1 da controllare.
+ */
+export function oreInUnitaVoce(ore: number, unita: string | null | undefined): { unita: string; quantita: number; avviso: string | null } {
+  const u = (unita || "ora").trim();
+  if (u === "ora") return { unita: u, quantita: ore, avviso: null };
+  if (u === "giornata" || u === "uomo_giorno") {
+    const quantita = ore <= 4 ? 0.5 : 1;
+    return { unita: u, quantita, avviso: `Nel listino è a ${u}: ${numeroIt(ore)} h = ${numeroIt(quantita)}` };
+  }
+  return { unita: u, quantita: 1, avviso: `Nel listino è a ${u}: le ${numeroIt(ore)} h non si convertono, controlla la quantità` };
+}
+
+/** I campi di una riga nuova (persona, ditta o mezzo) presi dalla voce predefinita; senza voce resta «ora». */
+export function campiDaPredefinita(v: VocePredefinita | null | undefined, ore = 8): Pick<RigaRendiconto, "unita" | "quantita" | "listino_voce_id" | "prezzo_unitario" | "prezzo_fonte" | "avviso_unita"> {
+  if (!v?.listino_voce_id) return { unita: "ora", quantita: ore, listino_voce_id: null, prezzo_unitario: null, prezzo_fonte: "mancante", avviso_unita: null };
+  const c = oreInUnitaVoce(ore, v.unita);
+  const diverse = v.unita_diverse && v.unita_generale && v.unita
+    ? `Il committente la prezza a ${v.unita}, il listino generale a ${v.unita_generale}: scrivi la quantità in ${v.unita}.` : null;
+  return {
+    unita: c.unita, quantita: c.quantita, listino_voce_id: v.listino_voce_id, prezzo_unitario: v.prezzo ?? null,
+    prezzo_fonte: v.prezzo == null ? "mancante" : (v.fonte ?? null), avviso_unita: [c.avviso, diverse].filter(Boolean).join(" · ") || null,
+  };
+}

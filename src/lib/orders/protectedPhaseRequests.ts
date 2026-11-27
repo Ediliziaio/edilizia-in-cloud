@@ -7,8 +7,14 @@
  * Si riscrivono le letture (GET/HEAD) e gli embed in ogni `select`, anche nel
  * RETURNING di una scrittura. Le scritture restano sulle tabelle, con le loro
  * regole e i loro trigger. Migrazioni 20290327110000 e 20290327110100.
+ *
+ * Stesso impianto per le righe di rendiconto (`appalto_rendiconto_righe`,
+ * migrazione 20290629190000): la riga la legge chi ha solo «Venduto e importi»,
+ * e `costo_interno` e `margine` arrivano solo a chi ha «Costi» su quella
+ * commessa. Senza la vista il costo non si poteva più scrivere, e il margine
+ * della commessa non si vedeva nemmeno a chi aveva il permesso (27/11/2026).
  */
-const TABELLE = ["order_work_phases", "order_work_phase_voci"];
+const TABELLE = ["order_work_phases", "order_work_phase_voci", "appalto_rendiconto_righe"];
 const EMBED = new RegExp(`((?:^|[,(])\\s*)(?:(\\w+):)?(${TABELLE.join("|")})((?:![\\w]+)*)\\(`, "g");
 
 export function protectedPhaseSelect(select: string): string {

@@ -29,7 +29,7 @@ import { messaggioErrore } from "@/lib/messaggioErrore";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import type { VoceListino } from "@/lib/campo/prezzoVoceRapportino";
 import {
-  CATEGORIE, ETICHETTA_FONTE, annullaRendiconto, chiaveRiga, confermaRendiconto, elencoRendiconti, importoRiga, leggiRendiconto,
+  CATEGORIE, ETICHETTA_FONTE, annullaRendiconto, campiDaPredefinita, vociPredefinite, chiaveRiga, confermaRendiconto, elencoRendiconti, importoRiga, leggiRendiconto,
   puoCopiare, rendicontoCopia, rendicontoDelGiorno, riapriRendiconto, salvaPrezzoPerCommittente, salvaRendiconto, senzaPrezzo,
   type CategoriaRiga, type RigaRendiconto, type StatoRendiconto, type VoceListinoCommittente,
 } from "@/lib/rendiconti/rendicontiGiornalieri";
@@ -122,13 +122,11 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
     queryFn: () => elencoRendiconti(orderId),
   });
   const { data: mezzi = [] } = useMezzi();
-  const ordine = useQuery({
-    queryKey: ["rendiconto-giornaliero-ordine", orderId],
-    queryFn: async () => {
-      const { data: o, error } = await supabase.from("orders").select("tariffa_manodopera_id").eq("id", orderId).maybeSingle();
-      if (error) throw error;
-      return (o as { tariffa_manodopera_id: string | null } | null)?.tariffa_manodopera_id ?? null;
-    },
+  // Voce, unità e prezzo delle righe aggiunte a mano: una lettura per apertura, rifatta se cambia il giorno.
+  const predefinite = useQuery({
+    queryKey: ["rendiconto-giornaliero-predefinite", orderId, data],
+    enabled: !!data,
+    queryFn: () => vociPredefinite(orderId, data),
   });
 
   const caricato = useRef<string | null>(null);
@@ -266,20 +264,21 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
   const aggiungiPersona = (idPersona: string) => {
     const p = employees.find((e) => e.id === idPersona);
     if (!p) return;
-    aggiungi({ categoria: "manodopera", descrizione: p.label, unita: "ora", quantita: 8, employee_id: p.id, listino_voce_id: ordine.data ?? null,
-      prezzo_fonte: ordine.data ? null : "mancante" });
+    aggiungi({ categoria: "manodopera", descrizione: p.label, employee_id: p.id, ...campiDaPredefinita(predefinite.data?.manodopera) });
   };
   const aggiungiDitta = (idDitta: string) => {
     const d = ditte.data?.find((x) => x.id === idDitta);
     if (!d) return;
-    aggiungi({ categoria: "manodopera", descrizione: d.nome, unita: "ora", quantita: 8, subappaltatore_id: d.id });
+    const v = predefinite.data?.ditte?.find((x) => x.subappaltatore_id === d.id);
+    // Senza voce la ditta prende la tariffa sua al salvataggio: resta «ora», senza «prezzo da definire».
+    aggiungi({ categoria: "manodopera", descrizione: d.nome, subappaltatore_id: d.id,
+      ...(v?.listino_voce_id ? campiDaPredefinita(v) : { unita: "ora", quantita: 8 }) });
   };
   const aggiungiMezzo = (idMezzo: string) => {
     const m = mezzi.find((x) => x.id === idMezzo);
     if (!m) return;
-    const tariffa = (m as { tariffa_id?: string | null }).tariffa_id ?? null;
-    aggiungi({ categoria: "mezzo", descrizione: `${m.nome}${m.targa ? ` · ${m.targa}` : ""}`, unita: "ora", quantita: 8, mezzo_id: m.id,
-      listino_voce_id: tariffa, prezzo_fonte: tariffa ? null : "mancante" });
+    const v = predefinite.data?.mezzi?.find((x) => x.mezzo_id === m.id);
+    aggiungi({ categoria: "mezzo", descrizione: `${m.nome}${m.targa ? ` · ${m.targa}` : ""}`, mezzo_id: m.id, ...campiDaPredefinita(v) });
   };
   // Rapportini scritti dopo: si salva quello che c'è, poi il database aggiunge le loro voci e si rilegge.
   const prendiNuovi = useMutation({

@@ -69439,5 +69439,6 @@ const dizionario: Dizionario = {
   "1 mezzo": "1 vehicle",
   "1 trasporto": "1 haul",
   "{n} trasporti": "{n} hauls",
+  "1 rapportino rifiutato dentro: riaprilo e controlla": "1 rejected report inside: reopen it and check",
 };
 export default dizionario;

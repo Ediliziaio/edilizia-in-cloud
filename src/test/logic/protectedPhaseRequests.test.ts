@@ -8,7 +8,7 @@ const base = "https://example.supabase.co/rest/v1/";
 
 describe("Fasi e voci: importi solo dalle viste", () => {
   it("le letture vanno alle viste, le scritture restano sulle tabelle", () => {
-    for (const t of ["order_work_phases", "order_work_phase_voci"]) {
+    for (const t of ["order_work_phases", "order_work_phase_voci", "appalto_rendiconto_righe"]) {
       for (const m of ["GET", "HEAD", "get"]) expect(new URL(protectedPhaseUrl(`${base}${t}?select=*&order_id=eq.1`, m)).pathname).toBe(`/rest/v1/${t}_visibili`);
       for (const m of ["POST", "PATCH", "DELETE"]) expect(new URL(protectedPhaseUrl(`${base}${t}?id=eq.1`, m)).pathname).toBe(`/rest/v1/${t}`);
     }
@@ -34,6 +34,20 @@ describe("Fasi e voci: importi solo dalle viste", () => {
     expect(calendario.pathname).toBe("/rest/v1/orders_visibili");
     expect(calendario.searchParams.get("select")).toBe("id,order_work_phases:order_work_phases_visibili!order_work_phases_order_id_fkey(id,name)");
   });
+
+  // Il costo e il margine della riga di rendiconto arrivano solo a chi ha «Costi»:
+  // la lettura passa dalla vista, la scrittura no (migrazione 20290629190000).
+  it("le righe di rendiconto: lettura dalla vista, embed riscritti, scritture sulla tabella", () => {
+    const lettura = new URL(protectedPhaseUrl(`${base}appalto_rendiconto_righe?select=importo,costo_interno,margine,appalto_sal(stato)&order_id=eq.abc`));
+    expect(lettura.pathname).toBe("/rest/v1/appalto_rendiconto_righe_visibili");
+    expect(lettura.searchParams.get("select")).toBe("importo,costo_interno,margine,appalto_sal(stato)");
+    expect(lettura.searchParams.get("order_id")).toBe("eq.abc");
+    expect(protectedPhaseSelect("id,righe:appalto_rendiconto_righe!order_id(importo)"))
+      .toBe("id,righe:appalto_rendiconto_righe_visibili!order_id(importo)");
+    for (const m of ["POST", "PATCH", "DELETE"]) {
+      expect(new URL(protectedPhaseUrl(`${base}appalto_rendiconto_righe?id=eq.1`, m)).pathname).toBe("/rest/v1/appalto_rendiconto_righe");
+    }
+  });
 });
 
 // Le scritture vanno alle tabelle grezze, dove le colonne degli importi non si
@@ -50,17 +64,26 @@ describe("scritture su fasi e voci: il RETURNING non chiede gli importi", () => 
   };
   giro(join(process.cwd(), "src"));
 
-  it("nessuna insert/update/upsert su fasi o voci restituisce colonne protette", () => {
+  // Ogni tabella con le sue colonne protette: su `appalto_rendiconto_righe` l'importo
+  // si legge (è generato e concesso), costo_interno e margine no.
+  const protette: Array<[string, RegExp]> = [
+    ["order_work_phases|order_work_phase_voci", /importo|costo_manodopera|costo_materiali/],
+    ["appalto_rendiconto_righe", /costo_interno|margine/],
+  ];
+
+  it("nessuna insert/update/upsert su fasi, voci o righe di rendiconto restituisce colonne protette", () => {
     const errati: string[] = [];
     for (const f of file) {
       const s = readFileSync(f, "utf8");
-      for (const m of s.matchAll(/from\(\s*["'](order_work_phases|order_work_phase_voci)["']\s*\)\s*\.(insert|update|upsert)\(/g)) {
-        const resto = s.slice(m.index! + m[0].length, m.index! + m[0].length + 1500);
-        const fine = resto.search(/;\s*\n/);
-        const catena = fine >= 0 ? resto.slice(0, fine) : resto;
-        for (const sel of catena.matchAll(/\.select\(\s*(?:["'`]([^"'`]*)["'`])?\s*\)/g)) {
-          const cols = sel[1];
-          if (cols === undefined || cols.includes("*") || /importo|costo_manodopera|costo_materiali/.test(cols)) errati.push(`${f}: ${sel[0]}`);
+      for (const [tabelle, vietate] of protette) {
+        for (const m of s.matchAll(new RegExp(`from\\(\\s*["'](${tabelle})["']\\s*\\)\\s*\\.(insert|update|upsert)\\(`, "g"))) {
+          const resto = s.slice(m.index! + m[0].length, m.index! + m[0].length + 1500);
+          const fine = resto.search(/;\s*\n/);
+          const catena = fine >= 0 ? resto.slice(0, fine) : resto;
+          for (const sel of catena.matchAll(/\.select\(\s*(?:["'`]([^"'`]*)["'`])?\s*\)/g)) {
+            const cols = sel[1];
+            if (cols === undefined || cols.includes("*") || vietate.test(cols)) errati.push(`${f}: ${sel[0]}`);
+          }
         }
       }
     }

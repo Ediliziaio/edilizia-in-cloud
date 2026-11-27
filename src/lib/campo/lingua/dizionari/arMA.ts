@@ -69439,5 +69439,6 @@ const dizionario: Dizionario = {
   "1 mezzo": "آلة وحدة",
   "1 trasporto": "نقلة وحدة",
   "{n} trasporti": "{n} نقلات",
+  "1 rapportino rifiutato dentro: riaprilo e controlla": "تقرير مرفوض واحد داخلو: عاود حلو وشوف",
 };
 export default dizionario;

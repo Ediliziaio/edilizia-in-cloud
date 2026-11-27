@@ -126,22 +126,25 @@ export function RendicontiGiornalieri({ orderId, apriId, onApriConsumato }: {
           {righe.map((r) => (
             <li key={r.id} className={cn("flex items-center", r.stato === "annullato" && "opacity-60")}>
               <button type="button" onClick={() => setAperto({ id: r.id })}
-                className="grid min-w-0 flex-1 grid-cols-[3rem_5.5rem_minmax(0,1fr)_auto] items-center gap-x-3 px-3 py-1.5 text-left text-[13px] hover:bg-muted/50 max-sm:grid-cols-[2.5rem_minmax(0,1fr)_auto]">
-                <span className="font-mono text-xs text-muted-foreground">n. {r.numero}</span>
-                <span className="tabular-nums max-sm:hidden">{giorno(r.data)}</span>
-                <span className="min-w-0 truncate">
-                  <span className="sm:hidden">{giorno(r.data)} · </span>
+                /* Sul telefono due righe: sopra numero, giorno, totale e stato — il giorno non si
+                   taglia mai; sotto la descrizione, che è l'unica cosa che si accorcia. Da sm in su
+                   torna la riga sola di prima. Ogni pezzo sta nel DOM una volta sola: a spostarlo
+                   è la griglia, così chi legge con la voce non si sente dire due volte il totale. */
+                className="grid min-w-0 flex-1 grid-cols-[2.5rem_auto_minmax(0,1fr)] items-center gap-x-2 gap-y-0.5 px-3 py-1.5 text-left text-[13px] hover:bg-muted/50 sm:grid-cols-[3rem_5.5rem_minmax(0,1fr)_auto] sm:gap-x-3">
+                <span className="whitespace-nowrap font-mono text-xs text-muted-foreground">n. {r.numero}</span>
+                <span className="whitespace-nowrap tabular-nums">{giorno(r.data)}</span>
+                <span className="col-start-3 row-start-1 flex items-center justify-self-end gap-2 sm:col-start-4">
+                  <span className="font-medium tabular-nums">{formatCurrency(r.totale)}</span>
+                  <span className={cn("rounded border px-1.5 text-[10px]", colore[r.stato])}>{nomeStato[r.stato]}</span>
+                </span>
+                <span className="col-span-3 row-start-2 min-w-0 truncate sm:col-span-1 sm:col-start-3 sm:row-start-1">
                   <span className="font-medium">{r.descrizione_lavori?.trim() || (contenuto.data ? riassuntoRighe(contenuto.data.get(r.id) ?? [], tr) : (r.righe === 0 ? tr("Vuoto") : "…"))}</span>
                   <span className="ml-2 text-[11px] text-muted-foreground">{r.righe === 1 ? tr("1 riga") : tr("{n} righe", { n: r.righe })}</span>
                   {r.rapportini > 0 && <span className="ml-2 text-[11px] text-muted-foreground">{r.rapportini === 1 ? tr("da 1 rapportino") : tr("da {n} rapportini", { n: r.rapportini })}</span>}
                   {r.rapportini_nuovi > 0 && <span className="ml-2 text-[11px] font-medium text-amber-700">{r.rapportini_nuovi === 1 ? tr("1 rapportino nuovo") : tr("{n} rapportini nuovi", { n: r.rapportini_nuovi })}</span>}
-                  {r.rapportini_ritirati > 0 && <span className="ml-2 text-[11px] font-medium text-red-700">{tr("{n} rapportini rifiutati dentro: riaprilo e controlla", { n: r.rapportini_ritirati })}</span>}
+                  {r.rapportini_ritirati > 0 && <span className="ml-2 text-[11px] font-medium text-red-700">{r.rapportini_ritirati === 1 ? tr("1 rapportino rifiutato dentro: riaprilo e controlla") : tr("{n} rapportini rifiutati dentro: riaprilo e controlla", { n: r.rapportini_ritirati })}</span>}
                   {r.senza_prezzo > 0 && <span className="ml-2 text-[11px] font-medium text-amber-700">{tr("{n} senza prezzo", { n: r.senza_prezzo })}</span>}
                   {r.sal_id && <span className="ml-2 text-[11px] text-blue-800">{tr("nel rendiconto del periodo")}</span>}
-                </span>
-                <span className="flex items-center gap-2">
-                  <span className="font-medium tabular-nums">{formatCurrency(r.totale)}</span>
-                  <span className={cn("rounded border px-1.5 text-[10px]", colore[r.stato])}>{nomeStato[r.stato]}</span>
                 </span>
               </button>
               {r.stato !== "annullato" && <span className="pr-2"><PulsantePdfRendiconto rendicontoId={r.id} className="h-7 px-2 text-xs" /></span>}

@@ -7,6 +7,8 @@ const m = vi.hoisted(() => ({
   importi: true, modifica: true,
   tabelle: {} as Record<string, unknown[]>,
   rpc: vi.fn(),
+  predefinite: {} as Record<string, unknown>,
+  tabelleLette: [] as string[],
 }));
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -29,7 +31,8 @@ vi.mock("@/components/orders/CercaNelListino", async (importOriginal) => ({
 vi.mock("@/integrations/supabase/client", () => {
   const from = (t: string) => {
     const b: Record<string, unknown> = {};
-    for (const k of ["select", "eq", "in", "order"]) b[k] = () => b;
+    for (const k of ["eq", "in", "order"]) b[k] = () => b;
+    b.select = (c: string) => { m.tabelleLette.push(`${t}:${c}`); return b; };
     b.maybeSingle = async () => ({ data: { tariffa_manodopera_id: "tar-man" }, error: null as unknown });
     b.then = (res: (v: unknown) => unknown) => Promise.resolve({ data: m.tabelle[t] ?? [], error: null }).then(res);
     return b;
@@ -51,9 +54,9 @@ beforeAll(() => {
 });
 beforeEach(() => {
   m.importi = true; m.modifica = true; m.tabelle = { v_rendiconti_giornalieri: [testata()], appalto_rendiconto_righe: [] };
-  m.rpc.mockReset();
+  m.rpc.mockReset(); m.tabelleLette = []; m.predefinite = {};
   m.rpc.mockImplementation(async (f: string) => ({
-    data: f === "rendiconto_giornaliero_del_giorno" ? { id: "g1", numero: 3, stato: "bozza", aggiunti: 0, rapportini: 0, nuovi: 0 } : "g1",
+    data: f === "rendiconto_voci_predefinite" ? m.predefinite : f === "rendiconto_giornaliero_del_giorno" ? { id: "g1", numero: 3, stato: "bozza", aggiunti: 0, rapportini: 0, nuovi: 0 } : "g1",
     error: null,
   }));
 });
@@ -182,4 +185,35 @@ it("confermato con rapportini nuovi: l'avviso chiede di riaprirlo, senza pulsant
   fireEvent.click(await screen.findByText(/Massetto piano terra/));
   expect(await screen.findByText(/riapri il rendiconto per aggiungerne le voci/)).toBeVisible();
   expect(screen.queryByRole("button", { name: /Aggiungi le voci dei rapportini nuovi/ })).not.toBeInTheDocument();
+});
+
+it("una persona aggiunta con la voce a giornata: 8 ore diventano 1 giornata, col prezzo e la nota", async () => {
+  m.predefinite = { data: "2026-11-20", manodopera: { listino_voce_id: "tar-giorn", unita: "giornata", prezzo: 248, fonte: "committente" } };
+  draw();
+  fireEvent.click(await screen.findByRole("button", { name: /Nuovo rendiconto del giorno/ }));
+  fireEvent.change(await screen.findByLabelText("Giorno"), { target: { value: "2026-11-20" } });
+  fireEvent.click(screen.getByRole("button", { name: "Apri" }));
+  await screen.findByLabelText("Lavori del giorno");
+  await waitFor(() => expect(m.rpc).toHaveBeenCalledWith("rendiconto_voci_predefinite", { p_order_id: "o", p_data: "2026-11-20" }));
+  await new Promise((r) => setTimeout(r, 30));
+  fireEvent.keyDown(screen.getByRole("combobox", { name: "Aggiungi persona" }), { key: "ArrowDown" });
+  fireEvent.click(await screen.findByRole("option", { name: "Mario Rossi" }));
+  expect(await screen.findByText("Nel listino è a giornata: 8 h = 1")).toBeVisible();
+  expect(screen.getByLabelText("Quantità")).toHaveValue("1");
+  expect(screen.getByLabelText("Prezzo")).toHaveValue("248");
+  expect(screen.queryByText("prezzo da definire")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+  await waitFor(() => expect(m.rpc).toHaveBeenCalledWith("rendiconto_giornaliero_salva", expect.anything()));
+  const p = (m.rpc.mock.calls.find((c) => c[0] === "rendiconto_giornaliero_salva")![1] as { p: { righe: Array<Record<string, unknown>> } }).p;
+  expect(p.righe[0]).toMatchObject({ unita: "giornata", quantita: 1, listino_voce_id: "tar-giorn", employee_id: "e1" });
+});
+
+it("l'editor non chiede più tariffa_manodopera_id a orders", async () => {
+  draw();
+  fireEvent.click(await screen.findByRole("button", { name: /Nuovo rendiconto del giorno/ }));
+  fireEvent.change(await screen.findByLabelText("Giorno"), { target: { value: "2026-11-20" } });
+  fireEvent.click(screen.getByRole("button", { name: "Apri" }));
+  await screen.findByLabelText("Lavori del giorno");
+  // Il nome del committente legge altre colonne di orders: quella delle ore non si chiede più (orders_visibili non la ha).
+  expect(m.tabelleLette.filter((x) => x.startsWith("orders") && x.includes("tariffa_manodopera_id"))).toEqual([]);
 });
