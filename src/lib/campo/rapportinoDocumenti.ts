@@ -179,7 +179,7 @@ export function pdfInterno(variante: VarianteInterna, q: QuadroDocumento, info: 
 
   const testata = () => {
     const top = mm(pagina.margineAlto);
-    let hSx = 0, wSx = 0, img: { tipo: string; w: number; h: number } | null = null, ragione: string[] = [];
+    let hSx = 0, wSx: number, img: { tipo: string; w: number; h: number } | null = null, ragione: string[] = [];
     const passoRagione = passo(stileTestata.ragioneSocialeCorpo, 1.2);
     // Il titolo ha la sua colonna a destra: il logo si ferma prima, anche se è largo (Vulcano: logo e certificazioni).
     font(stileTestata.titoloCorpo, true);

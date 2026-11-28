@@ -23,7 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
-import { TesseraGiorno, fmtSafeDate } from "@/components/orders/TesseraGiorno";
+import { fmtSafeDate } from "@/components/orders/TesseraGiorno";
 import {
   ClipboardList, Check, ChevronDown, Image as ImageIcon, PenLine,
   Loader2, X, Clock, Search, Truck,
