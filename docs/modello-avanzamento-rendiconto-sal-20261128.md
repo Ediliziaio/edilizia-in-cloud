@@ -211,6 +211,27 @@ il problema invece di risolverlo.
 6. **Il pregresso non ha date.** I periodi sono veri da quando partiamo. Va bene, o serve un
    recupero a mano per le commesse aperte?
 
+## 6-bis. Le decisioni prese dal titolare (28/11/2026)
+
+1. **Nel caso C si fattura il computo col SAL.** Il rendiconto del periodo porta solo l'extra in
+   economia. Resta il certificato di SAL.
+2. **La regola si impone, non si avvisa.** Quando la commessa ha un computo, ogni riga a prezzo deve
+   dire se è una voce del computo o un extra: serve `appalto_rendiconto_righe.voce_computo_id` e la
+   scelta obbligatoria nell'editor.
+3. **Il lavoro extra su una voce già a contratto è una variante sul computo**: la quantità di
+   contratto della voce sale, l'avanzamento resta dentro il computo, la variante resta tracciata.
+   Quindi il tetto di oggi (mai oltre il 100%) non si alza: si alza la base.
+4. **Si parte dal lotto 1**, il registro dei movimenti.
+
+Restano aperte, e le decido io salvo smentita:
+- **percentuale derivata = il massimo dei movimenti**, come fa oggi il rapportino (un 20 digitato
+  dopo un 60 non fa tornare indietro il cantiere), **salvo una rettifica esplicita dell'ufficio**,
+  che vince su tutto ciò che la precede;
+- **la spunta «fatta»** genera un movimento con la quantità residua, alla data in cui si spunta;
+- **un movimento di rettifica può riaprire** una sottofase spuntata, azzerando `fatta_il`;
+- **cancellare una fase o una sottofase non cancella i movimenti**: restano come storia, senza più
+  derivare niente.
+
 ## 7. I tre punti su cui la revisione dice di non partire senza una risposta
 
 1. **Quantità e percentuale nello stesso registro** (1.083 sottofasi hanno la base ma non la
