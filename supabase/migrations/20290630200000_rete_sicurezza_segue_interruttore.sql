@@ -31,6 +31,23 @@
 set local lock_timeout = '3s';
 set local statement_timeout = '60s';
 
+-- L'interruttore nasce in `20290629100000_rendiconto_giornaliero`, che al
+-- 28/11/2026 è applicata al database ma il cui FILE non è ancora su main (una
+-- delle 20 in quella condizione). Il controllo «Complete offline database
+-- reconstruction» rigioca tutte le migrazioni del solo repository: senza quella,
+-- qui la funzione non esisterebbe e il replay si fermerebbe — come è successo.
+-- Quindi la si crea solo se manca, con lo stesso corpo. Quando il loro file
+-- arriverà su main girerà prima (20290629 < 20290630) e questo blocco non farà
+-- niente.
+do $guardia$
+begin
+  if to_regprocedure('private.rendiconto_dai_rapportini()') is null then
+    create function private.rendiconto_dai_rapportini() returns boolean
+      language sql immutable as $corpo$ select false $corpo$;
+  end if;
+end
+$guardia$;
+
 create or replace view public.v_rapportini_da_rendicontare as
 select cr.id as rapportino_id,
        cr.company_id,
