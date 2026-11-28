@@ -37,3 +37,32 @@ export async function noteFattureScadenze(companyId: string, righe: Scadenza[]):
   }
   return new Map(righe.map(s => [s.id, [...new Set([notaLeggibile(s.notes), notaLeggibile(s.company_costs?.notes), ...(perCosto.get(s.cost_id ?? "") ?? [])].filter(Boolean))].join(" | ")]));
 }
+
+/**
+ * Per l'esportazione (28/11/2026): numero della fattura ricevuta del costo e nome del cantiere di
+ * ogni commessa. Il numero sta in fatture_ricevute per circa 3 costi su 4; documento_riferimento
+ * del costo solo per 1 su 14. Due letture a blocchi di 100, mai una per riga.
+ */
+export async function completaPerEsportazione(companyId: string, righe: Scadenza[]): Promise<Scadenza[]> {
+  const costi = [...new Set(righe.map(s => s.cost_id).filter((id): id is string => !!id))];
+  const numeri = new Map<string, string[]>();
+  for (let i = 0; i < costi.length; i += 100) {
+    const ricevute = await readAllPages((from, to) => supabase.from("fatture_ricevute").select("id, company_cost_id, numero_fattura")
+      .eq("company_id", companyId).in("company_cost_id", costi.slice(i, i + 100)).order("id").range(from, to));
+    for (const f of ricevute) {
+      if (f.company_cost_id && f.numero_fattura) numeri.set(f.company_cost_id, [...new Set([...(numeri.get(f.company_cost_id) ?? []), f.numero_fattura])]);
+    }
+  }
+  const ordini = [...new Set(righe.flatMap(s => s.commesse?.map(c => c.id) ?? []))];
+  const nomi = new Map<string, string>();
+  for (let i = 0; i < ordini.length; i += 100) {
+    const righeOrdini = await readAllPages((from, to) => supabase.from("orders").select("id, description, indirizzo_lavori")
+      .eq("company_id", companyId).in("id", ordini.slice(i, i + 100)).order("id").range(from, to));
+    for (const o of righeOrdini) { const nome = (o.description || o.indirizzo_lavori || "").trim(); if (nome) nomi.set(o.id, nome); }
+  }
+  return righe.map(s => ({
+    ...s,
+    commesse: s.commesse?.map(c => ({ ...c, nome: nomi.get(c.id) ?? null })),
+    numero_fattura_ricevuta: s.cost_id ? (numeri.get(s.cost_id) ?? []).join(", ") || null : null,
+  }));
+}

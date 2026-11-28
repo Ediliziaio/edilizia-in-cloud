@@ -17,6 +17,7 @@ import { controparteScadenza, type Scadenza } from "@/hooks/useScadenzario";
 import { siAnnullaIncasso } from "@/lib/finance/annulloIncassoScadenza";
 import { percheScadenzaNonModificabile } from "@/lib/finance/modificaScadenza";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { copertoRiga, eDaConfermare, nomeTipoEffetto, statoConEffetti, testoBadgeEffetti, titoloBadgeEffetti, type Effetto } from "@/lib/finance/effettiScadenzario";
 
 interface Pagamento { id: string; entry_date: string; amount: number; payment_method: string | null; description: string | null; reversal_of: string | null }
 interface Abbinamento {
@@ -29,7 +30,7 @@ interface Abbinamento {
  * commessa, gli incassi o pagamenti registrati e il bonifico abbinato. Ogni
  * voce porta alla sua scheda; il bonifico si apre in Tesoreria.
  */
-export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaIncasso, onNota, onModifica, onAnnullaScadenza, pagaSulPosto }: {
+export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaIncasso, onNota, onModifica, onAnnullaScadenza, pagaSulPosto, effetti }: {
   scadenza: Scadenza;
   onClose: () => void;
   onMarkPaid: (s: Scadenza) => void;
@@ -40,12 +41,16 @@ export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaI
   onAnnullaScadenza?: (s: Scadenza) => void;
   /** La rata si paga qui anche se viene da un documento (23/11/2026: le rate dei fornitori). */
   pagaSulPosto?: (s: Scadenza) => boolean;
+  /** Gli effetti in attesa di QUESTA riga (`effettiPerRiga(...).get(s.id)`): assegni, Ri.Ba. e RID con data futura. */
+  effetti?: Effetto[];
 }) {
   const tr = useT();
   const daFonte = scadenzaDaFonte(s);
   const entrata = s.direction === "entrata";
-  const stato = statoScadenza(s);
   const residuo = Math.max(0, Math.round((s.amount - s.paid_amount) * 100) / 100);
+  const stato = statoConEffetti(s, effetti);
+  const coperto = copertoRiga(effetti, residuo);
+  const badgeEffetti = testoBadgeEffetti(effetti);
 
   // Documento nativo o importato: stesso id in due tabelle, conta dove esiste.
   const nativa = useQuery({
@@ -138,7 +143,10 @@ export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaI
                 </p>
                 <p className={`text-sm ${tempo.tono === "cattivo" ? "font-medium text-destructive" : tempo.tono === "attenzione" ? "font-medium text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}>{tempo.testo}</p>
               </div>
-              <Badge variant="outline" className={CLASSE_TONO[stato.tono]}>{stato.label}</Badge>
+              <div className="flex flex-wrap items-center justify-end gap-1.5">
+                {badgeEffetti && <Badge variant="outline" data-testid="badge-effetti" title={titoloBadgeEffetti(effetti)} className="border-sky-300 bg-sky-50 text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300">{badgeEffetti}</Badge>}
+                <Badge variant="outline" className={CLASSE_TONO[stato.tono]}>{tr(stato.label)}</Badge>
+              </div>
             </div>
             {s.status !== "annullata" && (
               <div>
@@ -168,6 +176,23 @@ export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaI
               </p>
               {onNota && !daFonte && <NotaRiga nota={s.notes} titolo={tr("Scadenza {data} · {descrizione}", { data: s.due_date ? formatDateIt(s.due_date) : tr("Senza data"), descrizione: s.description ?? "" })} onSalva={(n) => onNota(s, n)} />}
             </div>
+          )}
+
+          {effetti && effetti.length > 0 && (
+            <section className="space-y-2" data-testid="dettaglio-effetti">
+              <h3 className="text-sm font-semibold">{tr("Assegni ed effetti")}</h3>
+              <ul className="divide-y rounded-lg border text-sm">
+                {effetti.map((e) => (
+                  <li key={e.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2">
+                    <span className="tabular-nums">{e.data_scadenza ? formatDateIt(e.data_scadenza) : tr("Senza data")}</span>
+                    <span className="min-w-0 flex-1 truncate text-muted-foreground">{nomeTipoEffetto(e.tipo)}{e.numero ? ` n. ${e.numero}` : ""}{e.banca ? ` · ${e.banca}` : ""}</span>
+                    {eDaConfermare(e) && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">{tr("Da confermare")}</Badge>}
+                    <span className="font-medium tabular-nums">{formatCurrency(Number(e.importo))}</span>
+                  </li>
+                ))}
+              </ul>
+              {coperto > 0 && <p className="text-xs text-muted-foreground">{tr("{importo} sono coperti da questi effetti: escono (o entrano) in banca alla loro data, non alla scadenza.", { importo: formatCurrency(coperto) })}</p>}
+            </section>
           )}
 
           {altre.data && altre.data.length > 0 && (

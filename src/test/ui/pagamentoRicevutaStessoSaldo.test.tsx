@@ -76,3 +76,17 @@ it("se i movimenti superano il dovuto resta l'avviso da controllare", async () =
   apri();
   expect(await screen.findByRole("alert")).toHaveTextContent("non tornano col dovuto");
 });
+
+// 28/11/2026: rata segnata pagata senza nessuna scrittura. L'elenco e la riconciliazione la davano
+// da pagare, il popup «Pagato 37,54 · Residuo 0,00 · Nessun pagamento registrato». Ora il server
+// manda il residuo vero e `segnata_non_registrata`, e il popup dice perché.
+it("segnata pagata senza pagamento registrato: residuo pieno e avviso", async () => {
+  stato.dettaglio = {
+    id: "costo", nome: "Fattura 2957", totale: 37.54, pagato: 0, residuo: 37.54,
+    da_verificare: false, senza_prova: 0, segnata_non_registrata: 37.54, movimenti: [],
+  };
+  apri();
+  expect(await screen.findByText(/37,54\s€ risultano segnati pagati, ma nessun pagamento è registrato: restano da pagare/)).toBeInTheDocument();
+  expect(screen.getByText("Nessun pagamento registrato.")).toBeInTheDocument();
+  expect(screen.queryByText(/risultano pagati senza un movimento di banca/)).toBeNull();
+});

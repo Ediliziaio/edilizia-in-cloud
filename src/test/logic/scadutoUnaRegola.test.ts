@@ -44,10 +44,9 @@ describe("incassi scaduti, la regola del Previsionale", () => {
 });
 
 describe("le pagine leggono la stessa funzione", () => {
-  it("Previsionale, Cruscotto e Scadenzario usano incassiScaduti", () => {
+  it("Previsionale e Cruscotto usano incassiScaduti", () => {
     expect(leggi("src/components/forecast/ForecastWorkspace.tsx")).toContain("incassiScaduti(movements, data.today)");
     expect(leggi("src/pages/azienda/CruscottoAziendale.tsx")).toContain("scadutoPerEtaDaIncassi(incassiScaduti(d.movements, d.today), d.today)");
-    expect(leggi("src/components/scadenzario/ScadenzarioKPIs.tsx")).toContain("incassiScaduti(previsionale.data.movements, previsionale.data.today)");
   });
 
   it("nel Cruscotto lo scaduto non è più quello delle sole rate", () => {

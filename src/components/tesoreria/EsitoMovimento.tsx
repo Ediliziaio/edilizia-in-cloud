@@ -12,6 +12,8 @@ import { formatDateIt } from "@/lib/formatters";
 import { FormPagante } from "@/components/tesoreria/RiferimentiVerificati";
 import { codiceDaRicordare } from "@/lib/orders/codiciCommittente";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { TributiF24 } from "@/components/tesoreria/TributiF24";
+import { mostraTributiF24 } from "@/lib/finance/tributiF24";
 
 /**
  * Il motore degli esiti della tesoreria (tesoreria_esito_movimento): per ogni
@@ -79,6 +81,10 @@ export const NATURA: Record<string, string> = {
   storno: "Storno o rimborso",
   spesa_bancaria: "Spesa bancaria",
   spesa_carta: "Spesa con carta",
+  stipendi: "Stipendi",
+  ritenuta_bonifico: "Ritenuta sul bonifico",
+  bollettino: "Bollettino, pagoPA o MAV",
+  addebito_diretto: "Addebito diretto SEPA",
   gia_riconciliato: "Già collegato",
   gia_incassata: "Fattura già segnata pagata",
   gia_pagata: "Fattura del fornitore già pagata",
@@ -261,6 +267,7 @@ export function RigaEsitoMovimento({ company, movement: m, esito, puoScrivere, o
       {(esito.mancanti ?? []).map((c, i) => (
         <p key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground"><CircleHelp className="mt-0.5 h-3 w-3 shrink-0" />{c}</p>
       ))}
+      {puoScrivere && !esito.scartato_at && mostraTributiF24(esito.natura, esito.esito, m) && <TributiF24 company={company} movement={m} onFatto={onCambiato} />}
       {esito.ripartizione_da_completare && <p className="text-xs text-amber-700">{t("Il documento è su più commesse senza le quote: la ripartizione va completata.")}</p>}
       {esito.scartato_at && (
         <p className="text-xs text-muted-foreground">{t("Proposta scartata il {scartato_at}{valore}", { scartato_at: formatDateIt(esito.scartato_at), valore: String(esito.scartato_motivo ? `: ` : "") })}</p>

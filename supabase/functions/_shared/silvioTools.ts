@@ -729,10 +729,19 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         },
       },
     },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_cashflow_status", {
-      p_company_id: ctx.companyId,
-      p_days_back: args?.days_back ?? 30,
-    }),
+    // 28/11/2026: anche i movimenti aperti da oltre 30 giorni (tesoreria_aperti_vecchi), in testa
+    // al risultato perché il brief del mattino tronca questo blocco a 1.500 caratteri. Se la
+    // lettura non riesce (permessi, funzione non ancora pubblicata) il cashflow resta com'era.
+    executor: async (args, ctx) => {
+      const base = await callRpc(ctx.supabase, "silvio_tool_cashflow_status", {
+        p_company_id: ctx.companyId,
+        p_days_back: args?.days_back ?? 30,
+      });
+      if (!base || typeof base !== "object" || Array.isArray(base) || "error" in base) return base;
+      const { data: vecchi, error } = await ctx.supabase.rpc("tesoreria_aperti_vecchi", { p_company: ctx.companyId, p_giorni: 30 });
+      if (error || !vecchi || Number((vecchi as { numero?: number }).numero ?? 0) === 0) return base;
+      return { movimenti_da_riconciliare_aperti_da_oltre_30_giorni: vecchi, ...base };
+    },
     allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "cfo", "controller", "amministrazione"],
     allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram"],

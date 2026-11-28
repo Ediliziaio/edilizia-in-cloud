@@ -409,7 +409,32 @@ export interface PurchaseRow {
   payment_terms_base?: string | null;
   payment_terms_giorni?: number | null;
 }
+/**
+ * Un assegno (o Ri.Ba./RID) con data futura, come lo dà `effetti_elenco`. L'importo resta dovuto
+ * sulla scadenza, ma esce/entra in banca alla data dell'effetto: il previsionale lo sposta lì.
+ */
+export interface EffettoRow {
+  id: string;
+  tipo: "assegno" | "riba" | "rid" | string;
+  direzione: "emesso" | "ricevuto" | string;
+  numero?: string | null;
+  banca?: string | null;
+  importo: Money;
+  data_emissione?: string | null;
+  data_scadenza: string | null;
+  stato: "in_attesa" | "pagato" | "insoluto" | "annullato" | string;
+  scadenza_id?: string | null;
+  company_cost_id?: string | null;
+  rata_fornitore_id?: string | null;
+  documento_id?: string | null;
+  riga_scadenzario_id?: string | null;
+  descrizione_fonte?: string | null;
+  controparte?: string | null;
+  da_confermare?: boolean | null;
+}
 export interface ForecastSources {
+  /** Assegni ed effetti in attesa: spostano l'importo dalla scadenza alla data dell'effetto. */
+  effetti?: EffettoRow[];
   banks: BankRow[];
   /** Il piano rate salvato: etichette e fatture collegate, per riconoscere ciò che ha già una scadenza. */
   installments: InstallmentRow[];
@@ -480,6 +505,7 @@ export interface VatDocumentRow {
   origin: "esterna" | "nativa" | "ricevuta";
 }
 export const emptyForecastSources = (): ForecastSources => ({
+  effetti: [],
   banks: [],
   installments: [],
   rateDaIncassare: [],
@@ -1969,8 +1995,9 @@ export function buildForecastLedger(
           };
     })
     .filter((m) => m.cents > 0);
+  const conEffetti = applicaEffetti(previsteNette, s.effetti ?? [], today);
   return {
-    movements: previsteNette.sort(
+    movements: conEffetti.sort(
       (a, b) =>
         (a.date ?? "9999").localeCompare(b.date ?? "9999") ||
         a.id.localeCompare(b.id),
@@ -1980,6 +2007,62 @@ export function buildForecastLedger(
     ),
     warnings: [...warnings],
   };
+}
+
+/**
+ * Gli effetti in attesa spostano l'importo dalla fonte alla data dell'effetto (28/11/2026):
+ * l'uscita (o l'entrata) di una scadenza coperta da un assegno non cade alla scadenza, ma quando
+ * l'assegno viene incassato. Dal movimento della fonte si toglie l'importo dell'effetto (fino a
+ * quanto resta), e se ne aggiunge uno alla data dell'effetto: il totale non cambia, cambia il
+ * giorno. Un effetto con la data già passata e ancora in attesa va a oggi, «da confermare».
+ */
+export function applicaEffetti(
+  movements: ForecastMovement[],
+  effetti: EffettoRow[],
+  today: string,
+): ForecastMovement[] {
+  const attivi = effetti.filter((e) => e.stato === "in_attesa" && toCents(e.importo) > 0);
+  if (!attivi.length) return movements;
+  const out = movements.map((m) => ({ ...m }));
+  const perId = new Map(out.map((m) => [m.id, m]));
+  const nuovi: ForecastMovement[] = [];
+  for (const e of attivi) {
+    const cerca = [
+      e.scadenza_id && `scadenza:${e.scadenza_id}`,
+      e.rata_fornitore_id && `rata-fornitore:${e.rata_fornitore_id}`,
+      e.company_cost_id && `costo:${e.company_cost_id}`,
+      e.documento_id && `fattura:${e.documento_id}`,
+    ].filter((k): k is string => !!k);
+    const fonte = cerca.map((k) => perId.get(k)).find((m) => m && m.cents > 0);
+    const direction: "in" | "out" = e.direzione === "ricevuto" ? "in" : "out";
+    let cents = toCents(e.importo);
+    if (fonte) {
+      const tolto = Math.min(cents, fonte.cents);
+      fonte.cents -= tolto;
+      if (fonte.grossCents != null) fonte.grossCents = Math.max(0, fonte.grossCents - tolto);
+    }
+    const passato = !!e.data_scadenza && e.data_scadenza < today;
+    const data = !e.data_scadenza || passato ? today : e.data_scadenza;
+    const etichetta = e.tipo === "riba" ? "Ri.Ba." : e.tipo === "rid" ? "RID" : "Assegno";
+    cents = Math.max(cents, 0);
+    nuovi.push({
+      id: `effetto:${e.id}`,
+      description: `${etichetta}${e.numero ? ` n. ${e.numero}` : ""}${e.descrizione_fonte ? ` · ${e.descrizione_fonte}` : fonte ? ` · ${fonte.description}` : ""}`,
+      counterparty: e.controparte ?? fonte?.counterparty ?? "",
+      category: fonte?.category ?? (direction === "in" ? "clienti" : "fornitori"),
+      direction,
+      cents,
+      date: data,
+      source: "Assegni ed effetti",
+      href: fonte?.href ?? "/azienda/scadenzario",
+      estimated: false,
+      orderId: fonte?.orderId ?? null,
+      costId: fonte?.costId ?? null,
+      orderLabel: fonte?.orderLabel,
+      note: passato || e.da_confermare ? "Da confermare: la data dell'effetto è passata e non è ancora segnato come pagato." : undefined,
+    } as ForecastMovement);
+  }
+  return [...out.filter((m) => m.cents > 0), ...nuovi];
 }
 
 const VAT_F24_CODES = /^60(0[1-9]|1[0-2])$/;

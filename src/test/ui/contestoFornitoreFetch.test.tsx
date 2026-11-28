@@ -20,7 +20,7 @@ vi.mock("@/integrations/supabase/client", () => {
         if (stato.errore && tipo === "scadenzario") return { data: null, error: new Error("Scadenzario non disponibile") };
         if (stato.erroreSaldi && tipo === "saldi") return { data: null, error: new Error("Saldi non disponibili") };
         if (tipo === "fatture_ricevute") return { data: fatture.slice(da, a + 1), error: null };
-        if (tipo === "saldi") return { data: [{ id: "F0", residuo: 60 }, { id: "F1", residuo: 0 }].slice(da, a + 1), error: null };
+        if (tipo === "saldi") return { data: [{ id: "F0", pagato: 40, residuo: 60, segnata_non_registrata: 10 }, { id: "F1", pagato: 100, residuo: 0 }].slice(da, a + 1), error: null };
         if (tipo === "scadenzario") return { data: ids.includes("F0") ? [{ id: "r1", fattura_id: "F0", numero: 1, scadenza: "2026-12-30", importo: 100, residuo: 30, metodo: "riba", stato: "da_pagare", pagata_il: null, fornitore: "F" }] : [], error: null };
         if (tipo === "rate_fornitori") return { data: ids.includes("F1") ? [{ id: "r2", fattura_ricevuta_id: "F1", numero: 1, scadenza: "2026-12-31", importo: 100, metodo: "riba", stato: "da_pagare", pagata_il: null }] : [], error: null };
         return { data: [], error: null };
@@ -46,8 +46,11 @@ it("carica tutte le fatture dello stesso fornitore in blocchi aziendali e unisce
   expect(stato.chiamate.find(c => c.tipo === "fatture_ricevute")?.filtro).toContain(`fornitore_id.eq.${fornitore}`);
   expect(result.current.data?.find(f => f.id === "F0")?.scadenze[0].residuo).toBe(30);
   expect(result.current.data?.find(f => f.id === "F0")?.residuoFattura).toBe(60);
+  expect(result.current.data?.find(f => f.id === "F0")?.pagatoFattura).toBe(40);
+  expect(result.current.data?.find(f => f.id === "F0")?.segnataNonRegistrata).toBe(10);
   expect(result.current.data?.find(f => f.id === "F1")?.scadenze[0].residuo).toBeNull();
   expect(result.current.data?.find(f => f.id === "F1")?.residuoFattura).toBe(0);
+  expect(result.current.data?.find(f => f.id === "F1")?.pagatoFattura).toBe(100);
 });
 
 it("mostra un errore invece di far credere che non ci siano scadenze se lo scadenzario non risponde", async () => {

@@ -26,6 +26,7 @@ import {
   toCents,
   type BankRow,
   type CostPaymentRow,
+  type EffettoRow,
   type ForecastMovement,
   type ForecastSources,
   type NoteRow,
@@ -414,6 +415,15 @@ export async function loadForecastDataset(
   let primaNota: { saldo?: number; entry_count?: number } | null = null;
   let compensazioni: CostPaymentRow[] = [];
   await Promise.all([
+    (async () => {
+      // Assegni ed effetti in attesa (28/11/2026): spostano l'uscita/entrata alla data dell'assegno.
+      try {
+        s.effetti = await readForecastPages<EffettoRow>(() =>
+          client.rpc("effetti_elenco", { p_company_id: companyId }).order("id"));
+      } catch {
+        issues.push("Assegni ed effetti");
+      }
+    })(),
     ...sources.map(async (source) => {
       try {
         Object.assign(s, {

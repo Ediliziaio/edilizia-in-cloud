@@ -58,7 +58,7 @@ export interface Sal {
   periodo_dal: string; periodo_al: string;
   totale: number; ritenuta: number; netto: number; righe_contate: number;
   order_id: string | null; note: string | null;
-  contratto_id: string;
+  contratto_id: string | null;
   documento_fiscale_id: string | null;
   /** La fattura agganciata, se c'è: serve per dire «quale» e non solo «sì». */
   documenti_fiscali?: { id: string; numero: string; stato: string } | null;
@@ -223,11 +223,16 @@ export function SalAppalto({ committenteId, orderId, modoFatturazione, puoModifi
           .from("appalto_rendiconto_righe")
           .select("id, order_id, data, descrizione, unita_misura, prezzo_unitario, quantita, maggiorazione_pct, importo, extra_contratto, note")
           .eq("sal_id", s.id),
-        (supabase as any)
-          .from("appalto_contratti")
-          .select("regime_iva, ritenuta_pct, riferimento_committente, giorni_pagamento")
-          .eq("id", s.contratto_id)
-          .maybeSingle(),
+        // Un rendiconto di una commessa senza contratto non ha un contratto da
+        // leggere (dal 27/11/2026 il rendiconto vale anche fuori dall'appalto):
+        // senza questa guardia la lettura partirebbe con id nullo.
+        s.contratto_id
+          ? (supabase as any)
+              .from("appalto_contratti")
+              .select("regime_iva, ritenuta_pct, riferimento_committente, giorni_pagamento")
+              .eq("id", s.contratto_id)
+              .maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
         supabase
           .from("profiles")
           .select("business_name, first_name, last_name, vat_number, fiscal_code, address, city, postal_code, province")

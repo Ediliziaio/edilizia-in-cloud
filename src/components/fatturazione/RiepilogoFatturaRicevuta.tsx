@@ -314,11 +314,12 @@ function ContenutoRiepilogo({
   const [modificaQuote, setModificaQuote] = useState(false);
   const [confronto, setConfronto] = useState(apriConfronto);
   const [pagamenti, setPagamenti] = useState<string | null>(null);
-  const pulsanteFornitore = useRef<HTMLButtonElement | null>(null);
+  const [contestoVisitato, setContestoVisitato] = useState(false);
   // 23/11/2026: i pagamenti si aprono dentro il riepilogo, nella loro sezione. Prima il riepilogo
   // spariva e al suo posto compariva il popup dei pagamenti: si perdeva la fattura di vista.
   const sezionePagamenti = useRef<HTMLElement | null>(null);
   const apriPagamenti = (costo: string) => {
+    setMostraFornitore(false);
     setPagamenti(costo);
     requestAnimationFrame(() => sezionePagamenti.current?.scrollIntoView?.({ block: "start", behavior: "smooth" }));
   };
@@ -493,7 +494,7 @@ function ContenutoRiepilogo({
     {!!fatturaId && !(confronto && permessi.canViewCosts && f) && !modificaQuote && !rataScelta && !vistaCompleta && <Radice open onOpenChange={(o) => { if (!o) chiudiRiepilogo(); }}>
       <Contenuto
         {...(isMobile ? { side: "bottom" as const } : { onOpenAutoFocus: (e: Event) => e.preventDefault() })}
-        className={`commessa-modal-layout ricevuta-riepilogo ${mostraFornitore ? "ricevuta-con-contesto" : ""} ${isMobile ? "max-h-[94dvh] rounded-t-2xl px-4 pb-4" : "max-h-[92dvh]"} [&_dl_a]:min-h-0 [&_dl_a]:min-w-0`}
+        className={`commessa-modal-layout ricevuta-riepilogo ${isMobile ? "max-h-[94dvh] rounded-t-2xl px-4 pb-4" : "max-h-[92dvh]"} [&_dl_a]:min-h-0 [&_dl_a]:min-w-0`}
       >
         <SheetHeader data-ui="dialog-header" className="ricevuta-testata text-left space-y-2">
           <div className="ricevuta-testata-riga">
@@ -554,7 +555,7 @@ function ContenutoRiepilogo({
               </section>
             )}
 
-            <div className={`ricevuta-overview ${mostraFornitore ? "ricevuta-overview-con-contesto" : ""}`}>
+            <div className="ricevuta-overview">
             {/* Collegamenti */}
             <section className="ricevuta-collegamenti rounded-lg border p-3 space-y-2">
               <h3 className="text-sm font-semibold flex items-center gap-1.5"><Link2 className="h-4 w-4" /> {t("A cosa è collegata")}</h3>
@@ -704,17 +705,13 @@ function ContenutoRiepilogo({
             </section>
 
             <section ref={sezionePagamenti} aria-label={t("Pagamenti della fattura")} className="ricevuta-pagamenti rounded-lg border p-3 space-y-3 scroll-mt-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold">{t("Pagamenti e residuo")}</h3>
-                <Button ref={pulsanteFornitore} type="button" size="sm" variant={mostraFornitore ? "secondary" : "outline"} className="h-8 px-2.5 text-xs"
-                  aria-expanded={mostraFornitore} aria-controls="contesto-fornitore-ricevuta" onClick={() => {
-                    const aperto = !mostraFornitore;
-                    setMostraFornitore(aperto);
-                    if (aperto && isMobile) requestAnimationFrame(() => document.getElementById("contesto-fornitore-ricevuta")?.scrollIntoView({ block: "start", behavior: "smooth" }));
-                  }}>
-                  {mostraFornitore ? t("Nascondi altre fatture") : t("Altre fatture del fornitore")}
-                </Button>
+              <h3 className="text-sm font-semibold">{t("Pagamenti e residuo")}</h3>
+              <div role="group" aria-label={t("Vista pagamenti")} className="ricevuta-vista-pagamenti flex flex-wrap gap-1 rounded-lg bg-muted/50 p-1">
+                <Button type="button" size="sm" variant={!mostraFornitore ? "secondary" : "ghost"} className="h-8 flex-1 px-2 text-xs" aria-pressed={!mostraFornitore} onClick={() => setMostraFornitore(false)}>{t("Questa fattura")}</Button>
+                <Button type="button" size="sm" variant={mostraFornitore ? "secondary" : "ghost"} className="h-8 flex-1 px-2 text-xs"
+                  aria-pressed={mostraFornitore} onClick={() => { setContestoVisitato(true); setMostraFornitore(true); }}>{t("Totale fornitore")}</Button>
               </div>
+              <div hidden={mostraFornitore} className="space-y-3">
               {statoPagamento && <ExpensePaymentSummary totale={Number(statoPagamento.totale)} pagato={Number(statoPagamento.pagato)} residuo={Number(statoPagamento.residuo)} />}
               {pagamentoCosto.isError && <p role="alert" className="text-xs text-destructive">{t("Pagamenti non disponibili.")} <Button variant="link" size="sm" onClick={() => void pagamentoCosto.refetch()}>{t("Riprova")}</Button></p>}
               {statoPagamento?.da_verificare && <p role="status" className="text-xs text-amber-800">{t("Ci sono registrazioni storiche da confrontare prima di aggiungere un pagamento.")}</p>}
@@ -743,7 +740,7 @@ function ContenutoRiepilogo({
                             titolo: `Rata ${r.numero} · ${f.numero_fattura ?? ""} · ${formatCurrency(r.importo!)}` })}>{t("Segna pagata")}</Button>}
                     </div>)}
                   </div>}
-                  {rateRegistrate.filter(r => r.stato === "pagata" || r.pagata_il).map(r => <div key={r.numero} className="text-xs text-muted-foreground">{t("Rata {numero}", { numero: String(r.numero ?? "") })} · {r.pagata_il ? t("pagata il {data}", { data: formatDateShort(r.pagata_il) }) : t("pagata")}</div>)}
+                  {rateRegistrate.filter(r => r.stato === "pagata" || r.pagata_il).map(r => <div key={r.numero} className="text-xs text-muted-foreground">{t("Rata {numero}", { numero: String(r.numero ?? "") })} · {r.id && statoPagamento?.rate_segnate_non_registrate?.includes(r.id) ? t("segnata pagata, nessun pagamento registrato") : r.pagata_il ? t("pagata il {data}", { data: formatDateShort(r.pagata_il) }) : t("pagata")}</div>)}
                 </dd>
 
 
@@ -793,18 +790,23 @@ function ContenutoRiepilogo({
                 </details>
               );
             })()}
-
+              </div>
+              {contestoVisitato && companyId && <div hidden={!mostraFornitore}><ContestoFornitoreRicevuta companyId={companyId} fatturaId={String(f.id)}
+                supplierId={f.fornitore_id ? String(f.fornitore_id) : null} piva={f.cedente_piva ? String(f.cedente_piva) : null}
+                cf={f.cedente_cf ? String(f.cedente_cf) : null} paese={f.cedente_paese ? String(f.cedente_paese) : null}
+                onApriFattura={(id) => {
+                  if (contiRighe.salvando || contiRighe.modificati) {
+                    toast.info(t("Ci sono conti non salvati"), { description: t("Usa «Salva conti della fattura» oppure «Annulla modifiche ai conti» prima di chiudere.") });
+                    return;
+                  }
+                  if (pagamenti) {
+                    toast.info(t("Prima chiudi il pagamento aperto"), { description: t("Torna a questa fattura e chiudi il pannello dei pagamenti prima di aprirne un'altra.") });
+                    return;
+                  }
+                  setMostraFornitore(false);
+                  onApriAltraFattura(id);
+                }} /></div>}
             </section>
-            {mostraFornitore && companyId && <ContestoFornitoreRicevuta companyId={companyId} fatturaId={String(f.id)}
-              supplierId={f.fornitore_id ? String(f.fornitore_id) : null} piva={f.cedente_piva ? String(f.cedente_piva) : null}
-              cf={f.cedente_cf ? String(f.cedente_cf) : null} paese={f.cedente_paese ? String(f.cedente_paese) : null}
-              onChiudi={() => { setMostraFornitore(false); requestAnimationFrame(() => pulsanteFornitore.current?.focus()); }} onApriFattura={(id) => {
-                if (contiRighe.salvando || contiRighe.modificati) {
-                  toast.info(t("Ci sono conti non salvati"), { description: t("Usa «Salva conti della fattura» oppure «Annulla modifiche ai conti» prima di chiudere.") });
-                  return;
-                }
-                onApriAltraFattura(id);
-              }} />}
             </div>
             <dl className="ricevuta-totali-documento grid grid-cols-3 gap-2" aria-label={t("Importi del documento")}>
               {[["Imponibile", imponibile], ["IVA", iva], ["Totale documento", totale]].map(([titolo, valore]) => <div key={String(titolo)} className="rounded-lg bg-muted/40 p-3"><dt className="text-xs text-muted-foreground">{titolo}</dt><dd className="font-semibold tabular-nums">{formatCurrency(Number(valore))}</dd></div>)}

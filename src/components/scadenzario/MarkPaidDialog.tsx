@@ -10,6 +10,9 @@ import type { Scadenza } from "@/hooks/useScadenzario";
 import { gruppoMetodo } from "@/lib/finance/metodoScadenza";
 import { formatCurrency } from "@/lib/formatters";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { usePermissions } from "@/hooks/usePermissions";
+import { metodiConEffetto, residuoLibero, tipoEffettoDaMetodo, useEffettiFonte, useRegistraEffetto } from "@/hooks/useEffetti";
+import { toast } from "sonner";
 
 const fmtEur = (n: number) => formatCurrency(n);
 
@@ -30,6 +33,15 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
   const [date, setDate] = useState(new Date().toLocaleDateString("en-CA"));
   const [notes, setNotes] = useState("");
   const [accountLabel, setAccountLabel] = useState("banca");
+  const [numero, setNumero] = useState("");
+  const [banca, setBanca] = useState("");
+  const permissions = usePermissions();
+  const registraEffetto = useRegistraEffetto();
+  const effettiFonte = useEffettiFonte(scadenza?.company_id, { scadenzaId: scadenza?.id }, open && !!scadenza);
+  const conEffetto = metodiConEffetto(method);
+  const oggi = new Date().toLocaleDateString("en-CA");
+  const dataFutura = conEffetto && date > oggi;
+  const libero = residuoLibero(remaining, effettiFonte.coperto);
 
   // Prefill all'APERTURA. NB: con dialog controllato Radix invoca onOpenChange solo
   // per interazioni interne (Esc/X/overlay), mai quando il parent setta open=true →
@@ -44,6 +56,8 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
       setMethod(gruppoMetodo(scadenza.payment_method) ?? "bonifico");
       setDate(new Date().toLocaleDateString("en-CA"));
       setNotes("");
+      setNumero("");
+      setBanca("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, scadenzaId]);
@@ -71,10 +85,15 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
               inputMode="decimal"
               step="0.01"
               min="0.01"
-              max={remaining}
+              max={libero}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
             />
+            {effettiFonte.effetti.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {t("Già coperti {importo} da {n} assegni/effetti in attesa. Residuo libero: {libero}", { importo: fmtEur(effettiFonte.coperto), n: String(effettiFonte.effetti.length), libero: fmtEur(libero) })}
+              </p>
+            )}
           </div>
 
           {/* Mobile: il conto sale accanto all'importo (vedi order). */}
@@ -95,10 +114,23 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="scadenza-data">{t("Data")}<span className="max-sm:hidden"> {scadenza.direction === "entrata" ? t("incasso") : t("pagamento")}</span></Label>
+              <Label htmlFor="scadenza-data">{conEffetto ? (method === "assegno" ? t("Data dell'assegno") : t("Data effetto")) : <>{t("Data")}<span className="max-sm:hidden"> {scadenza.direction === "entrata" ? t("incasso") : t("pagamento")}</span></>}</Label>
               <Input id="scadenza-data" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
           </div>
+
+          {conEffetto && (
+            <div className="grid grid-cols-2 gap-3 max-sm:col-span-2 max-sm:gap-2">
+              <div className="space-y-2">
+                <Label htmlFor="scadenza-effetto-numero">{method === "assegno" ? t("Numero assegno") : t("Numero")}</Label>
+                <Input id="scadenza-effetto-numero" value={numero} onChange={(e) => setNumero(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="scadenza-effetto-banca">{t("Banca")}</Label>
+                <Input id="scadenza-effetto-banca" value={banca} onChange={(e) => setBanca(e.target.value)} />
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>{t("Conto")}</Label>
@@ -120,17 +152,30 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} className="max-sm:hidden">{t("Annulla")}</Button>
           <Button
-            onClick={() => onConfirm({
-              scadenzaId: scadenza.id,
-              amount: Number(amount),
-              paymentMethod: method,
-              paymentDate: date,
-              notes: notes || undefined,
-              accountLabel,
-            })}
-            disabled={isPending || !amount || Number(amount) <= 0 || Number(amount) > remaining}
+            onClick={() => {
+              if (dataFutura) {
+                registraEffetto.mutate({
+                  fonteTipo: "scadenza", fonteId: scadenza.id, tipo: tipoEffettoDaMetodo(method),
+                  direzione: scadenza.direction === "entrata" ? "ricevuto" : "emesso",
+                  numero, banca, importo: Number(amount), dataEmissione: oggi, dataScadenza: date, note: notes || null,
+                }, {
+                  onSuccess: () => { toast.success(t("Assegno registrato: la scadenza resta aperta fino all'incasso")); onOpenChange(false); },
+                  onError: (e: Error) => toast.error(e.message),
+                });
+                return;
+              }
+              onConfirm({
+                scadenzaId: scadenza.id,
+                amount: Number(amount),
+                paymentMethod: method,
+                paymentDate: date,
+                notes: notes || undefined,
+                accountLabel,
+              });
+            }}
+            disabled={isPending || registraEffetto.isPending || permissions.solaLettura || !amount || Number(amount) <= 0 || Number(amount) > libero || (dataFutura && !date)}
           >
-            {isPending ? t("Salvataggio...") : t("Registra")}
+            {registraEffetto.isPending || isPending ? t("Salvataggio...") : dataFutura ? t("Registra assegno") : t("Registra")}
           </Button>
         </DialogFooter>
       </DialogContent>

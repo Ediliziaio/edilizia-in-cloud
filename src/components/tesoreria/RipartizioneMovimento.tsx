@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Search, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,7 @@ export function RipartizioneMovimento({
   onConferma,
   onSearch,
   caricando = false,
+  onModificata,
 }: {
   /** Quanto del movimento è ancora da abbinare. */
   resto: number;
@@ -53,6 +54,8 @@ export function RipartizioneMovimento({
   onConferma: (righe: RigaRipartizione[], nota: string) => void;
   onSearch?: (value: string) => void;
   caricando?: boolean;
+  /** Dice a chi sta sopra se c'è una bozza (scelte o nota) che si perderebbe chiudendo. */
+  onModificata?: (modificata: boolean) => void;
 }) {
   const tr = useT();
   const [importi, setImporti] = useState<Record<string, string>>({});
@@ -71,6 +74,9 @@ export function RipartizioneMovimento({
   const erroreRiga = righe.find((r) => r.valore === null || r.valore <= 0 || r.valore > r.candidato.residuo + 0.004);
   const troppo = avanza < 0;
   const valido = righe.length > 0 && !erroreRiga && !troppo;
+  const modificata = scelti.length > 0 || nota.trim() !== "";
+  useEffect(() => { onModificata?.(modificata); }, [modificata, onModificata]);
+  useEffect(() => () => onModificata?.(false), [onModificata]);
 
   const combinazione = useMemo(
     () => combinazioneEsatta(resto, candidati.map((c) => ({ key: c.key, residuo: c.residuo, affine: c.affine }))),

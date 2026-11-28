@@ -33,6 +33,7 @@ import {
   bankFiltersPayload,
   type BankFilters,
   type BankMovement,
+  type BankPage,
 } from "@/lib/finance/bankWorkspace";
 import {
   draftAllocated,
@@ -71,6 +72,18 @@ const categories = [
   ["Altra spesa", "Altra spesa"],
   ["Altra entrata", "Altra entrata"],
 ];
+/** I movimenti simili, letti uno per uno (al massimo SIMILI_MASSIMO). Chi nel frattempo è stato
+ *  riconciliato o chiuso non c'è più da fare: si toglie. */
+async function loadSimili(company: string, ids: string[]): Promise<BankPage> {
+  const rows = (
+    await Promise.all(
+      ids.map((id) =>
+        bankRpc<BankMovement>("bank_movimento_dettaglio", { p_company: company, p_tx: id }),
+      ),
+    )
+  ).filter((m) => m && m.links.remaining > 0 && !m.chiuso_senza_documento);
+  return { rows, count: rows.length, totals: [] };
+}
 function fresh(m: BankMovement): BankDraft {
   return {
     movement: m,
@@ -89,11 +102,15 @@ export function BankReconciliationWorkspace({
   filters: initial,
   accounts,
   onClose,
+  soloMovimenti,
 }: {
   company: string;
   filters: BankFilters;
   accounts: Account[];
   onClose: () => void;
+  /** «Fai lo stesso per i simili» (lotto D): solo questi movimenti, con le proposte già cercate e le
+   *  forti già selezionate. La conferma resta un clic della persona. */
+  soloMovimenti?: string[];
 }) {
   const tr = useT();
   const perms = usePermissions();
@@ -142,11 +159,12 @@ export function BankReconciliationWorkspace({
     queryKey: [
       "bank-lotto-movimenti",
       company,
-      filters,
+      soloMovimenti ?? filters,
       page,
       bankVisibilityKey(perms),
     ],
-    queryFn: () => loadBankPage(company, filters, page),
+    queryFn: () =>
+      soloMovimenti ? loadSimili(company, soloMovimenti) : loadBankPage(company, filters, page),
     enabled: !validation,
     retry: false,
   });
@@ -228,6 +246,23 @@ export function BankReconciliationWorkspace({
       return { ...d, rows: next, reviewed: true, strongKey: undefined };
     });
   }
+  // Simili: le proposte si cercano da sole all'apertura, e le forti si selezionano appena arrivano.
+  const autoSimili = useRef<"da_cercare" | "da_selezionare" | "fatto">(
+    soloMovimenti ? "da_cercare" : "fatto",
+  );
+  useEffect(() => {
+    if (autoSimili.current !== "da_cercare" || !movements.data) return;
+    autoSimili.current = "da_selezionare";
+    void scan();
+    // scan legge le righe della pagina appena caricata: basta che arrivino.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [movements.data]);
+  useEffect(() => {
+    if (autoSimili.current !== "da_selezionare" || !Object.keys(proposals).length) return;
+    autoSimili.current = "fatto";
+    selectStrong();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proposals]);
   async function scan() {
     setScanning(true);
     setError("");
@@ -342,12 +377,15 @@ export function BankReconciliationWorkspace({
             {tr("Riconcilia movimenti bancari")}
           </DialogTitle>
           <DialogDescription>
-            {tr("Confronta documenti e movimenti, prepara le quote e conferma insieme. Le selezioni restano quando cambi conto, sezione o filtri.")}
+            {soloMovimenti
+              ? tr("Movimenti simili a quello appena riconciliato: le proposte forti sono già selezionate. Controllale e conferma.")
+              : tr("Confronta documenti e movimenti, prepara le quote e conferma insieme. Le selezioni restano quando cambi conto, sezione o filtri.")}
           </DialogDescription>
           <fieldset
             disabled={busy}
             className="mt-3 flex min-w-0 flex-wrap items-end gap-3"
           >
+            {!soloMovimenti && (<>
             <div
               className="flex rounded-lg border p-1"
               aria-label={tr("Direzione movimenti")}
@@ -414,6 +452,7 @@ export function BankReconciliationWorkspace({
               value={filters.search}
               onChange={(e) => change("search", e.target.value)}
             />
+            </>)}
             <Button
               variant="outline"
               size="sm"

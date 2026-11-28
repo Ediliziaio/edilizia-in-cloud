@@ -11,7 +11,6 @@ vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: {
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/lib/csvExport", () => ({ exportToCSV: state.exportCsv }));
 vi.mock("@/components/fatturazione/GestionaleEsterno", () => ({ invalidaFattureImportate: vi.fn() }));
-vi.mock("@/components/scadenzario/ScadenzarioKPIs", () => ({ default: () => <p>Riepilogo disponibile</p> }));
 vi.mock("@/components/scadenzario/FattureDaRegistrareCard", () => ({ default: (): null => null }));
 vi.mock("@/components/scadenzario/AdempimentiFiscali", () => ({ default: (): null => null }));
 vi.mock("@/components/scadenzario/IncassiPerSettimana", () => ({ IncassiPerSettimanaVista: (): null => null }));
@@ -63,20 +62,38 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   },
 } }));
 
-function setup() {
+function setup(indirizzo = "/") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<MemoryRouter><QueryClientProvider client={client}><Scadenzario /></QueryClientProvider></MemoryRouter>);
+  return render(<MemoryRouter initialEntries={[indirizzo]}><QueryClientProvider client={client}><Scadenzario /></QueryClientProvider></MemoryRouter>);
 }
 beforeEach(() => { state.fail = false; state.summaryFail = false; state.extraRows = false; state.senzaData = false; state.exportCompleto = false; state.exportCsv.mockClear(); state.writes.mockClear(); state.projectionErrors.mockClear(); });
 afterEach(cleanup);
 
+// «Esporta» apre una finestra (colonne, ordine, Excel, PDF, CSV): la pagina ne monta due (barra mobile e barra comandi).
+const bottoniEsporta = (hidden = false) => screen.getAllByRole("button", { name: "Esporta", hidden });
+async function esportaCsv() {
+  fireEvent.click(bottoniEsporta()[0]);
+  const finestra = await screen.findByRole("dialog", { name: "Esporta scadenzario" });
+  fireEvent.click(within(finestra).getByRole("button", { name: "CSV" }));
+}
+
 describe("Scadenzario: viste aperte e recupero errori", () => {
+  it("la vista «Annullate» (in Altre viste) mostra solo le scadenze annullate", async () => {
+    setup();await screen.findByText("Incasso aperto");
+    expect(screen.queryByText("Incasso annullato")).toBeNull();
+    const altre = screen.getByRole("button", { name: "Altre viste dello scadenzario" });
+    fireEvent.pointerDown(altre, { button: 0, ctrlKey: false, pointerType: "mouse" });
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Annullate" }));
+    expect(await screen.findByText("Incasso annullato")).toBeTruthy();
+    expect(screen.queryByText("Incasso aperto")).toBeNull();
+  });
   it("apre un pannello compatto e mostra date e filtri avanzati su richiesta", async () => {
     setup();
     await screen.findByText("Incasso aperto");
     fireEvent.click(screen.getByRole("button", { name: "Filtri" }));
     const pannello = within(screen.getByRole("dialog", { name: "Filtri" }));
-    expect(pannello.getByRole("combobox", { name: "Vista" })).toHaveValue("aperte");
+    // 28/11/2026: la pagina si apre su «Tutte» e sul mese corrente (prima «Aperte» e l'anno).
+    expect(pannello.getByRole("combobox", { name: "Vista" })).toHaveValue("tutte");
     expect(pannello.queryByLabelText("Da")).toBeNull();
 
     const periodo = pannello.getByRole("combobox", { name: "Periodo" });
@@ -92,16 +109,17 @@ describe("Scadenzario: viste aperte e recupero errori", () => {
     expect(altriFiltri.closest("details")).toHaveAttribute("open");
     expect(pannello.getByRole("combobox", { name: "Pagamento" })).toBeVisible();
     fireEvent.click(pannello.getByRole("button", { name: "Azzera" }));
-    expect(periodo).toHaveValue(`anno:${new Date().getFullYear()}`);
+    const adesso = new Date();
+    expect(periodo).toHaveValue(`mese:${adesso.getFullYear()}-${String(adesso.getMonth() + 1).padStart(2, "0")}`);
     expect(state.writes).not.toHaveBeenCalled();
   });
-  it("include commesse e note nelle colonne e nelle righe del CSV", async () => {
+  it("include commesse, cantiere e numero documento nelle colonne e nelle righe del CSV", async () => {
     state.exportCompleto = true;
     setup();await screen.findByText("Incasso aperto");
-    fireEvent.click(screen.getByRole("button", { name: "Esporta CSV" }));
+    await esportaCsv();
     await waitFor(() => expect(state.exportCsv).toHaveBeenCalled());
-    expect(state.exportCsv.mock.calls[0][0][0]).toEqual(expect.objectContaining({ commesse: "C-DEMO", note: "Nota piano" }));
-    expect(state.exportCsv.mock.calls[0][1]).toEqual(expect.arrayContaining([{ key: "commesse", label: "Commesse" }, { key: "note", label: "Note" }]));
+    expect(state.exportCsv.mock.calls[0][0][0]).toEqual(expect.objectContaining({ cantiere: expect.stringContaining("C-DEMO") }));
+    expect(state.exportCsv.mock.calls[0][1]).toEqual(expect.arrayContaining([{ key: "cantiere", label: "Cantiere" }, { key: "numero", label: "N. documento" }]));
   });
   it("carica il grafico con l'identità necessaria all'ordinamento della RPC", async () => {
     setup();
@@ -110,19 +128,19 @@ describe("Scadenzario: viste aperte e recupero errori", () => {
   });
   it("Da incassare e Da pagare escludono saldati e annullati, anche nell'export", async () => {
     setup();
-    // Si apre su «Aperte» (16/11/2026): il saldato non c'è; con «Tutte» compare.
+    // Si apre su «Tutte» (28/11/2026): il saldato c'è; con «Aperte» sparisce.
     await screen.findByText("Incasso aperto");
-    expect(screen.queryByText("Incasso già saldato")).toBeNull();
-    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Tutte/ }), { button: 0, ctrlKey: false });
     await screen.findByText("Incasso già saldato");
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Aperte/ }), { button: 0, ctrlKey: false });
+    await waitFor(() => expect(screen.queryByText("Incasso già saldato")).toBeNull());
     fireEvent.mouseDown(screen.getByRole("tab", { name: /^Da Incassare/ }), { button: 0, ctrlKey: false });
     await screen.findByText("Incasso aperto");
     expect(screen.queryByText("Incasso già saldato")).toBeNull();
     expect(screen.getByText("Incasso parziale")).toBeTruthy();
     expect(screen.queryByText("Incasso annullato")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Esporta CSV" }));
+    await esportaCsv();
     await waitFor(() => expect(state.exportCsv).toHaveBeenCalled());
-    expect(state.exportCsv.mock.calls[0][0].map((r: { descrizione: string }) => r.descrizione)).toEqual(["Incasso aperto", "Incasso parziale"]);
+    expect(state.exportCsv.mock.calls[0][0].map((r: { lavorazione: string }) => r.lavorazione)).toEqual(["Incasso aperto", "Incasso parziale"]);
     fireEvent.mouseDown(screen.getByRole("tab", { name: /^Da Pagare/ }), { button: 0, ctrlKey: false });
     await screen.findByText("Pagamento aperto");
     expect(screen.queryByText("Pagamento già saldato")).toBeNull();
@@ -134,7 +152,7 @@ describe("Scadenzario: viste aperte e recupero errori", () => {
     await screen.findByText("Incasso aperto");
     fireEvent.mouseDown(screen.getByRole("tab", { name: /^Da Incassare/ }), { button: 0, ctrlKey: false });
     await screen.findByText("Incasso parziale");
-    fireEvent.click(screen.getByRole("button", { name: "Esporta CSV" }));
+    await esportaCsv();
     await waitFor(() => expect(state.exportCsv).toHaveBeenCalledTimes(1));
     expect(state.exportCsv.mock.calls[0][0]).toHaveLength(1003);
     expect(state.writes).not.toHaveBeenCalled();
@@ -142,44 +160,57 @@ describe("Scadenzario: viste aperte e recupero errori", () => {
   it("aspetta che la ricerca sia applicata e scarica lo stesso risultato visibile", async () => {
     setup();
     await screen.findByText("Incasso aperto");
-    const esporta = screen.getByRole("button", { name: "Esporta CSV" });
+    const esporta = bottoniEsporta()[0];
     fireEvent.change(screen.getByRole("textbox", { name: "Cerca nello scadenzario" }), { target: { value: "  Incasso parziale  " } });
     expect(esporta).toBeDisabled();
-    fireEvent.click(esporta);
     expect(state.exportCsv).not.toHaveBeenCalled();
     await waitFor(() => expect(esporta).toBeEnabled());
     expect(screen.queryByText("Incasso aperto")).toBeNull();
     expect(screen.getByText("Incasso parziale")).toBeInTheDocument();
-    fireEvent.click(esporta);
-    await waitFor(() => expect(state.exportCsv.mock.calls[0][0]).toEqual([expect.objectContaining({ descrizione: "Incasso parziale" })]));
+    await esportaCsv();
+    await waitFor(() => expect(state.exportCsv.mock.calls[0][0]).toEqual([expect.objectContaining({ lavorazione: "Incasso parziale" })]));
   });
   it("segnala l’intervallo invertito prima dell’esportazione", async () => {
     setup();
     await screen.findByText("Incasso aperto");
-    fireEvent.click(screen.getByRole("button", { name: "Filtri avanzati scadenzario" }));
-    fireEvent.change(screen.getByLabelText("Da", { exact: true }), { target: { value: "2026-11-30" } });
-    fireEvent.change(screen.getByLabelText("A", { exact: true }), { target: { value: "2026-11-01" } });
-    expect(screen.getByRole("alert")).toHaveTextContent(/data finale/);
-    expect(screen.getByRole("button", { name: "Esporta CSV" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Filtri" }));
+    const pannello = within(screen.getByRole("dialog", { name: "Filtri" }));
+    fireEvent.change(pannello.getByRole("combobox", { name: "Periodo" }), { target: { value: "custom" } });
+    fireEvent.change(pannello.getByLabelText("Da", { exact: true }), { target: { value: "2026-11-30" } });
+    fireEvent.change(pannello.getByLabelText("A", { exact: true }), { target: { value: "2026-11-01" } });
+    expect(screen.getByRole("alert", { hidden: true })).toHaveTextContent(/data finale/);
+    bottoniEsporta(true).forEach(b => expect(b).toBeDisabled());
   });
   it("un errore di lettura non appare come elenco vuoto e Riprova recupera i dati", async () => {
     state.fail = true; setup();
     expect(await screen.findByRole("alert")).toHaveTextContent("Non riesco a caricare le scadenze");
     expect(screen.queryByRole("list", { name: "Risultati scadenze" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Esporta CSV" })).toBeDisabled();
+    bottoniEsporta().forEach(b => expect(b).toBeDisabled());
     state.fail = false;
     fireEvent.click(screen.getByRole("button", { name: "Riprova scadenze" }));
     expect(await screen.findByText("Incasso aperto")).toBeTruthy();
     expect(state.writes).not.toHaveBeenCalled();
   });
-  it("un errore nel riepilogo non lascia uno scheletro infinito o totali falsi", async () => {
+  it("con il riepilogo del database in errore l'elenco resta usabile e i riquadri non mostrano numeri", async () => {
+    // Il riepilogo del database ormai serve solo al conteggio «senza data» e al grafico: i numeri del periodo
+    // arrivano dal riepilogo del periodo, che ha il suo segnaposto.
     state.summaryFail = true; setup();
-    expect(await screen.findByRole("alert")).toHaveTextContent("Riepilogo scadenze non disponibile");
-    expect(screen.queryByText("Riepilogo disponibile")).toBeNull();
-    state.summaryFail = false;
-    fireEvent.click(screen.getByRole("button", { name: "Riprova riepilogo" }));
-    expect(await screen.findByText("Riepilogo disponibile")).toBeTruthy();
+    expect(await screen.findByText("Incasso aperto")).toBeTruthy();
     expect(state.writes).not.toHaveBeenCalled();
+  });
+});
+
+describe("Scadenzario: periodo nell'indirizzo", () => {
+  it("dopo un ricarico l'arretrato resta: nome, «Torna al mese» e niente campi data", async () => {
+    setup("/?vista=scadute&periodo=custom&al=2026-10-31&arretrato=1&rp=mese%3A2026-11&ra=2026");
+    expect(await screen.findByRole("button", { name: /Arretrato al 31\/10\/2026/ })).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Torna al mese" }).length).toBeGreaterThan(0);
+    expect(screen.queryByLabelText("Da")).toBeNull();
+  });
+  it("ignora mese e date non valide e si apre sul mese corrente", async () => {
+    setup("/?periodo=mese%3A2026-13&dal=abc&al=31-12-2026");
+    const adesso = new Date().toLocaleDateString("it-IT", { month: "long", year: "numeric" });
+    expect(await screen.findByRole("button", { name: new RegExp(adesso, "i") })).toBeTruthy();
   });
 });
 
@@ -189,7 +220,7 @@ it("rende visibili gli importi senza data anche con l'anno corrente e li esporta
   fireEvent.click(screen.getByRole("button", { name: /mostra senza data|1 senza data/i }));
   await waitFor(() => expect(screen.queryByText("Incasso aperto")).toBeNull());
   expect(await screen.findByText("Commessa senza data")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Esporta CSV" }));
+  await esportaCsv();
   await waitFor(() => expect(state.exportCsv).toHaveBeenCalledOnce());
-  expect(state.exportCsv.mock.calls[0][0]).toEqual([expect.objectContaining({ descrizione: "Commessa senza data", scadenza: "" })]);
+  expect(state.exportCsv.mock.calls[0][0]).toEqual([expect.objectContaining({ lavorazione: "Commessa senza data", data: "" })]);
 });

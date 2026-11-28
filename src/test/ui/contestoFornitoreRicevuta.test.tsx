@@ -76,6 +76,43 @@ it("mostra il residuo complessivo senza attribuirlo a una singola rata", () => {
   expect(contesto.getByText("Residuo rata da verificare")).toBeVisible();
 });
 
+it("mantiene i totali dell'intero fornitore anche se si filtrano le fatture", () => {
+  finto.dati = [
+    { ...documento("F1"), totale_documento: 100, pagatoFattura: 40, residuoFattura: 60 },
+    { ...documento("F2"), totale_documento: 200, pagatoFattura: 50, residuoFattura: 150 },
+    { ...documento("NC"), tipo_documento: "TD04", totale_documento: 20, pagatoFattura: null, residuoFattura: null },
+  ];
+  monta();
+  const totale = within(screen.getByLabelText("Riepilogo del fornitore"));
+  expect(totale.getByText("Totale fatturato")).toBeVisible();
+  expect(screen.getByText("Nota di credito NC")).toBeVisible();
+  expect(totale.getByText("280,00 €")).toBeVisible();
+  expect(totale.getByText("90,00 €")).toBeVisible();
+  expect(totale.getByText("210,00 €")).toBeVisible();
+  fireEvent.change(screen.getByLabelText("Cerca una fattura del fornitore"), { target: { value: "F1" } });
+  expect(screen.queryByText("Fattura F2")).toBeNull();
+  expect(totale.getByText("280,00 €")).toBeVisible();
+  expect(totale.getByText("210,00 €")).toBeVisible();
+});
+
+it("segnala i saldi non disponibili invece di mostrarli come zero", () => {
+  finto.dati = [{ ...documento("F1"), totale_documento: null, pagatoFattura: null, residuoFattura: null }];
+  monta();
+  const totale = within(screen.getByLabelText("Riepilogo del fornitore"));
+  expect(totale.getAllByText("Da verificare")).toHaveLength(3);
+  expect(totale.queryByText("0,00 €")).toBeNull();
+  expect(totale.getAllByText("Parziale · 1 da verificare")).toHaveLength(3);
+});
+
+it("non presenta come completo il totale quando non trova la fattura aperta", () => {
+  finto.dati = [];
+  monta();
+  const totale = within(screen.getByLabelText("Riepilogo del fornitore"));
+  expect(totale.getAllByText("Da verificare")).toHaveLength(3);
+  expect(totale.queryByText("0,00 €")).toBeNull();
+  expect(totale.getByRole("status")).toHaveTextContent("La fattura aperta non compare nell’elenco");
+});
+
 it("usa il saldo disponibile per filtrare le fatture senza rate", () => {
   finto.dati = [
     { ...documento("F1"), residuoFattura: 0 },
@@ -86,6 +123,17 @@ it("usa il saldo disponibile per filtrare le fatture senza rate", () => {
   expect(screen.queryByText("Fattura F1")).toBeNull();
   expect(screen.getByText("Fattura F2")).toBeVisible();
   expect(screen.getByText("Scadenze non indicate")).toBeVisible();
+});
+
+it("include tra le fatture da pagare una rata segnata pagata senza registrazione", () => {
+  finto.dati = [{ ...documento("F1"), totale_documento: 37.54, pagatoFattura: 0, residuoFattura: 37.54,
+    segnataNonRegistrata: 37.54, scadenze: [{ id: "r1", numero: 1, scadenza: null, importo: 37.54,
+      residuo: 37.54, metodo: "bonifico", stato: "pagata", prevista: false }] }];
+  monta();
+  fireEvent.click(screen.getByRole("button", { name: "Da pagare" }));
+  expect(screen.getByText("Fattura F1")).toBeVisible();
+  expect(screen.getByText(/Segnata pagata senza pagamento registrato/)).toBeVisible();
+  expect(screen.queryByText("Bonifico · pagata")).toBeNull();
 });
 
 it("consente di riprovare se la lettura delle scadenze fallisce", () => {

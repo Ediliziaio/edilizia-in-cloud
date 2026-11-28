@@ -8,6 +8,7 @@ import {cronSecretValido} from "../_shared/cronAuth.ts";
 import {serveConMetricheRapida} from "../_shared/withMetricsRapida.ts";
 import {requireAuth,requireCompanyAccess} from "../_shared/auth.ts";
 import {getCorsHeaders,jsonResponse,errorResponse} from "../_shared/headers.ts";
+import {aziendeDelGiro,classificaALotti,LOTTO_CLASSIFICA,TEMPO_GIRO_MS,TETTO_AZIENDE_GIRO,TETTO_MOVIMENTI_AZIENDA,type AziendaDaClassificare} from "./giroClassifica.ts";
 serveConMetricheRapida("bank-auto-reconcile",async(req)=>{
  const headers=getCorsHeaders(req);if(req.method==="OPTIONS")return new Response(null,{headers});
  try {
@@ -19,20 +20,30 @@ serveConMetricheRapida("bank-auto-reconcile",async(req)=>{
    await requireCompanyAccess(supabaseAdmin,userId,company,headers);
    client=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_ANON_KEY")!,{global:{headers:{Authorization:req.headers.get("Authorization")!}}});
   }
+  // Tutte le aziende con movimenti aperti recenti, non solo le collegate: chi carica l'estratto a
+  // mano non veniva mai classificato. Ordine, rotazione e tetti in giroClassifica.ts.
   let companies:string[]=[];
   if(company)companies=[company];else{
+   const daClassificare=await admin.rpc("tesoreria_aziende_da_classificare",{p_giorni:180,p_limite:TETTO_AZIENDE_GIRO});
+   if(daClassificare.error)throw new Error("Impossibile leggere le aziende da verificare");
+   const collegate:string[]=[];
    for(let offset=0;;offset+=1000){
     const {data,error}=await admin.from("bank_connections").select("company_id").in("status",["active","linked"]).order("id").range(offset,offset+999);
-    if(error)throw new Error("Impossibile leggere le aziende da verificare");companies.push(...(data??[]).map(r=>r.company_id));if(!data||data.length<1000)break;
-   }companies=[...new Set(companies)];
+    if(error)throw new Error("Impossibile leggere le aziende da verificare");collegate.push(...(data??[]).map(r=>r.company_id));if(!data||data.length<1000)break;
+   }
+   companies=aziendeDelGiro(daClassificare.data as AziendaDaClassificare[]|null,collegate,TETTO_AZIENDE_GIRO+collegate.length);
   }
   let proposals=0;const errors:string[]=[];const classified:Record<string,unknown>[]=[];const confirmed:Record<string,unknown>[]=[];
+  const fineClassifica=Date.now()+TEMPO_GIRO_MS;
   for(const id of companies){
    const {data,error}=await client.rpc("bank_suggerisci_riconciliazioni",{p_company:id});
    if(error){errors.push(`${id}: ${error.message}`);continue;}proposals+=Number(data??0);
    // Esiti con regola e motivi (docs/automazioni-tesoreria-cdg.md): classifica, non registra denaro.
-   const esiti=await client.rpc("tesoreria_classifica_movimenti",{p_company:id,p_limite:100,p_anteprima:false});
-   if(esiti.error)errors.push(`${id}: esiti ${esiti.error.message}`);else classified.push({company_id:id,...(esiti.data as Record<string,unknown>)});
+   // A lotti da 5: 100 in una chiamata superavano gli 8 secondi di PostgREST e tornavano indietro.
+   const esiti=await classificaALotti(limite=>client.rpc("tesoreria_classifica_movimenti",{p_company:id,p_limite:limite,p_anteprima:false}),
+    {lotto:LOTTO_CLASSIFICA,tetto:TETTO_MOVIMENTI_AZIENDA,tempoScaduto:()=>Date.now()>fineClassifica});
+   if(esiti.errore)errors.push(`${id}: esiti ${esiti.errore}`);
+   classified.push({company_id:id,...esiti});
    // Conferma automatica: solo dove l'azienda l'ha accesa, per conto di chi l'ha autorizzata.
    const conferme=await client.rpc("tesoreria_conferma_automatica",{p_company:id,p_limite:50});
    // Un errore delle conferme non salta i riallineamenti arretrati qui sotto.

@@ -66,6 +66,8 @@ import { useVociMovimenti } from "@/lib/finance/cassaVoci";
 import { ControparteRiconosciuta, SuggerimentiAbbinamento, useSuggerimentiMovimento } from "./MovimentoSuggerimenti";
 import { AlternativeEsito, BadgeEsito, RigaEsitoMovimento, useEsitoMovimento } from "./EsitoMovimento";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
+import { cercaMovimentiSimili } from "@/lib/finance/movimentiSimili";
 
 export type BankDetailSection = "documents" | "contexts";
 
@@ -74,16 +76,29 @@ export function BankMovementDetail({
   id,
   onClose,
   initialSection,
+  onRiconciliaSimili,
 }: {
   company: string;
   id: string;
   onClose: () => void;
   initialSection?: BankDetailSection;
+  /** «Fai lo stesso per i simili»: apre la conferma in blocco con questi movimenti. Senza, l'avviso non compare. */
+  onRiconciliaSimili?: (ids: string[]) => void;
 }) {
   const t = useT();
   const permissions = usePermissions();
   const [dirty, setDirty] = useState(false);
   const [discard, setDiscard] = useState(false);
+  // Simili da aprire dopo la conferma di «Chiudi senza salvare» (note o categoria non salvate).
+  const simiDaAprire = useRef<string[] | null>(null);
+  const apriSimili = onRiconciliaSimili
+    ? (ids: string[]) => {
+        if (dirty) {
+          simiDaAprire.current = ids;
+          setDiscard(true);
+        } else onRiconciliaSimili(ids);
+      }
+    : undefined;
   const q = useQuery({
     queryKey: ["bank-movimento", company, id, bankVisibilityKey(permissions)],
     queryFn: () =>
@@ -138,10 +153,11 @@ export function BankMovementDetail({
             company={company}
             onDirtyChange={setDirty}
             initialSection={initialSection}
+            onRiconciliaSimili={apriSimili}
           />
         )}
       </DialogContent>
-      <AlertDialog open={discard} onOpenChange={setDiscard}>
+      <AlertDialog open={discard} onOpenChange={(v) => { setDiscard(v); if (!v) simiDaAprire.current = null; }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("Chiudere senza salvare?")}</AlertDialogTitle>
@@ -151,7 +167,11 @@ export function BankMovementDetail({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("Continua a modificare")}</AlertDialogCancel>
-            <AlertDialogAction onClick={onClose}>
+            <AlertDialogAction onClick={() => {
+              const ids = simiDaAprire.current;
+              if (ids && onRiconciliaSimili) onRiconciliaSimili(ids);
+              else onClose();
+            }}>
               {t("Chiudi senza salvare")}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -165,11 +185,13 @@ function Detail({
   company,
   onDirtyChange,
   initialSection,
+  onRiconciliaSimili,
 }: {
   movement: BankMovement;
   company: string;
   onDirtyChange: (dirty: boolean) => void;
   initialSection?: BankDetailSection;
+  onRiconciliaSimili?: (ids: string[]) => void;
 }) {
   const tr = useT();
   const perms = usePermissions();
@@ -189,7 +211,26 @@ function Detail({
     category: m.category ?? "",
   });
   const [contextDirty, setContextDirty] = useState(false);
+  // Bozza dei selettori «Fatture e scadenze» / «Pagamenti già registrati»: scelte e quote scritte.
+  const [pickerDirty, setPickerDirty] = useState(false);
+  const [dividi, setDividi] = useState(false);
+  // «dividi» (28/11/2026): anche «Dividi in quote» chiude il selettore, e con lui la bozza.
+  const [modoRichiesto, setModoRichiesto] = useState<"new" | "existing" | "none" | "dividi" | null | undefined>(undefined);
+  const cambiaModo = (next: "new" | "existing" | "none" | "dividi" | null) => {
+    if (next === mode) return;
+    if (pickerDirty) setModoRichiesto(next);
+    else if (next === "dividi") setDividi(true);
+    else setMode(next);
+  };
   const startSection = useRef<HTMLDivElement | null>(null);
+  // «Fai lo stesso per i simili» (lotto D): dopo una conferma a mano, gli altri movimenti aperti della
+  // stessa controparte con una proposta forte. Solo un avviso: la conferma resta nella conferma in blocco.
+  const [simili, setSimili] = useState<string[]>([]);
+  const cercaSimili = () => {
+    if (!onRiconciliaSimili) return;
+    // Un suggerimento che non arriva non è un errore da mostrare: la conferma è già fatta.
+    void cercaMovimentiSimili(company, m.id).then(setSimili, () => setSimili([]));
+  };
   const voce = useVociMovimenti(company, [m.id]);
   useEffect(() => {
     startSection.current?.scrollIntoView?.({ block: "start" });
@@ -199,9 +240,10 @@ function Detail({
       onDirtyChange(
         note !== savedAnnotation.note ||
           category !== savedAnnotation.category ||
-          contextDirty,
+          contextDirty ||
+          pickerDirty,
       ),
-    [note, category, savedAnnotation, contextDirty, onDirtyChange],
+    [note, category, savedAnnotation, contextDirty, pickerDirty, onDirtyChange],
   );
   const refresh = () => {
     void client.invalidateQueries({ queryKey: ["tesoreria-esito", company] });
@@ -239,7 +281,6 @@ function Detail({
   const monetary = (n: number) => money(n, "—", m.currency);
   const s = useSuggerimentiMovimento(company, m, validMatch, refresh);
   // Dividi in quote (23/11/2026): lo stesso popup della Prima Nota, col movimento già dentro.
-  const [dividi, setDividi] = useState(false);
   const commesse = new Map<string, BankTarget & { amount?: number }>();
   for (const f of m.links.financial) for (const j of f.jobs ?? []) commesse.set(j.id, j);
   for (const c of m.links.contexts) if (c.kind === "commessa") commesse.set(c.id, c);
@@ -362,7 +403,7 @@ function Detail({
             <>
               {m.links.financial.length === 0 && <Nessuno />}
               {validMatch && (
-                <Azione onClick={() => setMode((v) => (v ? null : "new"))} label={tr("Collega fatture e pagamenti")}>
+                <Azione onClick={() => cambiaModo(mode ? null : "new")} label={tr("Collega fatture e pagamenti")}>
                   {mode ? tr("Chiudi") : m.links.financial.length ? tr("Aggiungi") : tr("Collega")}
                 </Azione>
               )}
@@ -411,6 +452,21 @@ function Detail({
                   ))}
                 </ul>
               )}
+              {simili.length > 0 && onRiconciliaSimili && (
+                <div role="status" className="flex basis-full flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
+                  <span className="min-w-0 flex-1">
+                    {tr(simili.length === 1
+                      ? "C'è un movimento simile: riconciliarlo allo stesso modo?"
+                      : "Ci sono {n} movimenti simili: riconciliarli allo stesso modo?", { n: simili.length })}
+                  </span>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onRiconciliaSimili(simili)}>
+                    {tr("Apri la conferma in blocco")}
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setSimili([])}>
+                    {tr("No, grazie")}
+                  </Button>
+                </div>
+              )}
               {m.reconciliation_status === "suggestion" && (
                 <p className="basis-full rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-xs text-violet-900">
                   {tr("Proposta da verificare: c'è una possibile corrispondenza, ma il suggerimento non registra pagamenti.")}
@@ -441,30 +497,30 @@ function Detail({
                   className="basis-full scroll-mt-4 space-y-3 rounded-lg border bg-muted/20 p-3"
                 >
                   <div className="flex flex-wrap gap-1.5" role="group" aria-label={tr("Come collegare")}>
-                    <Button size="sm" variant={mode === "new" ? "default" : "outline"} aria-label={tr("Collega fatture e scadenze")} onClick={() => setMode("new")}>
+                    <Button size="sm" variant={mode === "new" ? "default" : "outline"} aria-label={tr("Collega fatture e scadenze")} onClick={() => cambiaModo("new")}>
                       <FileText className="mr-1 h-3.5 w-3.5" />{tr("Fatture e scadenze")}
                     </Button>
                     {perms.canViewPrimaNota && (
-                      <Button size="sm" variant={mode === "existing" ? "default" : "outline"} aria-label={tr("Collega pagamenti già registrati")} onClick={() => setMode("existing")}>
+                      <Button size="sm" variant={mode === "existing" ? "default" : "outline"} aria-label={tr("Collega pagamenti già registrati")} onClick={() => cambiaModo("existing")}>
                         <Link2 className="mr-1 h-3.5 w-3.5" />{tr("Pagamenti già registrati")}
                       </Button>
                     )}
                     {perms.canViewPrimaNota && (
-                      <Button size="sm" variant="outline" aria-label={tr("Dividi in quote")} onClick={() => setDividi(true)}>
+                      <Button size="sm" variant="outline" aria-label={tr("Dividi in quote")} onClick={() => cambiaModo("dividi")}>
                         {tr("Dividi in quote")}
                       </Button>
                     )}
                     {m.links.matched === 0 && (
-                      <Button size="sm" variant={mode === "none" ? "default" : "outline"} aria-label={tr("Senza fattura")} onClick={() => setMode("none")}>
+                      <Button size="sm" variant={mode === "none" ? "default" : "outline"} aria-label={tr("Senza fattura")} onClick={() => cambiaModo("none")}>
                         {tr("Senza fattura")}
                       </Button>
                     )}
                   </div>
                   {mode === "new" && (
-                    <FinancialPicker key="new" company={company} movement={m} onDone={() => { setMode(null); refresh(); }} />
+                    <FinancialPicker key="new" company={company} movement={m} onDirtyChange={setPickerDirty} onDone={() => { setMode(null); refresh(); cercaSimili(); }} />
                   )}
                   {mode === "existing" && (
-                    <ExistingPicker key="existing" company={company} movement={m} onDone={() => { setMode(null); refresh(); }} />
+                    <ExistingPicker key="existing" company={company} movement={m} onDirtyChange={setPickerDirty} onDone={() => { setMode(null); refresh(); }} />
                   )}
                   {mode === "none" && (
                     <MovimentoSenzaFattura companyId={company} tx={m} onFatto={() => { setMode(null); refresh(); }} />
@@ -596,6 +652,22 @@ function Detail({
           ))}
         </details>
       )}
+      <AlertDialog open={modoRichiesto !== undefined} onOpenChange={(v) => { if (!v) setModoRichiesto(undefined); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{tr("Scartare le scelte fatte?")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {tr("Hai spuntato documenti o scritto importi che non hai ancora confermato. Cambiando modo li perdi.")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{tr("Resta")}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (modoRichiesto === "dividi") { setMode(null); setDividi(true); } else setMode(modoRichiesto ?? null); setModoRichiesto(undefined); }}>
+              {tr("Scarta e cambia")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog
         open={!!remove}
         onOpenChange={(v) => {
@@ -699,20 +771,36 @@ function useCandidates(company: string, id: string, existing: boolean) {
   });
   return { query, search, setSearch };
 }
+/** Il resto da abbinare è sceso rispetto a quello visto prima della conferma? Se la rilettura
+ *  fallisce si risponde «no»: meglio un errore in più che una conferma creduta fatta. */
+async function confermaGiaArrivata(company: string, tx: string, restoPrima: number): Promise<boolean> {
+  try {
+    const dopo = await bankRpc<BankMovement>("bank_movimento_dettaglio", { p_company: company, p_tx: tx });
+    return Math.round(Number(dopo?.links?.remaining) * 100) < Math.round(restoPrima * 100);
+  } catch {
+    return false;
+  }
+}
+
 function FinancialPicker({
   company,
   movement: m,
   onDone,
+  onDirtyChange,
 }: {
   company: string;
   movement: BankMovement;
   onDone: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const t = useT();
   const { query, setSearch } = useCandidates(company, m.id, false);
   const [busy, setBusy] = useState(false);
+  // Il ref chiude la porta subito: due clic nello stesso istante vedono ancora busy=false.
+  const inVolo = useRef(false);
   async function confirm(rows: RigaRipartizione[], note: string) {
-    if (busy) return;
+    if (inVolo.current) return;
+    inVolo.current = true;
     setBusy(true);
     let committed = false;
     try {
@@ -738,8 +826,17 @@ function FinancialPicker({
           t("Pagamenti salvati, aggiornamento esterno da riprovare: {elenco}", { elenco: failed.join(", ") }),
         );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("Abbinamento non riuscito"));
+      // Risposta persa dopo una scrittura riuscita (rete caduta): un nuovo clic scriverebbe le
+      // stesse quote una seconda volta. Prima di ridare il pulsante si rilegge il movimento: se il
+      // resto da abbinare è sceso, la conferma era arrivata (28/11/2026).
+      if (!committed && (await confermaGiaArrivata(company, m.id, m.links.remaining))) {
+        committed = true;
+        toast.warning(t("La conferma era già arrivata: il movimento è aggiornato, non serve riprovare."));
+      } else {
+        toast.error(messaggioErrore(e, t("Abbinamento non riuscito")));
+      }
     } finally {
+      inVolo.current = false;
       setBusy(false);
       if (committed) onDone();
     }
@@ -773,6 +870,7 @@ function FinancialPicker({
           m.transaction_type === "credit" ? "fatture" : "scadenze"
         }
         onConferma={(r, n) => void confirm(r, n)}
+        onModificata={onDirtyChange}
       />
       {(query.data?.length ?? 0) >= 100 && (
         <p className="text-xs text-muted-foreground">
@@ -786,10 +884,12 @@ function ExistingPicker({
   company,
   movement: m,
   onDone,
+  onDirtyChange,
 }: {
   company: string;
   movement: BankMovement;
   onDone: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const t = useT();
   const { query, search, setSearch } = useCandidates(company, m.id, true);
@@ -797,6 +897,10 @@ function ExistingPicker({
     Record<string, CandidatoRipartizione>
   >({});
   const [busy, setBusy] = useState(false);
+  const inVolo = useRef(false);
+  const haScelte = Object.keys(selected).length > 0;
+  useEffect(() => { onDirtyChange?.(haScelte); }, [haScelte, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   const total =
     Math.round(
       Object.values(selected).reduce((s, r) => s + Number(r.residuo), 0) * 100,
@@ -836,7 +940,8 @@ function ExistingPicker({
       return next;
     });
   async function confirm() {
-    if (busy) return;
+    if (inVolo.current) return;
+    inVolo.current = true;
     setBusy(true);
     try {
       await bankRpc("bank_associa_pagamenti", {
@@ -847,8 +952,9 @@ function ExistingPicker({
       toast.success(t("Prove bancarie collegate: nessun pagamento duplicato"));
       onDone();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("Collegamento non riuscito"));
+      toast.error(messaggioErrore(e, t("Collegamento non riuscito")));
     } finally {
+      inVolo.current = false;
       setBusy(false);
     }
   }

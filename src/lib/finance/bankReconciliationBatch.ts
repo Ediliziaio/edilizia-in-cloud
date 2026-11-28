@@ -6,6 +6,8 @@ export interface BankProposal extends CandidatoRipartizione {
   incongruenze?: string[];
   data?: string | null;
   controparte?: string | null;
+  /** La controparte è stata riconosciuta dagli abbinamenti fatti a mano (lotto D). */
+  appresa?: boolean;
 }
 export interface BankDraft {
   movement: BankMovement;
