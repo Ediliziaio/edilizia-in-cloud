@@ -38,6 +38,16 @@ begin
   select coalesce(sum(importo), 0), count(*) into v_tot, v_n
     from public.appalto_rendiconto_righe where sal_id = p_sal;
   update public.appalto_sal
+     set totale = v_tot,
+         ritenuta = round(v_tot * v.pct / 100.0, 2),
+         netto = v_tot - round(v_tot * v.pct / 100.0, 2),
+         righe_contate = v_n,
+         updated_at = now()
+   where id = p_sal;
+end;
+$function$;
+
+revoke all on function private.appalto_sal_ricalcola(uuid) from public, anon, authenticated;
 
 CREATE OR REPLACE FUNCTION public.rendiconto_giornaliero_salva(p jsonb)
  RETURNS uuid
