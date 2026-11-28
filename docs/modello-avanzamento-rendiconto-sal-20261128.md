@@ -239,3 +239,48 @@ Restano aperte, e le decido io salvo smentita:
    percentuale resti «l'ultima vince» o «il massimo».
 2. **La regola computo/economia non è imponibile** senza creare il legame che manca: decisione 2.
 3. **`modalita_lavoro` non classificava il 97% delle commesse**: risolto col valore `semplice`.
+
+## 8. Il travaso: provato il 28/11/2026 su dati veri, non ancora eseguito
+
+`private.avanzamento_travaso_commessa(commessa, prova)` dà il saldo di apertura a una commessa per
+volta. La regola che la governa è una sola: **accende solo dove il registro ridà esattamente i
+numeri di adesso**. Decide il modo dal valore che c'è (quantità fatta più una base di contratto →
+`quantita`; tutto il resto → `percentuale`), calcola che cosa direbbe il registro dopo il solo
+movimento di apertura, e se percentuale, quantità o spunta si muoverebbero di un soffio **non
+accende**: quella lavorazione finisce nell'elenco degli scostamenti coi due numeri a confronto, e
+la decide una persona. Dove accende, rilegge la riga dopo la scrittura e, se qualcosa si è spostato,
+alza un errore e annulla tutto. Con `prova => true` non lascia niente (il blocco con gestione
+dell'errore è un savepoint, e alla fine solleva di proposito).
+
+Le prove, su EDILIZIA SCAVOLO (`7fe09d74…`, 25 lavorazioni, 15 con avanzamento), in transazioni
+annullate:
+
+| prova | esito |
+| --- | --- |
+| modo prova sulla commessa vera | 15 accese, 0 scostamenti, 0 fasi mosse; a prova finita 0 movimenti e 0 lavorazioni accese nel database |
+| travaso reale con cinque casi difficili fabbricati | 12 accese, 3 rifiutate: percentuale dichiarata 80 con quantità al 50%, quantità 20 su una lavorazione senza base, quantità 70 su una base di 65,67 |
+| parziale coerente (9 su 18) | accesa a quantità, movimento di 9 m³, 50% |
+| percentuale senza quantità (40%) | accesa a percentuale |
+| nessun numero spostato | `lavorazioni_mosse` e `fasi_mosse` vuoti in tutte le prove |
+| secondo giro subito dopo | 0 accese, 12 movimenti in tutto: l'indice unico su (origine, documento, lavorazione) impedisce il doppione |
+| le 157 tabelle legate alla commessa, contate prima e dopo | cambia solo `avanzamento_movimenti` (0 → 15); cronoprogramma, rate, SAL, previsionale, automazioni: identici |
+
+Tre cose trovate per strada, che il modello non diceva:
+
+1. **Una lavorazione ha una sola voce di computo**: `order_work_phase_voci` ha un vincolo unico su
+   `subphase_id`. Quindi il caso «unità diverse nella stessa lavorazione» non esiste, e
+   `sottofase_quantita_totale` è semplicemente la quantità di quella voce. «Senza base» vuol dire
+   voce assente o a quantità zero.
+2. **A percentuale il registro non tiene una quantità**: una lavorazione che oggi ha una quantità
+   fatta ma nessuna base verrebbe azzerata nella quantità. Il travaso la rifiuta prima di toccarla
+   (zero e «niente» contano per la stessa cosa, qui e nella verifica dopo la scrittura).
+3. **1.913 lavorazioni su 4.035 sono spuntate come fatte con la percentuale a 0**, create tutte fra
+   il 9 e l'11 ottobre 2026 — e sono **tutte di Demo Azienda 2**: nelle aziende vere non ce n'è
+   nessuna. Il travaso le rifiuta, come deve: sanare un dato incoerente non è il suo mestiere.
+
+**Perché non è ancora eseguito su nessuna commessa.** Finché nessuna strada scrive movimenti (i
+lotti 2-6), un saldo di apertura non serve a niente e nel frattempo l'editor delle fasi continua a
+scrivere la percentuale da sé: il primo movimento che arrivasse dopo una modifica a mano la
+sovrascriverebbe. L'accensione va quindi insieme al lotto 2, commessa per commessa, con l'elenco
+degli scostamenti davanti. La funzione è pronta e provata; il comando è
+`select private.avanzamento_travaso_commessa('<commessa>', false);`.
