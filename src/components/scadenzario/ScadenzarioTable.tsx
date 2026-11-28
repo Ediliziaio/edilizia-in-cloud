@@ -63,8 +63,10 @@ interface Props {
 function BadgeEffetti({ effetti, className = "" }: { effetti: Effetto[] | undefined; className?: string }) {
   const testo = testoBadgeEffetti(effetti);
   if (!testo) return null;
-  return <Badge variant="outline" data-testid="badge-effetti" title={titoloBadgeEffetti(effetti)}
-    className={`shrink-0 whitespace-nowrap border-sky-300 bg-sky-50 px-1.5 text-[11px] font-medium text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300 ${className}`}>{testo}</Badge>;
+  // span e non <Badge>: il badge condiviso è un div, e qui sta dentro un <span> di tabella
+  // (e prima dentro un <p>): annidamento HTML non valido, React lo segnala a ogni riga.
+  return <span data-testid="badge-effetti" title={titoloBadgeEffetti(effetti)}
+    className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-sky-300 bg-sky-50 px-1.5 text-[11px] font-medium text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300 ${className}`}>{testo}</span>;
 }
 
 const monthLabel = (d: Date | null) => {
@@ -176,7 +178,8 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                   {isOverdue && <span className="font-medium text-destructive">{" · "}{tTesto("da {giorni} gg", { giorni: Math.abs(daysLeft) })}</span>}
                   {isDueToday && <span className="font-medium text-amber-600"> · {tTesto("oggi")}</span>}
                 </p>
-                {effettiRiga?.length ? <p className="mt-0.5 flex min-w-0 items-center gap-1"><BadgeEffetti effetti={effettiRiga} />{coperta && <span className="truncate text-[11px] text-sky-700 dark:text-sky-400">{tTesto("Coperta da assegno")}</span>}</p> : null}
+                {/* div e non p: il badge dentro un paragrafo è HTML non valido (React lo segnala). */}
+                {effettiRiga?.length ? <div className="mt-0.5 flex min-w-0 items-center gap-1"><BadgeEffetti effetti={effettiRiga} />{coperta && <span className="truncate text-[11px] text-sky-700 dark:text-sky-400">{tTesto("Coperta da assegno")}</span>}</div> : null}
               </div>
               {onModifica && !percheScadenzaNonModificabile(s) && <Button size="icon" variant="ghost" className="size-11 shrink-0" disabled={inCorso} aria-label={tTesto("Modifica {descrizione}", { descrizione: String(s.description ?? "") })} onClick={(e) => { e.stopPropagation(); onModifica(s); }}><Pencil className="h-4 w-4" /></Button>}
               <div className="shrink-0 text-right">

@@ -11,12 +11,24 @@
  * c'è scadenzarioFontiDatabase).
  */
 import { PGlite } from "@electric-sql/pglite";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const riepilogoSql = readFileSync("supabase/migrations/20290421110000_scadenzario_fonti_commesse_costi.sql", "utf8")
   .match(/create or replace function public\.scadenzario_riepilogo_fonti[\s\S]*?\$function\$;/i)![0];
-const totaliSql = readFileSync("supabase/migrations/20290525100000_scadenzario_totali_una_chiamata.sql", "utf8");
+
+/**
+ * L'ULTIMA migrazione che ridefinisce `scadenzario_totali`, cercata invece che scritta a mano:
+ * il 28/11/2026 questo test leggeva ancora `20290525100000` mentre in produzione girava una
+ * definizione diversa, quindi la rete non guardava più la funzione vera (revisione di
+ * pubblicazione). Così resta agganciata da sola a ogni cambio futuro.
+ */
+const RIDEFINISCE = /create or replace function public\.scadenzario_totali\b/i;
+const fileTotali = readdirSync("supabase/migrations")
+  .filter((f) => f.endsWith(".sql") && RIDEFINISCE.test(readFileSync(`supabase/migrations/${f}`, "utf8")))
+  .sort()
+  .at(-1)!;
+const totaliSql = readFileSync(`supabase/migrations/${fileTotali}`, "utf8");
 
 const a = "a0000000-0000-4000-a000-000000000001";
 const anno = 2026;
@@ -102,6 +114,15 @@ describe("scadenzario_totali", () => {
 
   it("senza anno non calcola i mesi: il grafico non c'è", async () => {
     expect((await totali(`'${a}', null, null, true, false, null`)).mesi).toBeNull();
+  });
+
+  it("la prova gira sull'ultima definizione, e quella non chiama gli effetti", () => {
+    // Se un domani serve la copertura degli assegni anche qui, questo test va aggiornato
+    // insieme alla migrazione: è il segnale che la funzione ha cambiato dipendenze.
+    expect(fileTotali).toBe("20290702100200_scadenzario_totali_senza_effetti.sql");
+    // Senza i commenti: lì «effetti_elenco» è nominato per dire che NON si chiama più.
+    const soloSql = totaliSql.split("\n").filter((r) => !r.trimStart().startsWith("--")).join("\n");
+    expect(soloSql).not.toMatch(/effetti_elenco/i);
   });
 
   it("è chiusa a chi non ha fatto l'accesso", async () => {
