@@ -42,7 +42,7 @@ vi.mock("@/hooks/useFattureFornitoreContestuali", () => ({
   filtriFornitore: () => ["fornitore_id.eq.test"],
   useFattureFornitoreContestuali: () => ({ data: finto.contesto, isLoading: false, isError: false, refetch: vi.fn() }),
 }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 import { RiepilogoFatturaRicevuta } from "@/components/fatturazione/RiepilogoFatturaRicevuta";
 
 const FIC: Record<string, unknown> = {
@@ -82,6 +82,22 @@ beforeEach(() => {
 });
 
 describe("riepilogo della fattura ricevuta", () => {
+  it("mantiene due colonne e conserva la ricerca passando dal fornitore alla fattura", async () => {
+    finto.contesto = [{ ...FIC, scadenze: [], residuoFattura: 434.32, pagatoFattura: 0 }];
+    apri();
+    const collegamenti = (await screen.findByText("A cosa è collegata")).closest("section");
+    const pagamenti = screen.getByLabelText("Pagamenti della fattura");
+    expect(collegamenti?.parentElement).toBe(pagamenti.parentElement);
+    expect(pagamenti.parentElement?.children).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Totale fornitore" }));
+    const ricerca = screen.getByLabelText("Cerca una fattura del fornitore");
+    fireEvent.change(ricerca, { target: { value: "1288" } });
+    fireEvent.click(screen.getByRole("button", { name: "Questa fattura" }));
+    expect(ricerca).not.toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Totale fornitore" }));
+    expect(screen.getByLabelText("Cerca una fattura del fornitore")).toHaveValue("1288");
+    expect(pagamenti.parentElement?.children).toHaveLength(2);
+  });
   it("apre le altre fatture dello stesso fornitore senza riusare azioni riferite al documento iniziale", async () => {
     const seconda: Record<string, unknown> = { ...FIC, id: "f2", numero_fattura: "1290", data_fattura: "2026-11-15", order_id_suggerito: null };
     finto.dati["fatture_ricevute:f2"] = seconda;
@@ -94,11 +110,13 @@ describe("riepilogo della fattura ricevuta", () => {
     render(<QueryClientProvider client={qc}><MemoryRouter>
       <RiepilogoFatturaRicevuta fatturaId="f1" companyId="co" onClose={() => {}} azioni={{ onCollegaOrdine: collega }} />
     </MemoryRouter></QueryClientProvider>);
-    fireEvent.click(await screen.findByRole("button", { name: "Altre fatture del fornitore" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Totale fornitore" }));
     expect(screen.getByLabelText("Fatture e scadenze del fornitore")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Totale fornitore" })).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByRole("button", { name: "Apri fattura 1290" }));
     expect(await screen.findByText(/n\. 1290/)).toBeVisible();
-    expect(screen.getByLabelText("Fatture e scadenze del fornitore")).toBeVisible();
+    expect(screen.queryByLabelText("Fatture e scadenze del fornitore")).toBeNull();
+    expect(screen.getByRole("button", { name: "Questa fattura" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByRole("button", { name: "Collega" })).toBeNull();
     expect(collega).not.toHaveBeenCalled();
   });
@@ -179,6 +197,27 @@ describe("riepilogo della fattura ricevuta", () => {
     fireEvent.click(sezione.getByRole('button',{name:'Chiudi'}));
     await waitFor(()=>expect(screen.getByRole('button',{name:'Vedi movimenti e registra pagamento'})).toBeVisible());
     expect(screen.getByRole('button',{name:'Chiudi riepilogo'})).toBeVisible();
+  });
+  it("mantiene la quota in compilazione passando al fornitore e impedisce di aprire un'altra fattura", async () => {
+    finto.dati.fatture_ricevute = { ...FIC, company_cost_id: "c1" };
+    finto.dati.company_costs = { id: "c1", amount: 356 };
+    finto.contesto = [
+      { ...FIC, scadenze: [], residuoFattura: 434.32, pagatoFattura: 0 },
+      { ...FIC, id: "f2", numero_fattura: "1290", scadenze: [], residuoFattura: 434.32, pagatoFattura: 0 },
+    ];
+    finto.rpc.mockImplementation(async (name: string) => ({ data: name === "dettaglio_pagamento_costo"
+      ? { id: "c1", company_id: "co", nome: "Costo c1", totale: 434.32, pagato: 0, residuo: 434.32, da_verificare: false, puo_registrare_pagamento: true, movimenti: [] }
+      : null, error: null }));
+    apri();
+    fireEvent.click(await screen.findByRole("button", { name: "Pagamenti e residuo" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Registra pagamento" }));
+    fireEvent.change(screen.getByLabelText("Importo"), { target: { value: "123.45" } });
+    fireEvent.click(screen.getByRole("button", { name: "Totale fornitore" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apri fattura 1290" }));
+    expect(screen.getByText(/n\. 1288/)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Questa fattura" }));
+    expect(screen.getByLabelText("Importo")).toHaveValue("123.45");
+    expect(screen.getByRole("button", { name: "Conferma pagamento" })).toBeVisible();
   });
   it("il residuo deriva dai movimenti effettivi anche quando le rate risultano ancora aperte",async()=>{
     finto.dati.fatture_ricevute={...FIC,company_cost_id:'c1'};
