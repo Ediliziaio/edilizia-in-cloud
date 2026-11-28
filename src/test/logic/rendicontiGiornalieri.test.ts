@@ -10,7 +10,7 @@ import {
 const riga = (o: Partial<RigaRendiconto>): RigaRendiconto => ({
   chiave: "x", categoria: "manodopera", descrizione: "Voce", unita: "ora", quantita: 8, prezzo_unitario: null, prezzo_a_mano: false,
   prezzo_fonte: null, listino_voce_id: null, appalto_tariffa_id: null, employee_id: null, subappaltatore_id: null, mezzo_id: null,
-  fase_id: null, maggiorazione_pct: 0, note: null, ...o,
+  fase_id: null, da_rapportino_id: null, maggiorazione_pct: 0, note: null, viaggio: null, ...o,
 });
 const bozza = (righe: RigaRendiconto[]) => ({ order_id: "o", data: "2026-11-27", descrizione_lavori: "", note: "", righe });
 
