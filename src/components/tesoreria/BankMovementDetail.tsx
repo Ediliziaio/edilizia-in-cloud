@@ -192,10 +192,13 @@ function Detail({
   const [contextDirty, setContextDirty] = useState(false);
   // Bozza dei selettori «Fatture e scadenze» / «Pagamenti già registrati»: scelte e quote scritte.
   const [pickerDirty, setPickerDirty] = useState(false);
-  const [modoRichiesto, setModoRichiesto] = useState<"new" | "existing" | "none" | null | undefined>(undefined);
-  const cambiaModo = (next: "new" | "existing" | "none" | null) => {
+  const [dividi, setDividi] = useState(false);
+  // «dividi» (28/11/2026): anche «Dividi in quote» chiude il selettore, e con lui la bozza.
+  const [modoRichiesto, setModoRichiesto] = useState<"new" | "existing" | "none" | "dividi" | null | undefined>(undefined);
+  const cambiaModo = (next: "new" | "existing" | "none" | "dividi" | null) => {
     if (next === mode) return;
     if (pickerDirty) setModoRichiesto(next);
+    else if (next === "dividi") setDividi(true);
     else setMode(next);
   };
   const startSection = useRef<HTMLDivElement | null>(null);
@@ -249,7 +252,6 @@ function Detail({
   const monetary = (n: number) => money(n, "—", m.currency);
   const s = useSuggerimentiMovimento(company, m, validMatch, refresh);
   // Dividi in quote (23/11/2026): lo stesso popup della Prima Nota, col movimento già dentro.
-  const [dividi, setDividi] = useState(false);
   const commesse = new Map<string, BankTarget & { amount?: number }>();
   for (const f of m.links.financial) for (const j of f.jobs ?? []) commesse.set(j.id, j);
   for (const c of m.links.contexts) if (c.kind === "commessa") commesse.set(c.id, c);
@@ -460,7 +462,7 @@ function Detail({
                       </Button>
                     )}
                     {perms.canViewPrimaNota && (
-                      <Button size="sm" variant="outline" aria-label={tr("Dividi in quote")} onClick={() => setDividi(true)}>
+                      <Button size="sm" variant="outline" aria-label={tr("Dividi in quote")} onClick={() => cambiaModo("dividi")}>
                         {tr("Dividi in quote")}
                       </Button>
                     )}
@@ -616,7 +618,7 @@ function Detail({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{tr("Resta")}</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { setMode(modoRichiesto ?? null); setModoRichiesto(undefined); }}>
+            <AlertDialogAction onClick={() => { if (modoRichiesto === "dividi") { setMode(null); setDividi(true); } else setMode(modoRichiesto ?? null); setModoRichiesto(undefined); }}>
               {tr("Scarta e cambia")}
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -320,6 +320,11 @@ describe("popup e registro dei movimenti", () => {
     expect(await screen.findByRole("alertdialog", { name: "Scartare le scelte fatte?" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Resta" }));
     expect(screen.getByLabelText("Importo per Fattura A")).toHaveValue("300,00");
+    // «Dividi in quote» chiude il selettore: anche lui chiede prima (28/11/2026)
+    fireEvent.click(screen.getByRole("button", { name: "Dividi in quote" }));
+    expect(await screen.findByRole("alertdialog", { name: "Scartare le scelte fatte?" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Resta" }));
+    expect(screen.getByLabelText("Importo per Fattura A")).toHaveValue("300,00");
     // chiusura
     fireEvent.click(screen.getByRole("button", { name: "Chiudi" }));
     expect(await screen.findByRole("alertdialog", { name: "Chiudere senza salvare?" })).toBeInTheDocument();
