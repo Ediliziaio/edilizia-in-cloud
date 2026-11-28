@@ -404,3 +404,36 @@ export function campiDaPredefinita(v: VocePredefinita | null | undefined, ore = 
     prezzo_fonte: v.prezzo == null ? "mancante" : (v.fonte ?? null), avviso_unita: [c.avviso, diverse].filter(Boolean).join(" · ") || null,
   };
 }
+
+/**
+ * Le voci di listino che somigliano a un mezzo, per le righe che restano senza prezzo
+ * (28/11/2026). Prima quelle del committente, poi quelle generali di tipo nolo: il database
+ * propone, non applica. `mezzoCollegaVoce` fa il legame una volta sul mezzo, e da lì in avanti il
+ * prezzo arriva da sé in ogni rendiconto.
+ */
+export interface VoceSuggeritaMezzo {
+  listino_voce_id: string | null;
+  appalto_tariffa_id: string | null;
+  descrizione: string;
+  unita: string | null;
+  prezzo: number | null;
+  fonte: string;
+  somiglianza: number;
+}
+
+export async function vociSuggeriteMezzo(orderId: string, mezzoId: string): Promise<VoceSuggeritaMezzo[]> {
+  const { data, error } = await db.rpc("mezzo_voci_suggerite", { p_order: orderId, p_mezzo: mezzoId, p_limite: 6 });
+  if (error) throw error;
+  return ((data ?? []) as Array<Record<string, unknown>>).map((x) => ({
+    listino_voce_id: (x.listino_voce_id as string | null) ?? null,
+    appalto_tariffa_id: (x.appalto_tariffa_id as string | null) ?? null,
+    descrizione: String(x.descrizione ?? ""),
+    unita: (x.unita as string | null) ?? null,
+    prezzo: x.prezzo == null ? null : Number(x.prezzo),
+    fonte: String(x.fonte ?? ""),
+    somiglianza: Number(x.somiglianza ?? 0),
+  }));
+}
+
+export const mezzoCollegaVoce = (mezzoId: string, voceId: string | null) =>
+  chiama<unknown>("mezzo_collega_voce", { p_mezzo: mezzoId, p_voce: voceId });

@@ -34,6 +34,7 @@ import type { VoceListino } from "@/lib/campo/prezzoVoceRapportino";
 import {
   CAMPI_VIAGGIO_RENDICONTO, CATEGORIE, ETICHETTA_FONTE, annullaRendiconto, campiDaPredefinita, vociPredefinite, chiaveRiga, confermaRendiconto, elencoRendiconti, importoRiga, leggiRendiconto,
   puoCopiare, rendicontoCopia, rendicontoDelGiorno, riapriRendiconto, salvaPrezzoPerCommittente, salvaRendiconto, senzaPrezzo,
+  mezzoCollegaVoce, vociSuggeriteMezzo,
   type CategoriaRiga, type RigaRendiconto, type StatoRendiconto, type ViaggioRendiconto, type VoceListinoCommittente,
 } from "@/lib/rendiconti/rendicontiGiornalieri";
 
@@ -98,6 +99,8 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
   const permessi = usePermissions();
   const puoSalvarePrezzo = (permessi.isAdmin || permessi.canEditCustomers) && permessi.canViewOrderAmounts;
   const [conStraord, setConStraord] = useState<Set<string>>(new Set());
+  // La riga «mezzo» senza prezzo per cui stiamo cercando la voce di listino (28/11/2026).
+  const [mezzoDaCollegare, setMezzoDaCollegare] = useState<string | null>(null);
   const [copiando, setCopiando] = useState(false);
   const [origineCopia, setOrigineCopia] = useState("");
   const sezione = useRef<HTMLElement>(null);
@@ -252,6 +255,25 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
       // Righe senza prezzo: si scorre alla prima, col bordo ambra.
       setTimeout(() => sezione.current?.querySelector('[data-senza-prezzo="true"]')?.scrollIntoView({ block: "center", behavior: "smooth" }), 80);
     },
+  });
+  // Il mezzo senza voce di listino: si collega una volta e il prezzo arriva da sé, qui e dopo.
+  const suggerimentiMezzo = useQuery({
+    queryKey: ["mezzo-voci-suggerite", orderId, mezzoDaCollegare],
+    enabled: !!mezzoDaCollegare,
+    queryFn: () => vociSuggeriteMezzo(orderId, mezzoDaCollegare!),
+  });
+  const collegaMezzo = useMutation({
+    mutationFn: async ({ mezzo, voce }: { mezzo: string; voce: string }) => {
+      await mezzoCollegaVoce(mezzo, voce);
+      if (id) await salvaRendiconto(bozza());
+      return id;
+    },
+    onSuccess: async () => {
+      setMezzoDaCollegare(null);
+      toast.success(tr("Mezzo collegato al listino: il prezzo arriva da sé"));
+      if (id) await dopo(id);
+    },
+    onError: errore,
   });
   const salvaPrezzoCommittente = useMutation({
     mutationFn: async (r: RigaRendiconto) => ({
@@ -452,6 +474,34 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
                             {modificabile && (
                               <button type="button" aria-label={tr("Togli la riga")} className="text-muted-foreground hover:text-rose-600"
                                 onClick={() => setRighe((rs) => rs.filter((x) => x.chiave !== r.chiave))}><X className="h-4 w-4" /></button>
+                            )}
+                            {/* Mezzo senza prezzo: il legame col listino si fa qui, una volta
+                                (28/11/2026). Dopo, ogni rendiconto trova il prezzo da sé. */}
+                            {modificabile && c.valore === "mezzo" && mancante && r.mezzo_id && (
+                              <div className="flex w-full flex-wrap items-center gap-1.5 pb-1 pl-0.5">
+                                {mezzoDaCollegare === r.mezzo_id ? (
+                                  <>
+                                    <OfficeSelect value="" label={tr("Voce di listino per questo mezzo")}
+                                      className="h-7 min-w-[16rem] flex-1 text-xs"
+                                      placeholder={suggerimentiMezzo.isLoading ? tr("Cerco nel listino…") : tr("Scegli la voce del listino…")}
+                                      onValueChange={(v) => { if (v && r.mezzo_id) collegaMezzo.mutate({ mezzo: r.mezzo_id, voce: v }); }}
+                                      options={(suggerimentiMezzo.data ?? [])
+                                        .filter((v) => !!v.listino_voce_id)
+                                        .map((v) => ({
+                                          value: v.listino_voce_id!,
+                                          label: `${v.descrizione}${v.prezzo != null ? ` · ${formatCurrency(v.prezzo)}/${v.unita ?? ""}` : ""}`,
+                                          group: v.fonte === "committente" ? tr("Listino del committente") : tr("Listino generale"),
+                                        }))} />
+                                    <button type="button" className="text-[11px] text-muted-foreground underline-offset-2 hover:underline"
+                                      onClick={() => setMezzoDaCollegare(null)}>{tr("Annulla")}</button>
+                                  </>
+                                ) : (
+                                  <button type="button" className="text-[11px] text-blue-800 underline-offset-2 hover:underline"
+                                    onClick={() => setMezzoDaCollegare(r.mezzo_id!)}>
+                                    {tr("Questo mezzo non ha una voce di listino: collegala")}
+                                  </button>
+                                )}
+                              </div>
                             )}
                             {/* Commessa a computo: ogni voce a prezzo dice se è del computo o un extra
                                 (28/11/2026). Senza la scelta il database la rifiuta. */}

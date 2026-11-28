@@ -239,3 +239,30 @@ it("l'editor non chiede più tariffa_manodopera_id a orders", async () => {
   // Il nome del committente legge altre colonne di orders: quella delle ore non si chiede più (orders_visibili non la ha).
   expect(m.tabelleLette.filter((x) => x.startsWith("orders") && x.includes("tariffa_manodopera_id"))).toEqual([]);
 });
+
+/**
+ * Il mezzo senza voce di listino (28/11/2026): il rendiconto lo dice e offre il collegamento, che
+ * si fa una volta sul mezzo. Visto su Impresa Vulcano, dove 26 mezzi su 38 non hanno una voce e il
+ * rendiconto usciva con «prezzo mancante» senza spiegare perché.
+ */
+it("una riga mezzo senza prezzo offre di collegare il mezzo al listino", async () => {
+  m.tabelle.appalto_rendiconto_righe = [{
+    id: "r1", categoria: "mezzo", descrizione: "MAN CAMION 3 ASSI · HE749NF", unita_misura: "ora",
+    quantita: 9, prezzo_unitario: 0, prezzo_a_mano: false, prezzo_fonte: "mancante",
+    listino_voce_id: null, tariffa_id: null, employee_id: null, subappaltatore_id: null,
+    mezzo_id: "mz1", fase_id: null, da_rapportino_id: null, maggiorazione_pct: 0, note: null,
+    viaggio: null, ordine: 1, voce_computo_id: null, extra_contratto: false,
+  }];
+  m.rpc.mockImplementation(async (f: string) => ({
+    data: f === "mezzo_voci_suggerite"
+      ? [{ listino_voce_id: "t9", appalto_tariffa_id: null, descrizione: "Camion 3 assi - a freddo",
+           unita: "h", prezzo: 35, fonte: "generale", somiglianza: 0.54 }]
+      : f === "rendiconto_voci_predefinite" ? {} : "g1",
+    error: null,
+  }));
+  draw();
+  fireEvent.click(await screen.findByText(/Massetto piano terra/));
+  const collega = await screen.findByRole("button", { name: /questo mezzo non ha una voce di listino/i });
+  fireEvent.click(collega);
+  expect(await screen.findByLabelText("Voce di listino per questo mezzo")).toBeTruthy();
+});

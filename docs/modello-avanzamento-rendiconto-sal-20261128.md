@@ -615,3 +615,53 @@ La vista `appalto_rendiconto_righe_visibili` non aveva `voce_computo_id`, e il c
 letture verso di lei: in console `42703 — column … does not exist`. Aggiunta in coda con la
 definizione presa dal catalogo (`20290630280000`), e `security_invoker` riapplicato subito dopo,
 perché `CREATE OR REPLACE VIEW` lo perde.
+
+## 12. Prova su un'azienda vera: Impresa Vulcano (28/11/2026)
+
+Chiesto dal titolare: controllare su un'azienda vera che il rendiconto esista e prenda le cose
+giuste — le ore degli operai, i mezzi — senza doppioni, e che i prezzi arrivino dal listino del
+committente se c'è, altrimenti da quello generale.
+
+**Il punto di partenza.** Impresa Vulcano: 88 commesse, **105 rapportini**, **zero rendiconti**
+mai generati, 37 voci nel listino del committente (contratto d'appalto), 48 nel listino generale
+(17 nolo, 6 manodopera, 11 altro, 11 smaltimento, 2 posa).
+
+**Cosa prendeva il rendiconto.** Sulla commessa «TRASPORTI» (in appalto, in economia, 4 rapportini)
+le righe nascevano giuste — la persona con le sue 9 ore, il mezzo con le sue, la voce libera col
+prezzo scritto a mano — ma **3 righe su 4 avevano prezzo 0 e fonte «mancante»**, e il rendiconto non
+si poteva confermare.
+
+**Perché.** La riga dal rapportino porta la voce di listino solo se qualcuno ha fatto il legame:
+la manodopera da `orders.tariffa_manodopera_id` (nullo), il mezzo da `mezzi.tariffa_id` (collegato
+su 12 mezzi su 38), il materiale da niente. Senza voce non c'è prezzo, e la catena
+«cantiere → committente → generale» di `prezzo_voce_commessa_raw` — che funziona — non viene
+nemmeno interrogata.
+
+**Cosa è stato fatto** (`20290630310000`, corretta da `20290630320000`, agganciata da `…330000`,
+più i suggerimenti dei mezzi in `…340000`/`…350000`):
+
+| caso | prima | adesso |
+| --- | --- | --- |
+| manodopera senza voce scelta | prezzo 0, «mancante» | il listino del **committente** se ha una sola voce a ora che parla di operai/manodopera/economia (Vulcano: «Ore economia operai», **32 €/ora**); altrimenti la voce generale di manodopera se è una sola; altrimenti niente |
+| materiale scritto nel rapportino | nessuna voce, prezzo 0 | la voce **con lo stesso nome** (normalizzato: spazi, accenti, maiuscole), prima nel committente poi nel generale |
+| mezzo senza voce | prezzo 0, e nessuno dice perché | il rendiconto lo dice e offre il collegamento: `mezzo_voci_suggerite` propone le voci somiglianti (per «MAN CAMION 3 ASSI · HE749NF» la prima è «Camion 3 assi - a freddo», 35 €/h, somiglianza 0,54), e `mezzo_collega_voce` fa il legame **una volta sul mezzo**: da lì in avanti il prezzo arriva da sé |
+
+**Quello che non si indovina, di proposito.** Un nome somigliante non basta per mettere un prezzo su
+un documento che va al committente: «cemento» non trova «CEMENTO IN SACCO DA 25 KG», e se le voci
+candidate sono due o più il prezzo resta da scrivere — l'app lo segnala in rosso e non lascia
+confermare. Per i mezzi la macchina propone e la persona decide.
+
+**Le ore e i mezzi: nessun doppione, numeri identici.** Sulla commessa «TRASPORTI», generando il
+rendiconto dai rapportini:
+
+| | |
+| --- | --- |
+| ore delle persone nei rapportini | 9 |
+| ore di manodopera nel rendiconto | **9** |
+| ore dei mezzi nei rapportini | 13 |
+| ore dei mezzi nel rendiconto | **13** |
+| secondo giro subito dopo | 0 giorni da creare, righe ferme a 4, totale fermo |
+| totale del rendiconto | da 360 € (solo la voce a mano) a **648 €** con la manodopera dal committente |
+
+I rapportini rifiutati e annullati non entrano, e un rapportino nuovo dello stesso giorno viene
+segnalato («Ci sono N rapportini nuovi di questo giorno») invece di essere aggiunto due volte.
