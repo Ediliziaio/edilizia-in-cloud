@@ -462,3 +462,26 @@ in quei punti non veniva usato: le righe erano già tipizzate a mano).
 Per non far pagare a questo lotto una catena di correzioni in file di altri, il types.ts **non** è
 stato rigenerato qui: la colonna e la funzione nuove passano da due accessi non tipizzati, scritti
 una volta sola in testa a `ModalitaLavoroCard.tsx`, da cancellare quando i tipi saranno in pari.
+
+### Due difetti che solo la prova in app ha trovato
+
+La tendina salvava e il valore non cambiava. In console, due cose diverse, una dopo l'altra:
+
+1. **`chiediIlQuadro is not defined` → la card spariva senza dire niente.** Avevo staccato il
+   metodo dal client (`const f = supabase.rpc as ...`): chiamato così perde il suo oggetto e va in
+   errore, e la card, che su errore della query non si disegna, non c'era più. Il cast va fatto sul
+   **client**, non sul metodo. I test con il client finto (`vi.mock(... { supabase: {} })`) non
+   possono prenderlo: lì nessuno chiama davvero.
+2. **`PGRST204 — Could not find the 'modalita_lavoro' column of 'orders_visibili'`.** Il client
+   riscrive verso le viste protette **anche le scritture** su `orders`: `protectedOrderUrl` non
+   riceve il metodo, al contrario di `protectedPhaseUrl` e `protectedSalUrl`, quindi ogni PATCH del
+   browser su `orders` finisce su `orders_visibili`. La vista elenca le colonne una per una: quello
+   che non compare non si legge e non si scrive. Risolto in `20290630210000` aggiungendo la colonna
+   in coda alla vista, con la definizione presa dal catalogo invece di ricopiata.
+
+> **Regola:** una colonna nuova su `orders` va aggiunta anche a `orders_visibili`, altrimenti dal
+> browser non si scrive. Verificata subito dopo, in app: tendina → salvato, pulsante del
+> suggerimento → salvato, e il dato di prova rimesso come era.
+
+**Trovato per strada, non corretto:** `orders.tariffa_manodopera_id` non è nella vista e non è
+protetta da un CASE — è rimasta fuori, e chi la scrive dal browser prende lo stesso PGRST204.

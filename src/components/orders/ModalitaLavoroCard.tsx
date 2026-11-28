@@ -37,10 +37,12 @@ type Quadro = {
  * `commessa_modalita_quadro` non sono nei tipi, e i due accessi stanno qui, scritti una volta.
  * Quando i tipi saranno rigenerati, queste due righe si cancellano.
  */
-const chiediIlQuadro = supabase.rpc as unknown as (
-  nome: string,
-  args: Record<string, unknown>,
-) => Promise<{ data: Quadro | null; error: { message: string } | null }>;
+// Il cast è sul client, non sul metodo: `supabase.rpc` staccato dall'istanza perde il suo oggetto
+// e la chiamata va in errore (visto in app il 28/11/2026 — la card spariva senza dire niente,
+// perché va in errore la query; i test non lo prendono, lì il client è finto).
+const clienteTipato = supabase as unknown as {
+  rpc: (nome: string, args: Record<string, unknown>) => Promise<{ data: Quadro | null; error: { message: string } | null }>;
+};
 
 const scriviLaModalita = (orderId: string, modalita: ModalitaLavoro) =>
   (supabase.from("orders") as unknown as {
@@ -57,7 +59,7 @@ export function ModalitaLavoroCard({ orderId, puoModificare }: { orderId: string
   const quadro = useQuery({
     queryKey: ["commessa-modalita", orderId],
     queryFn: async () => {
-      const { data, error } = await chiediIlQuadro("commessa_modalita_quadro", { p_order: orderId });
+      const { data, error } = await clienteTipato.rpc("commessa_modalita_quadro", { p_order: orderId });
       if (error) throw error;
       return data as Quadro;
     },
