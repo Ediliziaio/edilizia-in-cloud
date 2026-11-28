@@ -37,14 +37,20 @@ SET LOCAL lock_timeout = '3s';
 SET LOCAL statement_timeout = '60s';
 
 -- Un nome confrontabile: senza accenti, senza doppi spazi, minuscolo.
--- `stable` e non `immutable`: `unaccent` dipende dal dizionario installato.
+-- Gli accenti si tolgono con `translate`, non con `unaccent`: quell'estensione in produzione c'è,
+-- ma nessuna migrazione la installa, e la ricostruzione del database da zero si fermerebbe qui
+-- (il corpo di una funzione `language sql` viene analizzato alla creazione).
 create or replace function private.nome_confrontabile(p_testo text)
 returns text
 language sql
-stable
+immutable
 set search_path = ''
 as $function$
-  select nullif(btrim(regexp_replace(lower(public.unaccent(coalesce(p_testo, ''))), '\s+', ' ', 'g')), '');
+  select nullif(btrim(regexp_replace(
+           translate(lower(coalesce(p_testo, '')),
+                     'àáâãäåèéêëìíîïòóôõöùúûüçñ',
+                     'aaaaaaeeeeiiiiooooouuuucn'),
+           '\s+', ' ', 'g')), '');
 $function$;
 
 revoke all on function private.nome_confrontabile(text) from public, anon, authenticated;
