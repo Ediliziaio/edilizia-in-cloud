@@ -274,13 +274,98 @@ Tre cose trovate per strada, che il modello non diceva:
 2. **A percentuale il registro non tiene una quantità**: una lavorazione che oggi ha una quantità
    fatta ma nessuna base verrebbe azzerata nella quantità. Il travaso la rifiuta prima di toccarla
    (zero e «niente» contano per la stessa cosa, qui e nella verifica dopo la scrittura).
-3. **1.913 lavorazioni su 4.035 sono spuntate come fatte con la percentuale a 0**, create tutte fra
-   il 9 e l'11 ottobre 2026 — e sono **tutte di Demo Azienda 2**: nelle aziende vere non ce n'è
-   nessuna. Il travaso le rifiuta, come deve: sanare un dato incoerente non è il suo mestiere.
+3. **2.219 lavorazioni sono spuntate come fatte con la percentuale a 0**, e sono **tutte di Demo
+   Azienda 2**: nelle aziende vere non ce n'è nessuna. Il travaso le rifiuta, come deve. Il perché
+   è nella sezione 9: sono dati nati prima che la percentuale esistesse.
 
-**Perché non è ancora eseguito su nessuna commessa.** Finché nessuna strada scrive movimenti (i
-lotti 2-6), un saldo di apertura non serve a niente e nel frattempo l'editor delle fasi continua a
-scrivere la percentuale da sé: il primo movimento che arrivasse dopo una modifica a mano la
-sovrascriverebbe. L'accensione va quindi insieme al lotto 2, commessa per commessa, con l'elenco
-degli scostamenti davanti. La funzione è pronta e provata; il comando è
-`select private.avanzamento_travaso_commessa('<commessa>', false);`.
+**Nelle aziende vere non è ancora eseguito.** Finché nessuna strada scrive movimenti (i lotti 2-6),
+un saldo di apertura non serve a niente e nel frattempo l'editor delle fasi continua a scrivere la
+percentuale da sé: il primo movimento che arrivasse dopo una modifica a mano la sovrascriverebbe.
+L'accensione va quindi insieme al lotto 2, commessa per commessa, con l'elenco degli scostamenti
+davanti. Il comando è `select private.avanzamento_travaso_commessa('<commessa>', false);`.
+
+## 9. Demo Azienda 2: il registro è acceso per davvero (28/11/2026)
+
+Su Demo Azienda 2 (`d2000000-0000-4000-a000-000000000002`) il travaso è stato **eseguito**, non
+solo provato: è l'azienda di prova, e un registro acceso su dati veri dice cose che una transazione
+annullata non dice.
+
+### Prima: le 2.219 spuntate a zero erano dati pre-riforma
+
+Il trigger `trg_sottofasi_a_avanzamento` (`sottofase_avanzamento_coerente`) impone da sé, a ogni
+scrittura, che una lavorazione spuntata abbia percentuale 100. È arrivato con
+`20281207100000_avanzamento_della_sottofase`, **pubblicata il 5 novembre 2026**. Le 2.219 righe
+incoerenti sono state create fra il 9 ottobre e il 4 novembre: sono nate quando la percentuale di
+una lavorazione non esisteva ancora come concetto, e c'era solo la spunta. Non è un dato sbagliato
+da qualcuno, è un dato che la regola di oggi normalizzerebbe alla prima scrittura.
+
+Sanate con la regola del database stesso, a lotti di 500 e solo su Demo 2:
+
+```sql
+update public.order_work_subphases s set percentuale = 100
+ where s.id in (select s2.id from public.order_work_subphases s2
+                  join public.order_work_phases f on f.id = s2.phase_id
+                 where f.company_id = 'd2000000-0000-4000-a000-000000000002'
+                   and s2.fatta and coalesce(s2.percentuale, 0) = 0
+                 limit 500);
+```
+
+**La percentuale delle fasi non si è mossa**, e il motivo è istruttivo:
+`private.fase_percentuale_da_voci` legge `case when s.fatta then 100 else s.percentuale end`, cioè
+considerava già al 100% una lavorazione spuntata, qualunque percentuale avesse. Le sole 4 fasi
+mosse su 1.491 erano **già disallineate dal proprio derivato prima di toccare qualunque cosa**
+(3 dichiarate più alte, 1 più bassa): la scrittura le ha riallineate a un valore che il database
+considera corretto da sempre. Verificato contando, fase per fase, la percentuale memorizzata contro
+`fase_avanzamento_derivato` prima di qualsiasi modifica.
+
+### Poi: il travaso, 284 commesse in tre lotti
+
+| | |
+| --- | --- |
+| commesse | 284 (244 con fasi) |
+| lavorazioni accese | **2.271** — 44 a quantità, 2.227 a percentuale |
+| movimenti di apertura | 2.271, uno per lavorazione |
+| rifiutate per scostamento | **4** |
+| lavorazioni spostate dal travaso | 0 |
+| fasi mosse dal travaso | 0 |
+| il derivato ridà i valori dell'app | 2.271 su 2.271: zero discordanze su percentuale e quantità |
+
+Le quattro rifiutate sono esattamente il caso per cui l'elenco degli scostamenti esiste — la spunta
+data in anticipo sulla quantità registrata:
+
+| lavorazione | quantità | base | dice la scheda | direbbe il registro |
+| --- | --- | --- | --- | --- |
+| Demolizione tramezzi | 60 | 120 | fatta, 100% | 50% |
+| Muri perimetrali in blocchi | 60 | 90 | fatta, 100% | 67% |
+| Posa corrugati e cavi | 200 | 450 | fatta, 100% | 44% |
+| Cassetta ABS presidi | 7 | 17 | non fatta, 0% | 41% |
+
+### Il controllo largo: due tabelle si muovono, e la seconda è giusta
+
+Le 157 tabelle con `order_id`, contate sulle commesse di Demo 2 prima e dopo (sanatoria + travaso,
+in una transazione annullata):
+
+- `avanzamento_movimenti`: 0 → 2.271. Atteso.
+- `commessa_campo_sync`: 41 → 205. È `commessa_campo_segnala_modifica()`, che segna le commesse
+  cambiate perché i telefoni le riscarichino: una riga per commessa toccata (164 nuove su 172
+  commesse), ed è il suo mestiere.
+
+Tutto il resto invariato: rate agganciate agli eventi, SAL, cronoprogramma, previsionale,
+automazioni, misure dei subappaltatori.
+
+### E l'ufficio continua a lavorare
+
+Provato con un utente vero di Demo 2 (`demo2@azienda.srl`, permesso Commesse), in una transazione
+annullata, su una commessa con lavorazioni accese:
+
+| prova | esito |
+| --- | --- |
+| la scheda legge le lavorazioni | 14 righe su 14: nessun GRANT rotto dalle colonne nuove |
+| cambiare la percentuale di una lavorazione accesa | passa (finché il lotto 2 non arriva, l'editor è ancora la strada) |
+| togliere la spunta | passa |
+| spegnere `a_movimenti` a mano | rifiutato dalla guardia |
+| cambiare `quantita_contratto` a mano | rifiutato dalla guardia |
+| scrivere un movimento dal browser | rifiutato: permission denied |
+
+Da qui in avanti, su Demo 2 ogni prova del lotto 2 parte da un registro vero: 2.271 saldi di
+apertura, e le quattro lavorazioni discordanti lasciate dove sono, da guardare a mano.
