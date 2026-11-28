@@ -10,10 +10,11 @@ import { type ColonnaTabella, colonneVisibili } from "@/lib/tabelle/colonneTabel
 import { DEF_SCADENZE, TESTA_A_DESTRA } from "@/lib/scadenzario/colonneScadenzario";
 import { percheScadenzaNonModificabile } from "@/lib/finance/modificaScadenza";
 import { controparteScadenza, type Scadenza } from "@/hooks/useScadenzario";
-import { CLASSE_TONO, giorniDaOggi, statoScadenza } from "@/lib/finance/collegamentiFinanza";
+import { CLASSE_TONO, giorniDaOggi } from "@/lib/finance/collegamentiFinanza";
 import { siAnnullaIncasso } from "@/lib/finance/annulloIncassoScadenza";
 import { formatCurrency } from "@/lib/formatters";
 import { etichettaMetodo, gruppoMetodo } from "@/lib/finance/metodoScadenza";
+import { eCoperta, statoConEffetti, testoBadgeEffetti, titoloBadgeEffetti, type Effetto } from "@/lib/finance/effettiScadenzario";
 
 const fmtEur = (n: number) => formatCurrency(n);
 
@@ -54,6 +55,16 @@ interface Props {
    * Senza, valgono le predefinite: così chi usa questa tabella altrove non deve saperne niente.
    */
   colonne?: ColonnaTabella[];
+  /** Gli effetti in attesa per id di riga (`effettiPerRiga`): badge sulla riga e «Coperta da assegno» al posto di «Scaduta». */
+  effetti?: Map<string, Effetto[]>;
+}
+
+/** «Assegno al 15/12»: il badge della riga con effetti in attesa. */
+function BadgeEffetti({ effetti, className = "" }: { effetti: Effetto[] | undefined; className?: string }) {
+  const testo = testoBadgeEffetti(effetti);
+  if (!testo) return null;
+  return <Badge variant="outline" data-testid="badge-effetti" title={titoloBadgeEffetti(effetti)}
+    className={`shrink-0 whitespace-nowrap border-sky-300 bg-sky-50 px-1.5 text-[11px] font-medium text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300 ${className}`}>{testo}</Badge>;
 }
 
 const monthLabel = (d: Date | null) => {
@@ -66,7 +77,7 @@ const monthLabel = (d: Date | null) => {
 interface TotaliMese { incassi: number; pagamenti: number; apertoIn: number; apertoOut: number }
 
 
-export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnnullaIncasso, onAdd, onRowClick, onNota, onModifica, selezionate, onSeleziona, onSelezionaPagina, tutteSelezionate, selezioneParziale, inCorso = false, pagaSulPosto, colonne, rimandoVuoto }: Props) {
+export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnnullaIncasso, onAdd, onRowClick, onNota, onModifica, selezionate, onSeleziona, onSelezionaPagina, tutteSelezionate, selezioneParziale, inCorso = false, pagaSulPosto, colonne, rimandoVuoto, effetti }: Props) {
   const mostrate = colonne ?? colonneVisibili(DEF_SCADENZE);
   const tTesto = useT();
   const azionePagamento = (s: Scadenza) => pagaSulPosto?.(s) ? tTesto("Paga") : scadenzaDaFonte(s) ? tTesto("Apri fonte") : s.direction === "entrata" ? tTesto("Incassa") : tTesto("Paga");
@@ -126,7 +137,9 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
         const showMonthHeader = idx === 0 || monthLabel(dueDate) !== monthLabel(scadenze[idx - 1].due_date ? new Date(scadenze[idx - 1].due_date!) : null);
         const remaining = s.amount - s.paid_amount;
         const daysLeft = dueDate ? differenceInDays(dueDate, new Date()) : NaN;
-        const isOverdue = !!dueDate && isPast(dueDate) && !isToday(dueDate) && s.status !== "pagata" && s.status !== "annullata";
+        const effettiRiga = effetti?.get(s.id);
+        const coperta = eCoperta(effettiRiga, remaining);
+        const isOverdue = !coperta && !!dueDate && isPast(dueDate) && !isToday(dueDate) && s.status !== "pagata" && s.status !== "annullata";
         const isDueToday = !!dueDate && isToday(dueDate) && s.status !== "pagata" && s.status !== "annullata";
         const isPaid = s.status === "pagata";
         const isCancelled = s.status === "annullata";
@@ -163,6 +176,7 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                   {isOverdue && <span className="font-medium text-destructive">{" · "}{tTesto("da {giorni} gg", { giorni: Math.abs(daysLeft) })}</span>}
                   {isDueToday && <span className="font-medium text-amber-600"> · {tTesto("oggi")}</span>}
                 </p>
+                {effettiRiga?.length ? <p className="mt-0.5 flex min-w-0 items-center gap-1"><BadgeEffetti effetti={effettiRiga} />{coperta && <span className="truncate text-[11px] text-sky-700 dark:text-sky-400">{tTesto("Coperta da assegno")}</span>}</p> : null}
               </div>
               {onModifica && !percheScadenzaNonModificabile(s) && <Button size="icon" variant="ghost" className="size-11 shrink-0" disabled={inCorso} aria-label={tTesto("Modifica {descrizione}", { descrizione: String(s.description ?? "") })} onClick={(e) => { e.stopPropagation(); onModifica(s); }}><Pencil className="h-4 w-4" /></Button>}
               <div className="shrink-0 text-right">
@@ -219,7 +233,8 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
             const dueDate = s.due_date ? new Date(s.due_date) : null;
             const showMonthHeader = idx === 0 || monthLabel(dueDate) !== monthLabel(scadenze[idx - 1].due_date ? new Date(scadenze[idx - 1].due_date!) : null);
             const remaining = Math.max(0, s.amount - s.paid_amount);
-            const stato = statoScadenza(s);
+            const effettiRiga = effetti?.get(s.id);
+            const stato = statoConEffetti(s, effettiRiga);
             const daysLeft = giorniDaOggi(s.due_date);
             const isPaid = stato.tono === "ok";
             const isCancelled = s.status === "annullata";
@@ -276,7 +291,7 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                   </Badge>
                 </td>,
                     controparte: <td key="controparte"><span className="block max-w-[130px] truncate xl:max-w-[160px] min-[1800px]:max-w-[220px]" title={controparte ?? undefined}>{controparte ?? <span className="text-muted-foreground">—</span>}</span></td>,
-                    descrizione: <td key="descrizione" className="w-full min-w-[186px] max-w-0"><span className="block truncate font-medium" title={s.description}>{s.description}</span></td>,
+                    descrizione: <td key="descrizione" className="w-full min-w-[186px] max-w-0"><span className="flex min-w-0 items-center gap-1.5"><span className="block min-w-0 truncate font-medium" title={s.description}>{s.description}</span><BadgeEffetti effetti={effettiRiga} /></span></td>,
                     documento: <td key="documento">
                   <span className="block max-w-[150px] truncate font-mono text-xs min-[1800px]:max-w-[260px]" title={[documento === "Costo" ? `Costo · ${s.company_costs?.name}` : documento, commesse ? `Commesse ${commesse}` : null].filter(Boolean).join(" · ") || undefined}>
                     {[commesse, documento].filter(Boolean).join(" · ") || <span className="text-muted-foreground">—</span>}

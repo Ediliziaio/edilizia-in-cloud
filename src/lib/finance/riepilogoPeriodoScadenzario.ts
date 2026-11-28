@@ -8,6 +8,7 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { filtraScadenzario, queryFontiScadenzario } from "./fontiScadenzario";
 import { oggiIso } from "./collegamentiFinanza";
 import type { ScadenzarioFilters } from "@/hooks/useScadenzario";
+import { copertoPerDirezione, firmaEffetti, type Effetto } from "./effettiScadenzario";
 import { LINGUETTE_CON_CONTEGGIO, type LinguettaConConteggio, type RiepilogoDirezione, type RiepilogoPeriodo, type Somma } from "./riepilogoPeriodoTipi";
 
 export type { RiepilogoDirezione, RiepilogoPeriodo, Somma } from "./riepilogoPeriodoTipi";
@@ -36,12 +37,15 @@ const eAperta = (r: RigaRiepilogo) => r.status === "da_pagare" || r.status === "
 
 export function calcolaRiepilogo(
   righe: RigaRiepilogo[],
-  opz: { oggi?: string; inizioPeriodo?: string | null; righeArretrato?: RigaRiepilogo[]; troncato?: boolean } = {},
+  opz: { oggi?: string; inizioPeriodo?: string | null; righeArretrato?: RigaRiepilogo[]; troncato?: boolean; effetti?: readonly Effetto[] } = {},
 ): RiepilogoPeriodo {
   const oggi = opz.oggi ?? oggiIso();
   const entrate = vuota();
   const uscite = vuota();
   const linguette = Object.fromEntries(LINGUETTE_CON_CONTEGGIO.map((k) => [k, 0])) as Record<LinguettaConConteggio, number>;
+  // Quota coperta da effetti non ancora scaduti: resta aperta, ma non è scaduta.
+  const coperti = opz.effetti?.length ? copertoPerDirezione(righe, opz.effetti, oggi) : null;
+  if (coperti) { entrate.coperto = { n: 0, importo: 0 }; uscite.coperto = { n: 0, importo: 0 }; }
 
   for (const r of righe) {
     if (r.status === "annullata") continue;
@@ -54,7 +58,10 @@ export function calcolaRiepilogo(
     if (residuo <= 0 || r.status === "pagata") d.saldato.n += 1;
     if (residuo > 0 && r.status !== "pagata") {
       somma(d.aperto, residuo);
-      if (r.due_date && r.due_date < oggi) somma(d.scaduto, residuo);
+      const coperto = (r.id && coperti?.perRiga.get(r.id)) || 0;
+      if (coperto > 0 && d.coperto) somma(d.coperto, coperto);
+      const scaduto = arrotonda(residuo - coperto);
+      if (r.due_date && r.due_date < oggi && scaduto > 0) somma(d.scaduto, scaduto);
     }
 
     linguette.tutte += 1;
@@ -62,7 +69,8 @@ export function calcolaRiepilogo(
     if (eAperta(r)) {
       linguette.aperte += 1;
       if (r.direction === "entrata") linguette.da_incassare += 1; else linguette.da_pagare += 1;
-      if (r.due_date && r.due_date < oggi) linguette.scadute += 1;
+      // Coperta per intero da assegni non scaduti: non è «scaduta», come nell'elenco.
+      if (r.due_date && r.due_date < oggi && !(coperti && r.id && (coperti.perRiga.get(r.id) ?? 0) >= residuoDi(r) - 0.005)) linguette.scadute += 1;
     }
   }
 
@@ -90,7 +98,7 @@ export function giornoPrima(iso: string): string {
 
 /** I filtri di periodo/entità senza quelli di linguetta. */
 export function filtriPeriodo(f: ScadenzarioFilters): ScadenzarioFilters {
-  return { ...f, direction: null, status: null, soloScadute: false, soloAperte: false, soloSenzaData: false };
+  return { ...f, direction: null, status: null, soloScadute: false, escludiIds: null, soloAperte: false, soloSenzaData: false };
 }
 
 export async function leggi(companyId: string, filtri: ScadenzarioFilters): Promise<{ righe: RigaRiepilogo[]; troncato: boolean }> {
@@ -112,7 +120,7 @@ export async function leggi(companyId: string, filtri: ScadenzarioFilters): Prom
 }
 
 /** Al massimo 2 letture di `scadenzario_fonti` (la seconda solo se il periodo ha un inizio). */
-export async function caricaRiepilogoPeriodo(companyId: string, filtriBase: ScadenzarioFilters): Promise<RiepilogoPeriodo> {
+export async function caricaRiepilogoPeriodo(companyId: string, filtriBase: ScadenzarioFilters, effetti?: readonly Effetto[]): Promise<RiepilogoPeriodo> {
   const periodo = filtriPeriodo(filtriBase);
   const inizio = periodo.dateFrom || null;
   const arretratoFiltri: ScadenzarioFilters = { ...periodo, dateFrom: null, dateTo: inizio ? giornoPrima(inizio) : null, includiSenzaData: false, soloAperte: true };
@@ -124,6 +132,7 @@ export async function caricaRiepilogoPeriodo(companyId: string, filtriBase: Scad
     inizioPeriodo: inizio,
     righeArretrato: arretrato?.righe,
     troncato: lettura.troncato || (arretrato?.troncato ?? false),
+    effetti,
   });
 }
 
@@ -134,10 +143,10 @@ export function chiaveRiepilogo(companyId: string | undefined, f: ScadenzarioFil
     f.importoMin ?? null, f.importoMax ?? null, f.soloConNote ?? false, f.soloConDocumento ?? false] as const;
 }
 
-export function useRiepilogoPeriodo(companyId: string | undefined, filtri: ScadenzarioFilters, abilitato: boolean) {
+export function useRiepilogoPeriodo(companyId: string | undefined, filtri: ScadenzarioFilters, abilitato: boolean, effetti?: readonly Effetto[]) {
   return useQuery<RiepilogoPeriodo>({
-    queryKey: chiaveRiepilogo(companyId, filtri),
-    queryFn: () => caricaRiepilogoPeriodo(companyId!, filtri),
+    queryKey: [...chiaveRiepilogo(companyId, filtri), firmaEffetti(effetti)],
+    queryFn: () => caricaRiepilogoPeriodo(companyId!, filtri, effetti),
     enabled: !!companyId && abilitato && !filtri.attendi,
     placeholderData: keepPreviousData,
     staleTime: 30_000,

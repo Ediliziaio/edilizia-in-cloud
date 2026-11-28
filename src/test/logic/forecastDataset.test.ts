@@ -269,7 +269,8 @@ describe("forecast sources", () => {
       ),
     ).toEqual(new Set(["company-A"]));
     const tables = new Set(filters.map((f) => f.table));
-    expect(tables.size).toBe(25);
+    expect(tables.size).toBe(26);
+    expect(tables.has("effetti_elenco")).toBe(true);
     expect(tables.has("previsionale_liquidazioni_iva")).toBe(true);
     expect(tables.has("previsionale_compensazioni_anticipi")).toBe(true);
     for (const table of tables)

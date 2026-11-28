@@ -1,8 +1,13 @@
 import { expect, it, vi } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import MarkPaidDialog from '@/components/scadenzario/MarkPaidDialog';
 import type { Scadenza } from '@/hooks/useScadenzario';
+vi.mock('@/integrations/supabase/client',()=>({supabase:{rpc:async():Promise<{data:unknown[];error:null}>=>({data:[],error:null})}}));
+vi.mock('@/hooks/usePermissions',()=>({usePermissions:()=>({solaLettura:false,canManagePayments:true,isAdmin:true})}));
 vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => false }));
+const wrap=({children}:{children:ReactNode})=><QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}>{children}</QueryClientProvider>;
 const base: Scadenza = {
  id:'demo', company_id:'demo', tipo:'incasso_cliente', direction:'entrata',description:'Prova incasso',amount:10,paid_amount:0,due_date:'2026-11-05',status:'da_pagare',
  paid_date:null,payment_method:null,invoice_id:null,order_id:null,supplier_id:null,cost_id:null,contact_id:null,order_item_id:null,prima_nota_entry_id:null,
@@ -10,7 +15,7 @@ const base: Scadenza = {
 };
 it('UX-82: distingue incasso e pagamento senza registrare movimenti', () => {
  const confirm=vi.fn(); const props={open:true,onOpenChange:vi.fn(),onConfirm:confirm,isPending:false};
- const {rerender}=render(<MarkPaidDialog {...props} scadenza={base}/>);
+ const {rerender}=render(<MarkPaidDialog {...props} scadenza={base}/>,{wrapper:wrap});
  expect(screen.getByRole('heading',{name:'Registra incasso'})).toBeInTheDocument();
  expect(screen.getByLabelText('Importo incassato')).toHaveValue(10);
  rerender(<MarkPaidDialog {...props} scadenza={{...base,id:'uscita',direction:'uscita',tipo:'pagamento_fornitore'}}/>);

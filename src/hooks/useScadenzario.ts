@@ -94,6 +94,8 @@ export interface ScadenzarioFilters {
   /** Solo le scadute: aperte (da pagare o parziali) con scadenza passata. Prima
    *  la linguetta «Scadute» non passava nessun filtro e mostrava tutte. */
   soloScadute?: boolean;
+  /** Righe da lasciar fuori (id di `scadenzario_fonti`): quelle coperte per intero da assegni non ancora scaduti. Solo sotto «Scadute». */
+  escludiIds?: string[] | null;
   /** Incassi e pagamenti ancora aperti, incluse le rate parziali. */
   soloAperte?: boolean;
   /** Tipo di scadenza (incasso_cliente, pagamento_fornitore…): il filtro
@@ -133,10 +135,10 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
 
-  const { direction, status, dateFrom, dateTo, search, soloScadute, soloAperte, tipo, metodo, includiSenzaData, soloSenzaData, annoGrafico, supplierId, orderId, orderCostIds, attendi, importoMin, importoMax, soloConNote, soloConDocumento } = filters;
+  const { direction, status, dateFrom, dateTo, search, soloScadute, escludiIds, soloAperte, tipo, metodo, includiSenzaData, soloSenzaData, annoGrafico, supplierId, orderId, orderCostIds, attendi, importoMin, importoMax, soloConNote, soloConDocumento } = filters;
 
   const scadenzeQuery = useQuery({
-    queryKey: [...queryKeys.scadenzario.list(companyId), page, pageSize, direction, status, dateFrom, dateTo, search, soloScadute ?? false, tipo ?? null, soloAperte ?? false, metodo ?? null, includiSenzaData ?? false, soloSenzaData ?? false, supplierId ?? null, orderId ?? null, orderCostIds?.join(",") ?? null, importoMin ?? null, importoMax ?? null, soloConNote ?? false, soloConDocumento ?? false],
+    queryKey: [...queryKeys.scadenzario.list(companyId), page, pageSize, direction, status, dateFrom, dateTo, search, soloScadute ?? false, escludiIds?.join(",") ?? null, tipo ?? null, soloAperte ?? false, metodo ?? null, includiSenzaData ?? false, soloSenzaData ?? false, supplierId ?? null, orderId ?? null, orderCostIds?.join(",") ?? null, importoMin ?? null, importoMax ?? null, soloConNote ?? false, soloConDocumento ?? false],
     queryFn: async () => {
       const query = filtraScadenzario(queryFontiScadenzario(companyId!)
         .select(`*, suppliers(name), invoices(invoice_number, client_company_name, issue_date),

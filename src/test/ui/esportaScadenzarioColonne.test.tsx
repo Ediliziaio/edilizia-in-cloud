@@ -29,7 +29,7 @@ describe("EsportaScadenzario: scelta delle colonne", () => {
   it("parte dalle colonne della tabella e scarica il CSV con solo quelle", async () => {
     monta(["scadenza", "controparte", "importo"]);
     const d = await apri();
-    expect(conteggio()).toBe("3 colonne su 11");
+    expect(conteggio()).toBe("3 colonne su 12");
     fireEvent.click(d.getByRole("button", { name: "CSV" }));
     await waitFor(() => expect(state.exportCsv).toHaveBeenCalledOnce());
     expect(state.exportCsv.mock.calls[0][0]).toEqual([{ data: "2026-11-30", controparte: "ALFA SPA", importo: "100", tipo: "Pagamento" }]);
@@ -40,7 +40,7 @@ describe("EsportaScadenzario: scelta delle colonne", () => {
     const { unmount } = monta(["scadenza", "importo"]);
     const d = await apri();
     fireEvent.click(d.getByRole("checkbox", { name: "Stato" }));
-    expect(conteggio()).toBe("3 colonne su 11");
+    expect(conteggio()).toBe("3 colonne su 12");
     fireEvent.click(d.getByRole("button", { name: "Sposta Stato a sinistra" }));
     fireEvent.click(d.getByRole("button", { name: "Sposta Stato a sinistra" }));
     fireEvent.click(d.getByRole("button", { name: "CSV" }));
@@ -51,18 +51,18 @@ describe("EsportaScadenzario: scelta delle colonne", () => {
     // riaprendo, l'ultima scelta c'è ancora anche se la tabella dice altro
     monta(["scadenza"]);
     const d2 = await apri();
-    expect(conteggio()).toBe("3 colonne su 11");
+    expect(conteggio()).toBe("3 colonne su 12");
     fireEvent.click(d2.getByRole("button", { name: "Come la tabella" }));
-    expect(conteggio()).toBe("1 colonna su 11");
+    expect(conteggio()).toBe("1 colonna su 12");
     fireEvent.click(d2.getByRole("button", { name: "Tutte" }));
-    expect(conteggio()).toBe("11 colonne su 11");
+    expect(conteggio()).toBe("12 colonne su 12");
   });
 
   it("non lascia spegnere l'ultima colonna", async () => {
     monta(["importo"]);
     const d = await apri();
     fireEvent.click(d.getByRole("checkbox", { name: "Importo" }));
-    expect(conteggio()).toBe("1 colonna su 11");
+    expect(conteggio()).toBe("1 colonna su 12");
     expect(d.getByText("Serve almeno una colonna.")).toBeInTheDocument();
   });
 });

@@ -27,7 +27,7 @@ interface Props {
   settimanaInErrore?: boolean;
 }
 
-function Riga({ nome, breve, s, tono, extra, extraTono }: { nome: string; breve: string; s: Somma; tono?: string; extra?: string; extraTono?: string }) {
+function Riga({ nome, breve, s, tono, extra, extraTono, coperto }: { nome: string; breve: string; s: Somma; tono?: string; extra?: string; extraTono?: string; coperto?: string }) {
   return (
     <p className="flex min-w-0 items-baseline gap-1 text-xs leading-tight">
       <span className="w-[2.6rem] shrink-0 truncate text-[10px] text-muted-foreground sm:w-[4.2rem] sm:text-xs">
@@ -35,7 +35,7 @@ function Riga({ nome, breve, s, tono, extra, extraTono }: { nome: string; breve:
       </span>
       <span className={cn("shrink-0 text-xs font-bold tabular-nums sm:text-sm", tono)}>{eur(s.importo)}</span>
       {/* Da telefono il numero delle scadenze e lo scaduto non c'entrano: restano nel titolo del riquadro e nell'elenco. */}
-      <span className="hidden min-w-0 truncate text-[10px] text-muted-foreground sm:inline">{s.n}{extra ? <> · <span className={extraTono}>{extra}</span></> : ""}</span>
+      <span className="hidden min-w-0 truncate text-[10px] text-muted-foreground sm:inline">{s.n}{extra ? <> · <span className={extraTono}>{extra}</span></> : ""}{coperto ? <> · <span data-testid="di-cui-effetti" className="text-sky-700 dark:text-sky-400">{coperto}</span></> : ""}</span>
     </p>
   );
 }
@@ -99,6 +99,8 @@ function RiquadriPeriodo({ riepilogo: r, inErrore, attivo, conArretrato, onScegl
     </div>;
   }
   const avviso = r.troncato ? t("parziale") : undefined;
+  // «di cui X in assegni»: la quota aperta già coperta da effetti non scaduti (non è pagata, non è scaduta).
+  const diCuiEffetti = (c?: Somma) => (c && c.importo > 0 ? t("di cui {importo} in assegni", { importo: eur(c.importo) }) : undefined);
   return (
     <div role="group" aria-label={t("Riepilogo del periodo")} className={cn("grid grid-cols-2 gap-2 lg:grid-cols-4", className)}>
       {riquadro("scade", t("Scade")+"|"+t("Scade nel periodo"), <>
@@ -110,8 +112,8 @@ function RiquadriPeriodo({ riepilogo: r, inErrore, attivo, conArretrato, onScegl
         <Riga nome={t("Pagato")} breve={t("Pagato")} s={r.uscite.saldato} />
       </>, false, avviso)}
       {riquadro("aperto", t("Aperto")+"|"+t("Da incassare / pagare"), <>
-        <Riga nome={t("Incassare")} breve={t("Incass.")} s={r.entrate.aperto} extra={r.entrate.scaduto.importo > 0 ? t("scaduto {importo}", { importo: eur(r.entrate.scaduto.importo) }) : undefined} extraTono="font-medium text-rose-600 dark:text-rose-400" />
-        <Riga nome={t("Pagare")} breve={t("Pagare")} s={r.uscite.aperto} extra={r.uscite.scaduto.importo > 0 ? t("scaduto {importo}", { importo: eur(r.uscite.scaduto.importo) }) : undefined} extraTono="font-medium text-rose-600 dark:text-rose-400" />
+        <Riga nome={t("Incassare")} breve={t("Incass.")} s={r.entrate.aperto} extra={r.entrate.scaduto.importo > 0 ? t("scaduto {importo}", { importo: eur(r.entrate.scaduto.importo) }) : undefined} extraTono="font-medium text-rose-600 dark:text-rose-400" coperto={diCuiEffetti(r.entrate.coperto)} />
+        <Riga nome={t("Pagare")} breve={t("Pagare")} s={r.uscite.aperto} extra={r.uscite.scaduto.importo > 0 ? t("scaduto {importo}", { importo: eur(r.uscite.scaduto.importo) }) : undefined} extraTono="font-medium text-rose-600 dark:text-rose-400" coperto={diCuiEffetti(r.uscite.coperto)} />
       </>, false, avviso)}
       {conArretrato && r.arretrato
         ? riquadro("arretrato", t("Arretrato")+"|"+t("Arretrato dai mesi prima"), <>

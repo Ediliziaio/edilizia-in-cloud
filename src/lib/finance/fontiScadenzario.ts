@@ -16,6 +16,9 @@ export function queryFontiScadenzario(companyId: string, opzioni: { conteggio?: 
   return supabase.rpc("scadenzario_fonti", { p_company_id: companyId }, opzioni.conteggio === false ? undefined : { count: "exact" });
 }
 
+/** Tetto agli id esclusi nell'URL. */
+export const MAX_ID_ESCLUSI = 200;
+
 /** Lista e CSV devono applicare gli stessi filtri, anche alle fonti senza data. */
 export function filtraScadenzario<Q>(query: Q, f: ScadenzarioFilters): Q {
   // Mantiene il tipo della select (che può includere relazioni diverse).
@@ -23,7 +26,7 @@ export function filtraScadenzario<Q>(query: Q, f: ScadenzarioFilters): Q {
     eq(k: string, v: string): Filtrabile; neq(k: string, v: string): Filtrabile;
     in(k: string, v: string[]): Filtrabile; is(k: string, v: null): Filtrabile;
     lt(k: string, v: string): Filtrabile; gte(k: string, v: number): Filtrabile; lte(k: string, v: number): Filtrabile; ilike(k: string, v: string): Filtrabile;
-    or(v: string): Filtrabile;
+    or(v: string): Filtrabile; not(k: string, op: string, v: string): Filtrabile;
   }
   let q = query as unknown as Filtrabile;
   if (f.search?.trim()) q = q.ilike("description", `%${f.search.trim()}%`);
@@ -40,6 +43,8 @@ export function filtraScadenzario<Q>(query: Q, f: ScadenzarioFilters): Q {
   }
   if (f.soloSenzaData && f.metodo) q = q.or(filtroMetodo(f.metodo));
   if (f.soloScadute) q = q.lt("due_date", new Date().toLocaleDateString("en-CA"));
+  // Coperte da assegni non ancora scaduti: oltre il tetto non si filtra (meglio una riga di troppo che un URL rotto).
+  if (f.escludiIds?.length && f.escludiIds.length <= MAX_ID_ESCLUSI) q = q.not("id", "in", `(${f.escludiIds.map((id) => `"${id.replace(/"/g, "")}"`).join(",")})`);
   if (f.tipo) q = q.eq("tipo", f.tipo);
   if (f.importoMin != null && Number.isFinite(f.importoMin)) q = q.gte("amount", f.importoMin);
   if (f.importoMax != null && Number.isFinite(f.importoMax)) q = q.lte("amount", f.importoMax);

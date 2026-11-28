@@ -34,6 +34,10 @@ import MarkPaidDialog from "@/components/scadenzario/MarkPaidDialog";
 import NewScadenzaDialog from "@/components/scadenzario/NewScadenzaDialog";
 import AdempimentiFiscali from "@/components/scadenzario/AdempimentiFiscali";
 import { IncassiPerSettimanaVista } from "@/components/scadenzario/IncassiPerSettimana";
+import { EffettiPanel } from "@/components/scadenzario/EffettiPanel";
+import ChiudiEffettoDialog from "@/components/scadenzario/ChiudiEffettoDialog";
+import { useEffettiElenco, type Effetto as EffettoLetto } from "@/hooks/useEffetti";
+import { effettiPerRiga, idCoperti, testoEffettiExport } from "@/lib/finance/effettiScadenzario";
 import { TablePagination } from "@/components/ui/table-pagination";
 import type { Scadenza } from "@/hooks/useScadenzario";
 import { useAuth } from "@/contexts/AuthContext";
@@ -142,7 +146,7 @@ export default function Scadenzario() {
   // Si apre su «Tutte» e sul mese corrente (28/11/2026): i riquadri dicono cosa è aperto, scaduto e pagato.
   const [tab, setTab] = useState(() => { const v = params.get("vista"); return v && VISTE_ELENCO.includes(v) ? v : "tutte"; });
   // Strumenti separati dall'elenco: si aprono in un pannello e non cambiano l'impaginazione.
-  const [strumento, setStrumento] = useState<"settimane" | "adempimenti" | null>(null);
+  const [strumento, setStrumento] = useState<"settimane" | "adempimenti" | "effetti" | null>(null);
   const [graficoAperto, setGraficoAperto] = useState(leggiGraficoAperto);
   const alternaGrafico = () => setGraficoAperto((v) => {
     try { localStorage.setItem(CHIAVE_GRAFICO_MESI, v ? "0" : "1"); } catch { /* solo comodità */ }
@@ -274,6 +278,25 @@ export default function Scadenzario() {
   const annoDelGrafico = leggiMese(datePreset)?.anno ?? (yearFilter !== "all" ? Number(yearFilter) : null);
   const conGraficoMesi = !vistaCompatta && annoDelGrafico !== null && tab !== "senza_data" && tab !== "annullate";
 
+  // Assegni, Ri.Ba. e RID in attesa (28/11/2026): badge sulla riga, quota coperta nei riquadri, colonna «Effetti» dell'esportazione.
+  // Se la lettura non riesce lo Scadenzario funziona come prima.
+  const effettiQuery = useEffettiElenco(companyId, ["in_attesa"]);
+  const effettiAperti = useMemo(() => (Array.isArray(effettiQuery.data) ? effettiQuery.data : []), [effettiQuery.data]);
+  const effettiRiga = useMemo(() => effettiPerRiga(effettiAperti), [effettiAperti]);
+  // Sotto «Scadute» non compaiono le righe coperte per intero da assegni non scaduti: elenco, numero e CSV.
+  const idEffetti = useMemo(() => [...effettiRiga.keys()].sort(), [effettiRiga]);
+  const copertiQuery = useQuery({
+    queryKey: ["scadenzario", "coperti-da-effetti", companyId, idEffetti.join(",")],
+    enabled: !!companyId && tab === "scadute" && idEffetti.length > 0 && idEffetti.length <= 200,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data, error } = await queryFontiScadenzario(companyId!, { conteggio: false }).select("id, amount, paid_amount").in("id", idEffetti);
+      if (error) throw error;
+      return idCoperti((data ?? []) as unknown as { id: string; amount: number; paid_amount: number }[], effettiAperti);
+    },
+  });
+  const escludiCoperti = useMemo(() => (tab === "scadute" && copertiQuery.data?.length ? copertiQuery.data : null), [tab, copertiQuery.data]);
+  const [daChiudere, setDaChiudere] = useState<EffettoLetto | null>(null);
   const serverFilters: ScadenzarioFilters = useMemo(() => ({
     includiSenzaData: !datePreset || tab === "senza_data",
     soloSenzaData: tab === "senza_data",
@@ -283,6 +306,7 @@ export default function Scadenzario() {
     dateTo: serverDateRange?.to ?? null,
     search: searchServer || null,
     soloScadute: tab === "scadute",
+    escludiIds: escludiCoperti,
     soloAperte: tab === "aperte" || tab === "da_incassare" || tab === "da_pagare",
     supplierId: filterFornitore?.id ?? null,
     orderId: filterCommessa?.id ?? null,
@@ -294,7 +318,7 @@ export default function Scadenzario() {
     // L'anno del grafico viaggia coi totali: i dodici mesi arrivano insieme al
     // riepilogo, da una sola costruzione dello scadenzario (23/11/2026).
     annoGrafico: conGraficoMesi ? annoDelGrafico : null,
-  }), [tabDirection, tabStatus, serverDateRange, searchServer, tab, filterMetodo, filterFornitore, filterCommessa, filterAltri, costiCommessa.data, datePreset, conGraficoMesi, annoDelGrafico]);
+  }), [tabDirection, tabStatus, serverDateRange, searchServer, tab, filterMetodo, filterFornitore, filterCommessa, filterAltri, costiCommessa.data, datePreset, conGraficoMesi, annoDelGrafico, escludiCoperti]);
 
   const { scadenze, isLoading, isError, refetch, totalCount, totalPages, summary, mesiScadenze: mesiDalServer, markPaid, create, cancel, cancelMany, update, annullaIncasso, updateNotes } = useScadenzario(page, pageSize, serverFilters);
   const [daAnnullare, setDaAnnullare] = useState<Scadenza | null>(null);
@@ -330,7 +354,7 @@ export default function Scadenzario() {
     const complete = await completaCommesseScadenze(companyId, data as unknown as Scadenza[]);
     const complete2 = await completaPerEsportazione(companyId, complete);
     const note = await noteFattureScadenze(companyId, complete2);
-    return complete2.map((s) => ({ ...s, note_export: note.get(s.id) ?? "" }) as Scadenza);
+    return complete2.map((s) => ({ ...s, note_export: note.get(s.id) ?? "", effetti_export: testoEffettiExport(effettiRiga.get(s.id)) }) as Scadenza);
   };
   const dataBreve = (iso: string) => iso.split("-").reverse().join("/");
   const nomeMeseEsportazione = (() => { const m = leggiMese(datePreset); return m ? new Date(m.anno, m.mese - 1, 1).toLocaleDateString("it-IT", { month: "long", year: "numeric" }) : null; })();
@@ -391,7 +415,7 @@ export default function Scadenzario() {
   }), [serverFilters, periodoRange, datePreset, inArretrato, ritornoPeriodo]);
   // «Personalizzato» senza date è «tutto il tempo»: non si legge, i riquadri aspettano le date.
   const senzaDatePersonalizzato = !filtriRiepilogo.dateFrom && !filtriRiepilogo.dateTo && (inArretrato ? ritornoPeriodo!.preset : datePreset) === "custom";
-  const riepilogoQuery = useRiepilogoPeriodo(companyId, filtriRiepilogo, !ricercaInAttesa && !dateInvertite && !senzaDatePersonalizzato);
+  const riepilogoQuery = useRiepilogoPeriodo(companyId, filtriRiepilogo, !ricercaInAttesa && !dateInvertite && !senzaDatePersonalizzato, effettiAperti);
   const riepilogo = ricercaInAttesa || dateInvertite || senzaDatePersonalizzato ? undefined : riepilogoQuery.data;
   const settimanaQuery = useSettimanaScadenzario(companyId, filtriRiepilogo, !ricercaInAttesa && !dateInvertite);
   // In arretrato i riquadri restano quelli del mese, ma l'elenco mostra il periodo «fino al…»:
@@ -459,6 +483,7 @@ export default function Scadenzario() {
     { value: "pagate", label: tr("Pagate") },
     ...viste,
     { value: "strumento:settimane", label: tr("Per settimana") },
+    { value: "strumento:effetti", label: tr("Assegni ed effetti") },
     { value: "strumento:adempimenti", label: tr("Adempimenti fiscali") },
     ...((summary?.senza_data_count || tab === "senza_data") ? [{ value: "senza_data", label: tr("Senza data") }] : []),
   ];
@@ -577,6 +602,7 @@ export default function Scadenzario() {
               <DropdownMenuItem onSelect={() => { setTab("annullate"); setPage(1); }}>{tr("Annullate")}</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => setStrumento("settimane")}>{tr("Per settimana")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setStrumento("effetti")}>{tr("Assegni ed effetti")}</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setStrumento("adempimenti")}>{tr("Adempimenti fiscali")}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -653,6 +679,7 @@ export default function Scadenzario() {
               azione={tr("Annulla selezionate")} inCorso={cancelMany.isPending} escluse={escluse} onPagina={selezione.pagina} onAzione={() => void annullaSelezionate()} />}
             <ErroriOperazioneRighe errori={erroriAnnullamento} />
             <ScadenzarioTable
+              effetti={effettiRiga}
               rimandoVuoto={rimandoVuoto}
               colonne={colonneScadenze.colonne}
               scadenze={filtered}
@@ -712,7 +739,7 @@ export default function Scadenzario() {
         <GruppoFiltri>
           <SceltaFiltro titolo={tr("Vista")} valore={tab} scelte={visteCompatte}
             onScegli={v => {
-              if (v.startsWith("strumento:")) { setFiltriMobileAperti(false); setStrumento(v.slice(10) as "settimane" | "adempimenti"); return; }
+              if (v.startsWith("strumento:")) { setFiltriMobileAperti(false); setStrumento(v.slice(10) as "settimane" | "adempimenti" | "effetti"); return; }
               setTab(v); setPage(1);
             }} />
           {inArretrato && ritornoPeriodo && tab !== "senza_data" && (
@@ -756,6 +783,14 @@ export default function Scadenzario() {
           <div className="mt-4"><IncassiPerSettimanaVista cerca={search} /></div>
         </SheetContent>
       </Sheet>
+      <Sheet open={strumento === "effetti"} onOpenChange={(o) => !o && setStrumento(null)}>
+        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-3xl">
+          <SheetHeader><SheetTitle>{tr("Assegni ed effetti")}</SheetTitle></SheetHeader>
+          <div className="mt-4">{strumento === "effetti" && <EffettiPanel companyId={companyId} azienda={effectiveCompany?.name ?? undefined}
+            onAzione={!permessi.solaLettura ? setDaChiudere : undefined} />}</div>
+        </SheetContent>
+      </Sheet>
+      <ChiudiEffettoDialog effetto={daChiudere} open={!!daChiudere} onOpenChange={(o) => !o && setDaChiudere(null)} />
       <Sheet open={strumento === "adempimenti"} onOpenChange={(o) => !o && setStrumento(null)}>
         <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-4xl">
           <SheetHeader><SheetTitle>{tr("Adempimenti fiscali")}</SheetTitle></SheetHeader>
@@ -767,6 +802,7 @@ export default function Scadenzario() {
       {scadenzaAperta && (
         <ScadenzaDettaglio
           scadenza={scadenzaAperta}
+          effetti={effettiRiga.get(scadenzaAperta.id)}
           onClose={() => setDettaglio(null)}
           onMarkPaid={(x) => { setDettaglio(null); apriPagamento(x); }}
           pagaSulPosto={pagaSulPosto}

@@ -23,6 +23,11 @@ export interface RiepilogoDirezione {
   aperto: Somma;
   /** La parte di `aperto` già scaduta (scadenza prima di oggi). */
   scaduto: Somma;
+  /**
+   * La parte di `aperto` coperta da assegni/effetti non ancora scaduti (28/11/2026): resta aperta,
+   * non è pagata e non è scaduta. Assente se non ci sono effetti.
+   */
+  coperto?: Somma;
 }
 
 export interface RiepilogoPeriodo {

@@ -19,6 +19,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { toast } from 'sonner';
 import { AnticipoFornitoreForm } from "./AnticipoFornitoreForm";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { metodiConEffetto, residuoLibero, tipoEffettoDaMetodo, useEffettiFonte, useRateCosto, useRegistraEffetto } from "@/hooks/useEffetti";
 
 export type { ExpensePaymentDetail } from '@/hooks/useExpensePaymentDetail';
 /**
@@ -27,7 +28,7 @@ export type { ExpensePaymentDetail } from '@/hooks/useExpensePaymentDetail';
  * il conto già scelto se ce n'è uno solo: si conferma con un clic. Prima «Segna pagata» dallo
  * scadenzario portava alla pagina Costi, e da lì riepilogo, popup, modulo.
  */
-export function ExpensePaymentDialog({ costId, onClose, importoProposto, apriInRegistrazione = false, inline = false }: {costId: string; onClose: () => void; importoProposto?: number; apriInRegistrazione?: boolean; /** Dentro una scheda che mostra già il riepilogo del pagato: senza Dialog e senza secondo riepilogo. */ inline?: boolean}) {
+export function ExpensePaymentDialog({ costId, onClose, importoProposto, apriInRegistrazione = false, inline = false, rataFornitoreId = null }: {costId: string; /** Preselezione della rata su un costo a rate (oggi nessun chiamante la passa: la rata si sceglie nella tendina). */ rataFornitoreId?: string | null; onClose: () => void; importoProposto?: number; apriInRegistrazione?: boolean; /** Dentro una scheda che mostra già il riepilogo del pagato: senza Dialog e senza secondo riepilogo. */ inline?: boolean}) {
   const t = useT();
   const qc = useQueryClient();
   const permissions = usePermissions();
@@ -42,6 +43,9 @@ export function ExpensePaymentDialog({ costId, onClose, importoProposto, apriInR
   const [formChiuso, setFormChiuso] = useState(false);
   const [compensazione, setCompensazione] = useState(false);
   const [contoScelto, setConto] = useState('');
+  const [numeroEffetto, setNumeroEffetto] = useState('');
+  const [bancaEffetto, setBancaEffetto] = useState('');
+  const [rataScelta, setRataScelta] = useState('');
   const detail = useExpensePaymentDetail(costId);
   const dati = detail.data;
   // Il server conosce anche la delega effettiva e la compatibilità con la Prima Nota.
@@ -60,6 +64,23 @@ export function ExpensePaymentDialog({ costId, onClose, importoProposto, apriInR
   const scelto = disponibili.find(c => c.valore === conto);
   const importo = importoPagamento(amount);
   const oggi = new Date().toLocaleDateString('en-CA');
+  const conEffetto = metodiConEffetto(method);
+  const dataFutura = conEffetto && date > oggi;
+  const effettiFonte = useEffettiFonte(dati?.company_id, { costId }, editing && !!dati);
+  const rateCosto = useRateCosto(costId, editing && dataFutura);
+  const rate = rateCosto.data ?? [];
+  const rateAperte = rate.filter(r => r.stato !== 'pagata');
+  const richiedeRata = dataFutura && rate.length > 0;
+  const rataId = rataScelta || rataFornitoreId || (rateAperte.length === 1 ? rateAperte[0].id : '');
+  const rataCorrente = rateAperte.find(r => r.id === rataId);
+  const coperto = richiedeRata ? effettiFonte.effetti.filter(e => e.rata_fornitore_id === rataId).reduce((a, e) => a + Number(e.importo || 0), 0) : effettiFonte.coperto;
+  // Con una rata scelta il tetto è il libero di quella rata; altrimenti quello del costo.
+  const libero = dati ? residuoLibero(richiedeRata && rataCorrente ? Math.min(Number(rataCorrente.importo ?? dati.residuo), Number(dati.residuo)) : Number(dati.residuo), coperto) : 0;
+  const rataMancante = richiedeRata && !rataCorrente;
+  // Caso raro: il costo ha ancora residuo ma tutte le rate risultano pagate. Senza una riga di
+  // spiegazione il pulsante resterebbe chiuso senza dire perche'.
+  const rateTutteSaldate = richiedeRata && rateAperte.length === 0;
+  const registraEffetto = useRegistraEffetto();
   const pay = useMutation({
     mutationFn: () => {
       if (importo == null || importo <= 0) throw new Error(t("Indica un importo con al massimo due decimali."));
@@ -69,6 +90,16 @@ export function ExpensePaymentDialog({ costId, onClose, importoProposto, apriInR
     onError: (e: Error) => { void detail.refetch(); toast.error(e.message); },
   });
   const d = detail.data;
+  const registraAssegno = () => {
+    if (importo == null || importo <= 0 || !d) return;
+    registraEffetto.mutate({
+      fonteTipo: 'costo', fonteId: costId, rataFornitoreId: richiedeRata ? rataId : null, tipo: tipoEffettoDaMetodo(method), direzione: 'emesso',
+      numero: numeroEffetto, banca: bancaEffetto, importo, dataEmissione: oggi, dataScadenza: date, note: reference || null,
+    }, {
+      onSuccess: () => { setEditing(false); setFormChiuso(true); setAmount(null); setReference(''); setNumeroEffetto(''); setBancaEffetto(''); setRataScelta(''); setDate(oggi); toast.success(t("Assegno registrato: il costo resta aperto fino al pagamento")); },
+      onError: (e: Error) => toast.error(e.message),
+    });
+  };
   const resetRequest = () => setRequestId(crypto.randomUUID());
   // In banca c'è già? Va collegato, non riscritto: altrimenti il pagamento risulta due volte.
   const proposti = usePagamentiBancaProposti(costId, permissions.canViewTesoreria || permissions.canManagePayments || permissions.isAdmin);
@@ -123,11 +154,15 @@ export function ExpensePaymentDialog({ costId, onClose, importoProposto, apriInR
         </tbody></table></div>
         {compensazione && <AnticipoFornitoreForm costId={costId} residuo={Number(d.residuo)} onClose={() => setCompensazione(false)} />}
         {editing && <div className="commessa-payment-form space-y-3 rounded-lg border bg-muted/20 p-4"><p className="text-sm font-medium">{t("Registra un pagamento già eseguito")}</p><p className="text-xs text-muted-foreground">{t("Indica solo questa quota. Puoi aggiungerne altre, anche in contanti o da un’altra banca.")}</p>
-          <div className="grid grid-cols-2 gap-3"><div><Label htmlFor="expense-amount">{t("Importo")}</Label><Input id="expense-amount" inputMode="decimal" value={amount} onChange={e=>{setAmount(e.target.value);resetRequest();}}/></div><div><Label htmlFor="expense-date">{t("Data")}</Label><Input id="expense-date" type="date" max={new Date().toLocaleDateString('en-CA')} value={date} onChange={e=>{setDate(e.target.value);resetRequest();}}/></div></div>
-          <div className="flex flex-wrap gap-3 text-xs"><Button variant="link" size="sm" className="h-auto min-h-0 p-0 text-xs" disabled={!d || Math.round(d.residuo*100)<2} onClick={() => {setAmount(String(Math.floor(Math.round(d!.residuo*100)/2)/100));resetRequest();}}>{t("Metà del residuo")}</Button><Button variant="link" size="sm" className="h-auto min-h-0 p-0 text-xs" onClick={() => {setAmount(String(d!.residuo));resetRequest();}}>{t("Intero residuo")}</Button></div>
+          <div className="grid grid-cols-2 gap-3"><div><Label htmlFor="expense-amount">{t("Importo")}</Label><Input id="expense-amount" inputMode="decimal" value={amount} onChange={e=>{setAmount(e.target.value);resetRequest();}}/></div><div><Label htmlFor="expense-date">{conEffetto ? (method === 'assegno' ? t("Data dell'assegno") : t("Data effetto")) : t("Data")}</Label><Input id="expense-date" type="date" max={conEffetto ? undefined : oggi} value={date} onChange={e=>{setDate(e.target.value);resetRequest();}}/></div></div>
+          <div className="flex flex-wrap gap-3 text-xs"><Button variant="link" size="sm" className="h-auto min-h-0 p-0 text-xs" disabled={!d || Math.round(libero*100)<2} onClick={() => {setAmount(String(Math.floor(Math.round(libero*100)/2)/100));resetRequest();}}>{t("Metà del residuo")}</Button><Button variant="link" size="sm" className="h-auto min-h-0 p-0 text-xs" onClick={() => {setAmount(String(libero));resetRequest();}}>{t("Intero residuo")}</Button></div>
           <div className="grid grid-cols-2 gap-3"><div><Label htmlFor="expense-method">{t("Metodo")}</Label><OfficeSelect id="expense-method" label={t("Metodo")} value={method} onValueChange={v=>{setMethod(v);setConto('');resetRequest();}}
             options={[{value:'bonifico',label:t("Bonifico")},{value:'rid',label:'RID / SDD'},{value:'ri.ba',label:'Ri.Ba.'},{value:'carta',label:t("Carta")},{value:'contanti',label:t("Contanti")},{value:'assegno',label:t("Assegno")},{value:'altro',label:t("Altro")}]} /></div><div><Label htmlFor="expense-reference">{t("Riferimento")}</Label><Input id="expense-reference" maxLength={500} value={reference} onChange={e=>{setReference(e.target.value);resetRequest();}} placeholder={t("CRO o nota")}/></div></div>
-          {conti.isError ? <p role="alert" className="text-sm text-destructive">{t("Non riesco a leggere i conti.")} <Button variant="link" onClick={() => void conti.refetch()}>{t("Riprova")}</Button></p> : disponibili.length > 0 ? <div><Label htmlFor="expense-account">{t("Conto del pagamento")}</Label><OfficeSelect id="expense-account" label={t("Conto del pagamento")} value={conto} onValueChange={v => {setConto(v);resetRequest();}} options={[{value:'',label:t("Scegli il conto effettivo…")},...disponibili.map(c => ({value:c.valore,label:c.etichetta}))]} /></div> : conti.isFetching ? <p role="status" className="text-xs">{t("Caricamento conti…")}</p> : <p className="text-xs text-muted-foreground">{method === 'contanti' ? t("Il movimento sarà registrato in cassa.") : t("Nessun conto specifico disponibile per il tuo accesso: il movimento userà il conto Banca.")}</p>}
+          {conEffetto && <div className="grid grid-cols-2 gap-3"><div><Label htmlFor="expense-effetto-numero">{method === 'assegno' ? t("Numero assegno") : t("Numero")}</Label><Input id="expense-effetto-numero" maxLength={60} value={numeroEffetto} onChange={e=>setNumeroEffetto(e.target.value)}/></div><div><Label htmlFor="expense-effetto-banca">{t("Banca")}</Label><Input id="expense-effetto-banca" maxLength={120} value={bancaEffetto} onChange={e=>setBancaEffetto(e.target.value)}/></div></div>}
+          {rateTutteSaldate && <p className="text-xs text-amber-700">{t("Le rate di questo costo risultano tutte pagate: per registrare un assegno, riapri la rata dalla fattura fornitore.")}</p>}
+          {richiedeRata && <div><Label htmlFor="expense-effetto-rata">{t("Rata")}</Label><OfficeSelect id="expense-effetto-rata" label={t("Rata")} value={rataId} onValueChange={v=>setRataScelta(v)} options={[{value:'',label:t("Scegli la rata…")},...rateAperte.map(r => ({value:r.id,label:`${t("Rata {n} di {tot}", {n:String(r.numero),tot:String(rate.length)})} · ${r.scadenza ? r.scadenza.split('-').reverse().join('/') : '—'} · ${formatCurrency(Number(r.importo ?? 0))}`}))]} />{rataMancante && <p className="text-xs text-muted-foreground">{t("Scegli la rata che l'assegno copre")}</p>}</div>}
+          {effettiFonte.effetti.length > 0 && <p className="text-xs text-muted-foreground">{t("Già coperti {importo} da {n} assegni/effetti in attesa. Residuo libero: {libero}", { importo: formatCurrency(coperto), n: String(effettiFonte.effetti.length), libero: formatCurrency(libero) })}</p>}
+          {dataFutura ? <p className="text-xs text-muted-foreground">{t("Data futura: sarà registrato un assegno in attesa, il costo non risulta pagato finché non viene incassato.")}</p> : conti.isError ? <p role="alert" className="text-sm text-destructive">{t("Non riesco a leggere i conti.")} <Button variant="link" onClick={() => void conti.refetch()}>{t("Riprova")}</Button></p> : disponibili.length > 0 ? <div><Label htmlFor="expense-account">{t("Conto del pagamento")}</Label><OfficeSelect id="expense-account" label={t("Conto del pagamento")} value={conto} onValueChange={v => {setConto(v);resetRequest();}} options={[{value:'',label:t("Scegli il conto effettivo…")},...disponibili.map(c => ({value:c.valore,label:c.etichetta}))]} /></div> : conti.isFetching ? <p role="status" className="text-xs">{t("Caricamento conti…")}</p> : <p className="text-xs text-muted-foreground">{method === 'contanti' ? t("Il movimento sarà registrato in cassa.") : t("Nessun conto specifico disponibile per il tuo accesso: il movimento userà il conto Banca.")}</p>}
         </div>}
       </>}
   </>;
@@ -136,7 +171,7 @@ export function ExpensePaymentDialog({ costId, onClose, importoProposto, apriInR
         {d?.puo_compensare && !d.da_verificare && d.residuo > 0 && !editing && !compensazione && (
           <Button variant="outline" onClick={() => setCompensazione(true)}>{t("Compensa con un anticipo")}</Button>
         )}
-        {d && !compensazione && puoRegistrare && <Button disabled={pay.isPending || detail.isFetching || (editing && (importo == null || importo<=0 || Math.round(importo*100)>Math.round(d.residuo*100) || !date || date>oggi || conti.isFetching || conti.isError || (disponibili.length>0 && !scelto)))} onClick={() => {if(editing) pay.mutate(); else {setAmount(String(d.residuo));resetRequest();setEditing(true);}}}>{pay.isPending ? t("Registrazione…") : editing ? t("Conferma pagamento") : t("Registra pagamento")}</Button>}
+        {d && !compensazione && puoRegistrare && <Button disabled={pay.isPending || registraEffetto.isPending || detail.isFetching || (editing && (importo == null || importo<=0 || Math.round(importo*100)>Math.round(libero*100) || !date || rataMancante || rateCosto.isFetching&&dataFutura || (!conEffetto && date>oggi) || (!dataFutura && (conti.isFetching || conti.isError || (disponibili.length>0 && !scelto)))))} onClick={() => {if(editing) {if(dataFutura) registraAssegno(); else pay.mutate();} else {setAmount(String(d.residuo));resetRequest();setEditing(true);}}}>{pay.isPending || registraEffetto.isPending ? t("Registrazione…") : editing ? (dataFutura ? t("Registra assegno") : t("Conferma pagamento")) : t("Registra pagamento")}</Button>}
   </>;
   // Dentro il riepilogo della fattura (23/11/2026): niente secondo popup, il pannello si apre lì.
   if (inline) return <div className="space-y-3" data-pagamento-in-linea="">

@@ -35,6 +35,8 @@ type ScadenzaExport = Omit<Scadenza, "commesse"> & {
   numero_fattura_ricevuta?: string | null;
   /** Note della scadenza, del costo e delle fatture ricevute (`noteFattureScadenze`), aggiunte da chi carica le righe. */
   note_export?: string | null;
+  /** Assegni/effetti in attesa della riga, già in testo (`testoEffettiExport`), aggiunti da chi carica le righe. */
+  effetti_export?: string | null;
 };
 
 export interface RigaExport {
@@ -51,6 +53,8 @@ export interface RigaExport {
   stato: string;
   tipo: Tipo;
   note: string;
+  /** Assegni ed effetti in attesa, «Assegno n. 12 15/12/2026 1.200,00 €», uno dopo l'altro separati da « | ». */
+  effetti: string;
 }
 
 export interface Gruppo {
@@ -123,6 +127,7 @@ export function costruisciRighe(scadenze: Scadenza[], oggi = oggiIso()): RigaExp
       stato: statoScadenza(s as unknown as Scadenza, oggi).label,
       tipo: entrata ? "Incasso" : "Pagamento",
       note: pulito(s.note_export),
+      effetti: pulito(s.effetti_export),
     };
   });
 }
@@ -195,6 +200,8 @@ export const COLONNE_EXPORT = [
   { key: "tipo", label: "Tipo", xlsx: 11, pdf: 16 },
   // Spenta di serie (non è in colonneDiSerie): si accende dal dialog o con «Tutte».
   { key: "note", label: "Note", xlsx: 40, pdf: 60 },
+  // Anche questa spenta di serie.
+  { key: "effetti", label: "Effetti", xlsx: 36, pdf: 50 },
 ] as const;
 
 export type ChiaveExport = (typeof COLONNE_EXPORT)[number]["key"];
@@ -202,11 +209,11 @@ const DEF_EXPORT = new Map<string, (typeof COLONNE_EXPORT)[number]>(COLONNE_EXPO
 export type FormatoExport = "xlsx" | "pdf" | "csv";
 
 /**
- * Le colonne di serie: tutte tranne «Note», che si accende a mano, e nel PDF senza «Tipo» (lì il verso lo dice il segno meno
+ * Le colonne di serie: tutte tranne «Note» ed «Effetti», che si accende a mano, e nel PDF senza «Tipo» (lì il verso lo dice il segno meno
  * dei pagamenti, come è sempre stato).
  */
 export function colonneDiSerie(formato: FormatoExport): ChiaveExport[] {
-  return COLONNE_EXPORT.filter((c) => c.key !== "note" && (formato !== "pdf" || c.key !== "tipo")).map((c) => c.key);
+  return COLONNE_EXPORT.filter((c) => c.key !== "note" && c.key !== "effetti" && (formato !== "pdf" || c.key !== "tipo")).map((c) => c.key);
 }
 
 /** Toglie le chiavi sconosciute e i doppioni; se non resta niente, le colonne di serie. */
