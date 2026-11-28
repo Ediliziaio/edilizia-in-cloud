@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type CategoriaRiga = "manodopera" | "mezzo" | "trasporto" | "materiale" | "voce";
 export type StatoRendiconto = "bozza" | "confermato" | "annullato";
+export type StatoSal = "bozza" | "inviato" | "approvato" | "fatturato";
 export type FonteRiga = "cantiere" | "committente" | "generale" | "manuale" | "mancante";
 
 export const CATEGORIE: Array<{ valore: CategoriaRiga; titolo: string; unita: string }> = [
@@ -32,6 +33,8 @@ export interface RendicontoGiornaliero {
   totale: number;
   senza_prezzo: number;
   sal_id: string | null;
+  /** Stato del rendiconto del periodo che contiene il giorno: in bozza il giorno si corregge ancora. */
+  sal_stato: StatoSal | null;
   /** Rapportini del giorno già dentro questo rendiconto. */
   rapportini: number;
   /** Rapportini del giorno non ancora dentro (arrivati dopo, o scritti con il rendiconto già confermato). */
@@ -161,7 +164,7 @@ async function chiama<T>(funzione: string, args: object): Promise<T> {
   return data as T;
 }
 
-export const COLONNE_TESTATA = "id, order_id, data, numero, stato, descrizione_lavori, note, rapportino_id, righe, totale, senza_prezzo, sal_id, rapportini, rapportini_nuovi, rapportini_ritirati, n_manodopera, n_mezzi, n_trasporti, n_materiali, n_voci";
+export const COLONNE_TESTATA = "id, order_id, data, numero, stato, descrizione_lavori, note, rapportino_id, righe, totale, senza_prezzo, sal_id, sal_stato, rapportini, rapportini_nuovi, rapportini_ritirati, n_manodopera, n_mezzi, n_trasporti, n_materiali, n_voci";
 const COLONNE_RIGHE = "id, categoria, descrizione, unita_misura, quantita, prezzo_unitario, prezzo_a_mano, prezzo_fonte, listino_voce_id, tariffa_id, employee_id, subappaltatore_id, mezzo_id, fase_id, da_rapportino_id, maggiorazione_pct, note, viaggio, ordine, voce_computo_id, extra_contratto";
 
 const comeNumero = (x: unknown) => (x == null ? 0 : Number(x));
@@ -173,6 +176,7 @@ function leggiTestata(r: Record<string, unknown>): RendicontoGiornaliero {
     note: (r.note as string | null) ?? null, rapportino_id: (r.rapportino_id as string | null) ?? null,
     righe: comeNumero(r.righe), totale: comeNumero(r.totale), senza_prezzo: comeNumero(r.senza_prezzo),
     sal_id: (r.sal_id as string | null) ?? null,
+    sal_stato: (r.sal_stato as StatoSal | null) ?? null,
     rapportini: comeNumero(r.rapportini), rapportini_nuovi: comeNumero(r.rapportini_nuovi), rapportini_ritirati: comeNumero(r.rapportini_ritirati),
     n_manodopera: comeNumero(r.n_manodopera), n_mezzi: comeNumero(r.n_mezzi), n_trasporti: comeNumero(r.n_trasporti),
     n_materiali: comeNumero(r.n_materiali), n_voci: comeNumero(r.n_voci),

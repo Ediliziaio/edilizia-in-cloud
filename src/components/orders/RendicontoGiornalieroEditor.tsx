@@ -92,7 +92,10 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
   const [lavori, setLavori] = useState("");
   const [note, setNote] = useState("");
   const [righe, setRighe] = useState<RigaRendiconto[]>([]);
+  // Il giorno è dentro un rendiconto del periodo: sigillato solo se quel periodo è già uscito.
+  // In bozza si corregge ancora, e il totale del periodo si rifà (28/11/2026).
   const [salSigillato, setSalSigillato] = useState(false);
+  const [salInBozza, setSalInBozza] = useState(false);
   const [aggiungendo, setAggiungendo] = useState<CategoriaRiga | null>(null);
   const [rapportiniNuovi, setRapportiniNuovi] = useState(0);
 
@@ -171,7 +174,9 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
     // «Rendiconto trasporti» su un foglio ancora vuoto: il primo viaggio è già lì da compilare,
     // come il rapportino trasporti che parte dal viaggio.
     setRighe(conViaggio && d.righe.length === 0 ? [rigaViaggioNuova(tr("Trasporto"))] : d.righe);
-    setSalSigillato(!!d.testata.sal_id); setRapportiniNuovi(d.testata.rapportini_nuovi);
+    setSalSigillato(!!d.testata.sal_id && d.testata.sal_stato !== "bozza");
+    setSalInBozza(!!d.testata.sal_id && d.testata.sal_stato === "bozza");
+    setRapportiniNuovi(d.testata.rapportini_nuovi);
   };
   const lettura = useQuery({
     queryKey: ["rendiconto-giornaliero", rendicontoId],
@@ -370,7 +375,8 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
           </DialogTitle>
           <DialogDescription>{tr("Il foglio per il committente: le voci del giorno, con quantità e prezzo. Il rapportino resta il diario interno.")}</DialogDescription>
         </DialogHeader>
-        {salSigillato && <p className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900">{tr("È già nel rendiconto del periodo: non si modifica.")}</p>}
+        {salSigillato && <p className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900">{tr("È già nel rendiconto del periodo, che è uscito: per modificarlo annulla quello.")}</p>}
+        {salInBozza && <p className="rounded-md border px-2 py-1 text-xs text-muted-foreground">{tr("È in un rendiconto del periodo ancora in bozza: se lo correggi, il totale del periodo si rifà.")}</p>}
         {/* Confermato non vuol dire chiuso: il lavoro va avanti e il foglio si corregge fino al
             rendiconto del periodo. Quello che si salva resta confermato (28/11/2026). */}
         {stato === "confermato" && !salSigillato && modificabile && (

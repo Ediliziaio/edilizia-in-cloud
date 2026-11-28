@@ -665,3 +665,34 @@ rendiconto dai rapportini:
 
 I rapportini rifiutati e annullati non entrano, e un rapportino nuovo dello stesso giorno viene
 segnalato («Ci sono N rapportini nuovi di questo giorno») invece di essere aggiunto due volte.
+
+## 13. Due cose chieste guardando l'app (28/11/2026)
+
+### Il giorno dentro un rendiconto del periodo si corregge, se il periodo è una bozza
+
+«Non è possibile modificare i rendiconti giornalieri, e devo poterlo fare.» Era vero, e la regola era
+più severa del necessario: `rendiconto_giornaliero_salva` rifiutava la modifica appena una riga
+finiva in un rendiconto del periodo, **senza guardare in che stato fosse quel periodo**. I numeri
+dicono che era quasi sempre il caso buono: dei 21 giorni dentro un periodo, **tutti e 21** erano in
+periodi in bozza — documenti non ancora usciti.
+
+Da `20290630360000`:
+- periodo in **bozza** → il giorno si corregge; le righe nuove restano agganciate (`sal_id`,
+  `in_sal`) e il totale del periodo si **rifà** (`private.appalto_sal_ricalcola`: totale, ritenuta,
+  netto, righe contate). Prima quel totale era scritto una volta sola alla creazione;
+- periodo **inviato, approvato o fatturato** → rifiutato come prima, col numero e lo stato.
+
+Provato sui dati veri: aggiungendo una riga da 100 € a un giorno dentro il periodo n. 1 in bozza, il
+periodo passa da 6.958 € / 29 righe a 7.058 € / 30, le righe restano dentro, e con il periodo
+portato a «inviato» la stessa modifica viene rifiutata. In app il foglio ora dice «È in un
+rendiconto del periodo ancora in bozza: se lo correggi, il totale del periodo si rifà», e sigilla
+solo quando il documento è uscito (`sal_stato` nella vista, `20290630370000`).
+
+### I rapportini hanno la veste a righe dei rendiconti
+
+I rapportini erano schede alte — tessera della data, nome, descrizione, metriche, barra — e in una
+schermata ce ne stavano tre. Adesso sono una tabella con le stesse colonne fisse dei rendiconti al
+committente: **giorno, chi, lavori, ore, avanzamento, allegati, stato**, con approva e rifiuta sulla
+riga e il dettaglio nel popup di prima. In una schermata ce ne stanno dieci, e l'occhio scorre una
+colonna invece di leggere dieci schede. Le colonne che contano restano anche sul telefono
+(avanzamento e allegati spariscono sotto `lg` e `md`).

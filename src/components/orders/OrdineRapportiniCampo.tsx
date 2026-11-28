@@ -396,99 +396,110 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                     {t(gruppo.totale === 1 ? "{n} rapportino" : "{n} rapportini", { n: gruppo.totale })} · {formatOre(gruppo.ore)}
                   </span>
                 </div>
-                <div className="divide-y overflow-hidden rounded-lg border bg-card">
+                {/* Stessa veste dei rendiconti al committente (28/11/2026): una riga per
+                    rapportino, colonne fisse, così in una schermata ce ne stanno il triplo e si
+                    scorre l'elenco invece di leggere schede. Il dettaglio resta il popup. */}
+                <div className="overflow-x-auto rounded-lg border bg-card">
+                <table className="w-full table-fixed border-collapse text-sm">
+                  <caption className="sr-only">{t("Rapportini del cantiere")}</caption>
+                  <thead>
+                    <tr className="border-b bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+                      <th scope="col" className="w-28 px-3 py-1.5 text-left font-medium">{t("Giorno")}</th>
+                      <th scope="col" className="w-40 px-2 py-1.5 text-left font-medium">{t("Chi")}</th>
+                      <th scope="col" className="px-2 py-1.5 text-left font-medium">{t("Lavori")}</th>
+                      <th scope="col" className="w-20 px-2 py-1.5 text-right font-medium">{t("Ore")}</th>
+                      <th scope="col" className="w-28 px-2 py-1.5 text-left font-medium max-lg:hidden">{t("Avanzamento")}</th>
+                      <th scope="col" className="w-16 px-2 py-1.5 text-left font-medium max-md:hidden">{t("Allegati")}</th>
+                      <th scope="col" className="w-28 px-2 py-1.5 text-left font-medium">{t("Stato")}</th>
+                      <th scope="col" className="w-10 px-2 py-1.5"><span className="sr-only">{t("Azioni")}</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
                   {gruppo.righe.map((r) => {
                     const stato = statoDi(r);
                     const aperto = expandedId === r.id;
                     const pct = r.percentuale_avanzamento == null ? null : Math.min(100, Math.max(0, Number(r.percentuale_avanzamento) || 0));
                     const autore = [r.autore?.first_name, r.autore?.last_name].filter(Boolean).join(" ") || t("Registrazione manuale");
                     const nFoto = Array.isArray(r.foto_urls) ? r.foto_urls.length : 0;
+                    const apri = () => {
+                      // Da approvare: il popup con i dettagli e la decisione. Altrimenti quello di lettura.
+                      if (stato === "inviato" && puoDecidereSu(r.user_id)) setApprovalId(r.id);
+                      else setExpandedId(aperto ? null : r.id);
+                    };
                     return (
-                      <div key={r.id} className={cn(aperto && "bg-slate-50/60")}>
-                        {/* Riga del rapportino */}
-                        <div className="flex items-center">
-                        <button
-                          type="button"
-                          aria-expanded={aperto}
-                          className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 p-3 text-left transition-colors max-sm:gap-2.5 max-sm:p-2.5 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-                          onClick={() => {
-                            // Da approvare: il popup con i dettagli e la decisione. Altrimenti il popup di lettura.
-                            if (stato === "inviato" && puoDecidereSu(r.user_id)) setApprovalId(r.id);
-                            else setExpandedId(aperto ? null : r.id);
-                          }}
-                        >
-                          <TesseraGiorno data={r.data_lavoro} classe={TESSERA_STATO[stato]} />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                              <span dir="auto" className="text-sm font-semibold text-slate-900">{autore}</span>
-                              {/* sul telefono lo stato sta accanto al nome: la colonna di destra si libera */}
-                              <span className="sm:hidden">{r.annullato_at ? <BadgeAnnullato /> : <StatoBadge stato={stato} />}</span>
-                              {r.lavoro_completato && (
-                                <Badge variant="outline" className="border-emerald-600 bg-emerald-600 py-0 text-[10px] text-white">
-                                  {t("Fine lavori")}
-                                </Badge>
-                              )}
-                              {r.lavoro_completato && r.firma_cliente_url && (
-                                <Badge variant="outline" className="border-emerald-300 bg-emerald-50 py-0 text-[10px] text-emerald-700">
-                                  <PenLine className="mr-0.5 h-2.5 w-2.5" />
-                                  {t("Firmato dal cliente")}
-                                </Badge>
-                              )}
-                              <SourceBadge source={r.source} />
-                            </div>
-                            {/* Una riga di cosa si è fatto: con la sola data i rapportini sembrano tutti uguali. */}
-                            {r.descrizione_lavori && !aperto && (
-                              <p dir="auto" className="mt-0.5 truncate text-xs text-slate-600">{r.descrizione_lavori}</p>
+                      <tr key={r.id}
+                        className={cn("cursor-pointer border-b align-middle last:border-b-0 hover:bg-slate-50 focus-within:bg-slate-50",
+                          r.annullato_at && "opacity-60")}>
+                        <td className="whitespace-nowrap px-3 py-1.5">
+                          <button type="button" onClick={apri} aria-expanded={aperto}
+                            className="text-left tabular-nums focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+                            <span className={cn("inline-block rounded px-1.5 py-0.5 font-medium ring-1", TESSERA_STATO[stato])}>
+                              {fmtSafeDate(r.data_lavoro, "dd/MM/yyyy")}
+                            </span>
+                          </button>
+                        </td>
+                        <td className="overflow-hidden px-2 py-1.5">
+                          <button type="button" onClick={apri} className="flex w-full min-w-0 items-center gap-1.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+                            <span dir="auto" className="truncate font-medium text-slate-900">{autore}</span>
+                            <SourceBadge source={r.source} />
+                          </button>
+                        </td>
+                        <td className="overflow-hidden px-2 py-1.5">
+                          <button type="button" onClick={apri} className="flex w-full min-w-0 items-center gap-1.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+                            <span dir="auto" className="truncate text-slate-700">{r.descrizione_lavori?.trim() || t("Senza descrizione")}</span>
+                            {r.lavoro_completato && (
+                              <Badge variant="outline" className="shrink-0 border-emerald-600 bg-emerald-600 py-0 text-[10px] text-white">{t("Fine lavori")}</Badge>
                             )}
-                            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
-                              {haPresenze(r) ? (
-                                <span className="inline-flex items-center gap-1 font-medium text-slate-800" title={t("Ore delle persone della squadra, senza le ditte")}>
-                                  <Clock className="h-3 w-3 text-slate-400" aria-hidden="true" />
-                                  {t("{ore}h di squadra", { ore: orePersoneRapportino(r).toLocaleString(intlCampo()) })}
-                                </span>
-                              ) : r.ore_lavorate != null && (
-                                <span className="inline-flex items-center gap-1 font-medium text-slate-800" title={t("Ore lavorate")}>
-                                  <Clock className="h-3 w-3 text-slate-400" aria-hidden="true" />
-                                  {r.ore_lavorate}h
-                                </span>
-                              )}
-                              {!haPresenze(r) && r.ore_straordinario > 0 && (
-                                <span className="font-medium text-amber-700" title={t("Ore di straordinario")}>{t("+{ore}h str.", { ore: r.ore_straordinario })}</span>
-                              )}
-                              {pct != null && (
-                                <span className="inline-flex items-center gap-1.5" title={t("Avanzamento dichiarato nel rapportino")}>
-                                  <span className="h-1.5 w-14 overflow-hidden rounded-full bg-slate-200">
-                                    <span className="block h-full rounded-full bg-orange-500" style={{ width: `${pct}%` }} />
-                                  </span>
-                                  <span className="tabular-nums">{t("{pct}% avanz.", { pct })}</span>
-                                </span>
-                              )}
-                              {nFoto > 0 && (
-                                <span className="inline-flex items-center gap-1" title={t("{n} foto allegate", { n: nFoto })}>
-                                  <ImageIcon className="h-3 w-3 text-slate-400" aria-hidden="true" />{nFoto}
-                                </span>
-                              )}
-                              {r.firma_cliente_url && <span title={t("Firma del cliente")}><PenLine className="h-3 w-3 text-blue-500" aria-label={t("Firma del cliente")} /></span>}
-                              {r.firma_operaio_url && <span title={t("Firma dell'operaio")}><PenLine className="h-3 w-3 text-amber-500" aria-label={t("Firma dell'operaio")} /></span>}
-                            </div>
-                          </div>
-                          <div className="flex shrink-0 flex-col items-end gap-2">
-                            <span className="max-sm:hidden">{r.annullato_at ? <BadgeAnnullato /> : <StatoBadge stato={stato} />}</span>
+                          </button>
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums" title={haPresenze(r) ? t("Ore delle persone della squadra, senza le ditte") : t("Ore lavorate")}>
+                          {haPresenze(r)
+                            ? t("{ore}h", { ore: orePersoneRapportino(r).toLocaleString(intlCampo()) })
+                            : r.ore_lavorate != null ? `${r.ore_lavorate}h` : "—"}
+                          {!haPresenze(r) && r.ore_straordinario > 0 && (
+                            <span className="ml-1 text-xs font-medium text-amber-700" title={t("Ore di straordinario")}>{t("+{ore}h", { ore: r.ore_straordinario })}</span>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-1.5 text-xs text-slate-600 max-lg:hidden">
+                          {pct == null ? "—" : (
+                            <span className="inline-flex items-center gap-1.5" title={t("Avanzamento dichiarato nel rapportino")}>
+                              <span className="h-1.5 w-12 overflow-hidden rounded-full bg-slate-200">
+                                <span className="block h-full rounded-full bg-orange-500" style={{ width: `${pct}%` }} />
+                              </span>
+                              <span className="tabular-nums">{t("{pct}%", { pct })}</span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-1.5 text-xs text-slate-600 max-md:hidden">
+                          <span className="inline-flex items-center gap-1.5">
+                            {nFoto > 0 && (
+                              <span className="inline-flex items-center gap-0.5" title={t("{n} foto allegate", { n: nFoto })}>
+                                <ImageIcon className="h-3 w-3 text-slate-400" aria-hidden="true" />{nFoto}
+                              </span>
+                            )}
+                            {r.firma_cliente_url && <span title={t("Firma del cliente")}><PenLine className="h-3 w-3 text-blue-500" aria-label={t("Firma del cliente")} /></span>}
+                            {r.firma_operaio_url && <span title={t("Firma dell'operaio")}><PenLine className="h-3 w-3 text-amber-500" aria-label={t("Firma dell'operaio")} /></span>}
+                            {nFoto === 0 && !r.firma_cliente_url && !r.firma_operaio_url && "—"}
+                          </span>
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-1.5">
+                          {r.annullato_at ? <BadgeAnnullato /> : <StatoBadge stato={stato} />}
+                          {/* Approva e rifiuta senza aprire il dettaglio, come prima. */}
+                          {azioniInRiga && puoDecidereSu(r.user_id) && stato === "inviato" && (
+                            <span className="ml-1.5 inline-flex items-center gap-1">
+                              <Button size="sm" className="h-6 px-1.5" onClick={() => setApprovalId(r.id)} disabled={approvaMutation.isPending}>
+                                <Check className="h-3 w-3" /><span className="sr-only">{t("Approva")}</span>
+                              </Button>
+                              <Button size="sm" variant="destructive" className="h-6 px-1.5" onClick={() => { setRifiutaId(r.id); setMotivoRifiuto(""); }}>
+                                <X className="h-3 w-3" /><span className="sr-only">{t("Rifiuta")}</span>
+                              </Button>
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-2 py-1.5 text-right">
+                          <button type="button" onClick={apri} aria-label={aperto ? t("Chiudi il rapportino") : t("Apri il rapportino")}>
                             <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", aperto && "rotate-180")} aria-hidden="true" />
-                          </div>
-                        </button>
-                        {/* Azioni rapide sulla riga (popup di Attività): approva/rifiuta senza aprire il dettaglio. */}
-                        {azioniInRiga && puoDecidereSu(r.user_id) && stato === "inviato" && (
-                          <div className="flex shrink-0 items-center gap-1.5 pl-1 pr-3 max-sm:pr-2.5">
-                            <Button size="sm" onClick={() => setApprovalId(r.id)} disabled={approvaMutation.isPending}>
-                              <Check className="h-3.5 w-3.5 sm:mr-1" /><span className="max-sm:hidden">{t("Approva")}</span>
-                            </Button>
-                            <Button size="sm" variant="destructive" onClick={() => { setRifiutaId(r.id); setMotivoRifiuto(""); }}>
-                              <X className="h-3.5 w-3.5 sm:mr-1" /><span className="max-sm:hidden">{t("Rifiuta")}</span>
-                            </Button>
-                          </div>
-                        )}
-                        </div>
+                          </button>
 
                         {/* Dettaglio espandibile: allineato al testo della riga, a sezioni con etichetta */}
                         {aperto && (
@@ -619,9 +630,12 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                           </DialogContent>
                           </Dialog>
                         )}
-                      </div>
+                        </td>
+                      </tr>
                     );
                   })}
+                  </tbody>
+                </table>
                 </div>
               </section>
             ))}

@@ -18,7 +18,7 @@ const riga = (o: Partial<RigaRendiconto> = {}): RigaRendiconto => ({
 const dettaglio = (righe: RigaRendiconto[], stato: "bozza" | "confermato" = "confermato"): DettaglioRendiconto => ({
   testata: {
     id: "g1", order_id: "o1", data: "2026-12-22", numero: 13, stato, descrizione_lavori: "Trasporti del giorno",
-    note: null, rapportino_id: null, righe: righe.length, totale: 0, senza_prezzo: 0, sal_id: null,
+    note: null, rapportino_id: null, righe: righe.length, totale: 0, senza_prezzo: 0, sal_id: null, sal_stato: null,
     rapportini: 0, rapportini_nuovi: 0, rapportini_ritirati: 0,
     n_manodopera: 0, n_mezzi: 0, n_trasporti: righe.length, n_materiali: 0, n_voci: 0,
   },

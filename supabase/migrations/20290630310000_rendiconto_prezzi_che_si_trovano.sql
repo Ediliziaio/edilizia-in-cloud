@@ -72,27 +72,33 @@ begin
   end if;
 
   -- 2. Il listino del committente: una sola voce a ora che parla di manodopera.
-  select count(*), min(at.id) into v_quante, v_id
-    from public.appalto_tariffe at
-    join public.appalto_contratti c on c.id = at.contratto_id and c.company_id = o.company_id
-   where at.attivo
-     and private.unita_normale(at.unita_misura) = 'ora'
-     and at.descrizione ~* '(manodoper|operai|economia|ore uomo)'
-     and (at.valido_dal is null or at.valido_dal <= v_data)
-     and (at.valido_al is null or at.valido_al >= v_data)
-     and (c.id = o.appalto_contratto_id
-          or (o.customer_id is not null and c.committente_id = o.customer_id and c.attivo
-              and (c.valido_dal is null or c.valido_dal <= v_data)
-              and (c.valido_al is null or c.valido_al >= v_data)));
+  -- Si conta e poi si prende la prima: `min()` non esiste su uuid.
+  with candidate as (
+    select at.id
+      from public.appalto_tariffe at
+      join public.appalto_contratti c on c.id = at.contratto_id and c.company_id = o.company_id
+     where at.attivo
+       and private.unita_normale(at.unita_misura) = 'ora'
+       and at.descrizione ~* '(manodoper|operai|economia|ore uomo)'
+       and (at.valido_dal is null or at.valido_dal <= v_data)
+       and (at.valido_al is null or at.valido_al >= v_data)
+       and (c.id = o.appalto_contratto_id
+            or (o.customer_id is not null and c.committente_id = o.customer_id and c.attivo
+                and (c.valido_dal is null or c.valido_dal <= v_data)
+                and (c.valido_al is null or c.valido_al >= v_data)))
+  )
+  select count(*), (select id from candidate limit 1) into v_quante, v_id from candidate;
   if v_quante = 1 then
     return jsonb_build_object('appalto_tariffa_id', v_id, 'da', 'committente');
   end if;
 
   -- 3. Il listino generale: una sola voce di manodopera con un prezzo.
-  select count(*), min(ta.id) into v_quante, v_id
-    from public.tariffe_aziendali ta
-   where ta.company_id = o.company_id and coalesce(ta.attivo, true) and ta.tipo = 'manodopera'
-     and coalesce(ta.prezzo_vendita, 0) > 0;
+  with candidate as (
+    select ta.id from public.tariffe_aziendali ta
+     where ta.company_id = o.company_id and coalesce(ta.attivo, true) and ta.tipo = 'manodopera'
+       and coalesce(ta.prezzo_vendita, 0) > 0
+  )
+  select count(*), (select id from candidate limit 1) into v_quante, v_id from candidate;
   if v_quante = 1 then
     return jsonb_build_object('listino_voce_id', v_id, 'da', 'generale');
   end if;
@@ -124,26 +130,31 @@ begin
   if not found then return null; end if;
 
   -- Il listino del committente, per nome identico.
-  select count(*), min(at.id) into v_quante, v_id
-    from public.appalto_tariffe at
-    join public.appalto_contratti c on c.id = at.contratto_id and c.company_id = o.company_id
-   where at.attivo
-     and private.nome_confrontabile(at.descrizione) = v_nome
-     and (at.valido_dal is null or at.valido_dal <= v_data)
-     and (at.valido_al is null or at.valido_al >= v_data)
-     and (c.id = o.appalto_contratto_id
-          or (o.customer_id is not null and c.committente_id = o.customer_id and c.attivo
-              and (c.valido_dal is null or c.valido_dal <= v_data)
-              and (c.valido_al is null or c.valido_al >= v_data)));
+  with candidate as (
+    select at.id
+      from public.appalto_tariffe at
+      join public.appalto_contratti c on c.id = at.contratto_id and c.company_id = o.company_id
+     where at.attivo
+       and private.nome_confrontabile(at.descrizione) = v_nome
+       and (at.valido_dal is null or at.valido_dal <= v_data)
+       and (at.valido_al is null or at.valido_al >= v_data)
+       and (c.id = o.appalto_contratto_id
+            or (o.customer_id is not null and c.committente_id = o.customer_id and c.attivo
+                and (c.valido_dal is null or c.valido_dal <= v_data)
+                and (c.valido_al is null or c.valido_al >= v_data)))
+  )
+  select count(*), (select id from candidate limit 1) into v_quante, v_id from candidate;
   if v_quante = 1 then
     return jsonb_build_object('appalto_tariffa_id', v_id, 'da', 'committente');
   end if;
 
   -- Il listino generale, per nome identico.
-  select count(*), min(ta.id) into v_quante, v_id
-    from public.tariffe_aziendali ta
-   where ta.company_id = o.company_id and coalesce(ta.attivo, true)
-     and private.nome_confrontabile(ta.nome) = v_nome;
+  with candidate as (
+    select ta.id from public.tariffe_aziendali ta
+     where ta.company_id = o.company_id and coalesce(ta.attivo, true)
+       and private.nome_confrontabile(ta.nome) = v_nome
+  )
+  select count(*), (select id from candidate limit 1) into v_quante, v_id from candidate;
   if v_quante = 1 then
     return jsonb_build_object('listino_voce_id', v_id, 'da', 'generale');
   end if;
