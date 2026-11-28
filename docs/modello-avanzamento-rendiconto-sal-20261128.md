@@ -596,3 +596,22 @@ Tutte su dati veri di Demo Azienda 2, in transazioni annullate dove non diversam
 
 I dati di prova lasciati su Demo 2 dalla prova di concorrenza (4 movimenti, 2 rendiconti) sono stati
 cancellati e la lavorazione è tornata spenta e vuota.
+
+### Prima di pubblicare: la migrazione che aspettava, e la vista
+
+`20290629210000_rendiconto_costi_per_colonna` era nel repository **non applicata**, in attesa del
+via del titolare: toglie `select` sulla tabella `appalto_rendiconto_righe` e lo ridà per colonna,
+così costo e margine si leggono solo dalla vista. Un file in `supabase/migrations/` parte al primo
+push qualunque cosa dica il suo commento, quindi o si applica o esce dalla cartella. Applicata, con
+due colonne aggiunte all'elenco: **`viaggio`** (lo chiede l'editor del rendiconto) e
+**`voce_computo_id`** — senza di loro un select con colonne esplicite avrebbe smesso di funzionare e
+il rendiconto non si sarebbe più aperto.
+
+Provato con l'utente vero di Demo 2: `select *` sulla tabella rifiutato (42501), `costo_interno`
+dalla tabella rifiutato, le colonne dell'editor passano, la vista dà costo, margine e voce del
+computo.
+
+La vista `appalto_rendiconto_righe_visibili` non aveva `voce_computo_id`, e il client riscrive le
+letture verso di lei: in console `42703 — column … does not exist`. Aggiunta in coda con la
+definizione presa dal catalogo (`20290630280000`), e `security_invoker` riapplicato subito dopo,
+perché `CREATE OR REPLACE VIEW` lo perde.
