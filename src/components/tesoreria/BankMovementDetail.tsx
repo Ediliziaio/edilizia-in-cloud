@@ -67,6 +67,7 @@ import { ControparteRiconosciuta, SuggerimentiAbbinamento, useSuggerimentiMovime
 import { AlternativeEsito, BadgeEsito, RigaEsitoMovimento, useEsitoMovimento } from "./EsitoMovimento";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import { messaggioErrore } from "@/lib/messaggioErrore";
+import { cercaMovimentiSimili } from "@/lib/finance/movimentiSimili";
 
 export type BankDetailSection = "documents" | "contexts";
 
@@ -75,16 +76,29 @@ export function BankMovementDetail({
   id,
   onClose,
   initialSection,
+  onRiconciliaSimili,
 }: {
   company: string;
   id: string;
   onClose: () => void;
   initialSection?: BankDetailSection;
+  /** «Fai lo stesso per i simili»: apre la conferma in blocco con questi movimenti. Senza, l'avviso non compare. */
+  onRiconciliaSimili?: (ids: string[]) => void;
 }) {
   const t = useT();
   const permissions = usePermissions();
   const [dirty, setDirty] = useState(false);
   const [discard, setDiscard] = useState(false);
+  // Simili da aprire dopo la conferma di «Chiudi senza salvare» (note o categoria non salvate).
+  const simiDaAprire = useRef<string[] | null>(null);
+  const apriSimili = onRiconciliaSimili
+    ? (ids: string[]) => {
+        if (dirty) {
+          simiDaAprire.current = ids;
+          setDiscard(true);
+        } else onRiconciliaSimili(ids);
+      }
+    : undefined;
   const q = useQuery({
     queryKey: ["bank-movimento", company, id, bankVisibilityKey(permissions)],
     queryFn: () =>
@@ -139,10 +153,11 @@ export function BankMovementDetail({
             company={company}
             onDirtyChange={setDirty}
             initialSection={initialSection}
+            onRiconciliaSimili={apriSimili}
           />
         )}
       </DialogContent>
-      <AlertDialog open={discard} onOpenChange={setDiscard}>
+      <AlertDialog open={discard} onOpenChange={(v) => { setDiscard(v); if (!v) simiDaAprire.current = null; }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("Chiudere senza salvare?")}</AlertDialogTitle>
@@ -152,7 +167,11 @@ export function BankMovementDetail({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("Continua a modificare")}</AlertDialogCancel>
-            <AlertDialogAction onClick={onClose}>
+            <AlertDialogAction onClick={() => {
+              const ids = simiDaAprire.current;
+              if (ids && onRiconciliaSimili) onRiconciliaSimili(ids);
+              else onClose();
+            }}>
               {t("Chiudi senza salvare")}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -166,11 +185,13 @@ function Detail({
   company,
   onDirtyChange,
   initialSection,
+  onRiconciliaSimili,
 }: {
   movement: BankMovement;
   company: string;
   onDirtyChange: (dirty: boolean) => void;
   initialSection?: BankDetailSection;
+  onRiconciliaSimili?: (ids: string[]) => void;
 }) {
   const tr = useT();
   const perms = usePermissions();
@@ -202,6 +223,14 @@ function Detail({
     else setMode(next);
   };
   const startSection = useRef<HTMLDivElement | null>(null);
+  // «Fai lo stesso per i simili» (lotto D): dopo una conferma a mano, gli altri movimenti aperti della
+  // stessa controparte con una proposta forte. Solo un avviso: la conferma resta nella conferma in blocco.
+  const [simili, setSimili] = useState<string[]>([]);
+  const cercaSimili = () => {
+    if (!onRiconciliaSimili) return;
+    // Un suggerimento che non arriva non è un errore da mostrare: la conferma è già fatta.
+    void cercaMovimentiSimili(company, m.id).then(setSimili, () => setSimili([]));
+  };
   const voce = useVociMovimenti(company, [m.id]);
   useEffect(() => {
     startSection.current?.scrollIntoView?.({ block: "start" });
@@ -423,6 +452,21 @@ function Detail({
                   ))}
                 </ul>
               )}
+              {simili.length > 0 && onRiconciliaSimili && (
+                <div role="status" className="flex basis-full flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
+                  <span className="min-w-0 flex-1">
+                    {tr(simili.length === 1
+                      ? "C'è un movimento simile: riconciliarlo allo stesso modo?"
+                      : "Ci sono {n} movimenti simili: riconciliarli allo stesso modo?", { n: simili.length })}
+                  </span>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onRiconciliaSimili(simili)}>
+                    {tr("Apri la conferma in blocco")}
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setSimili([])}>
+                    {tr("No, grazie")}
+                  </Button>
+                </div>
+              )}
               {m.reconciliation_status === "suggestion" && (
                 <p className="basis-full rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-xs text-violet-900">
                   {tr("Proposta da verificare: c'è una possibile corrispondenza, ma il suggerimento non registra pagamenti.")}
@@ -473,7 +517,7 @@ function Detail({
                     )}
                   </div>
                   {mode === "new" && (
-                    <FinancialPicker key="new" company={company} movement={m} onDirtyChange={setPickerDirty} onDone={() => { setMode(null); refresh(); }} />
+                    <FinancialPicker key="new" company={company} movement={m} onDirtyChange={setPickerDirty} onDone={() => { setMode(null); refresh(); cercaSimili(); }} />
                   )}
                   {mode === "existing" && (
                     <ExistingPicker key="existing" company={company} movement={m} onDirtyChange={setPickerDirty} onDone={() => { setMode(null); refresh(); }} />

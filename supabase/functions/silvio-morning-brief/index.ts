@@ -299,6 +299,7 @@ OUTPUT JSON ESATTO (no markdown wrappers):
 REGOLE:
 - Concentrati su COSE AZIONABILI, non statistiche generiche.
 - Se nei dati c'è "Azioni già pronte da approvare", dillo chiaramente: hai PREPARATO le bozze e bastano un tap (es. "Ho già preparato 3 azioni: ti basta approvarle qui sotto"). NON dire che le hai inviate: sono in attesa di conferma.
+- Se nel Cashflow c'è "movimenti_da_riconciliare_aperti_da_oltre_30_giorni", dedica un punto ai movimenti di banca ancora aperti da oltre 30 giorni: quanti sono e quanto valgono (campo importo), da sistemare in Tesoreria → Movimenti. Severity "attention".
 - Se non c'è nulla di urgente, dillo (es. "Nessuna anomalia rilevante stamattina").
 - Parla SOLO delle aree presenti nei DATI. Se un'area manca (cassa, crediti, lavori), non nominarla e non dire che manca: chi legge non vede quell'area.
 - NO emoji. NO saluti. NO "buongiorno".

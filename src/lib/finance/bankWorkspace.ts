@@ -84,6 +84,8 @@ export interface BankFilters {
   to: string;
   min: string;
   max: string;
+  /** «date» (dal più recente) o «amount» (dall'importo più alto, in valore assoluto). */
+  sort: string;
 }
 export interface BankPage {
   facets?: { currencies: string[]; categories: string[] };
@@ -111,6 +113,7 @@ export const EMPTY_BANK_FILTERS: BankFilters = {
   to: "",
   min: "",
   max: "",
+  sort: "date",
 };
 export const CONTEXT_LABELS: Record<ContextKind, string> = {
   commessa: "Commessa",
@@ -148,10 +151,12 @@ export async function bankRpc<T>(
     "bank_candidati_movimento",
     "bank_proposte_movimento",
     "bank_proposte_lotto",
+    "bank_movimenti_simili",
     "cassa_voci_movimenti",
     "cassa_movimenti_da_classificare",
     "tesoreria_conti",
     "tesoreria_controparti",
+    "tesoreria_aperti_vecchi",
   ].includes(name);
   const { data, error } = read
     ? await withAbortableClientTimeout(
@@ -167,6 +172,28 @@ export async function bankRpc<T>(
       );
   if (error) throw new Error(error.message);
   return data as T;
+}
+/** Movimenti aperti da oltre N giorni, col residuo da riconciliare (tesoreria_aperti_vecchi). */
+export interface BankApertiVecchi {
+  giorni: number;
+  /** Ultima data contabile che conta come «vecchia»: il registro filtra «Al» con questa. */
+  fino_al: string;
+  /** Stesse righe della lista con questi filtri, in ogni valuta. */
+  numero: number;
+  /** Residuo da riconciliare in euro. */
+  importo: number;
+  /** Residuo per valuta (l'euro compreso). */
+  per_valuta?: Record<string, number>;
+  entrate: number;
+  uscite: number;
+  piu_vecchio: string | null;
+}
+export async function loadBankApertiVecchi(company: string, giorni = 30): Promise<BankApertiVecchi> {
+  return bankRpc<BankApertiVecchi>("tesoreria_aperti_vecchi", { p_company: company, p_giorni: giorni });
+}
+/** I filtri della coda dei vecchi: da lavorare, fino a quel giorno, dal più grande. */
+export function bankFiltriApertiVecchi(vecchi: Pick<BankApertiVecchi, "fino_al">): BankFilters {
+  return { ...EMPTY_BANK_FILTERS, state: "work", to: vecchi.fino_al, sort: "amount" };
 }
 export async function loadBankPage(
   company: string,

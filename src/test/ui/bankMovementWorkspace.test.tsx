@@ -305,6 +305,53 @@ describe("popup e registro dei movimenti", () => {
     await waitFor(() => expect(screen.queryByLabelText("Importo per Fattura A")).not.toBeInTheDocument());
   });
 
+  // Lotto D (28/11/2026): dopo una conferma a mano, gli altri movimenti della stessa controparte con
+  // una proposta forte si offrono nella conferma in blocco. Solo un avviso: niente si conferma da sé.
+  it("dopo una conferma a mano offre i movimenti simili e apre la conferma in blocco già pronta, senza confermare", async () => {
+    const tx = nuovoTx();
+    const forte = { ...cand("z", 1000), forte: true, incongruenze: [] as string[] };
+    mock.rpc.mockImplementation(async (name: string, args: { p_tx?: string; p_ids?: string[] }) => {
+      if (name === "bank_movimento_dettaglio") {
+        const copia = structuredClone(tx);
+        copia.id = args.p_tx ?? "tx";
+        return copia;
+      }
+      if (name === "bank_candidati_movimento") return [cand("a", 300)];
+      if (name === "bank_conferma_ripartizione") return {};
+      if (name === "bank_movimenti_simili") return ["s1", "s2"];
+      if (name === "bank_proposte_lotto")
+        return Object.fromEntries((args.p_ids ?? []).map((id) => [id, id === "s1" ? [forte] : [cand("y", 10)]]));
+      return [];
+    });
+    fireEvent.click(await apriCollega(tx));
+    fireEvent.change(screen.getByLabelText("Importo per Fattura A"), { target: { value: "250,00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+    // s2 non ha una proposta forte: resta fuori dal conteggio.
+    expect(await screen.findByText("C'è un movimento simile: riconciliarlo allo stesso modo?")).toBeInTheDocument();
+    expect(mock.rpc).toHaveBeenCalledWith("bank_movimenti_simili", { p_company: "company", p_tx: "tx" });
+    fireEvent.click(screen.getByRole("button", { name: "Apri la conferma in blocco" }));
+    expect(await screen.findByText(/Movimenti simili a quello appena riconciliato/)).toBeInTheDocument();
+    await waitFor(() => expect(mock.rpc).toHaveBeenCalledWith("bank_movimento_dettaglio", { p_company: "company", p_tx: "s1" }));
+    expect(await screen.findByText("Nel lotto")).toBeInTheDocument();
+    expect(mock.rpc.mock.calls.some(([n]) => n === "bank_conferma_lotto")).toBe(false);
+  });
+
+  it("senza movimenti simili non compare nessun avviso", async () => {
+    const tx = nuovoTx();
+    mock.rpc.mockImplementation(async (name: string) => {
+      if (name === "bank_movimento_dettaglio") return structuredClone(tx);
+      if (name === "bank_candidati_movimento") return [cand("a", 300)];
+      if (name === "bank_conferma_ripartizione") return {};
+      return [];
+    });
+    fireEvent.click(await apriCollega(tx));
+    fireEvent.change(screen.getByLabelText("Importo per Fattura A"), { target: { value: "250,00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+    await waitFor(() => expect(mock.rpc).toHaveBeenCalledWith("bank_movimenti_simili", expect.anything()));
+    expect(mock.rpc.mock.calls.some(([n]) => n === "bank_proposte_lotto")).toBe(false);
+    expect(screen.queryByText(/movimenti? simil/)).not.toBeInTheDocument();
+  });
+
   it("con una bozza di scelte, chiudere o cambiare modo chiede conferma: «Resta» conserva tutto", async () => {
     const tx = nuovoTx();
     const close = vi.fn();

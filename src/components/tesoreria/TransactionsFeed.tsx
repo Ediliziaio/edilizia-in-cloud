@@ -42,6 +42,8 @@ import {
   bankJobs,
   bankFiltersPayload,
   loadBankPage,
+  loadBankApertiVecchi,
+  bankFiltriApertiVecchi,
   EMPTY_BANK_FILTERS,
   CONTEXT_LABELS,
   type BankFilters,
@@ -63,6 +65,7 @@ const SPIEGA_ORIGINE: Record<string, string> = {
   conto: "giroconto tra conti tuoi",
 };
 import { CategoriaMovimento } from "./CategoriaMovimento";
+import { ChiudiSpeseBancarie } from "./ChiudiSpeseBancarie";
 import { useVociMovimenti } from "@/lib/finance/cassaVoci";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
@@ -88,6 +91,10 @@ const defaults: Column[] = [
   "contexts",
   "notes",
 ];
+const ordini: Record<string, string> = {
+  date: "Dal più recente",
+  amount: "Dall'importo più alto",
+};
 const states: Record<string, string> = {
   all: "Tutti i movimenti",
   work: "Da lavorare",
@@ -124,6 +131,7 @@ export default function TransactionsFeed({
   const { user } = useAuth();
   const client = useQueryClient();
   const [params, setParams] = useSearchParams();
+  const [speseBancarie, setSpeseBancarie] = useState(false);
   const previousCompany = useRef(companyId);
   const [filters, setFilters] = useState<BankFilters>(() => ({
     ...EMPTY_BANK_FILTERS,
@@ -135,6 +143,8 @@ export default function TransactionsFeed({
   const [exporting, setExporting] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [reconciling, setReconciling] = useState(false);
+  // «Fai lo stesso per i simili» (lotto D): la conferma in blocco si apre solo su questi movimenti.
+  const [simili, setSimili] = useState<string[] | null>(null);
   const [selected, setSelected] = useState<string | null>(() =>
     params.get("movimento"),
   );
@@ -208,6 +218,35 @@ export default function TransactionsFeed({
     enabled: !!companyId && !validation,
     retry: false,
   });
+  // La coda dei vecchi (28/11/2026): quanti sono aperti da oltre 30 giorni e quanto valgono,
+  // per tutta l'azienda e non solo per i filtri a video. La chiave parte come quella del
+  // registro, così si aggiorna con lui dopo ogni riconciliazione.
+  const vecchi = useQuery({
+    queryKey: [
+      "bank-movimenti-workspace",
+      "aperti-vecchi",
+      companyId,
+      refreshKey,
+      bankVisibilityKey(perms),
+    ],
+    queryFn: () => loadBankApertiVecchi(companyId, 30),
+    enabled: !!companyId,
+    retry: false,
+  });
+  const filtriVecchi = vecchi.data ? bankFiltriApertiVecchi(vecchi.data) : null;
+  const guardandoVecchi =
+    !!filtriVecchi &&
+    filters.state === filtriVecchi.state &&
+    filters.to === filtriVecchi.to &&
+    filters.sort === filtriVecchi.sort &&
+    filters.account === filtriVecchi.account;
+  const mostraVecchi = () => {
+    if (!filtriVecchi) return;
+    // Tutti i conti: il conteggio è dell'azienda intera, e le righe devono tornare con lui.
+    setFilters(filtriVecchi);
+    setSearch("");
+    setPage(0);
+  };
   const vociPagina = useVociMovimenti(
     visible.includes("category") ? companyId : null,
     (data.data?.rows ?? []).map((r) => r.id),
@@ -561,6 +600,11 @@ export default function TransactionsFeed({
               {tr("Trova corrispondenze")}
             </Button>
           )}
+          {perms.canReconcileBankTransactions && (
+            <Button variant="outline" onClick={() => setSpeseBancarie(true)}>
+              {tr("Chiudi le spese bancarie")}
+            </Button>
+          )}
           <Button
             variant="outline"
             disabled={exporting || !!validation || !data.data?.count}
@@ -673,6 +717,7 @@ export default function TransactionsFeed({
                   ],
                 ],
                 ["state", "Riconciliazione", Object.entries(states)],
+                ["sort", "Ordina per", Object.entries(ordini)],
                 [
                   "linked",
                   "Collegamenti",
@@ -772,6 +817,8 @@ export default function TransactionsFeed({
                 <span className="truncate">
                   {k === "state"
                     ? tr(states[v])
+                    : k === "sort"
+                      ? `${tr("Ordina per")}: ${tr(ordini[v] ?? v)}`
                     : k === "account"
                       ? accounts.data?.find((a) => a.id === v)?.nome ||
                         tr("Conto selezionato")
@@ -789,6 +836,33 @@ export default function TransactionsFeed({
           </div>
         )}
       </div>
+      {(vecchi.data?.numero ?? 0) > 0 && vecchi.data && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-950"
+        >
+          <span>
+            <strong>{vecchi.data.numero}</strong>{" "}
+            {tr("aperti da oltre {giorni} giorni ·", { giorni: String(vecchi.data.giorni) })}{" "}
+            <strong>{money(vecchi.data.importo, "—", "EUR")}</strong>
+            {vecchi.data.piu_vecchio && (
+              <span className="text-amber-800">
+                {" "}
+                {tr("· il più vecchio del {data}", { data: formatDateIt(vecchi.data.piu_vecchio) })}
+              </span>
+            )}
+          </span>
+          <Button
+            size="sm"
+            variant={guardandoVecchi ? "secondary" : "outline"}
+            className="h-7 border-amber-300 bg-white"
+            disabled={guardandoVecchi}
+            onClick={mostraVecchi}
+          >
+            {guardandoVecchi ? tr("In vista, dal più grande") : tr("Mostra dal più grande")}
+          </Button>
+        </div>
+      )}
       {validation && (
         <p
           role="alert"
@@ -979,7 +1053,19 @@ export default function TransactionsFeed({
           </div>
         </>
       )}
-      {reconciling && perms.canReconcileBankTransactions && <Suspense fallback={<p role="status">{tr("Apertura riconciliazione…")}</p>}><BankReconciliationWorkspace key={`${companyId}:${user?.id}`} company={companyId} filters={filters} accounts={accounts.data ?? []} onClose={() => setReconciling(false)} /></Suspense>}
+      {speseBancarie && perms.canReconcileBankTransactions && (
+        <ChiudiSpeseBancarie
+          companyId={companyId}
+          accounts={accounts.data ?? []}
+          contoIniziale={filters.account !== "all" ? filters.account : undefined}
+          dalIniziale={filters.from || undefined}
+          alIniziale={filters.to || undefined}
+          open={speseBancarie}
+          onOpenChange={setSpeseBancarie}
+          onFatto={() => refreshFinancialQueries(client)}
+        />
+      )}
+      {reconciling && perms.canReconcileBankTransactions && <Suspense fallback={<p role="status">{tr("Apertura riconciliazione…")}</p>}><BankReconciliationWorkspace key={`${companyId}:${user?.id}:${simili?.join(",") ?? ""}`} company={companyId} filters={filters} accounts={accounts.data ?? []} soloMovimenti={simili ?? undefined} onClose={() => { setReconciling(false); setSimili(null); }} /></Suspense>}
       {selected && companyId && (
         <BankMovementDetail
           key={`${companyId}:${selected}`}
@@ -987,6 +1073,7 @@ export default function TransactionsFeed({
           id={selected}
           initialSection={detailSection}
           onClose={close}
+          onRiconciliaSimili={perms.canReconcileBankTransactions ? (ids) => { close(); setSimili(ids); setReconciling(true); } : undefined}
         />
       )}
     </div>
