@@ -1,6 +1,10 @@
 /**
- * I numeri dei campi propri della commessa, sopra l'elenco dei rapportini: i totali e l'Excel.
- * Da telefono l'esportazione non c'è; i totali sì, perché si leggono soltanto.
+ * I numeri dei campi propri della commessa, sopra l'elenco dei rapportini.
+ * Da telefono i totali si vedono, perché si leggono soltanto.
+ *
+ * 28/11/2026 — «Esporta Excel» è uscito da questa riga: su una commessa senza campi propri la
+ * riga esisteva solo per quel pulsante, e una barra intera per un pulsante non si vedeva. Adesso
+ * è `EsportaRapportiniExcel`, in testa all'elenco accanto agli altri pulsanti.
  */
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -19,10 +23,26 @@ const quanto = (t: Totale, n: number, tr: ReturnType<typeof useT>) => t.tipo ===
   ? tr("{n} sì", { n })
   : valoreInTesto({ chiave: t.chiave, etichetta: t.etichetta, tipo: "number", valore: Number(n), stampa: "mai", ...(t.unita ? { unita: t.unita } : {}) });
 
-export function TotaliCampiCommessa({ orderId, rapportini }: { orderId: string; rapportini: RigaRapportino[] }) {
+/** «Esporta Excel» dei rapportini, da mettere fra i pulsanti in testa all'elenco. Da telefono non c'è. */
+export function EsportaRapportiniExcel({ orderId, rapportini }: { orderId: string; rapportini: RigaRapportino[] }) {
   const tr = useT();
   const mobile = useIsMobile();
   const [esporto, setEsporto] = useState(false);
+  if (mobile || rapportini.length === 0) return null;
+  return (
+    <Button type="button" variant="outline" size="sm" disabled={esporto} onClick={() => {
+      setEsporto(true);
+      esportaRapportini(rapportini, `rapportini_${orderId.slice(0, 8)}.xlsx`)
+        .catch(() => toast.error(tr("Esportazione non riuscita. Riprova.")))
+        .finally(() => setEsporto(false));
+    }}>
+      {esporto ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}{tr("Esporta Excel")}
+    </Button>
+  );
+}
+
+export function TotaliCampiCommessa({ orderId }: { orderId: string }) {
+  const tr = useT();
   const { data: totali = [] } = useQuery<Totale[]>({
     queryKey: ["rapportini-campi-totali", orderId],
     staleTime: 60_000,
@@ -34,8 +54,7 @@ export function TotaliCampiCommessa({ orderId, rapportini }: { orderId: string; 
       return data ?? [];
     },
   });
-  const esportabile = !mobile && rapportini.length > 0;
-  if (totali.length === 0 && !esportabile) return null;
+  if (totali.length === 0) return null;
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border bg-card px-3 py-2 text-sm">
       {totali.map((t) => (
@@ -45,16 +64,6 @@ export function TotaliCampiCommessa({ orderId, rapportini }: { orderId: string; 
           {Number(t.da_approvare) > 0 && <span className="text-xs text-amber-700">{tr("{quanti} da approvare", { quanti: quanto(t, Number(t.da_approvare), tr) })}</span>}
         </div>
       ))}
-      {esportabile && (
-        <Button type="button" variant="ghost" size="sm" className="ml-auto h-8" disabled={esporto} onClick={() => {
-          setEsporto(true);
-          esportaRapportini(rapportini, `rapportini_${orderId.slice(0, 8)}.xlsx`)
-            .catch(() => toast.error(tr("Esportazione non riuscita. Riprova.")))
-            .finally(() => setEsporto(false));
-        }}>
-          {esporto ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}{tr("Esporta Excel")}
-        </Button>
-      )}
     </div>
   );
 }

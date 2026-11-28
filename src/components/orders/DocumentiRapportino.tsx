@@ -1,20 +1,20 @@
 /**
- * I tre documenti economici di un rapportino, dal quadro dei costi (14/11/2026):
- * per il committente (prezzi di vendita, anteprima e invio), costi sostenuti, con margine.
+ * I documenti economici di un rapportino, dal quadro dei costi (14/11/2026):
+ * costi sostenuti e, a chi vede i margini, costi e margine.
  * L'operativo, senza soldi, resta il pulsante «Apri PDF» di sempre.
+ *
+ * 28/11/2026 — il documento «Per il committente» non parte più da qui: il rapportino è il foglio
+ * dei costi nostri, e quello che il committente deve vedere e firmare è il rendiconto giornaliero,
+ * che nasce dai rapportini e ha i prezzi di vendita. Due documenti con lo stesso scopo portavano
+ * fuori strada; `documentoPerCommittente` resta nella libreria, dove la usa il rendiconto.
  */
 import { useState } from "react";
-import { FileDown, Loader2, Send } from "lucide-react";
+import { FileDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { DocumentoInvioDialog } from "@/components/documentiOperativi/DocumentoInvioDialog";
-import { leggiDestinatarioRapporto } from "@/lib/documentiOperativi/destinatarioRapporto";
-import type { DocumentoOperativo } from "@/lib/documentiOperativi/modello";
-import {
-  documentoPerCommittente, generaPdfInterno, type InfoRapportino, type QuadroDocumento, type VarianteInterna,
-} from "@/lib/campo/rapportinoDocumenti";
+import { generaPdfInterno, type InfoRapportino, type QuadroDocumento, type VarianteInterna } from "@/lib/campo/rapportinoDocumenti";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 async function leggiInfo(rapportinoId: string, companyId: string): Promise<InfoRapportino & { orderId: string }> {
@@ -36,7 +36,6 @@ export function DocumentiRapportino({ rapportinoId, quadro, vedeImporti, vedeMar
   const t = useT();
   const { effectiveCompany } = useAuth();
   const [inCorso, setInCorso] = useState<string | null>(null);
-  const [doc, setDoc] = useState<{ documento: DocumentoOperativo; orderId: string } | null>(null);
   const companyId = effectiveCompany?.id;
   if (!companyId) return null;
 
@@ -57,26 +56,10 @@ export function DocumentiRapportino({ rapportinoId, quadro, vedeImporti, vedeMar
     } finally { setInCorso(null); }
   };
 
-  const committente = async () => {
-    setInCorso("committente");
-    try {
-      const info = await leggiInfo(rapportinoId, companyId);
-      const destinatario = await leggiDestinatarioRapporto(companyId, info.orderId);
-      setDoc({ documento: documentoPerCommittente(quadro, info, destinatario), orderId: info.orderId });
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("Documento non preparato"));
-    } finally { setInCorso(null); }
-  };
-
   const icona = (k: string) => (inCorso === k ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <FileDown className="mr-1 h-3.5 w-3.5" />);
   return (
     <div className="flex flex-wrap items-center gap-1.5 border-t px-3 py-1.5">
       <span className="mr-1 text-[11px] text-muted-foreground">{t("Documenti")}</span>
-      {vedeImporti && (
-        <Button type="button" size="sm" variant="outline" className="h-7 text-xs" disabled={!!inCorso} onClick={() => void committente()}>
-          {inCorso === "committente" ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Send className="mr-1 h-3.5 w-3.5" />}{t("Per il committente")}
-        </Button>
-      )}
       <Button type="button" size="sm" variant="outline" className="h-7 text-xs" disabled={!!inCorso} onClick={() => void interno("costi")}>
         {icona("costi")}{t("Costi sostenuti")}
       </Button>
@@ -84,17 +67,6 @@ export function DocumentiRapportino({ rapportinoId, quadro, vedeImporti, vedeMar
         <Button type="button" size="sm" variant="outline" className="h-7 text-xs" disabled={!!inCorso} onClick={() => void interno("margine")}>
           {icona("margine")}{t("Con margine")}
         </Button>
-      )}
-      {doc && (
-        <DocumentoInvioDialog
-          open
-          onOpenChange={(v) => { if (!v) setDoc(null); }}
-          documento={doc.documento}
-          orderId={doc.orderId}
-          modificaRighe
-          initialMode="pdf"
-          context={{ mode: "new", initialSubject: `Rapporto lavori in economia ${doc.documento.periodo ?? ""} · ${doc.documento.commessa ?? ""}` }}
-        />
       )}
     </div>
   );

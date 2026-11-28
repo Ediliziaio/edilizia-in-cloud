@@ -696,3 +696,36 @@ committente: **giorno, chi, lavori, ore, avanzamento, allegati, stato**, con app
 riga e il dettaglio nel popup di prima. In una schermata ce ne stanno dieci, e l'occhio scorre una
 colonna invece di leggere dieci schede. Le colonne che contano restano anche sul telefono
 (avanzamento e allegati spariscono sotto `lg` e `md`).
+
+### Chi parla al committente è il rendiconto, non il rapportino
+
+Il rapportino aveva tre documenti economici: «Per il committente», «Costi sostenuti», «Con
+margine». Il primo faceva lo stesso mestiere del rendiconto giornaliero — ore e voci ai prezzi di
+vendita, su carta da mandare fuori — e due strade per lo stesso foglio portano fuori strada. Dal
+28/11 il rapportino tiene i **costi** (sostenuti, e con margine a chi vede i margini) e il
+documento al committente si fa dal **rendiconto**, che nasce dai rapportini e ha i prezzi del
+listino del committente. `documentoPerCommittente` resta nella libreria: la usa il rendiconto.
+
+«Esporta Excel» stava da solo in una barra sotto i filtri, che su una commessa senza campi propri
+esisteva solo per lui: ora è accanto agli altri pulsanti in testa all'elenco
+(`EsportaRapportiniExcel`), e la riga dei totali compare solo quando dei totali ci sono.
+
+### I due PDF: stessa veste, cose diverse
+
+Il PDF interno del rapportino si disegnava da sé, col carattere e il logo di serie; il rendiconto
+obbediva ai **Modelli PDF** dell'azienda. Da oggi `pdfInterno` legge lo stesso modello del rapporto
+in economia e ne prende la sola **veste**: carattere, colore d'accento, margine, dimensione del
+testo, logo (misura, scala e allineamento, con `disponiLogoTestata` come i documenti operativi),
+colore dei riquadri, numerazione e nota di pagina. Tiene per sé quello che è suo: la fascia
+«DOCUMENTO INTERNO · NON INVIARE AL CLIENTE», le colonne di costo e margine, nessun destinatario e
+nessuno spazio per la firma. Se il modello non si legge, il documento esce con la veste di serie.
+
+### L'IVA del rendiconto
+
+Gli importi del rendiconto sono e restano **IVA esclusa**: conta quantità e tariffe, l'IVA la mette
+la fattura (il totale dice già «Totale IVA esclusa»). Mancava però la cosa che cambia i conti al
+committente: quando il contratto d'appalto è in **inversione contabile** (`appalto_contratti.
+regime_iva = 'reverse_charge'`, lo stesso campo che la fattura dal SAL già rispetta), il documento
+non lo diceva. Ora `inversioneDellaCommessa` lo legge una volta e il PDF — del giorno e del periodo —
+stampa «Inversione contabile, art. 17 c. 6 DPR 633/72: fattura senza IVA». Una commessa senza
+contratto non ha un regime da leggere: si stampa come prima.

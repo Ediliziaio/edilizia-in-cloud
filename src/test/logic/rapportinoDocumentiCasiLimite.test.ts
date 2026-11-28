@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { creaPdfOperativo } from "@/lib/documentiOperativi/pdf";
 import { documentoPerCommittente, pdfInterno, righeInterne, type QuadroDocumento } from "@/lib/campo/rapportinoDocumenti";
+import { normalizzaModelloPdf } from "../../../supabase/functions/_shared/modelliPdfOperativi";
 
 const azienda = { id: "d2000000-0000-4000-a000-000000000002", name: "Demo", business_name: "Demo Azienda 2 S.r.l.", brand_primary_color: "#0F766E", righeSocietarie: ["Demo Azienda 2 S.r.l."] };
 const info = { data: "2026-11-06", descrizione: "Prova.", commessa: "SIM-1", cliente: "Mario Verdi" };
@@ -28,6 +29,18 @@ describe("PDF del rapportino: casi limite", () => {
     const t = testo(pdfInterno("margine", { persone: [], mezzi: [], voci: [] }, info, azienda));
     expect(t).toContain("Nessuna ora, mezzo o voce registrata");
     expect(t).not.toContain("0,00");
+  });
+
+  it("la veste del rapporto in economia vale anche per il documento interno", () => {
+    const q: QuadroDocumento = { persone: [persona("Mario Rossi", 8, 40)], registrato: true };
+    const modello = normalizzaModelloPdf("economia", { carattere: "times", notaPagina: "Uso riservato", numerazione: false, margine: 18 });
+    const t = testo(pdfInterno("costi", q, info, azienda, undefined, modello));
+    expect(t).toContain("Uso riservato");
+    expect(t).not.toContain("Pag. 1 / 1");
+    expect(t).toContain("DOCUMENTO INTERNO"); // il suo, che il modello non tocca
+    // Di serie resta la numerazione e la nota «Documento interno».
+    const serie = testo(pdfInterno("costi", q, info, azienda));
+    expect(serie).toContain("Documento interno · Pag. 1 / 1");
   });
 
   it("per il committente: ditta nella manodopera, giornate contate, voci nei materiali", () => {

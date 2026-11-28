@@ -91,13 +91,34 @@ export function documentoDaRendiconto(
   };
 }
 
+/**
+ * L'IVA del rendiconto (28/11/2026). Gli importi sono sempre IVA esclusa — il rendiconto conta
+ * quantità e tariffe, l'IVA la mette la fattura — ma se il contratto col committente è in
+ * **inversione contabile** il documento deve dirlo, come lo dice già la fattura che nasce dal SAL:
+ * altrimenti il committente legge un imponibile e si aspetta un'IVA che non arriverà.
+ * Una commessa senza contratto d'appalto non ha un regime da leggere: si va avanti senza.
+ */
+export async function inversioneDellaCommessa(orderId: string): Promise<{ inversioneContabile?: true }> {
+  try {
+    const db = supabase as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const { data: o } = await db.from("orders").select("appalto_contratto_id").eq("id", orderId).maybeSingle();
+    const contrattoId = (o as { appalto_contratto_id?: string | null } | null)?.appalto_contratto_id;
+    if (!contrattoId) return {};
+    const { data: c } = await db.from("appalto_contratti").select("regime_iva").eq("id", contrattoId).maybeSingle();
+    return (c as { regime_iva?: string } | null)?.regime_iva === "reverse_charge" ? { inversioneContabile: true } : {};
+  } catch {
+    return {}; // Il PDF esce lo stesso: senza il regime si stampa il totale IVA esclusa di sempre.
+  }
+}
+
 export async function preparaRendicontoGiornaliero(companyId: string, rendicontoId: string): Promise<DocumentoOperativo> {
   const dettaglio = await leggiRendiconto(rendicontoId);
   if (!dettaglio.righe.length) throw new Error("Il rendiconto non ha righe: aggiungine prima di stamparlo.");
   const orderId = dettaglio.testata.order_id;
-  const [destinatario, ordine] = await Promise.all([
+  const [destinatario, ordine, iva] = await Promise.all([
     leggiDestinatarioRapporto(companyId, orderId),
     supabase.from("orders").select("order_code").eq("id", orderId).maybeSingle(),
+    inversioneDellaCommessa(orderId),
   ]);
-  return documentoDaRendiconto(dettaglio, destinatario, (ordine.data as { order_code: string | null } | null)?.order_code ?? null);
+  return { ...documentoDaRendiconto(dettaglio, destinatario, (ordine.data as { order_code: string | null } | null)?.order_code ?? null), ...iva };
 }

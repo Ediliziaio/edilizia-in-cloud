@@ -11,6 +11,8 @@
  * I due interni non si mandano a nessuno: lo dicono in testa e in piè di pagina.
  */
 import { jsPDF } from "jspdf";
+import { dimensioniLogo, disponiLogoTestata } from "../../../supabase/functions/_shared/dimensioniLogo";
+import { normalizzaModelloPdf, type ModelloPdf } from "../../../supabase/functions/_shared/modelliPdfOperativi";
 import { footerAzienda, type AziendaDocumento, type DocumentoOperativo, type RigaDocumentoOperativo } from "@/lib/documentiOperativi/modello";
 import {
   disegnaPiedeJsPdf, fontPiedeBase64, limiteContenutoJsPdf, personalizzazioneDocumento, puntiInMm as mm,
@@ -138,20 +140,34 @@ export function righeInterne(q: QuadroDocumento): RigaInterna[] {
   return righe;
 }
 
-/** PDF interno: costi sostenuti, o costi con ricavo e margine. Stesso stile dei documenti operativi. */
-export function pdfInterno(variante: VarianteInterna, q: QuadroDocumento, info: InfoRapportino, a: AziendaDocumento, logo?: string): jsPDF {
+/**
+ * PDF interno: costi sostenuti, o costi con ricavo e margine.
+ *
+ * 28/11/2026 — la veste è la stessa del rendiconto giornaliero, come ha chiesto il titolare: i due
+ * documenti devono somigliarsi e distinguersi per quello che dicono, non per come sono fatti. Da
+ * qui in avanti questo PDF obbedisce alle scelte dei **Modelli PDF** dell'azienda per il rapporto
+ * in economia — carattere, colore d'accento, margine, dimensione del testo, logo (misura e
+ * allineamento), colore dei riquadri, numerazione e nota di pagina — e tiene per sé ciò che è suo:
+ * la fascia «documento interno», i costi, il margine, e nessun destinatario né spazio per la firma.
+ */
+export function pdfInterno(variante: VarianteInterna, q: QuadroDocumento, info: InfoRapportino, a: AziendaDocumento, logo?: string, modelloPdf?: ModelloPdf): jsPDF {
   const veste = personalizzazioneDocumento(a.id);
+  // Del modello si prende solo la veste: titolo, testi e condizioni sono di un documento che si
+  // manda a qualcuno, e questo non si manda.
+  const modello = normalizzaModelloPdf("economia", modelloPdf as unknown);
+  if (!modello.mostraLogo) logo = undefined;
   const pdf = new jsPDF({ unit: "mm", format: "a4", compress: Boolean(logo) });
   const conMargine = variante === "margine";
   const titolo = conMargine ? "Rapportino · costi e margine" : "Rapportino · costi sostenuti";
   pdf.setProperties({ title: `${titolo} ${info.commessa ?? ""} ${info.data}`, author: a.business_name || a.name, subject: titolo });
-  const left = mm(pagina.margineLaterale), width = 210 - left * 2, bottom = limiteContenutoJsPdf(veste, width, 268);
+  const left = modello.margine || mm(pagina.margineLaterale), width = 210 - left * 2, bottom = limiteContenutoJsPdf(veste, width, 268);
   const INCHIOSTRO = rgb255(colore.inchiostro), TENUE = rgb255(colore.testoTenue), LINEA = rgb255(colore.linea);
-  const FONDO = rgb255(colore.fondoTenue), FONDO_INT = rgb255(colore.fondoIntestazione), AVVISO = rgb255(colore.avviso);
+  const FONDO = rgb255(modello.coloreRiquadri || colore.fondoTenue), FONDO_INT = rgb255(colore.fondoIntestazione), AVVISO = rgb255(colore.avviso);
   const POSITIVO = rgb255(colore.positivo), NEGATIVO: Rgb = [185, 28, 28];
-  const ACCENTO = rgb255(accentoDocumento({ coloreVeste: veste.piedeColore, coloreAzienda: a.brand_primary_color }));
+  const ACCENTO = rgb255(accentoDocumento({ coloreVeste: veste.piedeColore, coloreAzienda: modello.colore || a.brand_primary_color }));
+  const corpoTesto = modello.dimensioneTesto || pagina.corpo;
   const safe = (v: string) => v.replace(/\u00a0|\u202f/g, " ").replace(/[–—]/g, "-").replace(/[‘’]/g, "'").replace(/[“”]/g, '"');
-  const font = (size: number, bold = false, tinta: Rgb = INCHIOSTRO) => { pdf.setFont("helvetica", bold ? "bold" : "normal"); pdf.setFontSize(size); pdf.setTextColor(...tinta); };
+  const font = (size: number, bold = false, tinta: Rgb = INCHIOSTRO) => { pdf.setFont(modello.carattere, bold ? "bold" : "normal"); pdf.setFontSize(size); pdf.setTextColor(...tinta); };
   const passo = (size: number, interlinea: number = pagina.interlinea) => mm(size * interlinea);
   const filetto = (tinta: Rgb, spessore: number, x1: number, y1: number, x2: number, y2: number) => { pdf.setDrawColor(...tinta); pdf.setLineWidth(mm(spessore)); pdf.line(x1, y1, x2, y2); };
   const e = (n: number | null | undefined) => (n == null ? "—" : safe(euro(n)));
@@ -170,24 +186,33 @@ export function pdfInterno(variante: VarianteInterna, q: QuadroDocumento, info: 
     const spazioTitolo = Math.max(pdf.getTextWidth(safe(titolo)), 62) + 8;
     if (logo) {
       const p = pdf.getImageProperties(logo);
-      const maxH = mm(veste.logoAltezza ?? stileTestata.logoAltezza);
-      const maxW = Math.min(mm(veste.logoLarghezzaMax ?? stileTestata.logoLarghezzaMax), width - spazioTitolo);
-      const r = p.width / p.height;
-      wSx = Math.min(maxW, maxH * r); hSx = wSx / r; img = { tipo: p.fileType, w: wSx, h: hSx };
+      // Misura di serie dalla veste, scalata e allineata come nei Modelli PDF: stessa testata del
+      // rendiconto, così i due documenti si somigliano.
+      const misure = dimensioniLogo(
+        { larghezza: p.width, altezza: p.height },
+        { larghezza: Math.min(mm(veste.logoLarghezzaMax ?? stileTestata.logoLarghezzaMax), width - spazioTitolo), altezza: mm(veste.logoAltezza ?? stileTestata.logoAltezza) },
+        modello.scalaLogo,
+        { larghezza: width, altezza: mm(140) },
+      );
+      wSx = misure.larghezza; hSx = misure.altezza; img = { tipo: p.fileType, w: wSx, h: hSx };
     } else {
       font(stileTestata.ragioneSocialeCorpo, true);
       ragione = (pdf.splitTextToSize(safe(a.business_name || a.name), width * 0.5) as string[]).slice(0, 2);
       wSx = Math.max(...ragione.map((t) => pdf.getTextWidth(t))); hSx = ragione.length * passoRagione;
     }
+    font(stileTestata.titoloCorpo, true);
+    const disposizione = disponiLogoTestata(width, wSx, spazioTitolo, logo ? modello.allineamentoLogo : "left", 8);
+    const { titoloSotto, allineamentoTesto: align } = disposizione;
+    const xTesto = left + disposizione.ancoraTestoX;
     const passoTitolo = passo(stileTestata.titoloCorpo, 1.2);
     const hDx = passoTitolo + passo(stileTestata.sottotitoloCorpo, 1.3);
-    const fondo = top + Math.max(hSx, hDx);
-    if (img) pdf.addImage(logo!, img.tipo, left, fondo - img.h, img.w, img.h);
+    const fondo = top + (titoloSotto ? hSx + mm(10) + hDx : Math.max(hSx, hDx));
+    if (img) pdf.addImage(logo!, img.tipo, left + disposizione.logoX, titoloSotto ? top : fondo - img.h, img.w, img.h);
     else { font(stileTestata.ragioneSocialeCorpo, true); ragione.forEach((t, i) => pdf.text(t, left, fondo - hSx + passoRagione * (i + 0.78))); }
     font(stileTestata.titoloCorpo, true);
-    pdf.text(safe(titolo), left + width, fondo - hDx + passoTitolo * 0.78, { align: "right" });
+    pdf.text(safe(titolo), xTesto, fondo - hDx + passoTitolo * 0.78, { align });
     font(stileTestata.sottotitoloCorpo, false, TENUE);
-    pdf.text(safe([info.commessa, dataIt(info.data)].filter(Boolean).join(" · ")), left + width, fondo - 0.8, { align: "right" });
+    pdf.text(safe([info.commessa, dataIt(info.data)].filter(Boolean).join(" · ")), xTesto, fondo - 0.8, { align });
     const yF = fondo + mm(stileTestata.filettoDistanza);
     filetto(ACCENTO, stileTestata.filettoSpessore, left, yF, left + width, yF);
     // Sotto il filetto, una fascia: il documento non si manda al cliente.
@@ -254,9 +279,9 @@ export function pdfInterno(variante: VarianteInterna, q: QuadroDocumento, info: 
 
   if (info.descrizione?.trim()) {
     sezione("Cosa si è fatto");
-    font(pagina.corpo);
+    font(corpoTesto);
     const righe = (pdf.splitTextToSize(safe(info.descrizione.trim()), width) as string[]).slice(0, 8);
-    righe.forEach((t) => { pdf.text(t, left, y + passo(pagina.corpo) * 0.72); y += passo(pagina.corpo); });
+    righe.forEach((t) => { pdf.text(t, left, y + passo(corpoTesto) * 0.72); y += passo(corpoTesto); });
   }
 
   // Tabella.
@@ -351,7 +376,8 @@ export function pdfInterno(variante: VarianteInterna, q: QuadroDocumento, info: 
   const pagine = pdf.getNumberOfPages();
   for (let n = 1; n <= pagine; n++) {
     pdf.setPage(n);
-    const numero = `Documento interno · Pag. ${n} / ${pagine}`;
+    const numero = [modello.notaPagina ? safe(modello.notaPagina) : "Documento interno",
+      modello.numerazione ? `Pag. ${n} / ${pagine}` : ""].filter(Boolean).join(" · ");
     if (veste.piedeRighe) {
       disegnaPiedeJsPdf(pdf, veste, { font: a.fontPiede ? "EBGaramond" : "helvetica", pulisci: a.fontPiede ? undefined : safe, larghezzaUtile: width, pagina: numero });
       continue;
@@ -385,8 +411,16 @@ export async function generaPdfInterno(variante: VarianteInterna, q: QuadroDocum
       }
     } catch { /* Senza logo si scrive la ragione sociale: il documento esce lo stesso. */ }
   }
-  const [{ supabase }, societari] = await Promise.all([import("@/integrations/supabase/client"), import("../../../supabase/functions/_shared/datiSocietari")]);
+  const [{ supabase }, societari, { leggiModelloPdf }] = await Promise.all([
+    import("@/integrations/supabase/client"),
+    import("../../../supabase/functions/_shared/datiSocietari"),
+    import("@/lib/modelliPdf/repository"),
+  ]);
   const righeSocietarie = societari.righeSocietarie(await societari.caricaDatiSocietari(supabase, a.id));
   const fontPiede = personalizzazioneDocumento(a.id).piedeFont ? await fontPiedeBase64() : null;
-  return pdfInterno(variante, q, info, { ...a, righeSocietarie, fontPiede }, logo).output("blob");
+  // La veste del rapporto in economia, la stessa del rendiconto giornaliero. Se non si legge, il
+  // documento esce con la veste di serie: un modello mancante non deve fermare un PDF interno.
+  const modello: ModelloPdf | undefined = await leggiModelloPdf(a.id, "economia")
+    .catch((): ModelloPdf | undefined => undefined);
+  return pdfInterno(variante, q, info, { ...a, righeSocietarie, fontPiede }, logo, modello).output("blob");
 }

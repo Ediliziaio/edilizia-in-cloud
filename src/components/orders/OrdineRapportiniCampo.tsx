@@ -15,7 +15,7 @@ import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { RapportinoBlocchi } from "@/components/campo/RapportinoBlocchi";
 import { CampiDaCompletare } from "@/components/orders/CampiDaCompletare";
 import { compilatoDa } from "../../../supabase/functions/genera-pdf-rapportino/model";
-import { TotaliCampiCommessa } from "@/components/orders/TotaliCampiCommessa";
+import { EsportaRapportiniExcel, TotaliCampiCommessa } from "@/components/orders/TotaliCampiCommessa";
 import { useModuloRapportino } from "@/hooks/useModuliCantiere";
 import { linkFileRiservato } from "@/lib/storage/fileRiservati";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -286,6 +286,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
           <div className="flex flex-wrap items-center gap-2">
             {!soloDaApprovare && canEditOrders && <NuoviRapportiniUfficio orderId={orderId} />}
             {!isLoading && !isError && <RapportiPeriodoDialog nascondiSeVuoto companyId={companyId} orderId={orderId} mese="Rapportini della commessa" righe={rapportini.filter((r) => !r.annullato_at)} conDatiEconomici={canViewCosts} />}
+            {!soloDaApprovare && !isLoading && !isError && <EsportaRapportiniExcel orderId={orderId} rapportini={rapportini} />}
           </div>
         )}
         {/* Colpo d'occhio: quante ore, cosa aspetta l'ufficio, a che punto sono i lavori.
@@ -330,7 +331,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
         ) : (
           <div className="space-y-4">
             {!soloDaApprovare && canViewCosts && <CostiDaCompletareCommessa orderId={orderId} />}
-            {!soloDaApprovare && <TotaliCampiCommessa orderId={orderId} rapportini={rapportini} />}
+            {!soloDaApprovare && <TotaliCampiCommessa orderId={orderId} />}
             {conFiltri && (
               <div role="search" aria-label={t("Filtra i rapportini")} className="space-y-2 rounded-lg border bg-slate-50/60 p-2.5">
                 <div className="flex flex-wrap items-center gap-1.5">
