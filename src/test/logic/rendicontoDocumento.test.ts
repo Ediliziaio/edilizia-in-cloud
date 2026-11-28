@@ -12,7 +12,7 @@ const riga = (o: Partial<RigaRendiconto> = {}): RigaRendiconto => ({
   chiave: "k", categoria: "voce", descrizione: "Voce", unita: "cad", quantita: 1, prezzo_unitario: 10,
   prezzo_a_mano: true, prezzo_fonte: "manuale", listino_voce_id: null, appalto_tariffa_id: null,
   employee_id: null, subappaltatore_id: null, mezzo_id: null, fase_id: null, da_rapportino_id: null,
-  maggiorazione_pct: 0, note: null, viaggio: null, ...o,
+  maggiorazione_pct: 0, note: null, voce_computo_id: null, extra_contratto: false, viaggio: null, ...o,
 });
 
 const dettaglio = (righe: RigaRendiconto[], stato: "bozza" | "confermato" = "confermato"): DettaglioRendiconto => ({

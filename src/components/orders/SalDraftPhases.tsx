@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/lib/formatters";
 import { salLineAmount, salNumber, type SalDraftLine } from "@/lib/orders/salDraft";
 import { percentualePrecedenteVoce, type PercentualiPrecedenti } from "@/lib/orders/salDaFasi";
+import { periodoInParole, type PeriodoDaiMovimenti } from "@/lib/orders/salPeriodoDaiMovimenti";
 import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
@@ -18,6 +19,11 @@ interface Props {
   onChange: (index: number, field: keyof SalDraftLine, value: string) => void;
   onSubphaseChange: (index: number, sub: number, field: "quantita" | "percentuale", value: string) => void;
   onRemove: (index: number) => void;
+  /**
+   * Quanto dicono i giorni, per lavorazione (28/11/2026): la riga «Nel periodo: …» sotto la
+   * lavorazione. Vuota dove nessun rendiconto o rapportino ha ancora dichiarato niente.
+   */
+  periodo?: ReadonlyMap<string, PeriodoDaiMovimenti>;
 }
 
 const amount = (v: SalDraftLine) => {
@@ -28,7 +34,7 @@ const keyOf = (v: SalDraftLine, i: number) => v.fase_id ?? `libera-${i}`;
 const quantity = (n: number) => n.toLocaleString(intlCampo(), { maximumFractionDigits: 3 });
 
 /** La stessa gerarchia del cantiere: fase → voci. I filtri cambiano solo la vista, mai il verbale. */
-export function SalDraftPhases({ lines, previous, unchanged, showAll, onShowAll, onChange, onSubphaseChange, onRemove }: Props) {
+export function SalDraftPhases({ lines, previous, unchanged, showAll, onShowAll, onChange, onSubphaseChange, onRemove, periodo }: Props) {
   const t = useT();
   const [selection, setSelection] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -98,8 +104,10 @@ export function SalDraftPhases({ lines, previous, unchanged, showAll, onShowAll,
                   const measured = !!d.quantita_contratto && !["corpo", "a corpo"].includes((d.unita ?? "").trim().toLocaleLowerCase("it"));
                   const subPct = salNumber(d.percentuale_avanzamento);
                   const subAmount = d.importo_contrattuale != null && subPct !== null && subPct <= 100 ? salLineAmount(d.importo_contrattuale, subPct) : null;
+                  const daiGiorni = d.sottofase_id ? periodoInParole(periodo?.get(d.sottofase_id), t) : "";
                   return <tr key={d.sottofase_id ?? j} className="sal-subphase-row">
-                    <td>{d.descrizione}</td>
+                    <td>{d.descrizione}
+                      {daiGiorni && <small className="sal-cell-helper block text-muted-foreground">{daiGiorni}</small>}</td>
                     <td>{measured ? <div className="sal-quantity-field"><Input inputMode="decimal" value={d.quantita_a_oggi} aria-label={t("Quantità a oggi di {nome}", { nome: d.descrizione })} className="h-8 text-right" onChange={e => onSubphaseChange(i, j, "quantita", e.target.value)} /><small>{t("su {quantita} {unita}", { quantita: quantity(d.quantita_contratto!), unita: d.unita ?? "" })}</small></div> : <span className="sal-body-unit text-muted-foreground">{d.quantita_contratto ? `${quantity(d.quantita_contratto)} ${d.unita ?? ""}` : t("A percentuale")}</span>}</td>
                     {confronto && <td className={previousPct != null && subPct != null && subPct < previousPct ? "text-amber-700" : "text-muted-foreground"}>
                       {previousPct != null ? `${previousPct}%` : "—"}

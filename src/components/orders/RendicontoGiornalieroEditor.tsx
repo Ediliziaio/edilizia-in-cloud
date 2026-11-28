@@ -20,6 +20,9 @@ import { useOrderWorkPhases } from "@/hooks/useOrderWorkPhases";
 import { useMezzi } from "@/hooks/useMezzi";
 import { PulsantePdfRendiconto } from "@/components/orders/PulsantePdfRendiconto";
 import { CercaVoceRendiconto } from "@/components/orders/CercaVoceRendiconto";
+import { AvanzamentoDelGiorno } from "@/components/orders/AvanzamentoDelGiorno";
+import { leggiLavorazioniDelGiorno } from "@/lib/rendiconti/avanzamentoDelGiorno";
+import { siMisuraSulComputo } from "@/lib/orders/modalitaLavoro";
 import { avvisoUnita } from "@/components/orders/CercaNelListino";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -63,7 +66,8 @@ function rigaViaggioNuova(descrizione: string): RigaRendiconto {
     chiave: chiaveRiga(), categoria: "trasporto", descrizione, unita: "viaggio", quantita: 1,
     prezzo_unitario: null, prezzo_a_mano: false, prezzo_fonte: null, listino_voce_id: null,
     appalto_tariffa_id: null, employee_id: null, subappaltatore_id: null, mezzo_id: null, fase_id: null,
-    da_rapportino_id: null, maggiorazione_pct: 0, note: null, viaggio: {},
+    da_rapportino_id: null, maggiorazione_pct: 0, note: null,
+    voce_computo_id: null, extra_contratto: false, viaggio: {},
   };
 }
 
@@ -133,6 +137,22 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
     enabled: copiando,
     queryFn: () => elencoRendiconti(orderId),
   });
+  // Come si misura la commessa (28/11/2026): se si misura sul computo compare «Avanzamento del
+  // giorno» e ogni voce a prezzo deve dire se è del computo o un extra — lo impone il database.
+  const commessa = useQuery({
+    queryKey: ["rendiconto-giornaliero-modalita", orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("orders").select("modalita_lavoro").eq("id", orderId).maybeSingle();
+      if (error) throw error;
+      return (data as { modalita_lavoro?: string | null } | null)?.modalita_lavoro ?? "semplice";
+    },
+  });
+  const sulComputo = siMisuraSulComputo(commessa.data);
+  const lavorazioniComputo = useQuery({
+    queryKey: ["avanzamento-del-giorno-voci", orderId],
+    enabled: sulComputo,
+    queryFn: () => leggiLavorazioniDelGiorno(orderId, "rendiconto", null),
+  });
   const { data: mezzi = [] } = useMezzi();
   // Voce, unità e prezzo delle righe aggiunte a mano: una lettura per apertura, rifatta se cambia il giorno.
   const predefinite = useQuery({
@@ -174,7 +194,8 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
     setRighe((rs) => [...rs, {
       chiave: chiaveRiga(), descrizione: "", unita: cat.unita, quantita: 1, prezzo_unitario: null, prezzo_a_mano: false,
       prezzo_fonte: null, listino_voce_id: null, appalto_tariffa_id: null, employee_id: null, subappaltatore_id: null,
-      mezzo_id: null, fase_id: null, da_rapportino_id: null, maggiorazione_pct: 0, note: null, viaggio: null, ...r,
+      mezzo_id: null, fase_id: null, da_rapportino_id: null, maggiorazione_pct: 0, note: null,
+      voce_computo_id: null, extra_contratto: false, viaggio: null, ...r,
     }]);
   };
   const daListino = (categoria: CategoriaRiga, v: VoceListino) => {
@@ -208,9 +229,15 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
   };
   const errore = (e: unknown) => toast.error(messaggioErrore(e, tr("Operazione non riuscita")));
   const senzaQuantita = righe.find((r) => !(r.quantita > 0));
+  // Su una commessa che si misura sul computo il database rifiuta una voce a prezzo che non dica
+  // se è del computo o un extra: lo diciamo qui, con il nome della riga, prima di provarci.
+  const voceMuta = sulComputo
+    ? righe.find((r) => r.categoria === "voce" && !r.voce_computo_id && !r.extra_contratto)
+    : undefined;
   const salva = useMutation({
     mutationFn: () => {
       if (senzaQuantita) throw new Error(tr("La riga «{nome}» ha quantità 0: scrivila o toglila", { nome: senzaQuantita.descrizione || tr("senza nome") }));
+      if (voceMuta) throw new Error(tr("La riga «{nome}»: di' se è una voce del computo o un lavoro extra", { nome: voceMuta.descrizione || tr("senza nome") }));
       return salvaRendiconto(bozza());
     },
     onSuccess: async (nuovo) => { await dopo(nuovo); toast.success(tr("Rendiconto salvato")); },
@@ -426,6 +453,30 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
                               <button type="button" aria-label={tr("Togli la riga")} className="text-muted-foreground hover:text-rose-600"
                                 onClick={() => setRighe((rs) => rs.filter((x) => x.chiave !== r.chiave))}><X className="h-4 w-4" /></button>
                             )}
+                            {/* Commessa a computo: ogni voce a prezzo dice se è del computo o un extra
+                                (28/11/2026). Senza la scelta il database la rifiuta. */}
+                            {sulComputo && c.valore === "voce" && (
+                              <div className="flex w-full flex-wrap items-center gap-1.5 pb-1 pl-0.5">
+                                <OfficeSelect
+                                  value={r.extra_contratto ? "extra" : (r.voce_computo_id ?? "")}
+                                  label={tr("Voce del computo o lavoro extra")}
+                                  className={`h-7 min-w-[16rem] flex-1 text-xs ${!r.voce_computo_id && !r.extra_contratto ? "border-amber-400" : ""}`}
+                                  placeholder={tr("Scegli: voce del computo o extra…")}
+                                  disabled={!modificabile}
+                                  onValueChange={(v) => aggiorna(r.chiave, v === "extra"
+                                    ? { extra_contratto: true, voce_computo_id: null }
+                                    : { extra_contratto: false, voce_computo_id: v || null })}
+                                  options={[
+                                    { value: "extra", label: tr("Lavoro extra, fuori contratto") },
+                                    ...(lavorazioniComputo.data ?? [])
+                                      .filter((l) => !!l.voce_computo_id)
+                                      .map((l) => ({ value: l.voce_computo_id!, label: `${l.fase} · ${l.lavorazione}`, group: tr("Voci del computo") })),
+                                  ]} />
+                                {!r.voce_computo_id && !r.extra_contratto && (
+                                  <span role="alert" className="text-[11px] text-amber-700">{tr("Serve la scelta")}</span>
+                                )}
+                              </div>
+                            )}
                             {/* Il viaggio: carico, scarico, mezzo o targa, DDT, km. Gli stessi campi del
                                 rapportino trasporti, così il committente legge la tratta e non «Trasporto». */}
                             {r.viaggio && (
@@ -482,6 +533,16 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
                 </Blocco>
               );
             })}
+
+            {/* L'altra faccia del giorno (28/11/2026): non quanto si è speso, ma quanto si è fatto
+                delle lavorazioni già pattuite nel computo. Scrive i movimenti dell'avanzamento, e da
+                lì nasce il SAL. Compare solo dove la commessa si misura sul computo. */}
+            {sulComputo && (
+              <Blocco titolo={tr("Avanzamento del giorno")} destra={tr("dal computo")}>
+                <AvanzamentoDelGiorno orderId={orderId} documentoId={id} data={data} origine="rendiconto"
+                  puoModificare={puoModificare} chiuso={stato !== "bozza"} />
+              </Blocco>
+            )}
 
             <label className="grid gap-1 text-xs text-muted-foreground">{tr("Note (facoltative)")}
               <Input aria-label={tr("Note")} maxLength={4000} className="text-foreground" value={note} disabled={!modificabile} onChange={(e) => setNote(e.target.value)} />

@@ -485,3 +485,114 @@ La tendina salvava e il valore non cambiava. In console, due cose diverse, una d
 
 **Trovato per strada, non corretto:** `orders.tariffa_manodopera_id` non è nella vista e non è
 protetta da un CASE — è rimasta fuori, e chi la scrive dal browser prende lo stesso PGRST204.
+
+## 11. Lotti 3-6: il giorno dichiara, il SAL legge (28/11/2026)
+
+### Lotto 4 — «Avanzamento del giorno»
+
+Tre pezzi nel database (`20290630220000`, corretta da `20290630230000`):
+
+1. **`appalto_rendiconto_righe.voce_computo_id`**, il legame che mancava fra la riga a prezzo e la
+   voce del computo. Con il legame la regola decisa dal titolare diventa vera: su una commessa che
+   si misura sul computo ogni riga di «Altre voci» deve **dire** se è una voce del computo (e quale)
+   o un lavoro extra. Manodopera, mezzi, trasporti e materiali restano economia per natura e non
+   chiedono niente.
+2. **`rendiconto_lavorazioni_del_giorno(commessa, origine, documento)`** — le lavorazioni con
+   quantità e unità di contratto, quanto è già fatto, quanto dichiara **questo** documento e qual è
+   la loro voce di computo (`20290630250000`). **Nessun importo**: la griglia funziona anche per chi
+   non ha il permesso Costi, come `campo_quantita_sottofasi` fa per il rapportino.
+3. **`avanzamento_del_giorno_salva(commessa, data, origine, documento, righe)`** — un movimento per
+   lavorazione: risalvare lo stesso giorno **sostituisce** (l'indice unico su origine + documento +
+   lavorazione), dichiarare zero **cancella**, giorni diversi **si sommano**. Un rendiconto già
+   confermato non si riscrive: la correzione è una rettifica.
+
+Chi può: chi può modificare la commessa (l'ufficio con «Commesse → modifica», o chi è assegnato al
+cantiere), non bloccato e non cliente esterno. **Non** si chiede «Venduto e importi»: l'avanzamento
+è una quantità, non un prezzo, e il capocantiere che non vede i soldi deve poterlo dichiarare.
+
+Una lavorazione non ancora nel registro si accende da sé al primo numero dichiarato, col suo saldo
+di apertura (`private.avanzamento_apri_sottofase`): a differenza del travaso di commessa non si
+rifiuta mai — c'è una persona che sta dichiarando il lavoro di oggi — e se percentuale e quantità
+non erano d'accordo lo dice nel riepilogo (`spostate_dall_apertura`).
+
+Perché il rendiconto non si sarebbe più salvato, e la correzione: `rendiconto_giornaliero_salva`
+scriveva `extra_contratto = false` fisso e non conosceva `voce_computo_id`, quindi la regola nuova
+avrebbe bloccato il salvataggio su ogni commessa a computo. Ora la funzione legge i due campi dal
+JSON delle righe (`20290630240000`), e le righe di un rendiconto continuano a passare solo da lì
+(`rendiconto_giornaliero_righe_guardia`).
+
+### Lotto 3 — la griglia
+
+`AvanzamentoDelGiorno` riusa la **veste** della griglia del verbale (le classi `sal-phase-*`: fasi a
+sinistra, ricerca, tabella scorribile) e non il suo componente: `SalDraftPhases` porta dentro importi
+contrattuali editabili, note per il cliente e il confronto col SAL precedente, che in un giorno non
+hanno senso. Le colonne qui sono cinque: lavorazione, a contratto, fatto a oggi, **oggi**, diventa.
+L'ultima è il conto che si vedrà dopo il salvataggio, calcolato con le stesse regole del registro
+(`anteprimaAOggi`, 14 prove).
+
+### Lotto 5 — il SAL legge i giorni
+
+`sal_quantita_del_periodo(commessa, dal, al)` (`20290630260000`) somma i movimenti: «a oggi» fino
+alla data del verbale, «nel periodo» dal verbale precedente, più **quanti giorni** l'hanno
+dichiarato e **da dove** vengono (rendiconti, rapportini, ufficio). Provata su tre giorni veri
+(5/10: 100, 10/11: 250, 25/11: 80 su una base di 780):
+
+| periodo | a oggi | nel periodo | giorni |
+| --- | --- | --- | --- |
+| fino al 31/10 | 100 (13%) | 100 | 1 |
+| novembre | 430 (55%) | 330 | 2 |
+| 20-30 novembre | 430 (55%) | 80 | 1 |
+| tutto | 430 (55%) | 430 | 3 |
+
+In interfaccia è una riga sotto la lavorazione nel verbale — «Nel periodo: 28 m² · 3 giorni · da
+rendiconti, rapportini» — e non una colonna nuova: il verbale è un documento che va al cliente e
+resta cumulativo, la percentuale la scrive chi lo compila. Dove nessun giorno ha dichiarato niente
+la riga non c'è.
+
+### Lotto 6 — anche il cantiere scrive un movimento
+
+`sottofase_applica_avanzata`, la strada del rapportino approvato, era l'ultima delle quattro che
+scriveva **direttamente** su `order_work_subphases`. Da `20290630270000`: se la lavorazione è nel
+registro scrive un movimento (origine `rapportino`, documento il rapportino), e la riga la aggiorna
+il derivato; se non lo è, tutto come prima, riga per riga. Lo storico
+`sottofasi_dal_rapportino` resta in entrambi i casi, perché lo legge l'ufficio.
+
+Due cose che cambiano dove il registro è acceso, e sono il motivo del lavoro:
+- una lavorazione già spuntata non blocca più la dichiarazione (prima `if s.fatta then return`);
+- **la percentuale può scendere**: un rapportino corretto in basso riporta indietro la lavorazione,
+  perché la storia non sta più in un numero solo. Provato: 50 → corretto a 20 → +30 da un secondo
+  rapportino → 99999 (tetto al contratto, spuntata) → corretto a 5 (55, 21%, non più spuntata).
+
+### Le prove del caos
+
+Tutte su dati veri di Demo Azienda 2, in transazioni annullate dove non diversamente detto.
+
+| prova | esito |
+| --- | --- |
+| quantità negativa | **difetto trovato**: cancellava il movimento invece di rifiutare, perché il controllo «niente da dichiarare» stava prima del segno. Corretto in `20290630230000`; adesso 23514 e il giorno resta intatto |
+| lavorazione a percentuale che riceve una quantità | **difetto trovato**: scriveva un movimento a percentuale con la percentuale a NULL. Adesso si ferma col motivo |
+| percentuale 150, percentuale negativa | rifiutate (23514) |
+| percentuale su una lavorazione a quantità | si ferma col motivo, le altre righe passano |
+| lavorazione di un'altra commessa, `sottofase_id` nullo | si ferma col motivo, nessun errore |
+| `sottofase_id` che non è un uuid | rifiutato (22P02) |
+| origine inventata, documento nullo | rifiutati (22023) |
+| quantità oltre il contratto | tetto alla base, 100% |
+| due giorni diversi | si sommano (200 + 100 = 300) |
+| rendiconto e rapportino sulla stessa lavorazione | si sommano (380), come deciso il 28/11 |
+| lo stesso giorno risalvato | sostituisce (500 invece di sommare) |
+| lo stesso giorno a zero | cancella solo il proprio movimento (restano 180) |
+| rendiconto confermato | rifiutato, col motivo |
+| utente di un'altra azienda | scrittura rifiutata (42501), lettura 0 righe |
+| anonimo | rifiutato in scrittura e in lettura |
+| lavorazione a corpo (senza base) | va a percentuale; 100% la spunta con la data |
+| 60 lavorazioni in un salvataggio | 60 scritte, 59 accese, **478 ms** |
+| due salvataggi in parallelo (due documenti, stessa lavorazione) | 120 + 60 + 30 + 45 = 255, niente perso: il lock del derivato regge |
+| voce a prezzo che non dice niente, su commessa a computo | rifiutata col messaggio |
+| voce legata a una voce di un'altra commessa | rifiutata |
+| voce del computo **e** extra insieme | rifiutata |
+| voce del computo inesistente | rifiutata (23503) |
+| manodopera che non dice niente | passa |
+| commessa in economia, voce che non dice niente | passa: nessuna regressione |
+
+I dati di prova lasciati su Demo 2 dalla prova di concorrenza (4 movimenti, 2 rendiconti) sono stati
+cancellati e la lavorazione è tornata spenta e vuota.

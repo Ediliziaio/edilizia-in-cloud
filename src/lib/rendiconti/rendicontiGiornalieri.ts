@@ -104,6 +104,14 @@ export interface RigaRendiconto {
   /** Maggiorazione (straordinario): importo = quantità × prezzo × (1 + %/100). */
   maggiorazione_pct: number;
   note: string | null;
+  /**
+   * La voce del computo che questa riga misura (28/11/2026). Su una commessa che si misura sul
+   * computo ogni riga «Altre voci» deve dire una delle due cose: la voce del computo, oppure
+   * `extra_contratto` — altrimenti il database la rifiuta.
+   */
+  voce_computo_id: string | null;
+  /** La riga è un lavoro fuori contratto. */
+  extra_contratto: boolean;
   /** Solo le righe di trasporto: carico, scarico, mezzo o targa, DDT, km (gli stessi campi del rapportino). */
   viaggio: ViaggioRendiconto | null;
   /** Solo in editor: la voce scelta ha un'unità diversa da quella del generale (non va al database). */
@@ -154,7 +162,7 @@ async function chiama<T>(funzione: string, args: object): Promise<T> {
 }
 
 export const COLONNE_TESTATA = "id, order_id, data, numero, stato, descrizione_lavori, note, rapportino_id, righe, totale, senza_prezzo, sal_id, rapportini, rapportini_nuovi, rapportini_ritirati, n_manodopera, n_mezzi, n_trasporti, n_materiali, n_voci";
-const COLONNE_RIGHE = "id, categoria, descrizione, unita_misura, quantita, prezzo_unitario, prezzo_a_mano, prezzo_fonte, listino_voce_id, tariffa_id, employee_id, subappaltatore_id, mezzo_id, fase_id, da_rapportino_id, maggiorazione_pct, note, viaggio, ordine";
+const COLONNE_RIGHE = "id, categoria, descrizione, unita_misura, quantita, prezzo_unitario, prezzo_a_mano, prezzo_fonte, listino_voce_id, tariffa_id, employee_id, subappaltatore_id, mezzo_id, fase_id, da_rapportino_id, maggiorazione_pct, note, viaggio, ordine, voce_computo_id, extra_contratto";
 
 const comeNumero = (x: unknown) => (x == null ? 0 : Number(x));
 
@@ -245,6 +253,8 @@ export async function leggiRendiconto(id: string): Promise<DettaglioRendiconto> 
       da_rapportino_id: (x.da_rapportino_id as string | null) ?? null,
       maggiorazione_pct: comeNumero(x.maggiorazione_pct),
       note: (x.note as string | null) ?? null,
+      voce_computo_id: (x.voce_computo_id as string | null) ?? null,
+      extra_contratto: x.extra_contratto === true,
       viaggio: viaggioDaSalvare(x.viaggio as ViaggioRendiconto | null),
     })),
   };
@@ -281,6 +291,8 @@ export function payloadSalva(b: BozzaRendiconto) {
       ...(r.fase_id ? { fase_id: r.fase_id } : {}),
       ...(r.da_rapportino_id ? { da_rapportino_id: r.da_rapportino_id } : {}),
       ...(r.note ? { note: r.note } : {}),
+      ...(r.voce_computo_id ? { voce_computo_id: r.voce_computo_id } : {}),
+      ...(r.extra_contratto ? { extra_contratto: true } : {}),
       ...(viaggioDaSalvare(r.viaggio) ? { viaggio: viaggioDaSalvare(r.viaggio) } : {}),
     })),
   };

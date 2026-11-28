@@ -33,6 +33,7 @@ import { salMaturato } from "@/lib/orders/salMaturazione";
 import { numeroNuovoSal, prossimoStatoSal, rataDaAllineareAlSal, rataDaSal, rateSalDaEmettere } from "@/lib/orders/salRate";
 import {usePermissions} from "@/hooks/usePermissions";
 import {prepareSalLines,salNumber,salLineAmount,salListIssues,salEmissionIssue} from "@/lib/orders/salDraft";
+import { leggiPeriodoDaiMovimenti } from "@/lib/orders/salPeriodoDaiMovimenti";
 import {saveSalDraft,SalSaveError} from "@/lib/orders/saveSalDraft";
 import {SalPlanInfo} from "./SalPlanInfo";
 import { FORMATI_VERBALE_SAL, type FormatoVerbaleSal } from "@/lib/orders/formatiVerbaleSal";
@@ -421,6 +422,13 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   const precedenteNuovo = maturatoPrecedente({ id: "nuovo", numero_sal: numeroNuovo }, salList);
   // Il verbale è cumulativo: ogni voce riparte dalla % del SAL emesso prima di questo.
   const precedentiVoci = percentualiPrecedenti(numeroNuovo, salList);
+  // Quanto dicono i giorni nel periodo di questo verbale (28/11/2026): dal SAL precedente a oggi.
+  // Serve a chi compila per sapere da dove vengono i numeri; il verbale resta cumulativo.
+  const salPrimaDiQuesto = salList.find((x) => x.numero_sal < numeroNuovo && x.stato !== "bozza");
+  const periodoDaiGiorni = useQuery({
+    queryKey: ["sal-periodo-dai-movimenti", orderId, salPrimaDiQuesto?.data_emissione ?? null],
+    queryFn: () => leggiPeriodoDaiMovimenti(orderId, salPrimaDiQuesto?.data_emissione ?? null, null),
+  });
   const vociInDiscesa = vociSottoIlPrecedente(voci, precedentiVoci);
   // Il certificato nello stesso modulo: ritenuta del certificato prima, acconti = già maturato.
   const certificatoPrima = certificatoPrecedente({ numero_sal: numeroNuovo }, salList);
@@ -1027,7 +1035,8 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                 </p>
               )}
               <SalDraftPhases key={`${formError ? "errore" : "bozza"}-${voci.length}`} lines={voci} previous={precedentiVoci} unchanged={fasiInvariate} showAll={mostraTutte}
-                onShowAll={() => setMostraTutte(true)} onChange={updateVoce} onSubphaseChange={updateSottofase} onRemove={removeVoce} />
+                onShowAll={() => setMostraTutte(true)} onChange={updateVoce} onSubphaseChange={updateSottofase} onRemove={removeVoce}
+                periodo={periodoDaiGiorni.data} />
             </div>
 
             <details className="sal-payment-settings">
