@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,11 +26,16 @@ export default function ChiudiEffettoDialog({ effetto, open, onOpenChange }: Pro
   const permissions = usePermissions();
   const chiudi = useChiudiEffetto();
   const oggi = oggiIso();
-  const [dataScelta, setData] = useState<string | null>(null);
-  const [fonteGiaPagata, setFonteGiaPagata] = useState(false);
-  // Il dialogo resta montato: cambiando effetto si riparte da zero.
-  const effettoId = effetto?.id;
-  useEffect(() => { setData(null); setFonteGiaPagata(false); }, [effettoId]);
+  // Il dialogo resta montato: cambiando effetto si riparte da zero. Lo stato porta con se'
+  // l'effetto a cui appartiene (niente useEffect che azzera: la regola set-state-in-effect
+  // lo vieta, ed e' anche un giro di disegno in piu').
+  const effettoId = effetto?.id ?? "";
+  const [scelte, setScelte] = useState<{ id: string; data: string | null; giaPagata: boolean }>({ id: effettoId, data: null, giaPagata: false });
+  const mie = scelte.id === effettoId ? scelte : { id: effettoId, data: null, giaPagata: false };
+  const dataScelta = mie.data;
+  const fonteGiaPagata = mie.giaPagata;
+  const setData = (v: string | null) => setScelte({ ...mie, id: effettoId, data: v });
+  const setFonteGiaPagata = (v: boolean) => setScelte({ ...mie, id: effettoId, giaPagata: v });
   if (!effetto) return null;
 
   // Di default la data dell'assegno, ma mai nel futuro.
