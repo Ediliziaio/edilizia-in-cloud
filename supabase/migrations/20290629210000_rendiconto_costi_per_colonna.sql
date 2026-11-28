@@ -20,11 +20,10 @@ grant select (
   quantita, maggiorazione_pct, importo, employee_id, fase_id, origine, rapportino_id,
   extra_contratto, stato, confermata_da, confermata_at, note, created_by, created_at,
   updated_at, sal_id, voce_libera_id, mezzo_id, rendiconto_giornaliero_id, categoria,
-  listino_voce_id, prezzo_fonte, prezzo_a_mano, ordine, subappaltatore_id, da_rapportino_id,
-  -- `viaggio` lo legge l'editor del rendiconto (COLONNE_RIGHE): senza il GRANT un select con
-  -- colonne esplicite fallirebbe e il rendiconto non si aprirebbe più. `voce_computo_id` non sta
-  -- qui ma nella 20290630220000, che la crea: qui la colonna non esiste ancora, e la ricostruzione
-  -- offline del database rigioca le migrazioni in ordine su un database vuoto.
-  viaggio
+  listino_voce_id, prezzo_fonte, prezzo_a_mano, ordine, subappaltatore_id, da_rapportino_id
 ) on public.appalto_rendiconto_righe to authenticated;
+-- `viaggio` e `voce_computo_id` non sono in questo elenco perché a questo punto della storia non
+-- esistono ancora: le creano la 20290630100000 e la 20290630220000, e il GRANT lo danno
+-- la 20290630220000 (voce del computo) e la 20290630300000 (viaggio). La ricostruzione offline
+-- rigioca le migrazioni in ordine su un database vuoto, e non perdona un riferimento in avanti.
 revoke all on public.appalto_rendiconto_righe from anon;
