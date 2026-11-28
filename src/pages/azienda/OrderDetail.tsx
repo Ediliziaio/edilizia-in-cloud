@@ -117,6 +117,8 @@ import { CantiereViewNav, VISTE_SOLO_SCHERMO_GRANDE } from "@/components/orders/
 import { OrderWorkspaceNav } from "@/components/orders/OrderWorkspaceNav";
 import { OrderDisclosure } from "@/components/orders/OrderDisclosure";
 import { mostraSalAlCliente, ECONOMIA_VIEWS, MATERIALI_VIEWS, COSTI_VIEWS, isOrderDetailTab, type CantiereView, type OrderDetailSection } from "@/lib/orders/detailNavigation";
+import { mostraRendicontoAlCommittente } from "@/lib/orders/modalitaLavoro";
+import { ModalitaLavoroCard } from "@/components/orders/ModalitaLavoroCard";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { OrderAssistenzaTab, OrderAssistenzaAlert } from "@/components/orders/OrderAssistenzaTab";
 // ── New sub-components ──────────────────────────────────────────
@@ -336,6 +338,8 @@ interface OrderDetail extends Pick<Tables<"orders">, "status" | "quote_number" |
   work_end_time?: string | null;
   /** Preventivo da cui nasce la commessa: la sua firma è la data del contratto. */
   quote_id?: string | null;
+  /** Come si misura e si fattura: decide quali documenti l'app propone (SAL, rendiconto). */
+  modalita_lavoro?: string | null;
   // ── Modulo Appaltatori (default: order_type='cliente') ─────────────
   order_type: "cliente" | "appaltatore_lavoro" | null;
   work_address: string | null;
@@ -626,9 +630,12 @@ function OrderDetailInner() {
   });
   const visteEconomiche = useMemo(
     () => ECONOMIA_VIEWS.filter(v => {
-      if (v.value === "rendiconto") return inAppalto;
+      // Dal 28/11/2026 è `orders.modalita_lavoro` a dire quali documenti si propongono; finché una
+      // commessa resta al valore di partenza vale la regola di prima (il rendiconto solo in appalto).
+      if (v.value === "rendiconto") return mostraRendicontoAlCommittente({ modalita: order?.modalita_lavoro, inAppalto });
       if (v.value === "sal") return mostraSalAlCliente({
         salEsistenti: salDellaCommessa.data?.qui ?? 1,
+        modalita: order?.modalita_lavoro,
         inAppalto,
         figliaDiGenerale: !!(order as { commessa_generale_id?: string | null } | undefined)?.commessa_generale_id,
         rate: dbInstallments,
@@ -1760,6 +1767,9 @@ function OrderDetailInner() {
                 se acceso a mano o se contratto generale / computo hanno già dei codici. */}
             {id && <RiquadroRiferimentiPa orderId={id} puoModificare={permissions.canEditOrders} />}
 
+            {/* Come si misura e si fattura (28/11/2026): decide quali documenti l'app propone. */}
+            {id && <ModalitaLavoroCard orderId={id} puoModificare={permissions.canEditOrders} />}
+
               {id && !isMobile && <details className="rounded-lg border bg-card p-4"><summary className="cursor-pointer text-sm font-semibold">{t("Campi aggiuntivi della commessa")}</summary><p className="my-2 text-xs text-muted-foreground">{t("Dati interni, senza modificare importi, contratto o documento cliente.")}</p><EntityCustomFieldsSection entityType="order" entityId={id} /></details>}
               </div>
               <div className="min-w-0 space-y-3">
@@ -2001,7 +2011,7 @@ function OrderDetailInner() {
               </ErrorBoundary>
             )}
 
-            {activeEconomiaView === "rendiconto" && inAppalto && (
+            {activeEconomiaView === "rendiconto" && mostraRendicontoAlCommittente({ modalita: order.modalita_lavoro, inAppalto }) && (
               <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">{t("Rendiconto non disponibile. Ricarica la pagina per riprovare.")}</p>}>
                 <div id="section-rendiconto" className="scroll-mt-24">
                   <RendicontoAppalto

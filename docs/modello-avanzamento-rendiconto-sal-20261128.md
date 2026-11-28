@@ -369,3 +369,96 @@ annullata, su una commessa con lavorazioni accese:
 
 Da qui in avanti, su Demo 2 ogni prova del lotto 2 parte da un registro vero: 2.271 saldi di
 apertura, e le quattro lavorazioni discordanti lasciate dove sono, da guardare a mano.
+
+## 10. Lotto 2: come si misura una commessa sta scritto sulla commessa (28/11/2026)
+
+`orders.modalita_lavoro`, quattro valori, con un CHECK e il valore di partenza `semplice`
+(migrazione `20290630180000_commessa_modalita_lavoro`).
+
+### Riempita una volta, da quello che c'era
+
+| modalità | commesse | di cui vive | di cui con documenti emessi |
+| --- | --- | --- | --- |
+| `semplice` | 1.319 | 1.188 | 208 |
+| `computo` | 38 | 37 | 9 |
+| `economia` | 18 | 18 | 2 |
+| `computo_ed_economia` | 0 | — | — |
+
+La deduzione (`private.commessa_modalita_dalle_cose`) guarda due cose: una voce di computo con
+quantità su una fase → computo; un rendiconto d'appalto, delle tariffe di commessa o un contratto
+d'appalto → economia. Il SAL verbale **non** entra nella deduzione, e qui sta la scoperta del lotto:
+
+> **147 commesse `semplice` hanno un SAL verbale.** Il SAL a percentuale sulle fasi lo usa anche chi
+> non ha un computo. Quindi la modalità decide che cosa l'app **propone**, non che cosa vieta:
+> `mostraSalAlCliente` continua a mostrare la vista a chi la usa già, e la modalità la aggiunge dove
+> prima mancava — per esempio in appalto col computo, il caso C, dove prima spariva.
+
+`order_type` ('cliente' / 'appaltatore_lavoro') dice con chi si lavora, non come si misura: 84
+commesse sono in appalto ma solo 18 hanno tariffe o rendiconti. Restano due colonne diverse.
+
+### Il riempimento non ha svegliato niente
+
+Provato in transazione annullata contando prima e dopo 24 tabelle di automazioni, code, notifiche,
+webhook e attività: **zero righe nuove** in tutte. Si muove solo `finanza_revisioni`, e in giù
+(453 → 356): `finanza_segnala_modifica` scrive un segnale per azienda e nello stesso giro ripulisce
+fino a 100 segnali vecchi di oltre un giorno. Il motivo per cui le automazioni dormono è che
+`trigger_automation_on_order` e `notify_order_status_change` reagiscono solo al cambio di
+`current_status_id`, e `registra_azione_utente` esce quando `auth.uid()` è nullo.
+
+### La guardia, e un difetto trovato provandola
+
+La modalità si cambia finché la commessa non ha documenti emessi — un SAL verbale o un rendiconto
+non più in bozza, una fattura che non sia bozza o annullata
+(`private.commessa_ha_documenti_emessi`). La guardia è nata sbagliata:
+
+> `current_user not in ('authenticated', 'anon') then return new` — copiata da
+> `public.sottofase_guardia()`, che però **non** è SECURITY DEFINER. Dentro una funzione definer
+> `current_user` è il **proprietario**, non l'utente: la condizione era sempre vera e la guardia
+> usciva subito per tutti. Provata con `demo2@azienda.srl` su una commessa con una fattura emessa,
+> l'update passava. Corretta in `20290630190000` con `auth.role()`, che legge il JWT e una funzione
+> definer non cambia. **Da ricordare: una funzione di trigger definer non può usare `current_user`
+> per sapere chi sta scrivendo.**
+
+Dopo la correzione, con l'utente vero di Demo 2:
+
+| prova | esito |
+| --- | --- |
+| cambiare modalità (niente emesso) | passa |
+| cambiare modalità (con una fattura emessa) | rifiutato, col motivo |
+| riscrivere lo stesso valore su una commessa con emessi | passa, perché non cambia niente |
+| modifica normale (descrizione) su una commessa con emessi | passa |
+| un valore fuori elenco | rifiutato dal CHECK (23514) |
+| il quadro di una commessa di un'altra azienda | rifiutato |
+
+### In interfaccia
+
+- `public.commessa_modalita_quadro(uuid)` (service role e authenticated, con `assert_company_access`)
+  dà la modalità di adesso, quella che i dati suggeriscono e se si può ancora cambiare.
+- `ModalitaLavoroCard` in Panoramica, sotto i riferimenti PA: una tendina quando si può cambiare, il
+  motivo quando non si può, e il suggerimento con un pulsante quando i dati dicono altro.
+- `src/lib/orders/modalitaLavoro.ts` tiene le funzioni pure: `mostraRendicontoAlCommittente` e la
+  modalità dentro `mostraSalAlCliente`. Il rendiconto resta legato all'appalto, perché il suo
+  contenuto ha bisogno del contratto e del committente: una vista che si apre vuota è peggio di una
+  vista che non c'è. La modalità lì serve a **togliere** il rendiconto dove il titolare ha detto che
+  non si usa (appalto + solo computo → si fattura il SAL).
+- 13 prove nuove: `src/test/logic/modalitaLavoro.test.ts` e `src/test/ui/modalitaLavoroCard.test.tsx`.
+- `ModalitaLavoroCard.tsx` non è negli otto dizionari: i file dell'ufficio si traducono a blocchi e
+  questo non è ancora in `BLOCCHI_UFFICIO`, quindi il controllo della lingua non lo guarda.
+
+### I tipi del database restano un lavoro a sé
+
+`src/integrations/supabase/types.ts` nel repository è **indietro di 13.571 righe** rispetto al
+database vero (163.024 contro 176.595), e identico su `origin/main`: non è il ritardo di una
+sessione, è un debito di tutto il progetto. Rigenerarlo con `node scripts/genera-tipi-database.mjs`
+funziona, ma fa emergere una **catena di TS2589** («tipo troppo profondo») nelle select con più
+embed di aree che non c'entrano con questo lotto: `BankAccountsList`, `usePrimaNota` (due punti),
+`QuoteDelMovimento`… e ogni giro del cricchetto — venti minuti — ne scopre il successivo, perché il
+budget di istanziazione dei tipi si esaurisce nel primo punto che lo sfonda.
+
+Il rimedio, dove serve, è di una riga: tenere la stringa di select in una costante annotata
+`string`, così TypeScript non prova a calcolare il tipo della riga più gli embed (il tipo inferito
+in quei punti non veniva usato: le righe erano già tipizzate a mano).
+
+Per non far pagare a questo lotto una catena di correzioni in file di altri, il types.ts **non** è
+stato rigenerato qui: la colonna e la funzione nuove passano da due accessi non tipizzati, scritti
+una volta sola in testa a `ModalitaLavoroCard.tsx`, da cancellare quando i tipi saranno in pari.

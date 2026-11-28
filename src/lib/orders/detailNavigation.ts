@@ -1,4 +1,6 @@
 /** One navigation contract for desktop, mobile, notifications and old links. */
+import { siMisuraSulComputo } from "./modalitaLavoro";
+
 export type OrderDetailTab = "panoramica" | "cantiere" | "articoli" | "costi" | "finanza";
 export const CANTIERE_VIEWS = [
   { value: "lavorazioni", label: "Lavorazioni", description: "Fasi, responsabili, assegnazioni e mezzi del cantiere." },
@@ -261,8 +263,11 @@ export function mostraSalAlCliente(p: {
   aziendaUsaSal: boolean;
   /** Il computo della commessa è un lavoro pubblico: la vista porta alla sua contabilità. */
   lavoroPubblico?: boolean;
+  /** `orders.modalita_lavoro`: se la commessa si misura sul computo, il SAL è il suo documento. */
+  modalita?: string | null;
 }): boolean {
   if (p.salEsistenti > 0 || p.lavoroPubblico) return true;
+  if (siMisuraSulComputo(p.modalita)) return true;
   if (p.inAppalto || p.figliaDiGenerale) return false;
   if (p.rate.some((r) => r.trigger_evento === "sal_numero" || r.trigger_evento === "sal_percentuale")) return true;
   return p.aziendaUsaSal;
