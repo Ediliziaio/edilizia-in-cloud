@@ -8,7 +8,7 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { CATEGORIE, importoRiga, leggiRendiconto, viaggioInParole, type RendicontoGiornaliero } from "@/lib/rendiconti/rendicontiGiornalieri";
-import { descrizioneRiga, inversioneDellaCommessa, rigaTrasporto, soloTrasporti } from "./preparaRendicontoGiornaliero";
+import { descrizioneRiga, ivaDellaCommessa, rigaTrasporto, soloTrasporti } from "./preparaRendicontoGiornaliero";
 import { leggiDestinatarioRapporto } from "./destinatarioRapporto";
 import type { DocumentoOperativo } from "./modello";
 
@@ -51,7 +51,7 @@ export async function preparaRendicontoPeriodo(
   const [destinatario, ordine, iva] = await Promise.all([
     leggiDestinatarioRapporto(companyId, orderId),
     supabase.from("orders").select("order_code").eq("id", orderId).maybeSingle(),
-    inversioneDellaCommessa(orderId),
+    ivaDellaCommessa(orderId),
   ]);
   const bozza = utili.some((r) => r.stato === "bozza");
   const tutteLeRighe = dettagli.flatMap((d) => d.righe);

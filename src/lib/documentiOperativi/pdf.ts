@@ -717,15 +717,18 @@ export function creaPdfOperativo(
     const tw = 72;
     const tx = left + width - tw;
     const ty = sy + mm(stileSezione.spazioPrima);
+    // L'IVA scelta sulla commessa (rendiconti): si mostra la scomposizione anche in economia,
+    // che di suo conta IVA esclusa. Con l'inversione contabile non si applica e lo si scrive.
+    const ivaScelta = d.ivaRendiconto && !d.inversioneContabile ? d.ivaRendiconto : null;
+    const nomeIva = ivaScelta
+      ? `IVA ${numeroIt(ivaScelta.pct)}%${ivaScelta.compresa ? " (compresa)" : ""}`
+      : d.inversioneContabile ? "IVA inv. contabile" : "IVA";
     const voci: [string, string][] =
-      importiIvaEsclusa(d)
+      importiIvaEsclusa(d) && !ivaScelta
         ? []
         : [
             ["Imponibile", euro(t.imponibile)],
-            [
-              d.inversioneContabile ? "IVA inv. contabile" : "IVA",
-              d.inversioneContabile ? "-" : euro(t.iva),
-            ],
+            [nomeIva, d.inversioneContabile ? "-" : euro(t.iva)],
           ];
     const passoTotale = passo(stileRiquadro.numeroCorpo, 1.2);
     const hTot = 2 * pad + voci.length * passoValore + (voci.length ? 3 : 0) + passoTotale;
@@ -747,11 +750,13 @@ export function creaPdfOperativo(
     pdf.text(
       documentoIncompleto(d)
         ? "Totale parziale"
-        : importiIvaEsclusa(d)
-          ? "Totale IVA esclusa"
-          : d.tipo === "trasporti"
-            ? "Totale"
-            : "Totale ordine",
+        : ivaScelta
+          ? (ivaScelta.compresa ? "Totale (IVA compresa)" : "Totale IVA inclusa")
+          : importiIvaEsclusa(d)
+            ? "Totale IVA esclusa"
+            : d.tipo === "trasporti"
+              ? "Totale"
+              : "Totale ordine",
       tx + pad,
       base,
     );

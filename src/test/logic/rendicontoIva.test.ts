@@ -5,7 +5,8 @@
  */
 import { describe, expect, it } from "vitest";
 import { creaPdfOperativo } from "@/lib/documentiOperativi/pdf";
-import type { DocumentoOperativo } from "@/lib/documentiOperativi/modello";
+import { totaliDocumento, type DocumentoOperativo } from "@/lib/documentiOperativi/modello";
+import { totaleConIva } from "@/lib/rendiconti/rendicontiGiornalieri";
 
 const azienda = { id: "d2000000-0000-4000-a000-000000000002", name: "Demo", business_name: "Demo Azienda 2 S.r.l.", righeSocietarie: ["Demo Azienda 2 S.r.l."] };
 const testo = (pdf: { output: (t: "arraybuffer") => ArrayBuffer }) => Buffer.from(pdf.output("arraybuffer")).toString("latin1");
@@ -34,5 +35,40 @@ describe("Rendiconto: l'IVA", () => {
     expect(t).toContain("Inversione contabile");
     expect(t).toContain("art. 17 c. 6 DPR 633/72");
     expect(t).toContain("Totale IVA esclusa"); // il totale non cambia: l'imponibile è quello
+  });
+
+  it("IVA aggiunta: imponibile, IVA e totale, sul documento e sul PDF", () => {
+    const d = rendiconto({ ivaRendiconto: { pct: 22, compresa: false } });
+    expect(totaliDocumento(d)).toEqual({ imponibile: 256, iva: 56.32, totale: 312.32 });
+    const t = testo(creaPdfOperativo(d, azienda));
+    expect(t).toMatch(/IVA 22%/i);
+    expect(t).toContain("Totale IVA inclusa");
+    expect(t).not.toContain("Totale IVA esclusa");
+  });
+
+  it("IVA compresa: il totale è la somma delle righe, imponibile e IVA si ricavano all'indietro", () => {
+    const d = rendiconto({ ivaRendiconto: { pct: 10, compresa: true } });
+    expect(totaliDocumento(d)).toEqual({ imponibile: 232.73, iva: 23.27, totale: 256 });
+    const t = testo(creaPdfOperativo(d, azienda));
+    // Le etichette dei riquadri si stampano in maiuscolo, e nel PDF le parentesi sono protette.
+    expect(t).toMatch(/IVA 10%.{0,3}COMPRESA/i);
+    expect(t).toMatch(/Totale .{0,3}IVA compresa/i);
+  });
+
+  it("l'inversione contabile vince sulla scelta: niente IVA, e lo scrive", () => {
+    const d = rendiconto({ ivaRendiconto: { pct: 22, compresa: false }, inversioneContabile: true });
+    expect(totaliDocumento(d).totale).toBe(256);
+    const t = testo(creaPdfOperativo(d, azienda));
+    expect(t).toContain("Inversione contabile");
+  });
+
+  it("il conto nell'editor è lo stesso del documento", () => {
+    expect(totaleConIva(516.4, { iva_pct: 22, iva_compresa: false, inversione: false }))
+      .toEqual({ imponibile: 516.4, iva: 113.61, totale: 630.01 });
+    expect(totaleConIva(256, { iva_pct: 10, iva_compresa: true, inversione: false }))
+      .toEqual({ imponibile: 232.73, iva: 23.27, totale: 256 });
+    // In inversione contabile la scelta non si applica.
+    expect(totaleConIva(100, { iva_pct: 22, iva_compresa: false, inversione: true }))
+      .toEqual({ imponibile: 100, iva: 0, totale: 100 });
   });
 });

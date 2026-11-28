@@ -322,6 +322,31 @@ export const rendicontoCopia = (origine: string, data: string) =>
 export const listinoCommittente = (orderId: string, data: string, testo: string) =>
   chiama<VoceListinoCommittente[]>("rendiconto_listino_committente", { p_order_id: orderId, p_data: data, p_testo: testo, p_limite: 20 });
 
+/**
+ * L'IVA del rendiconto, scelta una volta per commessa (28/11/2026): niente (importi IVA esclusa),
+ * aggiunta al totale, o già compresa nei prezzi. `inversione` viene dal contratto col committente
+ * e vince su tutto: in inversione contabile l'IVA non si applica.
+ */
+export interface IvaRendiconto { iva_pct: number | null; iva_compresa: boolean; inversione: boolean }
+
+export const leggiIvaRendiconto = (orderId: string) =>
+  chiama<IvaRendiconto>("rendiconto_iva_commessa", { p_order: orderId });
+
+export const salvaIvaRendiconto = (orderId: string, pct: number | null, compresa: boolean) =>
+  chiama<IvaRendiconto>("rendiconto_iva_imposta", { p_order: orderId, p_pct: pct, p_compresa: compresa });
+
+/** Il totale che il committente legge, con la scelta dell'IVA applicata. */
+export function totaleConIva(somma: number, iva: IvaRendiconto | null | undefined) {
+  const pct = iva && !iva.inversione ? iva.iva_pct : null;
+  if (pct == null) return { imponibile: somma, iva: 0, totale: somma };
+  if (iva!.iva_compresa) {
+    const imponibile = Math.round((somma / (1 + pct / 100)) * 100) / 100;
+    return { imponibile, iva: Math.round((somma - imponibile) * 100) / 100, totale: somma };
+  }
+  const q = Math.round(somma * pct) / 100;
+  return { imponibile: somma, iva: q, totale: Math.round((somma + q) * 100) / 100 };
+}
+
 export const salvaPrezzoPerCommittente = (orderId: string, listinoVoceId: string, prezzo: number, unita?: string, descrizione?: string) =>
   chiama<{ appalto_tariffa_id: string; contratto_id: string; contratto_creato: boolean }>("listino_committente_salva_prezzo", {
     p_order_id: orderId, p_listino_voce_id: listinoVoceId, p_prezzo: prezzo,

@@ -34,7 +34,7 @@ import type { VoceListino } from "@/lib/campo/prezzoVoceRapportino";
 import {
   CAMPI_VIAGGIO_RENDICONTO, CATEGORIE, ETICHETTA_FONTE, annullaRendiconto, campiDaPredefinita, vociPredefinite, chiaveRiga, confermaRendiconto, elencoRendiconti, importoRiga, leggiRendiconto,
   puoCopiare, rendicontoCopia, rendicontoDelGiorno, riapriRendiconto, salvaPrezzoPerCommittente, salvaRendiconto, senzaPrezzo,
-  mezzoCollegaVoce, vociSuggeriteMezzo,
+  mezzoCollegaVoce, vociSuggeriteMezzo, leggiIvaRendiconto, salvaIvaRendiconto, totaleConIva,
   type CategoriaRiga, type RigaRendiconto, type StatoRendiconto, type ViaggioRendiconto, type VoceListinoCommittente,
 } from "@/lib/rendiconti/rendicontiGiornalieri";
 
@@ -192,7 +192,17 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
   // Anche confermato: si corregge e resta confermato. Si ferma solo quando è dentro il rendiconto
   // del periodo, perché quel documento è già partito.
   const modificabile = puoModificare && stato !== "annullato" && !salSigillato;
+  // L'IVA del rendiconto: la scelta è della commessa, non del singolo giorno (28/11/2026), così il
+  // documento del giorno e quello del periodo dicono la stessa cosa.
+  const ivaCommessa = useQuery({
+    queryKey: ["rendiconto-iva", orderId],
+    staleTime: 60_000,
+    queryFn: () => leggiIvaRendiconto(orderId),
+  });
+  const iva = ivaCommessa.data ?? null;
   const totale = useMemo(() => righe.reduce((s, r) => s + importoRiga(r), 0), [righe]);
+  // Quello che il committente legge: somma delle righe, poi la scelta dell'IVA della commessa.
+  const conIva = useMemo(() => totaleConIva(totale, iva), [totale, iva]);
   const senza = righe.filter(senzaPrezzo).length;
 
   const aggiorna = (chiave: string, patch: Partial<RigaRendiconto>) =>
@@ -236,6 +246,19 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
     void qc.invalidateQueries({ queryKey: ["appalto-rendiconto"] });
   };
   const errore = (e: unknown) => toast.error(messaggioErrore(e, tr("Operazione non riuscita")));
+  const cambiaIva = useMutation({
+    mutationFn: ({ pct, compresa }: { pct: number | null; compresa: boolean }) => salvaIvaRendiconto(orderId, pct, compresa),
+    onSuccess: (nuova) => {
+      qc.setQueryData(["rendiconto-iva", orderId], nuova);
+      void qc.invalidateQueries({ queryKey: ["rendiconti-giornalieri", orderId] });
+      toast.success(nuova.iva_pct == null
+        ? tr("Rendiconti di questa commessa: importi IVA esclusa")
+        : nuova.iva_compresa
+          ? tr("Rendiconti di questa commessa: prezzi IVA {pct}% compresa", { pct: nuova.iva_pct })
+          : tr("Rendiconti di questa commessa: IVA {pct}% aggiunta al totale", { pct: nuova.iva_pct }));
+    },
+    onError: errore,
+  });
   const senzaQuantita = righe.find((r) => !(r.quantita > 0));
   // Su una commessa che si misura sul computo il database rifiuta una voce a prezzo che non dica
   // se è del computo o un extra: lo diciamo qui, con il nome della riga, prima di provarci.
@@ -604,9 +627,35 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
               <Input aria-label={tr("Note")} maxLength={4000} className="text-foreground" value={note} disabled={!modificabile} onChange={(e) => setNote(e.target.value)} />
             </label>
 
-            <div className="flex items-center justify-between border-t pt-2 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 text-sm">
               <span className="text-xs text-amber-700">{senza > 0 ? tr("{n} senza prezzo", { n: senza }) : ""}</span>
-              <span className="font-semibold">{tr("Totale")} <span className="tabular-nums">{formatCurrency(totale)}</span></span>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                {/* La scelta vale per tutti i rendiconti della commessa: lo dice l'etichetta. */}
+                {iva?.inversione ? (
+                  <span className="text-xs text-muted-foreground">{tr("Inversione contabile: fattura senza IVA")}</span>
+                ) : (
+                  <OfficeSelect
+                    label={tr("IVA dei rendiconti di questa commessa")}
+                    className="h-7 w-[13rem] text-xs"
+                    value={iva?.iva_pct == null ? "" : `${iva.iva_compresa ? "c" : "a"}${iva.iva_pct}`}
+                    disabled={!puoModificare || cambiaIva.isPending}
+                    placeholder={tr("IVA esclusa")}
+                    onValueChange={(v) => cambiaIva.mutate(v === "-"
+                      ? { pct: null, compresa: false }
+                      : { pct: Number(v.slice(1)), compresa: v.startsWith("c") })}
+                    options={[
+                      { value: "-", label: tr("IVA esclusa (la mette la fattura)") },
+                      ...[22, 10, 4].map((p) => ({ value: `a${p}`, label: tr("+ IVA {pct}%", { pct: p }), group: tr("IVA aggiunta al totale") })),
+                      ...[22, 10, 4].map((p) => ({ value: `c${p}`, label: tr("IVA {pct}% compresa", { pct: p }), group: tr("Prezzi che la comprendono già") })),
+                    ]} />
+                )}
+                {conIva.iva > 0 && (
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {tr("Imponibile")} {formatCurrency(conIva.imponibile)} · {tr("IVA")} {formatCurrency(conIva.iva)}
+                  </span>
+                )}
+                <span className="font-semibold">{tr("Totale")} <span className="tabular-nums">{formatCurrency(conIva.totale)}</span></span>
+              </div>
             </div>
           </section>
         )}

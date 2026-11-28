@@ -30,7 +30,7 @@ export function EsportaRapportiniExcel({ orderId, rapportini }: { orderId: strin
   const [esporto, setEsporto] = useState(false);
   if (mobile || rapportini.length === 0) return null;
   return (
-    <Button type="button" variant="outline" size="sm" disabled={esporto} onClick={() => {
+    <Button type="button" variant="outline" size="sm" className="h-9" disabled={esporto} onClick={() => {
       setEsporto(true);
       esportaRapportini(rapportini, `rapportini_${orderId.slice(0, 8)}.xlsx`)
         .catch(() => toast.error(tr("Esportazione non riuscita. Riprova.")))

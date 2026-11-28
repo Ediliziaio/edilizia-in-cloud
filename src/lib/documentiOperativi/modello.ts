@@ -47,6 +47,12 @@ export interface DocumentoOperativo {
   bozza?: boolean;
   /** Rendiconto giornaliero per il committente (27/11/2026): titolo e scritta di bozza suoi. */
   rendicontoGiornaliero?: boolean;
+  /**
+   * L'IVA scelta sulla commessa per i rendiconti (28/11/2026, `commessa_rendiconto_iva`):
+   * `compresa` = i prezzi delle righe la comprendono già, altrimenti si aggiunge al totale.
+   * Senza questo campo il rendiconto resta come prima: importi IVA esclusa.
+   */
+  ivaRendiconto?: { pct: number; compresa: boolean };
   prezziDaConfermare?: boolean;
   riguardaLavori?: boolean;
   fornitoreId?: string;
@@ -169,6 +175,19 @@ export const NOTA_TOTALE_ECONOMIA =
   "Comprende manodopera, straordinari e voci extra dei rapportini; materiali e mezzi sono elencati con le quantità e contano nel totale solo se hanno un prezzo.";
 
 export function totaliDocumento(d: DocumentoOperativo) {
+  // La scelta fatta sulla commessa vale più della regola «in economia si conta IVA esclusa»:
+  // è lei che dice se i prezzi la comprendono o se si aggiunge. L'inversione contabile le passa
+  // davanti a entrambe: lì l'IVA non si applica.
+  if (d.ivaRendiconto && !d.inversioneContabile) {
+    const somma = Math.round(d.righe.reduce((s, r) => s + importoRiga(r), 0) * 100) / 100;
+    const pct = d.ivaRendiconto.pct;
+    if (d.ivaRendiconto.compresa) {
+      const imponibile = Math.round((somma / (1 + pct / 100)) * 100) / 100;
+      return { imponibile, iva: Math.round((somma - imponibile) * 100) / 100, totale: somma };
+    }
+    const iva = Math.round(somma * pct) / 100;
+    return { imponibile: somma, iva, totale: Math.round((somma + iva) * 100) / 100 };
+  }
   if (importiIvaEsclusa(d)) {
     // Rapporto delle quantità e tariffe IVA escluse, come il modello approvato.
     const imponibile =

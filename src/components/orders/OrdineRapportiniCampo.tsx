@@ -285,7 +285,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
         {!azioniInRiga && (
           <div className="flex flex-wrap items-center gap-2">
             {!soloDaApprovare && canEditOrders && <NuoviRapportiniUfficio orderId={orderId} />}
-            {!isLoading && !isError && <RapportiPeriodoDialog nascondiSeVuoto companyId={companyId} orderId={orderId} mese="Rapportini della commessa" righe={rapportini.filter((r) => !r.annullato_at)} conDatiEconomici={canViewCosts} />}
+            {!isLoading && !isError && <RapportiPeriodoDialog nascondiSeVuoto compatto classeBottone="h-9" companyId={companyId} orderId={orderId} mese="Rapportini della commessa" righe={rapportini.filter((r) => !r.annullato_at)} conDatiEconomici={canViewCosts} />}
             {!soloDaApprovare && !isLoading && !isError && <EsportaRapportiniExcel orderId={orderId} rapportini={rapportini} />}
           </div>
         )}

@@ -20,6 +20,7 @@ import {
   footerAzienda,
 } from "@/lib/documentiOperativi/modello";
 import { leggiModelloPdf } from "@/lib/modelliPdf/repository";
+import { totaleConIva } from "@/lib/rendiconti/rendicontiGiornalieri";
 import type { ModelloPdf } from "@/lib/modelliPdf/catalogo";
 import { DOCUMENTI_STANDARD_VERSIONE } from "@/lib/documentiOperativi/standard";
 import { Textarea } from "@/components/ui/textarea";
@@ -585,6 +586,7 @@ function DocumentoInvioContent({
             {modificaRighe && d.tipo === "economia" ? (
               <RigheEconomia
                 righe={d.righe}
+                iva={d.inversioneContabile ? undefined : d.ivaRendiconto}
                 onChange={(righe) => cambia("righe", righe)}
               />
             ) : modificaRighe ? (
@@ -887,8 +889,10 @@ function DocumentoInvioContent({
  * Le voci del rapporto lavori in economia, compatte (14/11/2026): una riga per voce, raggruppate per
  * intervento, con l'importo calcolato e il totale. Prima ogni voce era un riquadro di cinque campi.
  */
-function RigheEconomia({ righe, onChange }: {
+function RigheEconomia({ righe, iva, onChange }: {
   righe: DocumentoOperativo["righe"];
+  /** L'IVA scelta sulla commessa (28/11/2026): qui si vede lo stesso conto che finirà sul PDF. */
+  iva?: { pct: number; compresa: boolean };
   onChange: (righe: DocumentoOperativo["righe"]) => void;
 }) {
   const t = useT();
@@ -897,6 +901,8 @@ function RigheEconomia({ righe, onChange }: {
     r.prezzo == null ? null : Math.round(Number(r.quantita || 0) * Number(r.prezzo) * 100) / 100;
   const totale = righe.reduce((s, r) => s + (importo(r) ?? 0), 0);
   const daDefinire = righe.filter((r) => r.prezzo == null).length;
+  // Lo stesso conto del documento: imponibile, IVA e totale secondo la scelta della commessa.
+  const conIva = totaleConIva(totale, iva ? { iva_pct: iva.pct, iva_compresa: iva.compresa, inversione: false } : null);
   const cambiaRiga = (i: number, patch: Partial<DocumentoOperativo["righe"][number]>) =>
     onChange(righe.map((v, n) => (n === i ? { ...v, ...patch } : v)));
   const numero = (v: string) => (v.trim() === "" ? null : Number(v.replace(",", ".")));
@@ -957,11 +963,23 @@ function RigheEconomia({ righe, onChange }: {
             })}
           </tbody>
           <tfoot className="border-t bg-slate-50">
+            {iva && (
+              <tr>
+                <td colSpan={4} className="px-2 py-1 text-right text-xs text-slate-600">
+                  {iva.compresa
+                    ? t("Imponibile (IVA {pct}% compresa)", { pct: iva.pct })
+                    : t("Imponibile")} · {t("IVA {pct}%", { pct: iva.pct })}
+                </td>
+                <td className="px-2 py-1 text-right text-xs tabular-nums">{euro(conIva.imponibile)} · {euro(conIva.iva)}</td>
+                <td />
+              </tr>
+            )}
             <tr>
               <td colSpan={4} className="px-2 py-1.5 text-right text-xs text-slate-600">
-                {t("Totale IVA esclusa")}{daDefinire ? ` ${t(daDefinire === 1 ? "(parziale: {n} voce da definire)" : "(parziale: {n} voci da definire)", { n: daDefinire })}` : ""}
+                {iva ? (iva.compresa ? t("Totale (IVA compresa)") : t("Totale IVA inclusa")) : t("Totale IVA esclusa")}
+                {daDefinire ? ` ${t(daDefinire === 1 ? "(parziale: {n} voce da definire)" : "(parziale: {n} voci da definire)", { n: daDefinire })}` : ""}
               </td>
-              <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{euro(totale)}</td>
+              <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{euro(conIva.totale)}</td>
               <td />
             </tr>
           </tfoot>

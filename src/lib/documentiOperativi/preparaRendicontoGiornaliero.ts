@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { CATEGORIE, importoRiga, leggiRendiconto, viaggioInParole, type DettaglioRendiconto, type RigaRendiconto } from "@/lib/rendiconti/rendicontiGiornalieri";
+import { CATEGORIE, importoRiga, leggiIvaRendiconto, leggiRendiconto, viaggioInParole, type DettaglioRendiconto, type RigaRendiconto } from "@/lib/rendiconti/rendicontiGiornalieri";
 import { leggiDestinatarioRapporto } from "./destinatarioRapporto";
 import type { DocumentoOperativo } from "./modello";
 
@@ -92,22 +92,20 @@ export function documentoDaRendiconto(
 }
 
 /**
- * L'IVA del rendiconto (28/11/2026). Gli importi sono sempre IVA esclusa — il rendiconto conta
- * quantità e tariffe, l'IVA la mette la fattura — ma se il contratto col committente è in
- * **inversione contabile** il documento deve dirlo, come lo dice già la fattura che nasce dal SAL:
- * altrimenti il committente legge un imponibile e si aspetta un'IVA che non arriverà.
- * Una commessa senza contratto d'appalto non ha un regime da leggere: si va avanti senza.
+ * L'IVA del rendiconto (28/11/2026), letta una volta per commessa:
+ * - contratto in **inversione contabile** → l'IVA non si applica e il documento stampa la clausola
+ *   (altrimenti il committente legge un imponibile e aspetta un'IVA che non arriverà);
+ * - **aliquota scelta** sulla commessa → il documento mostra imponibile, IVA e totale, e dice se i
+ *   prezzi la comprendono già;
+ * - niente di tutto questo → come prima: importi IVA esclusa.
  */
-export async function inversioneDellaCommessa(orderId: string): Promise<{ inversioneContabile?: true }> {
+export async function ivaDellaCommessa(orderId: string): Promise<Pick<DocumentoOperativo, "inversioneContabile" | "ivaRendiconto">> {
   try {
-    const db = supabase as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
-    const { data: o } = await db.from("orders").select("appalto_contratto_id").eq("id", orderId).maybeSingle();
-    const contrattoId = (o as { appalto_contratto_id?: string | null } | null)?.appalto_contratto_id;
-    if (!contrattoId) return {};
-    const { data: c } = await db.from("appalto_contratti").select("regime_iva").eq("id", contrattoId).maybeSingle();
-    return (c as { regime_iva?: string } | null)?.regime_iva === "reverse_charge" ? { inversioneContabile: true } : {};
+    const iva = await leggiIvaRendiconto(orderId);
+    if (iva.inversione) return { inversioneContabile: true };
+    return iva.iva_pct != null ? { ivaRendiconto: { pct: Number(iva.iva_pct), compresa: !!iva.iva_compresa } } : {};
   } catch {
-    return {}; // Il PDF esce lo stesso: senza il regime si stampa il totale IVA esclusa di sempre.
+    return {}; // Il PDF esce lo stesso: senza la scelta si stampa il totale IVA esclusa di sempre.
   }
 }
 
@@ -118,7 +116,7 @@ export async function preparaRendicontoGiornaliero(companyId: string, rendiconto
   const [destinatario, ordine, iva] = await Promise.all([
     leggiDestinatarioRapporto(companyId, orderId),
     supabase.from("orders").select("order_code").eq("id", orderId).maybeSingle(),
-    inversioneDellaCommessa(orderId),
+    ivaDellaCommessa(orderId),
   ]);
   return { ...documentoDaRendiconto(dettaglio, destinatario, (ordine.data as { order_code: string | null } | null)?.order_code ?? null), ...iva };
 }

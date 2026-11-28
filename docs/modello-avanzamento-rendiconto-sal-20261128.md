@@ -729,3 +729,28 @@ regime_iva = 'reverse_charge'`, lo stesso campo che la fattura dal SAL già risp
 non lo diceva. Ora `inversioneDellaCommessa` lo legge una volta e il PDF — del giorno e del periodo —
 stampa «Inversione contabile, art. 17 c. 6 DPR 633/72: fattura senza IVA». Una commessa senza
 contratto non ha un regime da leggere: si stampa come prima.
+
+### La scelta dell'IVA: «+ IVA» o «IVA compresa»
+
+Dire «Totale IVA esclusa» e basta funziona finché i prezzi vengono da un listino netto. Col privato
+si tratta a prezzo finito, e il committente che legge un totale senza sapere quale dei due sia fa il
+conto sbagliato. Dal 28/11 la scelta è esplicita e sta sulla **commessa**
+(`commessa_rendiconto_iva`, migrazione `20290630400000`), non sul singolo giorno: il documento del
+giorno e quello del periodo devono dire la stessa cosa.
+
+- **IVA esclusa** (come prima): il totale è l'imponibile, l'IVA la mette la fattura.
+- **+ IVA 22/10/4%**: il documento mostra imponibile, IVA e totale.
+- **IVA 22/10/4% compresa**: il totale è la somma delle righe; imponibile e IVA si ricavano
+  all'indietro (`totale / 1,22`).
+- **Inversione contabile** (`appalto_contratti.regime_iva`): vince su tutto, l'IVA non si applica e
+  il documento stampa la clausola. La tendina sparisce e lo dice.
+
+Si sceglie dall'editor del rendiconto, accanto al totale, e vale per tutti i rendiconti della
+commessa: `rendiconto_iva_imposta` scrive, `rendiconto_iva_commessa` legge (insieme al regime del
+contratto, così la preparazione del PDF fa una domanda sola). Lo stesso conto compare in tre posti —
+l'editor, la finestra di invio e il PDF — e lo fa una funzione sola per parte (`totaleConIva`,
+`totaliDocumento`), provata sui numeri veri della prova: 516,40 € + 22% = 630,01 €.
+
+I pulsanti in testa a «Rapportini Campo» sono tornati in fila come quelli dei «Rendiconti al
+committente»: quattro bottoni della stessa altezza su una riga, con la frase sui rapportini
+approvati che resta per i lettori di schermo.

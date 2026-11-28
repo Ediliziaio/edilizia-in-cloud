@@ -42,6 +42,7 @@ export function RapportiPeriodoDialog({
   conDatiEconomici = false,
   orderId,
   compatto = false,
+  classeBottone,
   nascondiSeVuoto = false,
 }: {
   righe: RapportinoCompleto[];
@@ -54,6 +55,9 @@ export function RapportiPeriodoDialog({
   nascondiSeVuoto?: boolean;
   /** Nella testata delle schede di Commesse: bottone da 32px come gli altri comandi. */
   compatto?: boolean;
+  /** La misura del bottone decisa da chi lo mette in fila con altri (28/11/2026: «h-9» in testa
+   *  all'elenco dei rapportini, come i bottoni dei rendiconti). */
+  classeBottone?: string;
 }) {
   const t = useT();
   const [doc, setDoc] = useState<DocumentoOperativo | null>(null);
@@ -174,7 +178,7 @@ export function RapportiPeriodoDialog({
       <div className="flex flex-wrap items-center gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="sm" variant="outline" disabled={busy || !companyId} className={compatto ? "h-8 px-2.5 text-xs [&_svg]:h-3.5 [&_svg]:w-3.5" : undefined}>
+            <Button size="sm" variant="outline" disabled={busy || !companyId} className={classeBottone ?? (compatto ? "h-8 px-2.5 text-xs [&_svg]:h-3.5 [&_svg]:w-3.5" : undefined)}>
               {busy ? (
                 <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
               ) : (
