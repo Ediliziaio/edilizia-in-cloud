@@ -3,7 +3,7 @@
  * libero: «riba», «MP12», «Bonifico Vista Fattura», «bank_transfer», «MP05»… Qui diventa RiBa,
  * Bonifico, Contanti… e ogni gruppo ha il filtro che il server sa applicare.
  */
-export type GruppoMetodo = "riba" | "bonifico" | "rid" | "contanti" | "assegno" | "carta" | "altro";
+export type GruppoMetodo = "riba" | "bonifico" | "rid" | "contanti" | "assegno" | "carta" | "altro" | "non_indicata";
 
 export const GRUPPI_METODO: Array<{ value: GruppoMetodo; label: string }> = [
   { value: "riba", label: "RiBa" },
@@ -12,6 +12,8 @@ export const GRUPPI_METODO: Array<{ value: GruppoMetodo; label: string }> = [
   { value: "contanti", label: "Contanti" },
   { value: "assegno", label: "Assegno" },
   { value: "carta", label: "Carta" },
+  /** Modalità vuota o assente. I codici MP (piano di pagamento) NON ci rientrano: sono un valore. */
+  { value: "non_indicata", label: "Non indicata" },
 ];
 
 const CODICI: Record<string, GruppoMetodo> = {
@@ -43,6 +45,7 @@ export function etichettaMetodo(raw: string | null | undefined): string | null {
 
 /** Il filtro PostgREST («or») che prende tutte le scritture di un gruppo. */
 export function filtroMetodo(g: GruppoMetodo): string {
+  if (g === "non_indicata") return "payment_method.is.null,payment_method.eq.";
   const codici = Object.entries(CODICI).filter(([, v]) => v === g).map(([k]) => `payment_method.eq.${k}`);
   const parole: Record<GruppoMetodo, string[]> = {
     riba: ["*riba*", "*ri.ba*", "*ricevuta bancaria*"],
@@ -52,6 +55,7 @@ export function filtroMetodo(g: GruppoMetodo): string {
     assegno: ["*assegn*"],
     carta: ["*carta*", "*card*"],
     altro: [],
+    non_indicata: [],
   };
   return [...codici, ...parole[g].map((p) => `payment_method.ilike.${p}`)].join(",");
 }

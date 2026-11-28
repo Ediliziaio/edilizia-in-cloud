@@ -1,27 +1,32 @@
 import { BOTTONE_NUOVO, BOTTONE_SECONDARIO, RICERCA_BARRA } from "@/components/orders/TestataScheda";
 import { cn } from "@/lib/utils";
-import { useNavigate } from "react-router-dom";
-import { filtraScadenzario, queryFontiScadenzario, linkFonteScadenza } from "@/lib/finance/fontiScadenzario";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { LINGUETTE_CON_CONTEGGIO, type LinguettaConConteggio } from "@/lib/finance/riepilogoPeriodoTipi";
+import { costiDellaCommessa, filtraScadenzario, queryFontiScadenzario, linkFonteScadenza } from "@/lib/finance/fontiScadenzario";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Loader2, Search, Download, Ellipsis, ChevronDown, ChevronLeft, ChevronRight, CalendarClock, BarChart3 } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Plus, Loader2, Search, ChevronDown, ChevronLeft, ChevronRight, CalendarClock, BarChart3 } from "lucide-react";
 
-import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { readAllPages } from "@/lib/personale/readAllPages";
-import { exportToCSV } from "@/lib/csvExport";
-import { commesseScadenza, completaCommesseScadenze, noteFattureScadenze } from "@/lib/finance/commesseScadenza";
+import { EsportaScadenzario } from "@/components/scadenzario/EsportaScadenzario";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { completaCommesseScadenze, completaPerEsportazione, noteFattureScadenze } from "@/lib/finance/commesseScadenza";
 import { useScadenzario, type ScadenzarioFilters } from "@/hooks/useScadenzario";
 import { invalidaFattureImportate } from "@/components/fatturazione/GestionaleEsterno";
 import { AnnullaIncassoDialog } from "@/components/scadenzario/AnnullaIncassoDialog";
-import ScadenzarioKPIs from "@/components/scadenzario/ScadenzarioKPIs";
-import { RateFornitori } from "@/components/scadenzario/RateFornitori";
+import { NavigatoreMese, leggiMese, presetMese } from "@/components/scadenzario/NavigatoreMese";
+import { RiepilogoPeriodo, type RiquadroPeriodo } from "@/components/scadenzario/RiepilogoPeriodo";
+import { RibaNonRegistrate } from "@/components/scadenzario/RibaNonRegistrate";
+import { giornoPrima, useRiepilogoPeriodo } from "@/lib/finance/riepilogoPeriodoScadenzario";
+import { useSettimanaScadenzario } from "@/lib/finance/settimanaScadenzario";
 import { DistintePagamenti } from "@/components/scadenzario/DistintePagamenti";
 import ScadenzarioTable from "@/components/scadenzario/ScadenzarioTable";
 import { DEF_SCADENZE } from "@/lib/scadenzario/colonneScadenzario";
+import { periodoNomeFile, pezzoNomeFile } from "@/lib/scadenzario/esportaScadenzario";
 import { SceltaColonne } from "@/components/tabelle/SceltaColonne";
 import { useColonneTabella } from "@/hooks/useColonneTabella";
 import { ScadenzaDettaglio } from "@/components/scadenzario/ScadenzaDettaglio";
@@ -35,10 +40,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import FattureDaRegistrareCard from "@/components/scadenzario/FattureDaRegistrareCard";
 import { GraficoEntrateUscite } from "@/components/charts/grafici/GraficoEntrateUscite";
 import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter, addDays, addMonths, format } from "date-fns";
-import { GRUPPI_METODO, etichettaMetodo, type GruppoMetodo } from "@/lib/finance/metodoScadenza";
+import { GRUPPI_METODO, type GruppoMetodo } from "@/lib/finance/metodoScadenza";
 
 import { useIsMobile } from "@/hooks/use-mobile";
-import { CercaConFiltri, DateFiltro, DettaglioFiltri, GruppoFiltri, KpiMobili, PannelloFiltri, SceltaFiltro } from "@/components/mobile/FiltriMobile";
+import { CercaConFiltri, DateFiltro, DettaglioFiltri, GruppoFiltri, PannelloFiltri, SceltaFiltro } from "@/components/mobile/FiltriMobile";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSelezioneRighe } from "@/hooks/useSelezioneRighe";
@@ -46,28 +51,28 @@ import { BarraSelezioneRighe, ErroriOperazioneRighe } from "@/components/shared/
 import { ModificaScadenzaDialog } from "@/components/scadenzario/ModificaScadenzaDialog";
 import { percheScadenzaNonModificabile } from "@/lib/finance/modificaScadenza";
 import { formatCurrency } from "@/lib/formatters";
-import { FiltriScadenzario, FiltriScadenzarioAttivi, FiltroStatoScadenzeCompatto, type ValoriFiltriScadenzario } from "@/components/scadenzario/FiltriScadenzario";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ALTRI_FILTRI_VUOTI, CampiAltriFiltriScadenzario, FiltriScadenzario, FiltriScadenzarioAttivi, importoDaTesto, nFiltriSoloElenco, type AltriFiltriScadenzario, type ValoriFiltriScadenzario } from "@/components/scadenzario/FiltriScadenzario";
+import { SceltaEntitaInline, type OpzioneEntita } from "@/components/scadenzario/SceltaEntitaScadenzario";
 import { ExpensePaymentDialog } from "@/components/orders/ExpensePaymentDialog";
-import { useT, intlCampo } from "@/lib/campo/lingua/LinguaCampo";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 // Il grafico per mese si apre a richiesta (25/11/2026): chiuso, l'elenco parte sotto i numeri.
 const CHIAVE_GRAFICO_MESI = "scadenzario.graficoMesiAperto";
 const leggiGraficoAperto = () => { try { return localStorage.getItem(CHIAVE_GRAFICO_MESI) === "1"; } catch { return false; } };
 
 const MESI_BREVI = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];
 
-// Periodi rapidi nella barra; le date personalizzate stanno in «Altri filtri».
+// Periodi rapidi: pochi, quelli che servono a fine mese. «Scadute» è una linguetta; le date dal/al
+// compaiono accanto al periodo quando si sceglie «Personalizzato».
 const DATE_PRESETS = [
-  { label: "Oggi", value: "oggi" },
-  { label: "Questa settimana", value: "settimana" },
-  { label: "Settimana prossima", value: "settimana_prossima" },
-  { label: "Questo mese", value: "questo_mese" },
-  { label: "Mese prossimo", value: "mese_prossimo" },
-  { label: "Prossimi 30gg", value: "30gg" },
-  { label: "Prossimi 90gg", value: "90gg" },
-  { label: "Questo trimestre", value: "trimestre" },
+  { label: "Prossimi 30 gg", value: "30gg" },
   { label: "Personalizzato", value: "custom" },
 ];
+
+// Si apre sul mese corrente, su «Tutte» (28/11/2026): le scelte restano nell'indirizzo, così un ricarico o un
+// link tornano alla stessa vista. I valori di partenza non si scrivono.
+const VISTE_ELENCO = ["aperte", "tutte", "da_incassare", "da_pagare", "scadute", "pagate", "annullate", "senza_data"];
+const presetMeseCorrente = () => { const d = new Date(); return presetMese(d.getFullYear(), d.getMonth() + 1); };
+const fineMese = (anno: number, mese: number) => format(endOfMonth(new Date(anno, mese - 1, 1)), "yyyy-MM-dd");
 
 function getDateRange(preset: string, today = new Date()): { from: string; to: string } | null {
   const f = (d: Date) => format(d, "yyyy-MM-dd");
@@ -97,17 +102,47 @@ function getDateRange(preset: string, today = new Date()): { from: string; to: s
   }
 }
 
+const isoValida = (d: string | null): d is string => !!d && /^\d{4}-\d{2}-\d{2}$/.test(d) && !Number.isNaN(Date.parse(d)) && new Date(d).toISOString().slice(0, 10) === d;
+const annoValido = (a: string | null): a is string => a === "all" || /^\d{4}$/.test(a ?? "");
+
+/** Il periodo scelto come intervallo di date: lo stesso conto per l'elenco, il riepilogo e il ritorno da «Arretrato». */
+function rangeDelPeriodo(preset: string, anno: string, dal: string, al: string): { from: string | null; to: string | null } | null {
+  const mese = leggiMese(preset);
+  if (mese) return { from: `${mese.anno}-${String(mese.mese).padStart(2, "0")}-01`, to: fineMese(mese.anno, mese.mese) };
+  if (preset === "custom") return dal || al ? { from: dal || null, to: al || null } : null;
+  if (preset && preset !== "all") { const r = getDateRange(preset); return r ? { from: r.from, to: r.to } : null; }
+  return anno !== "all" ? { from: `${anno}-01-01`, to: `${anno}-12-31` } : null;
+}
+
+type RitornoPeriodo = { preset: string; anno: string; dal: string; al: string; fine: string; from: string | null; to: string | null };
+/** «Arretrato» sta nell'indirizzo (arretrato=1, rp/ra/rd/rl = il periodo di partenza): un ricarico o un link tornano allo stesso punto. */
+function ritornoDaUrl(p: URLSearchParams): RitornoPeriodo | null {
+  if (p.get("arretrato") !== "1") return null;
+  const rp = p.get("rp") ?? "", ra = p.get("ra"), rd = p.get("rd") ?? "", rl = p.get("rl") ?? "";
+  const preset = rp === "anno" ? "" : rp;
+  if (preset && !leggiMese(preset) && preset !== "30gg" && preset !== "custom") return null;
+  if ((rd && !isoValida(rd)) || (rl && !isoValida(rl))) return null;
+  const anno = annoValido(ra) ? ra : String(new Date().getFullYear());
+  const r = rangeDelPeriodo(preset, anno, rd, rl);
+  if (!r?.from) return null;
+  return { preset, anno, dal: rd, al: rl, fine: giornoPrima(r.from), from: r.from, to: r.to };
+}
+
 export default function Scadenzario() {
   const tr = useT();
   const navigate = useNavigate();
   const confirm = useConfirm();
   const permessi = usePermissions();
+  const { effectiveCompany, role } = useAuth();
+  const companyId = effectiveCompany?.id;
   const vistaCompatta = useIsMobile(1024);
+  const [params, setParams] = useSearchParams();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
-  // Si apre su «Aperte» (16/11/2026): quello che resta da incassare e da pagare, scadute comprese.
-  // Lo scadenzario serve a vedere cosa manca; le pagate stanno in «Tutte» e «Pagate».
-  const [tab, setTab] = useState("aperte");
+  // Si apre su «Tutte» e sul mese corrente (28/11/2026): i riquadri dicono cosa è aperto, scaduto e pagato.
+  const [tab, setTab] = useState(() => { const v = params.get("vista"); return v && VISTE_ELENCO.includes(v) ? v : "tutte"; });
+  // Strumenti separati dall'elenco: si aprono in un pannello e non cambiano l'impaginazione.
+  const [strumento, setStrumento] = useState<"settimane" | "adempimenti" | null>(null);
   const [graficoAperto, setGraficoAperto] = useState(leggiGraficoAperto);
   const alternaGrafico = () => setGraficoAperto((v) => {
     try { localStorage.setItem(CHIAVE_GRAFICO_MESI, v ? "0" : "1"); } catch { /* solo comodità */ }
@@ -131,31 +166,42 @@ export default function Scadenzario() {
   // Anno selezionato (default anno corrente): scopa KPI + lista a quell'anno invece
   // di mostrare il cumulato di tutti gli anni. "all" = tutti gli anni.
   const currentYear = new Date().getFullYear();
-  const [yearFilter, setYearFilter] = useState(String(currentYear));
+  const [yearFilter, setYearFilter] = useState(() => { const a = params.get("anno"); return annoValido(a) ? a : String(currentYear); });
 
   // Advanced filters
-  const [showFilters, setShowFilters] = useState(false);
   // Quali colonne vede questa azienda, e in che ordine (26/11/2026).
   const colonneScadenze = useColonneTabella("scadenzario", DEF_SCADENZE);
-  const [datePreset, setDatePreset] = useState("");
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
-  const [filterTipo, setFilterTipo] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
+  const chiaviColonneTabella = useMemo(() => colonneScadenze.colonne.map((c) => c.chiave), [colonneScadenze.colonne]);
+  // Da «Arretrato» si può tornare al periodo di prima con un clic; il periodo di partenza sta nell'indirizzo.
+  const [ritornoPeriodo, setRitornoPeriodo] = useState<RitornoPeriodo | null>(() => ritornoDaUrl(params));
+  const [datePreset, setDatePreset] = useState(() => {
+    if (ritornoDaUrl(params)) return "custom";
+    const p = params.get("periodo");
+    return p && (leggiMese(p) || p === "30gg" || p === "custom" || p === "anno") ? (p === "anno" ? "" : p) : presetMeseCorrente();
+  });
+  const [customFrom, setCustomFrom] = useState(() => { if (ritornoDaUrl(params)) return ""; const d = params.get("dal"); return isoValida(d) ? d : ""; });
+  const [customTo, setCustomTo] = useState(() => { const r = ritornoDaUrl(params); if (r) return r.fine; const d = params.get("al"); return isoValida(d) ? d : ""; });
   const [filterMetodo, setFilterMetodo] = useState("");
+  // Fornitore e cantiere (id + nome da mostrare): vanno al server come supplier_id / order_id.
+  const [filterFornitore, setFilterFornitore] = useState<OpzioneEntita | null>(null);
+  const [filterCommessa, setFilterCommessa] = useState<OpzioneEntita | null>(null);
 
+  const [filterAltri, setFilterAltri] = useState<AltriFiltriScadenzario>(ALTRI_FILTRI_VUOTI);
   // Mobile: linguette, periodo e tipo in un pannello dal basso.
   const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
-  const nAltriFiltri = [filterTipo, filterStatus, filterMetodo].filter(v => v && v !== "all").length;
-  const nFiltriMobile = nAltriFiltri + Number(tab !== "aperte") + Number(!!datePreset || yearFilter !== String(currentYear));
+  const nAltriFiltri = nFiltriSoloElenco({ metodo: filterMetodo, fornitore: filterFornitore, commessa: filterCommessa, ...filterAltri });
+  const nFiltriMobile = nAltriFiltri + Number(tab !== "tutte") + Number(datePreset !== presetMeseCorrente());
 
   const clearFilters = useCallback(() => {
-    setDatePreset("");
+    setDatePreset(presetMeseCorrente());
+    setYearFilter(String(new Date().getFullYear()));
+    setRitornoPeriodo(null);
     setCustomFrom("");
     setCustomTo("");
-    setFilterTipo("");
-    setFilterStatus("");
     setFilterMetodo("");
+    setFilterFornitore(null);
+    setFilterCommessa(null);
+    setFilterAltri(ALTRI_FILTRI_VUOTI);
     setPage(1);
   }, []);
 
@@ -169,41 +215,37 @@ export default function Scadenzario() {
   // Derive status from active tab for server-side filtering
   const tabStatus: string | null = useMemo(() => {
     if (tab === "pagate") return "pagata";
+    // Le annullate non stanno in nessun'altra vista: si leggono solo da qui.
+    if (tab === "annullate") return "annullata";
     return null;
   }, [tab]);
 
   // Compute date range for server-side filtering
-  const serverDateRange = useMemo(() => {
-    if (tab === "senza_data") return null;
-    if (datePreset === "custom") {
-      return customFrom || customTo ? { from: customFrom || null, to: customTo || null } : null;
-    }
-    if (datePreset && datePreset !== "all") {
-      const range = getDateRange(datePreset);
-      return range ? { from: range.from, to: range.to } : null;
-    }
-    // Nessun preset attivo: scopa all'anno selezionato (default anno corrente).
-    if (yearFilter !== "all") {
-      return { from: `${yearFilter}-01-01`, to: `${yearFilter}-12-31` };
-    }
-    return null;
-  }, [datePreset, customFrom, customTo, yearFilter, tab]);
+  const periodoRange = useMemo(() => rangeDelPeriodo(datePreset, yearFilter, customFrom, customTo), [datePreset, yearFilter, customFrom, customTo]);
+  const serverDateRange = tab === "senza_data" ? null : periodoRange;
 
   const valoriFiltri: ValoriFiltriScadenzario = {
     periodo: datePreset, dal: serverDateRange?.from ?? "", al: serverDateRange?.to ?? "",
-    metodo: filterMetodo, tipo: filterTipo, stato: filterStatus,
+    metodo: filterMetodo, fornitore: filterFornitore, commessa: filterCommessa, ...filterAltri,
   };
   const cambiaFiltri = (patch: Partial<ValoriFiltriScadenzario>) => {
     if (patch.periodo !== undefined) setDatePreset(patch.periodo);
     if (patch.dal !== undefined) setCustomFrom(patch.dal);
     if (patch.al !== undefined) setCustomTo(patch.al);
     if (patch.metodo !== undefined) setFilterMetodo(patch.metodo);
-    if (patch.tipo !== undefined) setFilterTipo(patch.tipo);
-    if (patch.stato !== undefined) setFilterStatus(patch.stato);
+    if (patch.fornitore !== undefined) setFilterFornitore(patch.fornitore);
+    if (patch.commessa !== undefined) setFilterCommessa(patch.commessa);
+    const { importoMin, importoMax, soloNote, soloDocumento } = patch;
+    if (importoMin !== undefined || importoMax !== undefined || soloNote !== undefined || soloDocumento !== undefined)
+      setFilterAltri(a => ({ ...a, ...(importoMin !== undefined && { importoMin }), ...(importoMax !== undefined && { importoMax }), ...(soloNote !== undefined && { soloNote }), ...(soloDocumento !== undefined && { soloDocumento }) }));
     setPage(1);
   };
-  const vistaElenco = !["rate", "settimane", "adempimenti"].includes(tab);
-  const viste = [{ value: "rate", label: tr("Rate fornitori") }, { value: "settimane", label: tr("Per settimana") }, { value: "adempimenti", label: tr("Adempimenti fiscali") }];
+  const vistaElenco = true;
+  const viste = [{ value: "annullate", label: tr("Annullate") }];
+  const cambiaPeriodo = (preset: string, anno?: string) => {
+    setDatePreset(preset); if (anno) setYearFilter(anno);
+    setCustomFrom(""); setCustomTo(""); setRitornoPeriodo(null); setPage(1);
+  };
 
   // La ricerca va al server con un attimo di attesa: prima filtrava solo le
   // righe gia' scaricate, quindi cercare una fattura finita in seconda pagina
@@ -213,31 +255,48 @@ export default function Scadenzario() {
     const t = window.setTimeout(() => setSearchServer(search.trim()), 350);
     return () => window.clearTimeout(t);
   }, [search]);
-  const ricercaInAttesa = search.trim() !== searchServer;
+  // I costi ripartiti su più commesse non hanno order_id = cantiere: i loro id si cercano sul server
+  // prima della lista, e finché non arrivano non si mostra né si esporta un elenco incompleto.
+  const costiCommessa = useQuery({
+    queryKey: ["scadenzario", "costi-commessa", companyId, filterCommessa?.id],
+    queryFn: () => costiDellaCommessa(companyId!, filterCommessa!.id),
+    enabled: !!companyId && !!filterCommessa,
+    staleTime: 60_000,
+  });
+  const commessaInAttesa = !!filterCommessa && costiCommessa.isLoading;
+  const commessaInErrore = !!filterCommessa && costiCommessa.isError;
+  const commessaTroncata = !!filterCommessa && !!costiCommessa.data?.troncato;
+  const ricercaInAttesa = search.trim() !== searchServer || commessaInAttesa || commessaInErrore;
   const dateInvertite = tab !== "senza_data" && datePreset === "custom" && !!customFrom && !!customTo && customFrom > customTo;
 
   // Da incassare e da pagare per mese di scadenza dell'anno scelto (16/11/2026): il grafico
   // sopra l'elenco. Solo da tablet in su e con un anno scelto; le annullate non contano.
-  const conGraficoMesi = !vistaCompatta && yearFilter !== "all" && tab !== "rate" && tab !== "settimane" && tab !== "adempimenti" && tab !== "senza_data";
+  const annoDelGrafico = leggiMese(datePreset)?.anno ?? (yearFilter !== "all" ? Number(yearFilter) : null);
+  const conGraficoMesi = !vistaCompatta && annoDelGrafico !== null && tab !== "senza_data" && tab !== "annullate";
 
   const serverFilters: ScadenzarioFilters = useMemo(() => ({
     includiSenzaData: !datePreset || tab === "senza_data",
     soloSenzaData: tab === "senza_data",
     direction: tabDirection,
-    status: filterStatus && filterStatus !== "all" ? filterStatus : tabStatus,
+    status: tabStatus,
     dateFrom: serverDateRange?.from ?? null,
     dateTo: serverDateRange?.to ?? null,
     search: searchServer || null,
     soloScadute: tab === "scadute",
     soloAperte: tab === "aperte" || tab === "da_incassare" || tab === "da_pagare",
-    tipo: filterTipo && filterTipo !== "all" ? filterTipo : null,
+    supplierId: filterFornitore?.id ?? null,
+    orderId: filterCommessa?.id ?? null,
+    importoMin: importoDaTesto(filterAltri.importoMin), importoMax: importoDaTesto(filterAltri.importoMax),
+    soloConNote: filterAltri.soloNote, soloConDocumento: filterAltri.soloDocumento,
+    orderCostIds: filterCommessa ? costiCommessa.data?.ids ?? null : null,
+    attendi: !!filterCommessa && !costiCommessa.data,
     metodo: filterMetodo && filterMetodo !== "all" ? (filterMetodo as GruppoMetodo) : null,
     // L'anno del grafico viaggia coi totali: i dodici mesi arrivano insieme al
     // riepilogo, da una sola costruzione dello scadenzario (23/11/2026).
-    annoGrafico: conGraficoMesi ? Number(yearFilter) : null,
-  }), [tabDirection, tabStatus, filterStatus, serverDateRange, searchServer, tab, filterTipo, filterMetodo, datePreset, conGraficoMesi, yearFilter]);
+    annoGrafico: conGraficoMesi ? annoDelGrafico : null,
+  }), [tabDirection, tabStatus, serverDateRange, searchServer, tab, filterMetodo, filterFornitore, filterCommessa, filterAltri, costiCommessa.data, datePreset, conGraficoMesi, annoDelGrafico]);
 
-  const { scadenze, isLoading, isError, refetch, totalCount, totalPages, summary, mesiScadenze: mesiDalServer, isSummaryLoading, isSummaryError, refetchSummary, markPaid, create, cancel, cancelMany, update, annullaIncasso, updateNotes } = useScadenzario(page, pageSize, serverFilters);
+  const { scadenze, isLoading, isError, refetch, totalCount, totalPages, summary, mesiScadenze: mesiDalServer, markPaid, create, cancel, cancelMany, update, annullaIncasso, updateNotes } = useScadenzario(page, pageSize, serverFilters);
   const [daAnnullare, setDaAnnullare] = useState<Scadenza | null>(null);
   const [daModificare, setDaModificare] = useState<Scadenza | null>(null);
   const [erroriAnnullamento, setErroriAnnullamento] = useState<Array<{ nome: string; motivo: string }>>([]);
@@ -245,8 +304,6 @@ export default function Scadenzario() {
   const [dettaglio, setDettaglio] = useState<string | null>(null);
   const scadenzaAperta = dettaglio ? scadenze.find((x) => x.id === dettaglio) ?? null : null;
   const queryClient = useQueryClient();
-  const { effectiveCompany, role } = useAuth();
-  const companyId = effectiveCompany?.id;
 
   // I nomi dei mesi restano qui: dal database arrivano dodici coppie di numeri,
   // da gennaio a dicembre, già sommate.
@@ -255,69 +312,50 @@ export default function Scadenzario() {
     [mesiDalServer],
   );
   // Il mese scelto nel grafico è il filtro «Personalizzato» di quel mese esatto.
-  const meseGrafico = useMemo(() => {
-    if (datePreset !== "custom" || !customFrom || !customTo || !customFrom.startsWith(yearFilter)) return null;
-    const m = Number(customFrom.slice(5, 7));
-    const fine = format(endOfMonth(new Date(Number(yearFilter), m - 1, 1)), "yyyy-MM-dd");
-    return customFrom.endsWith("-01") && customTo === fine ? m - 1 : null;
-  }, [datePreset, customFrom, customTo, yearFilter]);
+  const meseGrafico = leggiMese(datePreset) ? leggiMese(datePreset)!.mese - 1 : null;
   const scegliMeseGrafico = (i: number) => {
-    if (meseGrafico === i) { clearFilters(); return; }
-    const inizio = new Date(Number(yearFilter), i, 1);
-    setDatePreset("custom");
-    setCustomFrom(format(inizio, "yyyy-MM-dd"));
-    setCustomTo(format(endOfMonth(inizio), "yyyy-MM-dd"));
-    setPage(1);
+    if (meseGrafico === i) { cambiaPeriodo("", String(annoDelGrafico)); return; }
+    cambiaPeriodo(presetMese(annoDelGrafico ?? currentYear, i + 1), String(annoDelGrafico ?? currentYear));
   };
-  const [exporting, setExporting] = useState(false);
-
-  // Export CSV di TUTTE le scadenze che rispettano i filtri correnti (anno/tab/ricerca),
-  // non solo la pagina visibile. Anti formula-injection via exportToCSV.
-  const handleExport = async () => {
-    if (!companyId || ricercaInAttesa || dateInvertite) return;
-    setExporting(true);
-    try {
-      const data = await readAllPages(async (from, to) => {
-      const q = filtraScadenzario(queryFontiScadenzario(companyId)
-        .select("id, due_date, direction, description, amount, paid_amount, payment_method, status, notes, order_id, cost_id, invoices(invoice_number), orders(order_code), company_costs(name, order_id, allocations, notes)"), serverFilters)
-        .order("due_date", { ascending: true, nullsFirst: false }).order("id");
-      return await q.range(from, to);
-      });
-      const [complete, note] = await Promise.all([
-        completaCommesseScadenze(companyId, data as unknown as Scadenza[]),
-        noteFattureScadenze(companyId, data as unknown as Scadenza[]),
-      ]);
-      const rows = complete.map(r => ({
-          scadenza: r.due_date || "",
-          tipo: r.direction === "entrata" ? "Incasso" : "Pagamento",
-          descrizione: r.description || "",
-          riferimento: r.invoices?.invoice_number ? `Fatt. ${r.invoices.invoice_number}` : r.orders?.order_code ? `Ord. ${r.orders.order_code}` : "",
-          commesse: commesseScadenza(r),
-          note: note.get(r.id) ?? "",
-          metodo: etichettaMetodo(r.payment_method) ?? "",
-          importo: String(r.amount ?? 0).replace(".", ","),
-          residuo: String(Math.round((Number(r.amount || 0) - Number(r.paid_amount || 0)) * 100) / 100).replace(".", ","),
-          stato: r.status === "da_pagare" ? (r.direction === "entrata" ? "Da incassare" : "Da pagare") : r.status === "pagata" ? (r.direction === "entrata" ? "Incassata" : "Pagata") : r.status === "parziale" ? "Parziale" : r.status === "annullata" ? "Annullata" : r.status || "",
-        }));
-      if (rows.length === 0) { toast.info(tr("Nessuna scadenza da esportare")); return; }
-      exportToCSV(rows, [
-        { key: "scadenza", label: "Scadenza" },
-        { key: "tipo", label: "Tipo" },
-        { key: "descrizione", label: "Descrizione" },
-        { key: "riferimento", label: "Riferimento" },
-        { key: "commesse", label: "Commesse" },
-        { key: "note", label: "Note" },
-        { key: "metodo", label: "Modalità" },
-        { key: "importo", label: "Importo" },
-        { key: "residuo", label: "Residuo" },
-        { key: "stato", label: "Stato" },
-      ], `scadenzario_${yearFilter}.csv`);
-    } catch {
-      toast.error(tr("Errore durante l'export"));
-    } finally {
-      setExporting(false);
-    }
+  // Esportazione (28/11/2026): Excel, PDF e CSV di TUTTE le scadenze che rispettano i filtri,
+  // non solo la pagina visibile. Righe, colonne e file li costruisce esportaScadenzario.ts.
+  const caricaPerEsportazione = async (): Promise<Scadenza[]> => {
+    if (!companyId) return [];
+    const data = await readAllPages(async (from, to) => filtraScadenzario(queryFontiScadenzario(companyId)
+      .select(`*, suppliers(name), invoices(invoice_number, client_company_name, issue_date),
+        orders(order_code, description, indirizzo_lavori, client_name, client_company),
+        company_costs(name, order_id, allocations, notes, documento_riferimento),
+        marketing_contacts(first_name, last_name, company_name)`), serverFilters)
+      .order("due_date", { ascending: true, nullsFirst: false }).order("id").range(from, to));
+    const complete = await completaCommesseScadenze(companyId, data as unknown as Scadenza[]);
+    const complete2 = await completaPerEsportazione(companyId, complete);
+    const note = await noteFattureScadenze(companyId, complete2);
+    return complete2.map((s) => ({ ...s, note_export: note.get(s.id) ?? "" }) as Scadenza);
   };
+  const dataBreve = (iso: string) => iso.split("-").reverse().join("/");
+  const nomeMeseEsportazione = (() => { const m = leggiMese(datePreset); return m ? new Date(m.anno, m.mese - 1, 1).toLocaleDateString("it-IT", { month: "long", year: "numeric" }) : null; })();
+  const periodoEsportazione = tab === "senza_data" ? tr("Senza data")
+    : nomeMeseEsportazione ? nomeMeseEsportazione.charAt(0).toUpperCase() + nomeMeseEsportazione.slice(1)
+    : serverDateRange?.from && serverDateRange?.to ? `${dataBreve(serverDateRange.from)} - ${dataBreve(serverDateRange.to)}`
+    : serverDateRange?.from ? tr("Dal {dal}", { dal: dataBreve(serverDateRange.from) })
+    : serverDateRange?.to ? tr("Fino al {al}", { al: dataBreve(serverDateRange.to) })
+    : tr("Tutti gli anni");
+  const NOMI_VISTA: Record<string, string> = { aperte: "Aperte", tutte: "Tutte", da_incassare: "Da incassare", da_pagare: "Da pagare", scadute: "Scadute", pagate: "Pagate", annullate: "Annullate", senza_data: "Senza data" };
+  const filtriEsportazione = [
+    tr("Vista: {vista}", { vista: tr(NOMI_VISTA[tab] ?? tab) }),
+    ...(filterMetodo ? [tr("Pagamento: {m}", { m: GRUPPI_METODO.find((m) => m.value === filterMetodo)?.label ?? filterMetodo })] : []),
+    ...(filterFornitore ? [tr("Fornitore: {f}", { f: filterFornitore.label })] : []),
+    ...(filterCommessa ? [tr("Cantiere: {c}", { c: filterCommessa.label })] : []),
+    ...(commessaTroncata ? [tr("ATTENZIONE: questo cantiere ha più di 150 costi ripartiti, ne sono inclusi solo 150")] : []),
+    ...(importoDaTesto(filterAltri.importoMin) !== null ? [tr("Importo da {i} €", { i: filterAltri.importoMin })] : []),
+    ...(importoDaTesto(filterAltri.importoMax) !== null ? [tr("Importo fino a {i} €", { i: filterAltri.importoMax })] : []),
+    ...(filterAltri.soloNote ? [tr("Solo con note")] : []),
+    ...(filterAltri.soloDocumento ? [tr("Solo con fattura o costo collegato")] : []),
+    ...(searchServer ? [tr("Ricerca: «{q}»", { q: searchServer })] : []),
+  ];
+  // Il fornitore o il cantiere scelto finisce nel nome: dieci distinte di fine mese non si chiamano tutte uguali.
+  const nomeFileEsportazione = ["scadenzario", periodoNomeFile(serverDateRange, yearFilter), tab !== "tutte" ? tab : "",
+    pezzoNomeFile(filterFornitore?.label), pezzoNomeFile(filterCommessa?.label.split(" · ")[0])].filter(Boolean).join("_");
 
   const filtered = ricercaInAttesa || dateInvertite ? [] : scadenze;
   const selezione = useSelezioneRighe(filtered, JSON.stringify([companyId, page, pageSize, serverFilters, search]));
@@ -341,75 +379,120 @@ export default function Scadenzario() {
     try { await cancel.mutateAsync(s.id); setDettaglio(null); } catch { /* Il messaggio è gestito dalla mutation. */ }
   };
 
-  // Counts for tabs — use totalCount from server for the active tab; use summary for overdue badge
-  // Conteggi per tutti i tab dalla summary (year-scoped, server-side). Fallback al
-  // totalCount del tab attivo se la summary non è ancora arrivata.
-  const counts = useMemo(() => {
-    return {
-      tutte: summary?.tutte_count ?? (tab === "tutte" ? totalCount : 0),
-      aperte: summary ? (summary.da_incassare_count ?? 0) + (summary.da_pagare_count ?? 0) : (tab === "aperte" ? totalCount : 0),
-      da_incassare: summary?.da_incassare_count ?? (tab === "da_incassare" ? totalCount : 0),
-      da_pagare: summary?.da_pagare_count ?? (tab === "da_pagare" ? totalCount : 0),
-      scadute: summary?.scadute_count ?? (tab === "scadute" ? totalCount : 0),
-      pagate: summary?.pagate_count ?? (tab === "pagate" ? totalCount : 0),
-    };
-  }, [tab, totalCount, summary]);
+  // Il riepilogo del periodo (riquadri e numeri delle linguette) segue gli stessi filtri dell'elenco:
+  // periodo, fornitore, cantiere, modalità, ricerca. Per «Senza data» guarda comunque il periodo scelto.
+  const inArretrato = !!ritornoPeriodo && datePreset === "custom" && !customFrom && customTo === ritornoPeriodo.fine;
+  const filtriRiepilogo = useMemo<ScadenzarioFilters>(() => ({
+    ...serverFilters,
+    // In arretrato i riquadri restano quelli del periodo di partenza: l'elenco cambia, i numeri no.
+    dateFrom: (inArretrato ? ritornoPeriodo!.from : periodoRange?.from) ?? null,
+    dateTo: (inArretrato ? ritornoPeriodo!.to : periodoRange?.to) ?? null,
+    includiSenzaData: !(inArretrato ? ritornoPeriodo!.preset : datePreset), annoGrafico: null,
+  }), [serverFilters, periodoRange, datePreset, inArretrato, ritornoPeriodo]);
+  // «Personalizzato» senza date è «tutto il tempo»: non si legge, i riquadri aspettano le date.
+  const senzaDatePersonalizzato = !filtriRiepilogo.dateFrom && !filtriRiepilogo.dateTo && (inArretrato ? ritornoPeriodo!.preset : datePreset) === "custom";
+  const riepilogoQuery = useRiepilogoPeriodo(companyId, filtriRiepilogo, !ricercaInAttesa && !dateInvertite && !senzaDatePersonalizzato);
+  const riepilogo = ricercaInAttesa || dateInvertite || senzaDatePersonalizzato ? undefined : riepilogoQuery.data;
+  const settimanaQuery = useSettimanaScadenzario(companyId, filtriRiepilogo, !ricercaInAttesa && !dateInvertite);
+  // In arretrato i riquadri restano quelli del mese, ma l'elenco mostra il periodo «fino al…»:
+  // i numeri del mese sulle linguette direbbero «Scadute (23)» sopra 211 righe. Lì niente numero.
+  const nLinguetta = (k: LinguettaConConteggio): number | undefined => inArretrato ? undefined : riepilogo?.linguette[k];
+  const conta = (n: number | undefined) => n === undefined ? "" : `\u00a0(${n})`;
+  // 28/11/2026, collaudo: un fornitore tutto pagato apriva su «Aperte» vuota senza dire che in
+  // «Pagate» ce n'erano dieci. Se la vista è vuota e «Tutte» no, un clic porta lì.
+  const nTutte = nLinguetta("tutte") ?? 0;
+  const rimandoVuoto = tab !== "tutte" && (LINGUETTE_CON_CONTEGGIO as readonly string[]).includes(tab) && nTutte > 0
+    ? { testo: tr("Vedi le {n} scadenze in «Tutte»", { n: nTutte }), onClick: () => { setTab("tutte"); setPage(1); } }
+    : undefined;
 
+  // Le scelte restano nell'indirizzo (sostituendo la voce di cronologia): ricarico e link tornano alla stessa vista.
+  useEffect(() => {
+    const p = new URLSearchParams();
+    if (tab !== "tutte") p.set("vista", tab);
+    if (datePreset !== presetMeseCorrente()) p.set("periodo", datePreset || "anno");
+    if (yearFilter !== String(currentYear)) p.set("anno", yearFilter);
+    if (customFrom) p.set("dal", customFrom);
+    if (customTo) p.set("al", customTo);
+    if (inArretrato && ritornoPeriodo) {
+      p.set("arretrato", "1"); p.set("rp", ritornoPeriodo.preset || "anno"); p.set("ra", ritornoPeriodo.anno);
+      if (ritornoPeriodo.dal) p.set("rd", ritornoPeriodo.dal);
+      if (ritornoPeriodo.al) p.set("rl", ritornoPeriodo.al);
+    }
+    if (p.toString() !== params.toString()) setParams(p, { replace: true });
+  }, [tab, datePreset, yearFilter, customFrom, customTo, currentYear, params, setParams, inArretrato, ritornoPeriodo]);
+
+  const oggiIso = format(new Date(), "yyyy-MM-dd");
+  const tornaAlMese = () => {
+    if (!ritornoPeriodo) return;
+    setDatePreset(ritornoPeriodo.preset); setYearFilter(ritornoPeriodo.anno);
+    setCustomFrom(ritornoPeriodo.dal); setCustomTo(ritornoPeriodo.al); setRitornoPeriodo(null); setTab("tutte"); setPage(1);
+  };
+  const riquadroAttivo: RiquadroPeriodo | null = inArretrato ? "arretrato"
+    : tab === "tutte" ? "scade" : tab === "pagate" ? "pagato" : tab === "aperte" ? "aperto" : null;
+  const scegliRiquadro = (r: RiquadroPeriodo) => {
+    if (r === "arretrato") {
+      const inizio = periodoRange?.from;
+      if (!inizio || inArretrato) return;
+      setRitornoPeriodo({ preset: datePreset, anno: yearFilter, dal: customFrom, al: customTo, fine: giornoPrima(inizio), from: periodoRange?.from ?? null, to: periodoRange?.to ?? null });
+      setDatePreset("custom"); setCustomFrom(""); setCustomTo(giornoPrima(inizio));
+      setTab(inizio > oggiIso ? "aperte" : "scadute"); setPage(1);
+      return;
+    }
+    if (inArretrato) tornaAlMese();
+    setTab(r === "scade" ? "tutte" : r === "pagato" ? "pagate" : "aperte"); setPage(1);
+  };
   const anni = Array.from({ length: 6 }, (_, i) => String(currentYear - i));
+  const meseAttuale = leggiMese(datePreset);
   const periodiRapidi = DATE_PRESETS.map((p) => ({ ...p, label: tr(p.label) }));
   const periodiAnno = [
+    ...(meseAttuale && datePreset !== presetMeseCorrente() ? [{ value: datePreset, label: new Date(meseAttuale.anno, meseAttuale.mese - 1, 1).toLocaleDateString("it-IT", { month: "long", year: "numeric" }) }] : []),
+    { value: presetMeseCorrente(), label: tr("Questo mese") },
     ...anni.map(anno => ({ value: `anno:${anno}`, label: tr("Tutto il {anno}", { anno }) })),
     { value: "anno:all", label: tr("Tutti gli anni") },
   ];
   const visteCompatte = [
-    { value: "aperte", label: tr("Aperte") },
     { value: "tutte", label: tr("Tutte") },
+    { value: "aperte", label: tr("Aperte") },
     { value: "da_incassare", label: tr("Da incassare") },
     { value: "da_pagare", label: tr("Da pagare") },
     { value: "scadute", label: tr("Scadute") },
     { value: "pagate", label: tr("Pagate") },
     ...viste,
+    { value: "strumento:settimane", label: tr("Per settimana") },
+    { value: "strumento:adempimenti", label: tr("Adempimenti fiscali") },
     ...((summary?.senza_data_count || tab === "senza_data") ? [{ value: "senza_data", label: tr("Senza data") }] : []),
   ];
   const nSenzaData = summary?.senza_data_count ?? 0;
   const conDatiMesi = !!mesiScadenze?.some((m) => m.entrate > 0 || m.uscite > 0);
   const conDistinte = !!companyId && !permessi.solaLettura && (permessi.canManagePayments || role === "company_admin" || role === "super_admin");
-  const exportDisabilitato = exporting || isLoading || isError || ricercaInAttesa || dateInvertite;
+  const exportDisabilitato = isLoading || isError || ricercaInAttesa || dateInvertite;
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between max-sm:gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-bold max-sm:text-lg">{tr("Scadenzario")}</h1>
         </div>
-        <div className="flex items-center gap-2">
-          {/* «Per settimana» guarda avanti e tutto lo scaduto: l'anno lì non conta. */}
-          {tab !== "settimane" && tab !== "senza_data" && (
-            <Select value={yearFilter} onValueChange={(v) => { setYearFilter(v); setPage(1); }}>
-              <SelectTrigger className="hidden h-8 w-[120px] text-xs font-semibold lg:flex" aria-label={tr("Anno")}><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{tr("Tutti gli anni")}</SelectItem>
-                {anni.map((y) => (
-                  <SelectItem key={y} value={y}>{y}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        {/* Il navigatore del mese sta sempre qui, da telefono su una riga sua. */}
+        <div className="flex min-w-0 items-center gap-2 max-lg:order-last max-lg:w-full">
+          <NavigatoreMese className="max-lg:flex-1" etichettaFissa={inArretrato && ritornoPeriodo ? tr("Arretrato al {data}", { data: ritornoPeriodo.fine.split("-").reverse().join("/") }) : undefined} preset={datePreset} anno={yearFilter}
+            onMese={(a, m) => cambiaPeriodo(presetMese(a, m), String(a))}
+            onAnno={(a) => cambiaPeriodo("", a)}
+            onProssimi30={() => cambiaPeriodo("30gg")}
+            onPersonalizzato={() => { cambiaPeriodo("custom"); }} />
+          {inArretrato && ritornoPeriodo && (
+            <Button size="sm" variant="secondary" className="h-8 shrink-0 gap-1 px-2.5 text-xs max-lg:h-10" onClick={tornaAlMese}>
+              <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5" />{tr("Torna al mese")}
+            </Button>
           )}
-          {vistaElenco && <div className="lg:hidden">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline" size="icon" className="size-11" aria-label={tr("Altre azioni dello scadenzario")}>
-                  <Ellipsis aria-hidden="true" className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem disabled={exportDisabilitato} onSelect={() => void handleExport()}>
-                  <Download aria-hidden="true" className="mr-2 size-4" />
-                  {tr("Esporta CSV")}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>}
+        </div>
+        <div className="flex items-center gap-2">
+          {companyId && conDistinte && vistaCompatta && <div className="lg:hidden"><DistintePagamenti key={companyId} companyId={companyId} /></div>}
+          <div className="lg:hidden">
+            <EsportaScadenzario colonneTabella={chiaviColonneTabella} carica={caricaPerEsportazione} azienda={effectiveCompany?.name ?? undefined}
+              periodo={periodoEsportazione} descrizioneFiltri={filtriEsportazione} nomeFile={nomeFileEsportazione}
+              disabilitato={exportDisabilitato} />
+          </div>
           <Button size="sm" onClick={() => setNewOpen(true)} className={cn(BOTTONE_NUOVO, "max-lg:min-h-11 max-sm:px-3 max-sm:text-sm")}>
             <Plus className="h-3.5 w-3.5" /> <span className="max-sm:hidden">{tr("Nuova Scadenza")}</span><span className="sm:hidden">{tr("Nuova")}</span>
           </Button>
@@ -440,48 +523,26 @@ export default function Scadenzario() {
         </div>
       )}
 
-      {/* KPIs — mobile: due numeri (lo scaduto da incassare filtra le scadute). */}
-      {/* «Per settimana» ha i suoi numeri, dalla stessa fonte dell'elenco: questi leggono solo la tabella delle
-          scadenze dell'anno scelto, e accanto a quell'elenco dicevano cifre diverse per la stessa domanda. */}
-      {tab !== "rate" && tab !== "settimane" && (isSummaryError ? (
-        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
-          <p>{tr("Riepilogo scadenze non disponibile. I totali non sono aggiornati.")}</p>
-          <Button variant="outline" size="sm" onClick={() => void refetchSummary()}>{tr("Riprova riepilogo")}</Button>
-        </div>
-      ) : <ScadenzarioKPIs summary={summary} isLoading={isSummaryLoading} className="max-lg:hidden" scaduteAttive={tab === "scadute"} onScadute={() => { setTab((t) => (t === "scadute" ? "aperte" : "scadute")); setPage(1); }} />)}
-      {summary && !isSummaryError && tab !== "rate" && tab !== "settimane" && (
-        <KpiMobili
-          className="lg:hidden"
-          voci={[
-            {
-              // filtra l'elenco sulle scadute: il numero è quello delle scadenze qui sotto
-              label: tr("Scadenze scadute"),
-              valore: new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true }).format(summary.scadute_entrata_amount ?? summary.scadute_amount ?? 0),
-              tono: (summary.scadute_entrata_amount ?? summary.scadute_amount ?? 0) > 0 ? "text-rose-600" : undefined,
-              onClick: () => { setTab((t) => (t === "scadute" ? "aperte" : "scadute")); setPage(1); },
-              attivo: tab === "scadute",
-            },
-            {
-              label: tr("Prossimi 30 giorni"),
-              valore: new Intl.NumberFormat(intlCampo(), { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true }).format(summary.prossimi_30gg_amount ?? 0),
-            },
-          ]}
-        />
-      )}
+      {/* Riepilogo del periodo (28/11/2026): sostituisce i quattro riquadri dell'anno, che dicevano cifre
+          diverse dalle linguette per la stessa domanda. Ogni riquadro è un filtro dell'elenco. */}
+      <RiepilogoPeriodo riepilogo={riepilogo} inErrore={riepilogoQuery.isError} attivo={riquadroAttivo}
+        inAggiornamento={!!riepilogo && riepilogoQuery.isPlaceholderData} inAttesaDate={senzaDatePersonalizzato}
+        settimana={ricercaInAttesa || dateInvertite ? undefined : settimanaQuery.data}
+        settimanaInErrore={settimanaQuery.isError}
+        conArretrato={!!(inArretrato ? ritornoPeriodo?.from : periodoRange?.from)} onScegli={scegliRiquadro} />
 
       {graficoAperto && conGraficoMesi && conDatiMesi && (
         <GraficoEntrateUscite
           dati={mesiScadenze}
-          titolo={tr("Incassi e pagamenti per mese di scadenza, {yearFilter}", { yearFilter })}
+          titolo={tr("Incassi e pagamenti per mese di scadenza, {yearFilter}", { yearFilter: String(annoDelGrafico ?? "") })}
           nomeEntrate={tr("Incassi")}
           nomeUscite={tr("Pagamenti")}
-          notaPeriodo={tr("scadenze del {anno}", { anno: yearFilter })}
+          notaPeriodo={tr("scadenze del {anno}", { anno: String(annoDelGrafico ?? "") })}
           onMese={scegliMeseGrafico}
           meseScelto={meseGrafico}
         />
       )}
 
-      {companyId && conDistinte && vistaCompatta && <div className="flex justify-end lg:hidden"><DistintePagamenti key={companyId} companyId={companyId} /></div>}
 
       {/* Fatture passive caricate in chat (Silvio) da confermare */}
       <FattureDaRegistrareCard companyId={companyId} />
@@ -500,19 +561,24 @@ export default function Scadenzario() {
         <div className="flex min-w-0 items-center gap-2">
           <Tabs className="min-w-0 flex-1 overflow-x-auto" value={tab} onValueChange={v => { setTab(v); setPage(1); }}>
             <TabsList className="inline-flex h-8 w-max justify-start gap-0.5 p-0.5 [&>button]:px-2.5 [&>button]:text-xs">
-              <TabsTrigger value="aperte">{tr("Aperte")}<span className="hidden xl:inline">&nbsp;({counts.aperte})</span></TabsTrigger>
-              <TabsTrigger value="tutte">{tr("Tutte")}<span className="hidden xl:inline">&nbsp;({counts.tutte})</span></TabsTrigger>
-              <TabsTrigger value="da_incassare">{tr("Da Incassare")}<span className="hidden xl:inline">&nbsp;({counts.da_incassare})</span></TabsTrigger>
-              <TabsTrigger value="da_pagare">{tr("Da Pagare")}<span className="hidden xl:inline">&nbsp;({counts.da_pagare})</span></TabsTrigger>
-              <TabsTrigger value="scadute">{tr("Scadute")}{counts.scadute > 0 && <span className="ml-1 font-semibold text-destructive">({counts.scadute})</span>}</TabsTrigger>
-              <TabsTrigger value="pagate">{tr("Pagate")}<span className="hidden xl:inline">&nbsp;({counts.pagate})</span></TabsTrigger>
+              <TabsTrigger value="tutte">{tr("Tutte")}<span className="hidden 2xl:inline">{conta(nLinguetta("tutte"))}</span></TabsTrigger>
+              <TabsTrigger value="aperte">{tr("Aperte")}<span className="hidden 2xl:inline">{conta(nLinguetta("aperte"))}</span></TabsTrigger>
+              <TabsTrigger value="da_incassare">{tr("Da Incassare")}<span className="hidden 2xl:inline">{conta(nLinguetta("da_incassare"))}</span></TabsTrigger>
+              <TabsTrigger value="da_pagare">{tr("Da Pagare")}<span className="hidden 2xl:inline">{conta(nLinguetta("da_pagare"))}</span></TabsTrigger>
+              <TabsTrigger value="scadute">{tr("Scadute")}{(nLinguetta("scadute") ?? 0) > 0 && <span className="ml-1 font-semibold text-destructive">({nLinguetta("scadute")})</span>}</TabsTrigger>
+              <TabsTrigger value="pagate">{tr("Pagate")}<span className="hidden 2xl:inline">{conta(nLinguetta("pagate"))}</span></TabsTrigger>
             </TabsList>
           </Tabs>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild><Button variant={vistaElenco ? "outline" : "secondary"} size="sm" className="h-8 shrink-0 gap-1.5 px-2.5 text-xs" aria-label={tr("Altre viste dello scadenzario")}>
-              {viste.find(v => v.value === tab)?.label ?? tr("Altre viste")}<ChevronDown className="h-3.5 w-3.5" />
+            <DropdownMenuTrigger asChild><Button variant={tab === "annullate" ? "secondary" : "outline"} size="sm" className="h-8 shrink-0 gap-1.5 px-2.5 text-xs" aria-label={tr("Altre viste dello scadenzario")}>
+              {tab === "annullate" ? tr("Annullate") : tr("Altre viste")}<ChevronDown className="h-3.5 w-3.5" />
             </Button></DropdownMenuTrigger>
-            <DropdownMenuContent align="end">{viste.map(v => <DropdownMenuItem key={v.value} onSelect={() => { setTab(v.value); setPage(1); }}>{v.label}</DropdownMenuItem>)}</DropdownMenuContent>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => { setTab("annullate"); setPage(1); }}>{tr("Annullate")}</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => setStrumento("settimane")}>{tr("Per settimana")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setStrumento("adempimenti")}>{tr("Adempimenti fiscali")}</DropdownMenuItem>
+            </DropdownMenuContent>
           </DropdownMenu>
           {nSenzaData > 0 && !vistaCompatta && (tab === "senza_data" ? (
             <Button size="sm" variant="ghost" className={cn(BOTTONE_SECONDARIO, "shrink-0")} onClick={() => { setTab("aperte"); setPage(1); }}>
@@ -533,37 +599,42 @@ export default function Scadenzario() {
           )}
           {companyId && conDistinte && !vistaCompatta && <DistintePagamenti key={companyId} companyId={companyId} />}
         </div>
-        {tab !== "adempimenti" && <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className={cn(RICERCA_BARRA, "max-sm:w-full")}>
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input aria-label={tr("Cerca nello scadenzario")} placeholder={tr("Cerca cliente, fornitore o descrizione…")} value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-8 pl-8 text-xs" />
           </div>
           {vistaElenco && <>
-            <FiltriScadenzario valore={valoriFiltri} anno={yearFilter} periodi={periodiRapidi}
-              aperto={showFilters} onAperto={setShowFilters} cambia={cambiaFiltri} azzera={clearFilters} />
+            {companyId && <FiltriScadenzario valore={valoriFiltri} anno={yearFilter} companyId={companyId} periodi={periodiRapidi} senzaPeriodo senzaDate={inArretrato}
+              cambia={cambiaFiltri} azzera={clearFilters} />}
             {/* Solo da computer: sotto i 1024px lo scadenzario è una riga per scadenza, senza colonne. */}
             <span className="hidden lg:inline-flex"><SceltaColonne colonne={colonneScadenze} /></span>
-            <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={handleExport}
-              disabled={exportDisabilitato} title={tr("Esporta CSV")} aria-label={tr("Esporta CSV")}>
-              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            </Button>
+            <EsportaScadenzario compatto colonneTabella={chiaviColonneTabella} carica={caricaPerEsportazione} azienda={effectiveCompany?.name ?? undefined}
+              periodo={periodoEsportazione} descrizioneFiltri={filtriEsportazione} nomeFile={nomeFileEsportazione}
+              disabilitato={exportDisabilitato} />
           </>}
-        </div>}
+        </div>
         {vistaElenco && <FiltriScadenzarioAttivi valore={valoriFiltri} cambia={cambiaFiltri} azzera={clearFilters} />}
+        {/* L'errore del cantiere lo dice una volta sola, al posto dell'elenco (con «Riprova»). */}
+        {vistaElenco && commessaTroncata && <p role="alert" className="text-xs text-amber-700">{tr("Questo cantiere ha più di 150 costi ripartiti: elenco ed esportazione ne includono solo 150.")}</p>}
+        {vistaElenco && nAltriFiltri > 0 && !isLoading && !ricercaInAttesa && <p className="text-xs text-muted-foreground">
+          {tr("{n} scadenze trovate. Riquadri e linguette seguono gli stessi filtri dell'elenco.", { n: totalCount })}
+        </p>}
       </div>
 
-      {/* Adempimenti Fiscali tab */}
-      {tab === "rate" ? (
-        companyId && <RateFornitori key={companyId} companyId={companyId} anno={yearFilter} cerca={search} />
-      ) : tab === "settimane" ? (
-        <IncassiPerSettimanaVista cerca={search} />
-      ) : tab === "adempimenti" ? (
-        <AdempimentiFiscali />
-      ) : (
-        /* Table */
+      {companyId && <RibaNonRegistrate companyId={companyId} dal={periodoRange?.from ?? null} al={periodoRange?.to ?? null} cerca={searchServer}
+        fornitoreId={filterFornitore?.id ?? null}
+        abilitato={filterMetodo === "riba" && permessi.canViewBilling && !filterCommessa && tab !== "annullate" && tab !== "pagate"} />}
+
+      {(
         dateInvertite ? (
           <p role="alert" className="text-sm text-destructive">{tr("La data finale deve essere uguale o successiva a quella iniziale.")}</p>
+        ) : commessaInErrore ? (
+          <div role="alert" className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
+            <p>{tr("Non riesco a leggere i costi di questo cantiere.")}</p>
+            <Button variant="outline" size="sm" onClick={() => void costiCommessa.refetch()}>{tr("Riprova")}</Button>
+          </div>
         ) : isLoading || ricercaInAttesa ? (
           <div role="status" aria-label={tr("Caricamento scadenze")} className="flex justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -582,6 +653,7 @@ export default function Scadenzario() {
               azione={tr("Annulla selezionate")} inCorso={cancelMany.isPending} escluse={escluse} onPagina={selezione.pagina} onAzione={() => void annullaSelezionate()} />}
             <ErroriOperazioneRighe errori={erroriAnnullamento} />
             <ScadenzarioTable
+              rimandoVuoto={rimandoVuoto}
               colonne={colonneScadenze.colonne}
               scadenze={filtered}
               onNota={(s, nota) => updateNotes(s.id, nota)}
@@ -634,26 +706,31 @@ export default function Scadenzario() {
         aperto={filtriMobileAperti}
         onAperto={setFiltriMobileAperti}
         attivi={nFiltriMobile}
-        onAzzera={() => { setTab("aperte"); setYearFilter(String(currentYear)); clearFilters(); }}
-        risultati={isLoading || ricercaInAttesa || dateInvertite || !vistaElenco ? undefined : totalCount}
+        onAzzera={() => { setTab("tutte"); clearFilters(); }}
+        risultati={isLoading || ricercaInAttesa || dateInvertite ? undefined : totalCount}
       >
         <GruppoFiltri>
           <SceltaFiltro titolo={tr("Vista")} valore={tab} scelte={visteCompatte}
-            onScegli={v => { setTab(v); setPage(1); }} />
-          {((vistaElenco && tab !== "senza_data") || tab === "rate") && (
-            <SceltaFiltro titolo={tr("Periodo")} valore={tab === "rate" ? `anno:${yearFilter}` : datePreset || `anno:${yearFilter}`}
-              scelte={tab === "rate" ? periodiAnno : [...periodiAnno, ...periodiRapidi]}
+            onScegli={v => {
+              if (v.startsWith("strumento:")) { setFiltriMobileAperti(false); setStrumento(v.slice(10) as "settimane" | "adempimenti"); return; }
+              setTab(v); setPage(1);
+            }} />
+          {inArretrato && ritornoPeriodo && tab !== "senza_data" && (
+            <Button type="button" variant="secondary" className="h-11 w-full justify-between" onClick={tornaAlMese}>
+              {tr("Arretrato al {data}", { data: ritornoPeriodo.fine.split("-").reverse().join("/") })}
+              <span className="flex items-center gap-1 text-xs"><ChevronLeft aria-hidden="true" className="size-4" />{tr("Torna al mese")}</span>
+            </Button>
+          )}
+          {!inArretrato && tab !== "senza_data" && (
+            <SceltaFiltro titolo={tr("Periodo")} valore={datePreset || `anno:${yearFilter}`}
+              scelte={[...periodiAnno, ...periodiRapidi]}
               onScegli={v => {
-                if (v.startsWith("anno:")) {
-                  setYearFilter(v.slice(5));
-                  if (tab !== "rate") setDatePreset("");
-                } else {
-                  setDatePreset(v);
-                }
-                setPage(1);
+                if (v.startsWith("anno:")) cambiaPeriodo("", v.slice(5));
+                else if (leggiMese(v)) cambiaPeriodo(v, String(leggiMese(v)!.anno));
+                else cambiaPeriodo(v);
               }} />
           )}
-          {vistaElenco && tab !== "senza_data" && datePreset === "custom" && (
+          {!inArretrato && tab !== "senza_data" && datePreset === "custom" && (
             <DateFiltro dal={customFrom} al={customTo}
               cambiaDal={dal => cambiaFiltri({ dal })} cambiaAl={al => cambiaFiltri({ al })} />
           )}
@@ -661,20 +738,30 @@ export default function Scadenzario() {
             <SceltaFiltro titolo={tr("Pagamento")} valore={filterMetodo || "all"}
               onScegli={v => cambiaFiltri({ metodo: v === "all" ? "" : v })}
               scelte={[{ value: "all", label: tr("Tutti") }, ...GRUPPI_METODO.map((g) => ({ ...g, label: tr(g.label) }))]} />
-            <SceltaFiltro titolo={tr("Tipo")} valore={filterTipo || "all"}
-              onScegli={v => cambiaFiltri({ tipo: v === "all" ? "" : v })}
-              scelte={[
-                { value: "all", label: tr("Tutti") },
-                { value: "incasso_cliente", label: tr("Incasso cliente") },
-                { value: "pagamento_fornitore", label: tr("Fornitore") },
-                { value: "costo_aziendale", label: tr("Costo aziendale") },
-                { value: "scadenza_fiscale", label: tr("Fiscale") },
-                { value: "altro", label: tr("Altro") },
-              ]} />
-            <FiltroStatoScadenzeCompatto stato={filterStatus} cambia={stato => cambiaFiltri({ stato })} />
+            <DettaglioFiltri titolo={tr("Fornitore")} riepilogo={filterFornitore?.label}>
+              {companyId && <SceltaEntitaInline tipo="fornitore" companyId={companyId} valore={filterFornitore} onScegli={fornitore => cambiaFiltri({ fornitore })} />}
+            </DettaglioFiltri>
+            <DettaglioFiltri titolo={tr("Cantiere")} riepilogo={filterCommessa?.label}>
+              {companyId && <SceltaEntitaInline tipo="cantiere" companyId={companyId} valore={filterCommessa} onScegli={commessa => cambiaFiltri({ commessa })} />}
+            </DettaglioFiltri>
+            <CampiAltriFiltriScadenzario valore={valoriFiltri} cambia={cambiaFiltri} compatto />
           </DettaglioFiltri>}
         </GruppoFiltri>
       </PannelloFiltri>
+
+      {/* Strumenti separati dall'elenco: «Per settimana» e «Adempimenti fiscali» si aprono accanto, senza cambiare la pagina. */}
+      <Sheet open={strumento === "settimane"} onOpenChange={(o) => !o && setStrumento(null)}>
+        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-3xl">
+          <SheetHeader><SheetTitle>{tr("Incassi per settimana")}</SheetTitle></SheetHeader>
+          <div className="mt-4"><IncassiPerSettimanaVista cerca={search} /></div>
+        </SheetContent>
+      </Sheet>
+      <Sheet open={strumento === "adempimenti"} onOpenChange={(o) => !o && setStrumento(null)}>
+        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-4xl">
+          <SheetHeader><SheetTitle>{tr("Adempimenti fiscali")}</SheetTitle></SheetHeader>
+          <div className="mt-4">{strumento === "adempimenti" && <AdempimentiFiscali />}</div>
+        </SheetContent>
+      </Sheet>
 
       {/* Dialogs */}
       {scadenzaAperta && (

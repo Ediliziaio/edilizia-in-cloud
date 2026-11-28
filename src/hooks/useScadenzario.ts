@@ -101,6 +101,21 @@ export interface ScadenzarioFilters {
   tipo?: string | null;
   /** RiBa, bonifico…: il gruppo del modo di pagamento (16/11/2026). */
   metodo?: GruppoMetodo | null;
+  /** Il fornitore (supplier_id). Lato server, come l'esportazione. */
+  supplierId?: string | null;
+  /** Il cantiere (order_id). I costi ripartiti su più commesse non hanno order_id
+   *  della quota: li raggiunge `orderCostIds`, risolti prima da `costiDellaCommessa`. */
+  orderId?: string | null;
+  orderCostIds?: string[] | null;
+  /** Importo della scadenza da/a (28/11/2026, «Altri filtri»). */
+  importoMin?: number | null;
+  importoMax?: number | null;
+  /** Solo le scadenze con una nota scritta. */
+  soloConNote?: boolean;
+  /** Solo le scadenze legate a una fattura o a un costo registrato. */
+  soloConDocumento?: boolean;
+  /** Non leggere ancora l'elenco: mancano dati che ne cambiano il filtro (costi della commessa). */
+  attendi?: boolean;
   /**
    * L'anno del grafico dei mesi, quando il grafico c'è (23/11/2026). I dodici
    * mesi arrivano insieme al riepilogo, da una sola esecuzione: prima il
@@ -118,10 +133,10 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
 
-  const { direction, status, dateFrom, dateTo, search, soloScadute, soloAperte, tipo, metodo, includiSenzaData, soloSenzaData, annoGrafico } = filters;
+  const { direction, status, dateFrom, dateTo, search, soloScadute, soloAperte, tipo, metodo, includiSenzaData, soloSenzaData, annoGrafico, supplierId, orderId, orderCostIds, attendi, importoMin, importoMax, soloConNote, soloConDocumento } = filters;
 
   const scadenzeQuery = useQuery({
-    queryKey: [...queryKeys.scadenzario.list(companyId), page, pageSize, direction, status, dateFrom, dateTo, search, soloScadute ?? false, tipo ?? null, soloAperte ?? false, metodo ?? null, includiSenzaData ?? false, soloSenzaData ?? false],
+    queryKey: [...queryKeys.scadenzario.list(companyId), page, pageSize, direction, status, dateFrom, dateTo, search, soloScadute ?? false, tipo ?? null, soloAperte ?? false, metodo ?? null, includiSenzaData ?? false, soloSenzaData ?? false, supplierId ?? null, orderId ?? null, orderCostIds?.join(",") ?? null, importoMin ?? null, importoMax ?? null, soloConNote ?? false, soloConDocumento ?? false],
     queryFn: async () => {
       const query = filtraScadenzario(queryFontiScadenzario(companyId!)
         .select(`*, suppliers(name), invoices(invoice_number, client_company_name, issue_date),
@@ -135,7 +150,7 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
       if (error) throw error;
       return { data: await completaCommesseScadenze(companyId!, (data ?? []) as unknown as Scadenza[]), totalCount: count ?? 0 };
     },
-    enabled: !!companyId,
+    enabled: !!companyId && !attendi,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
@@ -145,14 +160,16 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
   // secondo su un'azienda piena, e prima si faceva tre volte: il riepilogo e
   // due giri del grafico, che si scaricava le righe dell'anno a pagine da 500.
   const summaryQuery = useQuery({
-    queryKey: [...queryKeys.scadenzario.summary(companyId), dateFrom, dateTo, includiSenzaData ?? false, soloSenzaData ?? false, annoGrafico ?? null],
+    // Serve solo al conteggio «senza data» e al grafico dell'anno: né l'uno né l'altro dipendono dal mese
+    // scelto, quindi il periodo non sta nella chiave e cambiare mese non rifà questa lettura (28/11/2026).
+    queryKey: [...queryKeys.scadenzario.summary(companyId), annoGrafico ?? null],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("scadenzario_totali" as never, {
         p_company_id: companyId!,
-        p_date_from: dateFrom ?? null,
-        p_date_to: dateTo ?? null,
-        p_includi_senza_data: includiSenzaData ?? false,
-        p_solo_senza_data: soloSenzaData ?? false,
+        p_date_from: null,
+        p_date_to: null,
+        p_includi_senza_data: true,
+        p_solo_senza_data: false,
         p_anno: annoGrafico ?? null,
       } as never);
       if (error) throw error;

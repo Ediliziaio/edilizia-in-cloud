@@ -29,6 +29,8 @@ import { useT, dateFnsCampo } from "@/lib/campo/lingua/LinguaCampo";
 
 interface Props {
   scadenze: Scadenza[];
+  /** Elenco vuoto ma altrove ci sono righe: un rimando invece del solo «Nessuna scadenza». */
+  rimandoVuoto?: { testo: string; onClick: () => void };
   onMarkPaid: (s: Scadenza) => void;
   onCancel: (id: string) => void;
   /** Annulla l'incasso registrato dallo scadenzario: le righe di prima nota automatiche non si eliminano altrove. */
@@ -64,7 +66,7 @@ const monthLabel = (d: Date | null) => {
 interface TotaliMese { incassi: number; pagamenti: number; apertoIn: number; apertoOut: number }
 
 
-export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnnullaIncasso, onAdd, onRowClick, onNota, onModifica, selezionate, onSeleziona, onSelezionaPagina, tutteSelezionate, selezioneParziale, inCorso = false, pagaSulPosto, colonne }: Props) {
+export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnnullaIncasso, onAdd, onRowClick, onNota, onModifica, selezionate, onSeleziona, onSelezionaPagina, tutteSelezionate, selezioneParziale, inCorso = false, pagaSulPosto, colonne, rimandoVuoto }: Props) {
   const mostrate = colonne ?? colonneVisibili(DEF_SCADENZE);
   const tTesto = useT();
   const azionePagamento = (s: Scadenza) => pagaSulPosto?.(s) ? tTesto("Paga") : scadenzaDaFonte(s) ? tTesto("Apri fonte") : s.direction === "entrata" ? tTesto("Incassa") : tTesto("Paga");
@@ -96,6 +98,7 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
             {tTesto("Non ci sono scadenze per i filtri selezionati.")}
           </p>
         </div>
+        {rimandoVuoto && <Button size="sm" variant="link" onClick={rimandoVuoto.onClick} className="h-auto p-0 text-xs">{rimandoVuoto.testo}</Button>}
         {onAdd && (
           <Button size="sm" variant="outline" onClick={onAdd} className="gap-1.5 max-lg:hidden">
             <Plus className="h-3.5 w-3.5" aria-hidden="true" />

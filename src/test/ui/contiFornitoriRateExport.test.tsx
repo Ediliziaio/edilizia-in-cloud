@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { RateFornitori } from "@/components/scadenzario/RateFornitori";
 import { RegoleContoFornitore } from "@/components/costi/RegoleContoFornitore";
 
 const stato = vi.hoisted(() => ({
@@ -90,78 +89,7 @@ beforeEach(() => {
 });
 const client = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
-describe("Scadenzario rate e conti predefiniti", () => {
-  it("esporta solo le rate del 30 novembre, comprese quelle da contabilizzare", async () => {
-    const scaricato = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
-    const salvaBlob = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:riba");
-    render(<QueryClientProvider client={client()}><RateFornitori companyId="c1" anno="2026" cerca="" /></QueryClientProvider>);
-    fireEvent.change(screen.getByLabelText("Scadenza dal"), { target: { value: "2026-11-30" } });
-    fireEvent.change(screen.getByLabelText("Al"), { target: { value: "2026-11-30" } });
-    fireEvent.click(screen.getByRole("button", { name: "Solo Ri.Ba." }));
-    const seconda = await screen.findByRole("row", { name: /F-2/ });
-    expect(seconda).toHaveTextContent("da contabilizzare");
-    expect(stato.contiene).toHaveBeenCalledWith("piano_pagamento", '[{"modalita":"MP12"}]');
-    expect(within(seconda).queryByRole("button", { name: "Segna pagata" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Esporta CSV" }));
-    expect(stato.exportCsv.mock.calls[0]?.[0]).toMatchObject([
-      { fattura: "F-1", numero: "2", data: "2026-11-30", aperto: "80,00" },
-      { fattura: "F-1", numero: "7", data: "2026-11-30", aperto: "" },
-      { fattura: "F-2", numero: "1", data: "2026-11-30", aperto: "210,00" },
-    ]);
-    expect(scaricato).toHaveBeenCalledTimes(1);
-    const blob = salvaBlob.mock.calls[0][0];
-    const righeCsv = (await new Promise<string>((resolve, reject) => {
-      const lettore = new FileReader();
-      lettore.onload = () => resolve(String(lettore.result));
-      lettore.onerror = () => reject(lettore.error);
-      lettore.readAsText(blob as Blob);
-    })).split("\r\n");
-    expect(righeCsv).toHaveLength(4);
-    expect(righeCsv[1]).toBe("2026-11-30;Fornitore demo;F-1;2;Ri.Ba.;120,00;80,00;pagamento parziale;");
-    expect(righeCsv[3]).toContain("F-2;1;Ri.Ba.;210,00;210,00;da contabilizzare");
-    scaricato.mockRestore();
-    salvaBlob.mockRestore();
-  });
-
-  it("mantiene il totale del mese anche quando mostra le rate pagate", async () => {
-    render(<QueryClientProvider client={client()}><RateFornitori companyId="c1" anno="2025" cerca="" /></QueryClientProvider>);
-    fireEvent.change(screen.getByLabelText("Scadenza dal"), { target: { value: "2026-11-01" } });
-    fireEvent.change(screen.getByLabelText("Al"), { target: { value: "2026-11-30" } });
-    fireEvent.click(screen.getByRole("button", { name: "Solo Ri.Ba." }));
-    await screen.findByText(/4 rate · Da pagare/);
-    expect(screen.getByText(/4 rate · Da pagare/)).toHaveTextContent(/307,35/);
-    expect(screen.getByText(/Residuo non disponibile per 1 rata/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Solo da pagare" }));
-    expect(screen.getByText(/5 rate · Da pagare/)).toHaveTextContent(/307,35/);
-    expect(screen.getByRole("row", { name: /70,00.*pagata/ })).toBeInTheDocument();
-  });
-
-  it("ritrova la rata senza data e senza fattura anche partendo dal filtro mese", async () => {
-    render(<QueryClientProvider client={client()}><RateFornitori companyId="c1" anno="2026" cerca="" /></QueryClientProvider>);
-    fireEvent.change(screen.getByLabelText("Scadenza dal"), { target: { value: "2026-11-01" } });
-    const senzaData = await screen.findByRole("button", { name: "Senza data (1)" });
-    fireEvent.click(senzaData);
-    const rataSenzaData = screen.getByRole("row", { name: /Fornitore demo.*34,00/ });
-    expect(rataSenzaData).toBeInTheDocument();
-    expect(screen.getByLabelText("Scadenza dal")).toBeDisabled();
-    expect(screen.queryByRole("row", { name: /F-1/ })).toBeNull();
-  });
-
-  it("blocca l’export se manca una fonte o se le date sono invertite", async () => {
-    stato.errorePiano = true;
-    render(<QueryClientProvider client={client()}><RateFornitori companyId="c1" anno="2026" cerca="" /></QueryClientProvider>);
-    fireEvent.click(screen.getByRole("button", { name: "Solo Ri.Ba." }));
-    const riprova = await screen.findByRole("button", { name: /Errore nel caricamento/ });
-    expect(screen.getByRole("button", { name: "Esporta CSV" })).toBeDisabled();
-    stato.errorePiano = false;
-    fireEvent.click(riprova);
-    await screen.findByRole("row", { name: /F-2/ });
-    fireEvent.change(screen.getByLabelText("Scadenza dal"), { target: { value: "2026-11-30" } });
-    fireEvent.change(screen.getByLabelText("Al"), { target: { value: "2026-11-01" } });
-    expect(screen.getByRole("alert")).toHaveTextContent(/La data finale/);
-    expect(screen.getByRole("button", { name: "Esporta CSV" })).toBeDisabled();
-  });
-
+describe("Conti predefiniti dei fornitori", () => {
   it("salva la regola con il fornitore e il conto selezionati nell’azienda attiva", async () => {
     render(<QueryClientProvider client={client()}><RegoleContoFornitore companyId="c1"
       categorie={[{ id: "leasing", name: "leasing" }]} modifica onClose={vi.fn()} /></QueryClientProvider>);
