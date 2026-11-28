@@ -60,7 +60,7 @@ interface SalRecord {
   note: string | null;
   company_id: string;
   committente_id: string;
-  contratto_id: string;
+  contratto_id: string | null;
 }
 
 const nomeDi = (p: { business_name?: string | null; first_name?: string | null; last_name?: string | null }) =>
@@ -118,11 +118,15 @@ export function useRendicontoAppaltoPDF() {
             .select("business_name, first_name, last_name, vat_number, fiscal_code, address, city, postal_code, province")
             .eq("id", sal.committente_id)
             .maybeSingle(),
-          (supabase as any)
-            .from("appalto_contratti")
-            .select("nome, riferimento_committente")
-            .eq("id", sal.contratto_id)
-            .maybeSingle(),
+          // Senza contratto (commessa non in appalto) non c'è niente da leggere:
+          // la testata del PDF resta col solo nome del committente.
+          sal.contratto_id
+            ? (supabase as any)
+                .from("appalto_contratti")
+                .select("nome, riferimento_committente")
+                .eq("id", sal.contratto_id)
+                .maybeSingle()
+            : Promise.resolve({ data: null, error: null }),
           // `companies` non ha address/city: la lettura falliva e in testata restava il solo nome (09/11/2026).
           caricaDatiSocietari(supabase, companyId),
           // Il logo in testata (10/11/2026): il rendiconto usciva senza, e senza nome dell'impresa.
