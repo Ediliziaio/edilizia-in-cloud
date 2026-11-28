@@ -14,6 +14,13 @@ export interface ExpensePaymentDetail {
    */
   senza_prova?: number;
   /**
+   * Segnata pagata (flag del gestionale o import) ma senza alcuna scrittura che la paghi: è già
+   * dentro il residuo, come nell'elenco e nella riconciliazione (28/11/2026).
+   */
+  segnata_non_registrata?: number;
+  /** Gli id delle rate segnate pagate senza scrittura: solo loro si etichettano così. */
+  rate_segnate_non_registrate?: string[];
+  /**
    * `fonte`: «prima_nota» per i pagamenti registrati, «banca» per un movimento abbinato dalla
    * tesoreria, «prova» per il movimento che conferma un pagamento già segnato.
    */

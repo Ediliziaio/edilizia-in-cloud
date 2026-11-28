@@ -66,6 +66,7 @@ import { useVociMovimenti } from "@/lib/finance/cassaVoci";
 import { ControparteRiconosciuta, SuggerimentiAbbinamento, useSuggerimentiMovimento } from "./MovimentoSuggerimenti";
 import { AlternativeEsito, BadgeEsito, RigaEsitoMovimento, useEsitoMovimento } from "./EsitoMovimento";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
+import { messaggioErrore } from "@/lib/messaggioErrore";
 
 export type BankDetailSection = "documents" | "contexts";
 
@@ -189,6 +190,14 @@ function Detail({
     category: m.category ?? "",
   });
   const [contextDirty, setContextDirty] = useState(false);
+  // Bozza dei selettori «Fatture e scadenze» / «Pagamenti già registrati»: scelte e quote scritte.
+  const [pickerDirty, setPickerDirty] = useState(false);
+  const [modoRichiesto, setModoRichiesto] = useState<"new" | "existing" | "none" | null | undefined>(undefined);
+  const cambiaModo = (next: "new" | "existing" | "none" | null) => {
+    if (next === mode) return;
+    if (pickerDirty) setModoRichiesto(next);
+    else setMode(next);
+  };
   const startSection = useRef<HTMLDivElement | null>(null);
   const voce = useVociMovimenti(company, [m.id]);
   useEffect(() => {
@@ -199,9 +208,10 @@ function Detail({
       onDirtyChange(
         note !== savedAnnotation.note ||
           category !== savedAnnotation.category ||
-          contextDirty,
+          contextDirty ||
+          pickerDirty,
       ),
-    [note, category, savedAnnotation, contextDirty, onDirtyChange],
+    [note, category, savedAnnotation, contextDirty, pickerDirty, onDirtyChange],
   );
   const refresh = () => {
     void client.invalidateQueries({ queryKey: ["tesoreria-esito", company] });
@@ -362,7 +372,7 @@ function Detail({
             <>
               {m.links.financial.length === 0 && <Nessuno />}
               {validMatch && (
-                <Azione onClick={() => setMode((v) => (v ? null : "new"))} label={tr("Collega fatture e pagamenti")}>
+                <Azione onClick={() => cambiaModo(mode ? null : "new")} label={tr("Collega fatture e pagamenti")}>
                   {mode ? tr("Chiudi") : m.links.financial.length ? tr("Aggiungi") : tr("Collega")}
                 </Azione>
               )}
@@ -441,11 +451,11 @@ function Detail({
                   className="basis-full scroll-mt-4 space-y-3 rounded-lg border bg-muted/20 p-3"
                 >
                   <div className="flex flex-wrap gap-1.5" role="group" aria-label={tr("Come collegare")}>
-                    <Button size="sm" variant={mode === "new" ? "default" : "outline"} aria-label={tr("Collega fatture e scadenze")} onClick={() => setMode("new")}>
+                    <Button size="sm" variant={mode === "new" ? "default" : "outline"} aria-label={tr("Collega fatture e scadenze")} onClick={() => cambiaModo("new")}>
                       <FileText className="mr-1 h-3.5 w-3.5" />{tr("Fatture e scadenze")}
                     </Button>
                     {perms.canViewPrimaNota && (
-                      <Button size="sm" variant={mode === "existing" ? "default" : "outline"} aria-label={tr("Collega pagamenti già registrati")} onClick={() => setMode("existing")}>
+                      <Button size="sm" variant={mode === "existing" ? "default" : "outline"} aria-label={tr("Collega pagamenti già registrati")} onClick={() => cambiaModo("existing")}>
                         <Link2 className="mr-1 h-3.5 w-3.5" />{tr("Pagamenti già registrati")}
                       </Button>
                     )}
@@ -455,16 +465,16 @@ function Detail({
                       </Button>
                     )}
                     {m.links.matched === 0 && (
-                      <Button size="sm" variant={mode === "none" ? "default" : "outline"} aria-label={tr("Senza fattura")} onClick={() => setMode("none")}>
+                      <Button size="sm" variant={mode === "none" ? "default" : "outline"} aria-label={tr("Senza fattura")} onClick={() => cambiaModo("none")}>
                         {tr("Senza fattura")}
                       </Button>
                     )}
                   </div>
                   {mode === "new" && (
-                    <FinancialPicker key="new" company={company} movement={m} onDone={() => { setMode(null); refresh(); }} />
+                    <FinancialPicker key="new" company={company} movement={m} onDirtyChange={setPickerDirty} onDone={() => { setMode(null); refresh(); }} />
                   )}
                   {mode === "existing" && (
-                    <ExistingPicker key="existing" company={company} movement={m} onDone={() => { setMode(null); refresh(); }} />
+                    <ExistingPicker key="existing" company={company} movement={m} onDirtyChange={setPickerDirty} onDone={() => { setMode(null); refresh(); }} />
                   )}
                   {mode === "none" && (
                     <MovimentoSenzaFattura companyId={company} tx={m} onFatto={() => { setMode(null); refresh(); }} />
@@ -596,6 +606,22 @@ function Detail({
           ))}
         </details>
       )}
+      <AlertDialog open={modoRichiesto !== undefined} onOpenChange={(v) => { if (!v) setModoRichiesto(undefined); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{tr("Scartare le scelte fatte?")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {tr("Hai spuntato documenti o scritto importi che non hai ancora confermato. Cambiando modo li perdi.")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{tr("Resta")}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setMode(modoRichiesto ?? null); setModoRichiesto(undefined); }}>
+              {tr("Scarta e cambia")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog
         open={!!remove}
         onOpenChange={(v) => {
@@ -699,20 +725,36 @@ function useCandidates(company: string, id: string, existing: boolean) {
   });
   return { query, search, setSearch };
 }
+/** Il resto da abbinare è sceso rispetto a quello visto prima della conferma? Se la rilettura
+ *  fallisce si risponde «no»: meglio un errore in più che una conferma creduta fatta. */
+async function confermaGiaArrivata(company: string, tx: string, restoPrima: number): Promise<boolean> {
+  try {
+    const dopo = await bankRpc<BankMovement>("bank_movimento_dettaglio", { p_company: company, p_tx: tx });
+    return Math.round(Number(dopo?.links?.remaining) * 100) < Math.round(restoPrima * 100);
+  } catch {
+    return false;
+  }
+}
+
 function FinancialPicker({
   company,
   movement: m,
   onDone,
+  onDirtyChange,
 }: {
   company: string;
   movement: BankMovement;
   onDone: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const t = useT();
   const { query, setSearch } = useCandidates(company, m.id, false);
   const [busy, setBusy] = useState(false);
+  // Il ref chiude la porta subito: due clic nello stesso istante vedono ancora busy=false.
+  const inVolo = useRef(false);
   async function confirm(rows: RigaRipartizione[], note: string) {
-    if (busy) return;
+    if (inVolo.current) return;
+    inVolo.current = true;
     setBusy(true);
     let committed = false;
     try {
@@ -738,8 +780,17 @@ function FinancialPicker({
           t("Pagamenti salvati, aggiornamento esterno da riprovare: {elenco}", { elenco: failed.join(", ") }),
         );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("Abbinamento non riuscito"));
+      // Risposta persa dopo una scrittura riuscita (rete caduta): un nuovo clic scriverebbe le
+      // stesse quote una seconda volta. Prima di ridare il pulsante si rilegge il movimento: se il
+      // resto da abbinare è sceso, la conferma era arrivata (28/11/2026).
+      if (!committed && (await confermaGiaArrivata(company, m.id, m.links.remaining))) {
+        committed = true;
+        toast.warning(t("La conferma era già arrivata: il movimento è aggiornato, non serve riprovare."));
+      } else {
+        toast.error(messaggioErrore(e, t("Abbinamento non riuscito")));
+      }
     } finally {
+      inVolo.current = false;
       setBusy(false);
       if (committed) onDone();
     }
@@ -773,6 +824,7 @@ function FinancialPicker({
           m.transaction_type === "credit" ? "fatture" : "scadenze"
         }
         onConferma={(r, n) => void confirm(r, n)}
+        onModificata={onDirtyChange}
       />
       {(query.data?.length ?? 0) >= 100 && (
         <p className="text-xs text-muted-foreground">
@@ -786,10 +838,12 @@ function ExistingPicker({
   company,
   movement: m,
   onDone,
+  onDirtyChange,
 }: {
   company: string;
   movement: BankMovement;
   onDone: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const t = useT();
   const { query, search, setSearch } = useCandidates(company, m.id, true);
@@ -797,6 +851,10 @@ function ExistingPicker({
     Record<string, CandidatoRipartizione>
   >({});
   const [busy, setBusy] = useState(false);
+  const inVolo = useRef(false);
+  const haScelte = Object.keys(selected).length > 0;
+  useEffect(() => { onDirtyChange?.(haScelte); }, [haScelte, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   const total =
     Math.round(
       Object.values(selected).reduce((s, r) => s + Number(r.residuo), 0) * 100,
@@ -836,7 +894,8 @@ function ExistingPicker({
       return next;
     });
   async function confirm() {
-    if (busy) return;
+    if (inVolo.current) return;
+    inVolo.current = true;
     setBusy(true);
     try {
       await bankRpc("bank_associa_pagamenti", {
@@ -847,8 +906,9 @@ function ExistingPicker({
       toast.success(t("Prove bancarie collegate: nessun pagamento duplicato"));
       onDone();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("Collegamento non riuscito"));
+      toast.error(messaggioErrore(e, t("Collegamento non riuscito")));
     } finally {
+      inVolo.current = false;
       setBusy(false);
     }
   }

@@ -208,6 +208,129 @@ describe("popup e registro dei movimenti", () => {
     await waitFor(() => expect(screen.queryByText(/impiegato troppo tempo/)).not.toBeInTheDocument());
   });
 
+  // Caso P0-2 (28/11/2026): le scelte e le quote sopravvivono a risposte vuote o fuori ordine,
+  // a un errore di conferma, e non si perdono chiudendo o cambiando modo senza un avviso.
+  const apriCollega = async (tx: typeof movement) => {
+    mock.load.mockResolvedValue({ rows: [tx], count: 1, totals: [] });
+    view(<TransactionsFeed companyId="company" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Collega fatture e pagamenti: Bonifico Alfa Beta" }));
+    return screen.findByRole("checkbox", { name: "Scegli Fattura A" });
+  };
+  const nuovoTx = () => { const tx = structuredClone(movement); tx.links.financial = []; return tx; };
+  const cand = (k: string, r: number) => ({ key: k, tipo: "documento", id: k, titolo: `Fattura ${k.toUpperCase()}`, residuo: r });
+  const cerca = (v: string) => fireEvent.change(screen.getByRole("textbox", { name: "Cerca documenti da collegare" }), { target: { value: v } });
+
+  it("risposta vuota e risposta vecchia fuori ordine non toccano scelte, quote e totale", async () => {
+    const tx = nuovoTx();
+    let sblocca: (v: unknown[]) => void = () => {};
+    mock.rpc.mockImplementation(async (name: string, args: { p_search?: string }) => {
+      if (name === "bank_movimento_dettaglio") return structuredClone(tx);
+      if (name === "bank_candidati_movimento") {
+        if (args.p_search === "lenta") return new Promise((r) => { sblocca = r; });
+        if (args.p_search === "vuota") return [];
+        return [cand("a", 300)];
+      }
+      return [];
+    });
+    fireEvent.click(await apriCollega(tx));
+    fireEvent.change(screen.getByLabelText("Importo per Fattura A"), { target: { value: "120,00" } });
+    cerca("lenta");
+    await waitFor(() => expect(mock.rpc.mock.calls.some(c => c[1]?.p_search === "lenta")).toBe(true));
+    cerca("vuota");
+    await waitFor(() => expect(mock.rpc.mock.calls.some(c => c[1]?.p_search === "vuota")).toBe(true));
+    await waitFor(() => expect(screen.queryByRole("status", { name: "" })).toBeNull());
+    expect(screen.getByLabelText("Importo per Fattura A")).toHaveValue("120,00"); // risposta vuota: scelta ancora lì
+    sblocca([cand("zz", 50)]); // la più vecchia arriva per ultima
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.getByLabelText("Importo per Fattura A")).toHaveValue("120,00");
+    expect(screen.getByRole("checkbox", { name: "Scegli Fattura A" })).toBeChecked();
+    expect(screen.getByText(/Abbinati .*120,00.* restano .*380,00/)).toBeInTheDocument();
+  });
+
+  it("errore alla conferma: le quote restano, si riprova senza reinserirle, e una sola conferma per volta", async () => {
+    const tx = nuovoTx();
+    let falla = true;
+    let conferme = 0;
+    mock.rpc.mockImplementation(async (name: string) => {
+      if (name === "bank_movimento_dettaglio") return structuredClone(tx);
+      if (name === "bank_candidati_movimento") return [cand("a", 300)];
+      if (name === "bank_conferma_ripartizione") {
+        conferme++;
+        if (falla) throw new Error("Connessione persa");
+        return {};
+      }
+      return [];
+    });
+    fireEvent.click(await apriCollega(tx));
+    fireEvent.change(screen.getByLabelText("Importo per Fattura A"), { target: { value: "250,00" } });
+    const conferma = screen.getByRole("button", { name: "Conferma" });
+    fireEvent.click(conferma);
+    fireEvent.click(conferma);
+    await waitFor(() => expect(mock.toast.error).toHaveBeenCalledWith("Connessione persa"));
+    expect(conferme).toBe(1);
+    expect(screen.getByLabelText("Importo per Fattura A")).toHaveValue("250,00");
+    falla = false;
+    await waitFor(() => expect(screen.getByRole("button", { name: "Conferma" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+    await waitFor(() => expect(mock.toast.success).toHaveBeenCalled());
+    expect(conferme).toBe(2);
+    // Dopo la conferma riuscita il selettore si chiude e la bozza è azzerata.
+    await waitFor(() => expect(screen.queryByLabelText("Importo per Fattura A")).not.toBeInTheDocument());
+  });
+
+  // 28/11/2026 (revisione): il server scrive, la risposta si perde. Prima di ridare il pulsante si
+  // rilegge il movimento: il resto è sceso, quindi niente seconda conferma e niente quote doppie.
+  it("risposta persa dopo una conferma riuscita: non si conferma due volte", async () => {
+    const tx = nuovoTx();
+    let conferme = 0;
+    mock.rpc.mockImplementation(async (name: string) => {
+      if (name === "bank_movimento_dettaglio") {
+        const copia = structuredClone(tx);
+        if (conferme > 0) copia.links.remaining = Number(copia.links.remaining) - 250;
+        return copia;
+      }
+      if (name === "bank_candidati_movimento") return [cand("a", 300)];
+      if (name === "bank_conferma_ripartizione") {
+        conferme++;
+        throw new Error("Failed to fetch");
+      }
+      return [];
+    });
+    fireEvent.click(await apriCollega(tx));
+    fireEvent.change(screen.getByLabelText("Importo per Fattura A"), { target: { value: "250,00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+    await waitFor(() => expect(mock.toast.warning).toHaveBeenCalledWith(expect.stringMatching(/conferma era già arrivata/)));
+    expect(mock.toast.error).not.toHaveBeenCalled();
+    expect(conferme).toBe(1);
+    await waitFor(() => expect(screen.queryByLabelText("Importo per Fattura A")).not.toBeInTheDocument());
+  });
+
+  it("con una bozza di scelte, chiudere o cambiare modo chiede conferma: «Resta» conserva tutto", async () => {
+    const tx = nuovoTx();
+    const close = vi.fn();
+    mock.rpc.mockImplementation(async (name: string) => {
+      if (name === "bank_movimento_dettaglio") return structuredClone(tx);
+      if (name === "bank_candidati_movimento") return [cand("a", 300)];
+      return [];
+    });
+    view(<BankMovementDetail company="company" id="tx" onClose={close} initialSection="documents" />);
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Scegli Fattura A" }));
+    // cambio modo
+    fireEvent.click(screen.getByRole("button", { name: "Collega pagamenti già registrati" }));
+    expect(await screen.findByRole("alertdialog", { name: "Scartare le scelte fatte?" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Resta" }));
+    expect(screen.getByLabelText("Importo per Fattura A")).toHaveValue("300,00");
+    // chiusura
+    fireEvent.click(screen.getByRole("button", { name: "Chiudi" }));
+    expect(await screen.findByRole("alertdialog", { name: "Chiudere senza salvare?" })).toBeInTheDocument();
+    expect(close).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Continua a modificare" }));
+    expect(screen.getByLabelText("Importo per Fattura A")).toHaveValue("300,00");
+    fireEvent.click(screen.getByRole("button", { name: "Chiudi" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Chiudi senza salvare" }));
+    expect(close).toHaveBeenCalled();
+  });
+
   it("apre dalla destra e mostra tutti i documenti, le commesse, il mezzo e le note", async () => {
     view(<TransactionsFeed companyId="company" />);
     fireEvent.click(

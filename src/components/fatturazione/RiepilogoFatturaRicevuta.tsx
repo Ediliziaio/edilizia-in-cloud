@@ -740,7 +740,7 @@ function ContenutoRiepilogo({
                             titolo: `Rata ${r.numero} · ${f.numero_fattura ?? ""} · ${formatCurrency(r.importo!)}` })}>{t("Segna pagata")}</Button>}
                     </div>)}
                   </div>}
-                  {rateRegistrate.filter(r => r.stato === "pagata" || r.pagata_il).map(r => <div key={r.numero} className="text-xs text-muted-foreground">{t("Rata {numero}", { numero: String(r.numero ?? "") })} · {r.pagata_il ? t("pagata il {data}", { data: formatDateShort(r.pagata_il) }) : t("pagata")}</div>)}
+                  {rateRegistrate.filter(r => r.stato === "pagata" || r.pagata_il).map(r => <div key={r.numero} className="text-xs text-muted-foreground">{t("Rata {numero}", { numero: String(r.numero ?? "") })} · {r.id && statoPagamento?.rate_segnate_non_registrate?.includes(r.id) ? t("segnata pagata, nessun pagamento registrato") : r.pagata_il ? t("pagata il {data}", { data: formatDateShort(r.pagata_il) }) : t("pagata")}</div>)}
                 </dd>
 
 

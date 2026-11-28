@@ -91,6 +91,9 @@ export function ExpensePaymentDialog({ costId, onClose, importoProposto, apriInR
         {Number(d.compensato) > 0 && <p className="text-sm text-muted-foreground">{t("Del saldo già coperto, {importo} provengono da anticipi compensati.", { importo: formatCurrency(Number(d.compensato)) })}</p>}
         {d.da_verificare && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">{t("I pagamenti registrati non tornano col dovuto: vanno controllati prima di aggiungerne altri. Non aggiungere un pagamento per correggere uno stato.")}</p>}
         {/* 23/11/2026: pagata per il gestionale (o segnata a mano), ma senza un movimento collegato. */}
+        {/* 28/11/2026: segnata pagata ma senza nessun pagamento scritto. Il residuo la conta già da
+            pagare, come l'elenco: qui si dice perché, e che la banca la può ancora riconciliare. */}
+        {Number(d.segnata_non_registrata ?? 0) > 0 && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">{t("{importo} risultano segnati pagati, ma nessun pagamento è registrato: restano da pagare. Collega il movimento di banca o registra il pagamento.", { importo: formatCurrency(Number(d.segnata_non_registrata)) })}</p>}
         {Number(d.senza_prova ?? 0) > 0 && <p className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">{t("{importo} risultano pagati senza un movimento di banca collegato: segnati a mano o nel gestionale di prima.", { importo: formatCurrency(Number(d.senza_prova)) })}</p>}
         {movimentiProposti.length > 0 && <section aria-label={t("Movimenti di banca proposti")} className="space-y-2 rounded-lg border border-sky-200 bg-sky-50/60 p-3 dark:border-sky-900 dark:bg-sky-950/30">
           <p className="text-sm font-medium">{t("In banca c'è già")}{movimentiProposti.length > 1 ? ` ${t("(scegli quello giusto)")}` : ''}</p>
