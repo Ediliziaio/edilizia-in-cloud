@@ -7,7 +7,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, Loader2, Plus, RefreshCw, Save, X } from "lucide-react";
+import { Copy, Loader2, Plus, RefreshCw, Save, Truck, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -29,9 +29,9 @@ import { messaggioErrore } from "@/lib/messaggioErrore";
 import { useT } from "@/lib/campo/lingua/LinguaCampo";
 import type { VoceListino } from "@/lib/campo/prezzoVoceRapportino";
 import {
-  CATEGORIE, ETICHETTA_FONTE, annullaRendiconto, campiDaPredefinita, vociPredefinite, chiaveRiga, confermaRendiconto, elencoRendiconti, importoRiga, leggiRendiconto,
+  CAMPI_VIAGGIO_RENDICONTO, CATEGORIE, ETICHETTA_FONTE, annullaRendiconto, campiDaPredefinita, vociPredefinite, chiaveRiga, confermaRendiconto, elencoRendiconti, importoRiga, leggiRendiconto,
   puoCopiare, rendicontoCopia, rendicontoDelGiorno, riapriRendiconto, salvaPrezzoPerCommittente, salvaRendiconto, senzaPrezzo,
-  type CategoriaRiga, type RigaRendiconto, type StatoRendiconto, type VoceListinoCommittente,
+  type CategoriaRiga, type RigaRendiconto, type StatoRendiconto, type ViaggioRendiconto, type VoceListinoCommittente,
 } from "@/lib/rendiconti/rendicontiGiornalieri";
 
 const oggi = () => new Date().toLocaleDateString("en-CA");
@@ -57,15 +57,27 @@ function Numero({ valore, onCambia, etichetta, className, disabled }: {
   );
 }
 
+/** La riga di un viaggio appena aggiunto: prezzo da scrivere, i campi del viaggio pronti. */
+function rigaViaggioNuova(descrizione: string): RigaRendiconto {
+  return {
+    chiave: chiaveRiga(), categoria: "trasporto", descrizione, unita: "viaggio", quantita: 1,
+    prezzo_unitario: null, prezzo_a_mano: false, prezzo_fonte: null, listino_voce_id: null,
+    appalto_tariffa_id: null, employee_id: null, subappaltatore_id: null, mezzo_id: null, fase_id: null,
+    da_rapportino_id: null, maggiorazione_pct: 0, note: null, viaggio: {},
+  };
+}
+
 interface Props {
   orderId: string;
   /** null: rendiconto nuovo. */
   rendicontoId: string | null;
   puoModificare: boolean;
+  /** «Rendiconto trasporti»: il foglio nasce con un viaggio già pronto da compilare. */
+  partiDaTrasporti?: boolean;
   onClose: () => void;
 }
 
-export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModificare, onClose }: Props) {
+export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModificare, partiDaTrasporti = false, onClose }: Props) {
   const tr = useT();
   const qc = useQueryClient();
   const [id, setId] = useState<string | null>(rendicontoId);
@@ -130,9 +142,12 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
   });
 
   const caricato = useRef<string | null>(null);
-  const applica = (d: Awaited<ReturnType<typeof leggiRendiconto>>) => {
+  const applica = (d: Awaited<ReturnType<typeof leggiRendiconto>>, conViaggio = false) => {
     setId(d.testata.id); setStato(d.testata.stato); setNumero(d.testata.numero); setData(d.testata.data);
-    setLavori(d.testata.descrizione_lavori ?? ""); setNote(d.testata.note ?? ""); setRighe(d.righe);
+    setLavori(d.testata.descrizione_lavori ?? ""); setNote(d.testata.note ?? "");
+    // «Rendiconto trasporti» su un foglio ancora vuoto: il primo viaggio è già lì da compilare,
+    // come il rapportino trasporti che parte dal viaggio.
+    setRighe(conViaggio && d.righe.length === 0 ? [rigaViaggioNuova(tr("Trasporto"))] : d.righe);
     setSalSigillato(!!d.testata.sal_id); setRapportiniNuovi(d.testata.rapportini_nuovi);
   };
   const lettura = useQuery({
@@ -141,10 +156,14 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
     queryFn: () => leggiRendiconto(rendicontoId!),
   });
   useEffect(() => {
-    if (lettura.data && caricato.current !== rendicontoId) { caricato.current = rendicontoId; applica(lettura.data); }
-  }, [lettura.data, rendicontoId]);
+    if (lettura.data && caricato.current !== rendicontoId) { caricato.current = rendicontoId; applica(lettura.data, partiDaTrasporti); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lettura.data, rendicontoId, partiDaTrasporti]);
 
-  const modificabile = puoModificare && stato === "bozza" && !salSigillato;
+  // «Il rendiconto può essere sempre modificato: non ha ancora completato il lavoro» (28/11/2026).
+  // Anche confermato: si corregge e resta confermato. Si ferma solo quando è dentro il rendiconto
+  // del periodo, perché quel documento è già partito.
+  const modificabile = puoModificare && stato !== "annullato" && !salSigillato;
   const totale = useMemo(() => righe.reduce((s, r) => s + importoRiga(r), 0), [righe]);
   const senza = righe.filter(senzaPrezzo).length;
 
@@ -155,7 +174,7 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
     setRighe((rs) => [...rs, {
       chiave: chiaveRiga(), descrizione: "", unita: cat.unita, quantita: 1, prezzo_unitario: null, prezzo_a_mano: false,
       prezzo_fonte: null, listino_voce_id: null, appalto_tariffa_id: null, employee_id: null, subappaltatore_id: null,
-      mezzo_id: null, fase_id: null, da_rapportino_id: null, maggiorazione_pct: 0, note: null, ...r,
+      mezzo_id: null, fase_id: null, da_rapportino_id: null, maggiorazione_pct: 0, note: null, viaggio: null, ...r,
     }]);
   };
   const daListino = (categoria: CategoriaRiga, v: VoceListino) => {
@@ -221,19 +240,6 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
     },
     onError: errore,
   });
-  // Un solo comando: riapre il confermato e ne aggiunge le voci dei rapportini nuovi.
-  const riapriEAggiungi = useMutation({
-    mutationFn: async () => {
-      await riapriRendiconto(id!);
-      const r = await rendicontoDelGiorno(orderId, data);
-      return { idSalvato: id!, r };
-    },
-    onSuccess: async ({ idSalvato, r }) => {
-      await dopo(r.id ?? idSalvato);
-      if (r.aggiunti > 0) toast.success(tr("Prese le voci di {n} rapportini", { n: r.rapportini }));
-    },
-    onError: errore,
-  });
   const copiaGiorno = useMutation({
     mutationFn: async () => {
       // Con un rendiconto già salvato si salva prima, così la data scelta qui è quella a cui si copia.
@@ -257,7 +263,7 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
     onSuccess: async (v) => { if (v) await dopo(v); },
     onError: errore,
   });
-  const occupato = salva.isPending || conferma.isPending || cambiaStato.isPending || riapriEAggiungi.isPending || copiaGiorno.isPending;
+  const occupato = salva.isPending || conferma.isPending || cambiaStato.isPending || copiaGiorno.isPending;
 
   const nomeStato: Record<StatoRendiconto, string> = { bozza: tr("Bozza"), confermato: tr("Confermato"), annullato: tr("Annullato") };
 
@@ -280,6 +286,11 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
     const v = predefinite.data?.mezzi?.find((x) => x.mezzo_id === m.id);
     aggiungi({ categoria: "mezzo", descrizione: `${m.nome}${m.targa ? ` · ${m.targa}` : ""}`, mezzo_id: m.id, ...campiDaPredefinita(v) });
   };
+  /** Un viaggio: riga di trasporto a prezzo da scrivere, coi campi carico/scarico/mezzo/DDT/km. */
+  const aggiungiViaggio = () => setRighe((rs) => [...rs, rigaViaggioNuova(tr("Trasporto"))]);
+  const cambiaViaggio = (r: RigaRendiconto, campo: keyof ViaggioRendiconto, valore: string) =>
+    aggiorna(r.chiave, { viaggio: { ...(r.viaggio ?? {}), [campo]: valore } });
+
   // Rapportini scritti dopo: si salva quello che c'è, poi il database aggiunge le loro voci e si rilegge.
   const prendiNuovi = useMutation({
     mutationFn: async () => {
@@ -311,19 +322,21 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
           <DialogDescription>{tr("Il foglio per il committente: le voci del giorno, con quantità e prezzo. Il rapportino resta il diario interno.")}</DialogDescription>
         </DialogHeader>
         {salSigillato && <p className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900">{tr("È già nel rendiconto del periodo: non si modifica.")}</p>}
+        {/* Confermato non vuol dire chiuso: il lavoro va avanti e il foglio si corregge fino al
+            rendiconto del periodo. Quello che si salva resta confermato (28/11/2026). */}
+        {stato === "confermato" && !salSigillato && modificabile && (
+          <p className="rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs text-emerald-900">
+            {tr("Confermato, ma si corregge ancora: quello che salvi resta confermato, finché il giorno non entra nel rendiconto del periodo.")}
+          </p>
+        )}
         {rapportiniNuovi > 0 && !salSigillato && stato !== "annullato" && (
           <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
             <span>
-              {stato === "bozza"
-                ? tr(rapportiniNuovi === 1 ? "C'è {n} rapportino nuovo di questo giorno: le sue voci non sono ancora qui." : "Ci sono {n} rapportini nuovi di questo giorno: le loro voci non sono ancora qui.", { n: rapportiniNuovi })
-                : tr(rapportiniNuovi === 1 ? "C'è {n} rapportino nuovo di questo giorno: riapri il rendiconto per aggiungerne le voci." : "Ci sono {n} rapportini nuovi di questo giorno: riapri il rendiconto per aggiungerne le voci.", { n: rapportiniNuovi })}
+              {tr(rapportiniNuovi === 1
+                ? "C'è {n} rapportino nuovo di questo giorno: le sue voci non sono ancora qui."
+                : "Ci sono {n} rapportini nuovi di questo giorno: le loro voci non sono ancora qui.", { n: rapportiniNuovi })}
             </span>
-            {stato === "confermato" && puoModificare && (
-              <Button type="button" size="sm" variant="outline" className="h-7 gap-1 bg-background text-xs" disabled={occupato} onClick={() => riapriEAggiungi.mutate()}>
-                {riapriEAggiungi.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}{tr("Riapri e aggiungi le voci")}
-              </Button>
-            )}
-            {stato === "bozza" && modificabile && (
+            {modificabile && (
               <Button type="button" size="sm" variant="outline" className="h-7 gap-1 bg-background text-xs" disabled={occupato || prendiNuovi.isPending} onClick={() => prendiNuovi.mutate()}>
                 {prendiNuovi.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}{tr("Aggiungi le voci dei rapportini nuovi")}
               </Button>
@@ -413,6 +426,17 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
                               <button type="button" aria-label={tr("Togli la riga")} className="text-muted-foreground hover:text-rose-600"
                                 onClick={() => setRighe((rs) => rs.filter((x) => x.chiave !== r.chiave))}><X className="h-4 w-4" /></button>
                             )}
+                            {/* Il viaggio: carico, scarico, mezzo o targa, DDT, km. Gli stessi campi del
+                                rapportino trasporti, così il committente legge la tratta e non «Trasporto». */}
+                            {r.viaggio && (
+                              <div className="flex w-full flex-wrap items-center gap-1.5 pb-1 pl-0.5">
+                                {CAMPI_VIAGGIO_RENDICONTO.map((campo) => (
+                                  <Input key={campo.chiave} aria-label={tr(campo.etichetta)} placeholder={tr(campo.etichetta)} disabled={!modificabile}
+                                    className={`h-7 text-xs ${campo.larghezza}`} value={r.viaggio?.[campo.chiave] ?? ""}
+                                    onChange={(e) => cambiaViaggio(r, campo.chiave, e.target.value)} />
+                                ))}
+                              </div>
+                            )}
                           </li>
                         );
                       })}
@@ -434,6 +458,11 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
                         <OfficeSelect value="" label={tr("Aggiungi mezzo")} className="h-8 min-w-[12rem] flex-1 text-muted-foreground"
                           placeholder={tr("+ Aggiungi mezzo…")} onValueChange={(v) => { if (v) aggiungiMezzo(v); }}
                           options={mezzi.map((m) => ({ value: m.id, label: `${m.nome}${m.targa ? ` · ${m.targa}` : ""}` }))} />
+                      )}
+                      {c.valore === "trasporto" && (
+                        <Button type="button" variant="outline" size="sm" className="h-8" onClick={aggiungiViaggio}>
+                          <Truck className="mr-1 h-3.5 w-3.5" />{tr("Aggiungi viaggio")}
+                        </Button>
                       )}
                       {c.valore !== "manodopera" && c.valore !== "mezzo" && (
                         <Button type="button" variant="outline" size="sm" className="h-8" aria-label={`${tr("Aggiungi")} ${tr(c.titolo)}`}
@@ -466,13 +495,15 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
         )}
         {!lettura.isLoading && <DialogFooter className="gap-1.5 sm:justify-between">
           <div className="flex flex-wrap gap-1.5">
+            {/* Annullare un confermato vuol dire prima riportarlo in bozza: il database non lo butta via
+                con un comando solo, e qui non si finge il contrario. */}
             {puoModificare && id && stato === "bozza" && !salSigillato && (
               <Button type="button" variant="outline" disabled={occupato}
                 onClick={() => { if (window.confirm(tr("Annullare questo rendiconto?"))) cambiaStato.mutate("annulla"); }}>{tr("Annulla rendiconto")}</Button>
             )}
             {id && stato !== "annullato" && <PulsantePdfRendiconto rendicontoId={id} className="h-10 px-4 text-sm" />}
             {puoModificare && id && stato === "confermato" && !salSigillato && (
-              <Button type="button" variant="outline" disabled={occupato} onClick={() => cambiaStato.mutate("riapri")}>{tr("Riapri")}</Button>
+              <Button type="button" variant="outline" disabled={occupato} onClick={() => cambiaStato.mutate("riapri")}>{tr("Riporta in bozza")}</Button>
             )}
           </div>
           <div className="flex gap-1.5">
@@ -482,9 +513,11 @@ export function RendicontoGiornalieroEditor({ orderId, rendicontoId, puoModifica
                 <Button type="button" variant="outline" disabled={occupato} onClick={() => salva.mutate()}>
                   {salva.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}{tr("Salva")}
                 </Button>
-                <Button type="button" disabled={occupato || righe.length === 0} onClick={() => conferma.mutate()}>
-                  {conferma.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}{tr("Conferma")}
-                </Button>
+                {stato === "bozza" && (
+                  <Button type="button" disabled={occupato || righe.length === 0} onClick={() => conferma.mutate()}>
+                    {conferma.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}{tr("Conferma")}
+                  </Button>
+                )}
               </>
             )}
           </div>

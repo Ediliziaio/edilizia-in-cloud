@@ -38,6 +38,46 @@ export interface RendicontoGiornaliero {
   rapportini_nuovi: number;
   /** Rapportini dentro un rendiconto confermato che poi sono stati rifiutati o annullati. */
   rapportini_ritirati: number;
+  /** Quante righe per categoria: il riassunto dell'elenco e il filtro «Trasporti», senza una seconda lettura. */
+  n_manodopera: number;
+  n_mezzi: number;
+  n_trasporti: number;
+  n_materiali: number;
+  n_voci: number;
+}
+
+/**
+ * Il viaggio di una riga di trasporto (28/11/2026). Stessi nomi dei campi del rapportino
+ * (`lib/campo/viaggiRapportino.ts`): carico, scarico, mezzo o targa, DDT, km. Tutto testo:
+ * i km si scrivono come si scrivono, e il PDF li stampa così.
+ */
+export interface ViaggioRendiconto { carico?: string; scarico?: string; mezzo?: string; ddt?: string; km?: string }
+
+export const CAMPI_VIAGGIO_RENDICONTO: Array<{ chiave: keyof ViaggioRendiconto; etichetta: string; larghezza: string }> = [
+  { chiave: "carico", etichetta: "Carico", larghezza: "min-w-[8rem] flex-1" },
+  { chiave: "scarico", etichetta: "Scarico", larghezza: "min-w-[8rem] flex-1" },
+  { chiave: "mezzo", etichetta: "Mezzo o targa", larghezza: "w-32" },
+  { chiave: "ddt", etichetta: "DDT", larghezza: "w-24" },
+  { chiave: "km", etichetta: "Km", larghezza: "w-16" },
+];
+
+/** Il viaggio scritto in una riga: «Cava Rossi → Cantiere Po · targa AB123CD · DDT 44 · 42 km». */
+export function viaggioInParole(v: ViaggioRendiconto | null | undefined): string {
+  if (!v) return "";
+  const tratta = [v.carico?.trim(), v.scarico?.trim()].filter(Boolean).join(" → ");
+  const resto = [v.mezzo?.trim(), v.ddt?.trim() ? `DDT ${v.ddt.trim()}` : "", v.km?.trim() ? `${v.km.trim()} km` : ""].filter(Boolean);
+  return [tratta, ...resto].filter(Boolean).join(" · ");
+}
+
+/** Il viaggio da salvare: i campi vuoti non si scrivono, e un viaggio tutto vuoto non è un viaggio. */
+export function viaggioDaSalvare(v: ViaggioRendiconto | null | undefined): ViaggioRendiconto | null {
+  if (!v) return null;
+  const out: ViaggioRendiconto = {};
+  for (const { chiave } of CAMPI_VIAGGIO_RENDICONTO) {
+    const testo = v[chiave]?.trim();
+    if (testo) out[chiave] = testo;
+  }
+  return Object.keys(out).length ? out : null;
 }
 
 export interface RigaRendiconto {
@@ -64,6 +104,8 @@ export interface RigaRendiconto {
   /** Maggiorazione (straordinario): importo = quantità × prezzo × (1 + %/100). */
   maggiorazione_pct: number;
   note: string | null;
+  /** Solo le righe di trasporto: carico, scarico, mezzo o targa, DDT, km (gli stessi campi del rapportino). */
+  viaggio: ViaggioRendiconto | null;
   /** Solo in editor: la voce scelta ha un'unità diversa da quella del generale (non va al database). */
   avviso_unita?: string | null;
 }
@@ -111,8 +153,8 @@ async function chiama<T>(funzione: string, args: object): Promise<T> {
   return data as T;
 }
 
-export const COLONNE_TESTATA = "id, order_id, data, numero, stato, descrizione_lavori, note, rapportino_id, righe, totale, senza_prezzo, sal_id, rapportini, rapportini_nuovi, rapportini_ritirati";
-const COLONNE_RIGHE = "id, categoria, descrizione, unita_misura, quantita, prezzo_unitario, prezzo_a_mano, prezzo_fonte, listino_voce_id, tariffa_id, employee_id, subappaltatore_id, mezzo_id, fase_id, da_rapportino_id, maggiorazione_pct, note, ordine";
+export const COLONNE_TESTATA = "id, order_id, data, numero, stato, descrizione_lavori, note, rapportino_id, righe, totale, senza_prezzo, sal_id, rapportini, rapportini_nuovi, rapportini_ritirati, n_manodopera, n_mezzi, n_trasporti, n_materiali, n_voci";
+const COLONNE_RIGHE = "id, categoria, descrizione, unita_misura, quantita, prezzo_unitario, prezzo_a_mano, prezzo_fonte, listino_voce_id, tariffa_id, employee_id, subappaltatore_id, mezzo_id, fase_id, da_rapportino_id, maggiorazione_pct, note, viaggio, ordine";
 
 const comeNumero = (x: unknown) => (x == null ? 0 : Number(x));
 
@@ -124,7 +166,20 @@ function leggiTestata(r: Record<string, unknown>): RendicontoGiornaliero {
     righe: comeNumero(r.righe), totale: comeNumero(r.totale), senza_prezzo: comeNumero(r.senza_prezzo),
     sal_id: (r.sal_id as string | null) ?? null,
     rapportini: comeNumero(r.rapportini), rapportini_nuovi: comeNumero(r.rapportini_nuovi), rapportini_ritirati: comeNumero(r.rapportini_ritirati),
+    n_manodopera: comeNumero(r.n_manodopera), n_mezzi: comeNumero(r.n_mezzi), n_trasporti: comeNumero(r.n_trasporti),
+    n_materiali: comeNumero(r.n_materiali), n_voci: comeNumero(r.n_voci),
   };
+}
+
+/** «2 persone · 1 mezzo» dai conteggi della vista: cosa c'è dentro, senza leggerne le righe. */
+export function riassuntoTestata(r: RendicontoGiornaliero, tr: (k: string, v?: Record<string, unknown>) => string): string {
+  const parti: Array<[number, string, string]> = [
+    [r.n_manodopera, "1 persona", "{n} persone"], [r.n_mezzi, "1 mezzo", "{n} mezzi"],
+    [r.n_trasporti, "1 trasporto", "{n} trasporti"], [r.n_materiali, "1 materiale", "{n} materiali"],
+    [r.n_voci, "1 voce", "{n} voci"],
+  ];
+  const testo = parti.filter(([n]) => n > 0).map(([n, uno, molti]) => (n === 1 ? tr(uno) : tr(molti, { n }))).join(" · ");
+  return testo || tr("Vuoto");
 }
 
 /** Categorie delle righe dei rendiconti dati (una sola lettura per l'elenco): id rendiconto → categorie. */
@@ -190,6 +245,7 @@ export async function leggiRendiconto(id: string): Promise<DettaglioRendiconto> 
       da_rapportino_id: (x.da_rapportino_id as string | null) ?? null,
       maggiorazione_pct: comeNumero(x.maggiorazione_pct),
       note: (x.note as string | null) ?? null,
+      viaggio: viaggioDaSalvare(x.viaggio as ViaggioRendiconto | null),
     })),
   };
 }
@@ -225,6 +281,7 @@ export function payloadSalva(b: BozzaRendiconto) {
       ...(r.fase_id ? { fase_id: r.fase_id } : {}),
       ...(r.da_rapportino_id ? { da_rapportino_id: r.da_rapportino_id } : {}),
       ...(r.note ? { note: r.note } : {}),
+      ...(viaggioDaSalvare(r.viaggio) ? { viaggio: viaggioDaSalvare(r.viaggio) } : {}),
     })),
   };
 }

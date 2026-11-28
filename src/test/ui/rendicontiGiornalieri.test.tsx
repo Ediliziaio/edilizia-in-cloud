@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { RendicontiGiornalieri } from "@/components/orders/RendicontiGiornalieri";
@@ -42,7 +42,8 @@ vi.mock("@/integrations/supabase/client", () => {
 
 const testata = (o: Record<string, unknown> = {}) => ({
   id: "g1", order_id: "o", data: "2026-11-20", numero: 3, stato: "bozza", descrizione_lavori: "Massetto piano terra",
-  note: null as string | null, rapportino_id: null as string | null, righe: 4, totale: 1250.5, senza_prezzo: 0, sal_id: null as string | null, rapportini: 0, rapportini_nuovi: 0, rapportini_ritirati: 0, ...o,
+  note: null as string | null, rapportino_id: null as string | null, righe: 4, totale: 1250.5, senza_prezzo: 0, sal_id: null as string | null, rapportini: 0, rapportini_nuovi: 0, rapportini_ritirati: 0,
+  n_manodopera: 4, n_mezzi: 0, n_trasporti: 0, n_materiali: 0, n_voci: 0, ...o,
 });
 
 beforeAll(() => {
@@ -75,32 +76,31 @@ it("elenca i rendiconti con totale, stato e avvisi", async () => {
   ];
   draw();
   expect(await screen.findByText(/Massetto piano terra/)).toBeVisible();
-  expect(screen.getByText("n. 4")).toBeVisible();
-  expect(screen.getByText("2 senza prezzo")).toBeVisible();
-  expect(screen.getByText("nel rendiconto del periodo")).toBeVisible();
-  expect(screen.getByText("Confermato")).toBeVisible();
+  const riga = screen.getByText("Intonaco").closest("tr")!;
+  expect(within(riga).getByText("4")).toBeVisible();
+  expect(within(riga).getByText("2 senza prezzo")).toBeVisible();
+  expect(within(riga).getByText("nel periodo")).toBeVisible();
+  expect(within(riga).getByText("Confermato")).toBeVisible();
 });
 
-it("senza descrizione dice cosa contiene, con una sola lettura per tutto l'elenco", async () => {
+it("senza descrizione dice cosa contiene, senza leggere le righe di ogni rendiconto", async () => {
   m.tabelle.v_rendiconti_giornalieri = [
-    testata({ id: "g1", descrizione_lavori: null, righe: 3 }),
-    testata({ id: "g2", numero: 4, descrizione_lavori: "", righe: 0 }),
-  ];
-  m.tabelle.appalto_rendiconto_righe = [
-    { rendiconto_giornaliero_id: "g1", categoria: "manodopera" }, { rendiconto_giornaliero_id: "g1", categoria: "manodopera" },
-    { rendiconto_giornaliero_id: "g1", categoria: "mezzo" },
+    testata({ id: "g1", descrizione_lavori: null, righe: 3, n_manodopera: 2, n_mezzi: 1 }),
+    testata({ id: "g2", numero: 4, descrizione_lavori: "", righe: 0, n_manodopera: 0 }),
   ];
   draw();
-  expect(await screen.findByText("2 persone · 1 mezzo")).toBeVisible();
-  expect(screen.getByText("Vuoto")).toBeVisible();
+  expect((await screen.findAllByText("2 persone · 1 mezzo"))[0]).toBeVisible();
+  expect(screen.getAllByText("Vuoto")[0]).toBeVisible();
   expect(screen.queryByText("Senza descrizione")).not.toBeInTheDocument();
+  // I conteggi stanno nella vista: l'elenco non apre la tabella delle righe.
+  expect(m.tabelleLette.filter((x) => x.startsWith("appalto_rendiconto_righe"))).toEqual([]);
 });
 
 it("senza il permesso sugli importi spiega perché non mostra l'elenco", () => {
   m.importi = false;
   draw();
   expect(screen.getByText(/serve il permesso «Venduto e importi»/)).toBeVisible();
-  expect(screen.queryByText("Nuovo rendiconto del giorno")).not.toBeInTheDocument();
+  expect(screen.queryByText("Rendiconto lavori")).not.toBeInTheDocument();
 });
 
 it("«Crea dai rapportini» prima prova e mostra i conteggi, poi crea", async () => {
@@ -120,7 +120,7 @@ it("«Crea dai rapportini» prima prova e mostra i conteggi, poi crea", async ()
 
 async function nuovoConVoce() {
   draw();
-  fireEvent.click(await screen.findByRole("button", { name: /Nuovo rendiconto del giorno/ }));
+  fireEvent.click(await screen.findByRole("button", { name: /Rendiconto lavori/ }));
   fireEvent.change(await screen.findByLabelText("Giorno"), { target: { value: "2026-11-20" } });
   fireEvent.click(screen.getByRole("button", { name: "Apri" }));
   fireEvent.change(await screen.findByLabelText("Lavori del giorno"), { target: { value: "Posa" } });
@@ -155,7 +155,7 @@ it("«Nuovo rendiconto del giorno» chiede il giorno e dice quanti rapportini ha
   }));
   const { toast } = await import("sonner");
   draw();
-  fireEvent.click(await screen.findByRole("button", { name: /Nuovo rendiconto del giorno/ }));
+  fireEvent.click(await screen.findByRole("button", { name: /Rendiconto lavori/ }));
   fireEvent.change(await screen.findByLabelText("Giorno"), { target: { value: "2026-11-18" } });
   fireEvent.click(screen.getByRole("button", { name: "Apri" }));
   await waitFor(() => expect(m.rpc).toHaveBeenCalledWith("rendiconto_giornaliero_del_giorno", { p_order_id: "o", p_data: "2026-11-18" }));
@@ -166,8 +166,8 @@ it("«Nuovo rendiconto del giorno» chiede il giorno e dice quanti rapportini ha
 it("l'elenco dice da quanti rapportini nasce ogni rendiconto e quanti sono nuovi", async () => {
   m.tabelle.v_rendiconti_giornalieri = [testata({ rapportini: 3, rapportini_nuovi: 1, rapportini_ritirati: 0 })];
   draw();
-  expect(await screen.findByText("da 3 rapportini")).toBeVisible();
-  expect(screen.getByText("1 rapportino nuovo")).toBeVisible();
+  expect(await screen.findByText("da 3 rapp.")).toBeVisible();
+  expect(screen.getByText("1 nuovo")).toBeVisible();
 });
 
 it("in bozza con rapportini nuovi, il pulsante li aggiunge richiamando «del giorno»", async () => {
@@ -179,18 +179,40 @@ it("in bozza con rapportini nuovi, il pulsante li aggiunge richiamando «del gio
   expect(m.rpc.mock.calls.map((c) => c[0])).toContain("rendiconto_giornaliero_salva");
 });
 
-it("confermato con rapportini nuovi: l'avviso chiede di riaprirlo, senza pulsante di aggiunta", async () => {
+it("confermato: si corregge lì, e i rapportini nuovi si aggiungono senza riaprirlo", async () => {
   m.tabelle.v_rendiconti_giornalieri = [testata({ stato: "confermato", rapportini: 1, rapportini_nuovi: 1, rapportini_ritirati: 0 })];
   draw();
   fireEvent.click(await screen.findByText(/Massetto piano terra/));
-  expect(await screen.findByText(/riapri il rendiconto per aggiungerne le voci/)).toBeVisible();
-  expect(screen.queryByRole("button", { name: /Aggiungi le voci dei rapportini nuovi/ })).not.toBeInTheDocument();
+  expect(await screen.findByText(/quello che salvi resta confermato/)).toBeVisible();
+  expect(screen.getByRole("button", { name: /Aggiungi le voci dei rapportini nuovi/ })).toBeVisible();
+  // Confermato non si riconferma: resta il «Salva», e il ritorno in bozza è un comando a parte.
+  expect(screen.getByRole("button", { name: "Salva" })).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Conferma" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Riporta in bozza" })).toBeVisible();
+});
+
+it("«Rendiconto trasporti» parte con un viaggio da compilare", async () => {
+  m.tabelle.v_rendiconti_giornalieri = [testata({ righe: 0, n_manodopera: 0, descrizione_lavori: null })];
+  draw();
+  fireEvent.click(await screen.findByRole("button", { name: /Rendiconto trasporti/ }));
+  fireEvent.change(await screen.findByLabelText("Giorno"), { target: { value: "2026-11-20" } });
+  fireEvent.click(screen.getByRole("button", { name: "Apri" }));
+  expect(await screen.findByLabelText("Carico")).toBeVisible();
+  fireEvent.change(screen.getByLabelText("Carico"), { target: { value: "Cava Rossi" } });
+  fireEvent.change(screen.getByLabelText("Scarico"), { target: { value: "Cantiere Po" } });
+  fireEvent.change(screen.getByLabelText("Km"), { target: { value: "42" } });
+  fireEvent.change(screen.getByLabelText("Prezzo"), { target: { value: "80" } });
+  fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+  await waitFor(() => expect(m.rpc).toHaveBeenCalledWith("rendiconto_giornaliero_salva", expect.anything()));
+  const p = (m.rpc.mock.calls.find((c) => c[0] === "rendiconto_giornaliero_salva")![1] as { p: { righe: Array<Record<string, unknown>> } }).p;
+  expect(p.righe[0]).toMatchObject({ categoria: "trasporto", unita: "viaggio", quantita: 1, prezzo_unitario: 80,
+    viaggio: { carico: "Cava Rossi", scarico: "Cantiere Po", km: "42" } });
 });
 
 it("una persona aggiunta con la voce a giornata: 8 ore diventano 1 giornata, col prezzo e la nota", async () => {
   m.predefinite = { data: "2026-11-20", manodopera: { listino_voce_id: "tar-giorn", unita: "giornata", prezzo: 248, fonte: "committente" } };
   draw();
-  fireEvent.click(await screen.findByRole("button", { name: /Nuovo rendiconto del giorno/ }));
+  fireEvent.click(await screen.findByRole("button", { name: /Rendiconto lavori/ }));
   fireEvent.change(await screen.findByLabelText("Giorno"), { target: { value: "2026-11-20" } });
   fireEvent.click(screen.getByRole("button", { name: "Apri" }));
   await screen.findByLabelText("Lavori del giorno");
@@ -210,7 +232,7 @@ it("una persona aggiunta con la voce a giornata: 8 ore diventano 1 giornata, col
 
 it("l'editor non chiede più tariffa_manodopera_id a orders", async () => {
   draw();
-  fireEvent.click(await screen.findByRole("button", { name: /Nuovo rendiconto del giorno/ }));
+  fireEvent.click(await screen.findByRole("button", { name: /Rendiconto lavori/ }));
   fireEvent.change(await screen.findByLabelText("Giorno"), { target: { value: "2026-11-20" } });
   fireEvent.click(screen.getByRole("button", { name: "Apri" }));
   await screen.findByLabelText("Lavori del giorno");

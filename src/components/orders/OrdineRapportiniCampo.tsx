@@ -22,8 +22,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
-import { format, parseISO } from "date-fns";
-import { dateFnsCampo, intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
+import { TesseraGiorno, fmtSafeDate } from "@/components/orders/TesseraGiorno";
 import {
   ClipboardList, Check, ChevronDown, Image as ImageIcon, PenLine,
   Loader2, X, Clock, Search, Truck,
@@ -62,12 +62,8 @@ interface Props {
   onApriRendiconto?: (rendicontoId: string) => void;
 }
 
-const fmtSafeDate = (value: string | null | undefined, pattern: string) => {
-  if (!value) return "—";
-  const parsed = parseISO(value);
-  if (Number.isNaN(parsed.getTime())) return "—";
-  return format(parsed, pattern, { locale: dateFnsCampo() });
-};
+/* La tessera del giorno e il formato della data stanno in TesseraGiorno: li usa anche l'elenco dei
+   rendiconti al committente, così le due schede della commessa si leggono uguali. */
 
 // ── Badge stato ────────────────────────────────────────────────────────────────
 function StatoBadge({ stato }: { stato: RapportinoStato }) {
@@ -105,17 +101,6 @@ const TESSERA_STATO: Record<RapportinoStato, string> = {
   rifiutato: "bg-red-50 text-red-800 ring-red-200",
   bozza: "bg-slate-100 text-slate-700 ring-slate-200",
 };
-
-/** Il giorno come una tessera di calendario: il colore dice a che punto è il rapportino. */
-function TesseraGiorno({ data, stato }: { data: string | null | undefined; stato: RapportinoStato }) {
-  return (
-    <div className={cn("flex h-14 w-12 shrink-0 flex-col items-center justify-center rounded-lg ring-1", TESSERA_STATO[stato])}>
-      <span className="text-lg font-bold leading-none tabular-nums">{fmtSafeDate(data, "d")}</span>
-      <span className="mt-0.5 text-[10px] font-semibold uppercase leading-none tracking-wide">{fmtSafeDate(data, "MMM")}</span>
-      <span className="mt-0.5 text-[9px] leading-none opacity-70">{fmtSafeDate(data, "yyyy")}</span>
-    </div>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -432,7 +417,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                             else setExpandedId(aperto ? null : r.id);
                           }}
                         >
-                          <TesseraGiorno data={r.data_lavoro} stato={stato} />
+                          <TesseraGiorno data={r.data_lavoro} classe={TESSERA_STATO[stato]} />
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                               <span dir="auto" className="text-sm font-semibold text-slate-900">{autore}</span>
